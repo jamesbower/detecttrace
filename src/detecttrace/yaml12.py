@@ -80,6 +80,7 @@ _FLOAT = re.compile(
     r"(?:[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?"
     r"|[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)\Z"
 )
+_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 class _CoreSchemaLoader(yaml.SafeLoader):
@@ -114,6 +115,11 @@ class _CoreSchemaLoader(yaml.SafeLoader):
                 )
             seen.add(key)
         return super().construct_mapping(node, deep=deep)
+
+    def construct_scalar(self, node: ScalarNode | MappingNode) -> Any:
+        # A "\ud800" escape yields a lone surrogate, which no UTF-8 output can encode.
+        value = super().construct_scalar(node)
+        return _SURROGATE.sub("\ufffd", value) if isinstance(value, str) else value
 
     # The constructors re-check the text because an explicit tag such as `!!int` skips the
     # implicit resolvers, and Python's parsers accept YAML 1.1 forms like 1_000 and infinity.

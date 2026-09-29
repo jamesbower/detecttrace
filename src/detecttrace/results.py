@@ -7,6 +7,7 @@ records with a `version` field instead; the pooled group sits under its own `oth
 
 import json
 import os
+import stat
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -31,6 +32,10 @@ from detecttrace.summary import JoinCoverage, SummaryLine
 SCHEMA_VERSION = 1
 MAX_ARGUMENT_CHARS = 200
 UNKNOWN_VERDICT_CODE = -1
+GENERATED_BY_PREFIX = "detecttrace"
+# generated_by is the second key this module writes, so the head of the file is enough.
+_MARKER_READ_BYTES = 64 * 1024
+_JSON_WHITESPACE = " \t\n\r"
 
 _VERDICT_CODE = {verdict: code for code, verdict in enumerate(VERDICT_ORDER)}
 _CLOSED_AS_NOT_THREAT = (Verdict.FALSE_POSITIVE, Verdict.BENIGN)
@@ -56,7 +61,7 @@ def build_results(
     versions = {version for class_report in report.classes for version in class_report.versions}
     return {
         "schema_version": SCHEMA_VERSION,
-        "generated_by": f"detecttrace {__version__}",
+        "generated_by": f"{GENERATED_BY_PREFIX} {__version__}",
         "source": dict(source),
         "totals": {
             "cases": len(ordered),
@@ -95,6 +100,51 @@ def write_results_json(results: Mapping[str, object], path: Path) -> None:
     except BaseException:
         Path(temp_name).unlink(missing_ok=True)
         raise
+
+
+def is_results_file(path: Path) -> bool:
+    """Whether `path` is a regular file whose top-level `generated_by` names detecttrace.
+
+    Reads at most the first 64 KiB, so a large or hostile file costs little to check.
+    """
+    try:
+        # stat() before open(), so a named pipe never blocks the run.
+        if not stat.S_ISREG(path.stat().st_mode):
+            return False
+        with path.open("rb") as file:
+            head = file.read(_MARKER_READ_BYTES)
+    except OSError:
+        return False
+    generated_by = _read_generated_by(head.decode("utf-8", errors="replace"))
+    return generated_by is not None and generated_by.startswith(GENERATED_BY_PREFIX)
+
+
+def _read_generated_by(text: str) -> str | None:
+    """Scan the top-level keys of a JSON object prefix; json.loads needs the whole file."""
+    decoder = json.JSONDecoder()
+    index = _skip_whitespace(text, 0)
+    if not text.startswith("{", index):
+        return None
+    try:
+        while True:
+            key, index = decoder.raw_decode(text, _skip_whitespace(text, index + 1))
+            index = _skip_whitespace(text, index)
+            if not isinstance(key, str) or not text.startswith(":", index):
+                return None
+            value, index = decoder.raw_decode(text, _skip_whitespace(text, index + 1))
+            if key == "generated_by":
+                return value if isinstance(value, str) else None
+            index = _skip_whitespace(text, index)
+            if not text.startswith(",", index):
+                return None
+    except (ValueError, RecursionError):
+        return None
+
+
+def _skip_whitespace(text: str, index: int) -> int:
+    while index < len(text) and text[index] in _JSON_WHITESPACE:
+        index += 1
+    return index
 
 
 def _to_class_data(report: ClassReport) -> dict[str, object]:

@@ -16,9 +16,9 @@ import typer
 from detecttrace import __version__
 from detecttrace.model import InputFileError
 from detecttrace.pipeline import RunResult, run_check
-from detecttrace.results import write_results_json
+from detecttrace.results import is_results_file, write_results_json
 from detecttrace.runconfig import RunConfig, load_run_config
-from detecttrace.summary import coverage_lines, has_invalid_input
+from detecttrace.summary import coverage_lines, has_invalid_input, to_terminal_text
 
 DEMO_FOLDER = "demo_data"
 DEMO_OUTPUT = Path("detecttrace-demo.json")
@@ -114,6 +114,12 @@ def _run(
     if not target.parent.is_dir():
         _echo_error(f"Output folder not found: {target.parent}. Create it or choose another --out.")
         return 1
+    # Only a file this tool wrote may be replaced, so a mistyped path can't destroy other data.
+    if (target.exists() or target.is_symlink()) and not is_results_file(target):
+        _echo_error(
+            f"{target} exists and wasn't written by detecttrace; delete it or choose another path."
+        )
+        return 1
     run = run_check(config, config_path)
     if run.case_count == 0:
         _echo_error("No case could be scored: no trace matched a verdict. See the summary below.")
@@ -127,7 +133,7 @@ def _run(
     if not is_quiet:
         _echo_classes(run)
         _echo_summary(run, config_path.name, is_err=False)
-        typer.echo(f"Results written to {target}.")
+        typer.echo(f"Results written to {to_terminal_text(str(target), limit=None)}.")
         typer.echo(SELF_REPORTED)
     if is_strict and has_invalid_input(run.issues):
         _echo_error("Some input is invalid and --strict is set. The results were still written.")
@@ -136,23 +142,30 @@ def _run(
 
 
 def _echo_error(message: str) -> None:
-    typer.echo(f"Error: {message}", err=True)
+    # Messages quote paths and YAML text from the input; escaped line by line, since
+    # configuration and checklist errors list one problem per line.
+    lines = [to_terminal_text(line, limit=None) for line in message.split("\n")]
+    typer.echo("Error: " + "\n".join(lines), err=True)
 
 
 def _echo_classes(run: RunResult) -> None:
     for report in run.report.classes:
         count = report.overall.case_count
         versions = [
-            "(no version)" if version is None else version for version in report.shown_versions
+            "(no version)" if version is None else to_terminal_text(version)
+            for version in report.shown_versions
         ]
         if report.other_versions:
             versions.append(f"{len(report.other_versions)} other versions")
         noun = "case" if count == 1 else "cases"
-        typer.echo(f"{report.alert_class}: {count:,} {noun}; versions: {', '.join(versions)}")
+        typer.echo(
+            f"{to_terminal_text(report.alert_class)}: {count:,} {noun}; "
+            f"versions: {', '.join(versions)}"
+        )
 
 
 def _echo_summary(run: RunResult, config_name: str, *, is_err: bool) -> None:
     for line in [*coverage_lines(run.coverage, config_name), *run.summary]:
-        typer.echo(line.message, err=is_err)
+        typer.echo(line.terminal_message, err=is_err)
         for example in line.examples:
-            typer.echo(f"    {example}", err=is_err)
+            typer.echo(f"    {to_terminal_text(example)}", err=is_err)

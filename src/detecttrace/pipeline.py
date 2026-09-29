@@ -1,5 +1,6 @@
 """One full run: read the inputs named by the configuration and build the results object."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,7 +30,7 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
     """Run every stage on the inputs `config` names. Unusable input raises InputFileError.
 
     `config_path` is the file `config` was loaded from: fix hints name it, and the paths
-    recorded in the results are shown relative to its folder, as the user wrote them.
+    recorded in the results are relative to its folder, or just a name when outside it.
     """
     # Checklists are small and read first, so a typo in one fails before a long trace read.
     checklists = {} if config.checklists is None else load_checklists(config.checklists)
@@ -70,9 +71,11 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
 
 
 def _to_source(path: Path, folder: Path) -> str:
-    # Paths were joined onto the folder without normalizing, so this recovers what the user
-    # wrote (`../data` included) and keeps a user's home folder out of shared results.
+    # Results get shared, so a path outside the folder is cut to its name: an absolute or
+    # `../` path could reveal a user name or folder layout. normpath, not resolve(), so a
+    # symlinked folder keeps the name the user wrote.
+    normalized = Path(os.path.normpath(path))
     try:
-        return path.relative_to(folder).as_posix()
+        return normalized.relative_to(os.path.normpath(folder)).as_posix()
     except ValueError:
-        return path.as_posix()
+        return normalized.name

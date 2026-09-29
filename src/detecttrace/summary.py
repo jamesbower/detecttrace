@@ -1,6 +1,7 @@
 """The end-of-run terminal summary: issue severities, grouped issue lines, and join coverage."""
 
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -235,7 +236,7 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
 # NOTE: the metrics stage puts the tool only in the detail, as "no case calls tool 'NAME'".
 _UNKNOWN_TOOL = re.compile(r"tool '(.*)'")
 _MAX_EXAMPLES = 3
-_MAX_EXAMPLE_LENGTH = 60
+TERMINAL_TEXT_LIMIT = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,8 +244,9 @@ class SummaryLine:
     severity: Severity
     kind: IssueKind
     count: int
-    message: str  # the full sentence with count and fix hint
-    examples: tuple[str, ...]  # up to 3 subjects
+    message: str  # the full sentence with count and fix hint, with the raw key
+    terminal_message: str  # the same sentence, with the key made safe for a terminal
+    examples: tuple[str, ...]  # up to 3 subjects, raw
 
 
 @dataclass(slots=True)
@@ -283,16 +285,36 @@ def summarize_issues(
             item[0][1],
         ),
     )
+    terminal_config_name = to_terminal_text(config_name)
     return [
         SummaryLine(
             severity=SEVERITY[kind],
             kind=kind,
             count=group.count,
             message=_render(kind, key, group.count, config_name),
-            examples=tuple(_shorten(subject) for subject in group.examples),
+            terminal_message=_render(
+                kind, to_terminal_text(key), group.count, terminal_config_name
+            ),
+            examples=tuple(group.examples),
         )
         for (kind, key), group in ordered
     ]
+
+
+def to_terminal_text(text: str, limit: int | None = TERMINAL_TEXT_LIMIT) -> str:
+    """Make input-derived text safe to print: escape control and format characters, shorten.
+
+    Unicode category C covers terminal escapes (ESC, OSC 52 clipboard writes), line breaks
+    that could fake output lines, and bidirectional overrides that reorder what is shown.
+    """
+    # Escapes only lengthen the text, so one character past the limit is enough to read.
+    head = text if limit is None else text[: limit + 1]
+    escaped = "".join(
+        _to_escape(char) if unicodedata.category(char).startswith("C") else char for char in head
+    )
+    if limit is None or len(escaped) <= limit:
+        return escaped
+    return escaped[: limit - 1] + "…"
 
 
 def has_invalid_input(issues: Sequence[Issue]) -> bool:
@@ -341,10 +363,13 @@ def _render(kind: IssueKind, key: str, count: int, config_name: str) -> str:
     return f"{count:,} {phrase}. {hint}".format(key=key, config=config_name)
 
 
-def _shorten(subject: str) -> str:
-    if len(subject) <= _MAX_EXAMPLE_LENGTH:
-        return subject
-    return subject[: _MAX_EXAMPLE_LENGTH - 1] + "…"
+def _to_escape(char: str) -> str:
+    code = ord(char)
+    if code < 0x100:
+        return f"\\x{code:02x}"
+    if code < 0x10000:
+        return f"\\u{code:04x}"
+    return f"\\U{code:08x}"
 
 
 def _coverage_line(
@@ -366,8 +391,8 @@ def _coverage_line(
         if matched * 2 < total:
             message = (
                 f"WARNING: {sentence} Less than half matched, so the results may be misleading; "
-                f"check mapping.case_id in {config_name}."
+                f"check mapping.case_id in {to_terminal_text(config_name)}."
             )
         else:
             message = sentence
-    return SummaryLine(Severity.WARNING, kind, matched, message, ())
+    return SummaryLine(Severity.WARNING, kind, matched, message, message, ())

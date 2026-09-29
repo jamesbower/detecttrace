@@ -40,6 +40,10 @@ _HEX = re.compile(r"[0-9a-f]*")
 _BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
 _INT_TEXT = re.compile(r"-?[0-9]+")
 _UINT64_LIMIT = 2**64
+# JSON escapes of a surrogate, plus raw surrogate bytes that json.loads accepts in bytes
+# input. A valid pair decodes to one character, so any surrogate left over is a lone one.
+_MAY_HOLD_SURROGATE = re.compile(rb"\\u[dD][89a-fA-F]|\xed[\xa0-\xbf]")
+_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 class _CorruptZstdError(Exception):
@@ -237,9 +241,10 @@ def _read_document_bytes(file_path: Path) -> bytes | None:
 def _parse_document_bytes(text: bytes) -> Json | None:
     try:
         # json.loads on bytes detects UTF-8 with or without a BOM.
-        return json.loads(text)
+        document = json.loads(text)
     except (ValueError, RecursionError):
         return None
+    return _replace_surrogates(document) if _MAY_HOLD_SURROGATE.search(text) else document
 
 
 def _read_json_lines(
@@ -382,9 +387,40 @@ def _is_console_exporter_output(file_path: Path) -> bool:
 
 def _parse_json_line(line: bytes) -> Json | None:
     try:
-        return json.loads(line.decode("utf-8"))
+        document = json.loads(line.decode("utf-8"))
     except (ValueError, RecursionError):
         return None
+    return _replace_surrogates(document) if _MAY_HOLD_SURROGATE.search(line) else document
+
+
+def _replace_surrogates(document: Json) -> Json:
+    """Replace lone surrogates in every string and key with U+FFFD, in place where possible.
+
+    A lone surrogate can't be encoded as UTF-8, so one left in a case ID or argument would
+    make the results write fail. The walk uses a stack, since a document can nest as deep
+    as the JSON parser allows.
+    """
+    if isinstance(document, str):
+        return _SURROGATE.sub("\ufffd", document)
+    stack = [document]
+    while stack:
+        container = stack.pop()
+        if isinstance(container, list):
+            for index, value in enumerate(container):
+                if isinstance(value, str):
+                    container[index] = _SURROGATE.sub("\ufffd", value)
+                elif isinstance(value, list | dict):
+                    stack.append(value)
+        elif isinstance(container, dict):
+            items = list(container.items())
+            container.clear()
+            for key, value in items:
+                if isinstance(value, str):
+                    value = _SURROGATE.sub("\ufffd", value)
+                elif isinstance(value, list | dict):
+                    stack.append(value)
+                container[_SURROGATE.sub("\ufffd", key)] = value
+    return document
 
 
 def _parse_document(

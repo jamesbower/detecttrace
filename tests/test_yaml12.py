@@ -53,3 +53,11 @@ def test_size_error_uses_the_description(tmp_path: Path) -> None:
     path.write_text("a: " + "x" * ONE_MEBIBYTE, encoding="utf-8")
     with pytest.raises(Yaml12Error, match=r"larger than 1 MiB; test files are small"):
         load_yaml12(path, max_bytes=ONE_MEBIBYTE, what="test files are small")
+
+
+def test_lone_surrogate_escape_in_a_value_becomes_a_replacement_character(tmp_path: Path) -> None:
+    assert _load(tmp_path, 'a: "x\\ud800"\n') == {"a": "x�"}
+
+
+def test_lone_surrogate_escape_in_a_key_becomes_a_replacement_character(tmp_path: Path) -> None:
+    assert _load(tmp_path, '"\\udfff": 1\n') == {"�": 1}

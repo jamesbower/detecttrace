@@ -331,3 +331,137 @@ def test_python_m_detecttrace_prints_the_version() -> None:
     )
 
     assert completed.stdout == f"detecttrace {__version__}\n"
+
+
+# Untrusted text on the terminal
+
+OSC_52 = "\x1b]52;c;ZXZpbA==\x07"
+
+
+def _check_with_label(tmp_path: Path, label: str) -> Result:
+    verdicts = RUN_VERDICTS.replace("DT-1,impossible_travel,TP", f"DT-1,impossible_travel,{label}")
+    return _check(write_run_folder(tmp_path, verdicts=verdicts))
+
+
+def test_a_label_with_an_erase_sequence_is_printed_escaped(tmp_path: Path) -> None:
+    result = _check_with_label(tmp_path, "X\x1b[2K")
+
+    assert "the label 'X\\x1b[2K'" in result.stdout
+
+
+def test_a_label_with_an_osc_52_sequence_is_printed_escaped(tmp_path: Path) -> None:
+    result = _check_with_label(tmp_path, OSC_52)
+
+    assert "the label '\\x1b]52;c;ZXZpbA==\\x07'" in result.stdout
+
+
+def test_no_raw_escape_character_reaches_stdout(tmp_path: Path) -> None:
+    result = _check_with_label(tmp_path, OSC_52)
+
+    assert "\x1b" not in result.stdout
+
+
+def test_a_1_mb_agent_label_is_shortened_on_the_terminal(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    traces = tmp_path / "traces" / "batch.jsonl"
+    text = traces.read_text(encoding="utf-8")
+    traces.write_text(text.replace('"Benign"', '"' + "x" * 1_000_000 + '"'), encoding="utf-8")
+
+    result = _check(config_path)
+
+    assert len(result.stdout) < 5_000
+
+
+def test_a_class_name_with_an_escape_sequence_is_printed_escaped(tmp_path: Path) -> None:
+    verdicts = RUN_VERDICTS.replace("impossible_travel", "travel\x1b[2K")
+
+    result = _check(write_run_folder(tmp_path, verdicts=verdicts))
+
+    assert "travel\\x1b[2K: 3 cases" in result.stdout
+
+
+def test_an_output_path_with_an_escape_sequence_is_printed_escaped(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+
+    result = _check(config_path, "--out", str(tmp_path / "gone\x1b[2K" / "out.json"))
+
+    assert "gone\\x1b[2K" in result.stderr
+
+
+# Replacing an existing output file
+
+NOT_OURS = "{} exists and wasn't written by detecttrace; delete it or choose another path."
+
+
+def test_out_naming_a_file_from_another_tool_exits_1(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+
+    result = _check(config_path, "--out", str(tmp_path / "mine.json"))
+
+    assert result.exit_code == 1
+
+
+def test_out_naming_a_file_from_another_tool_says_why(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+
+    result = _check(config_path, "--out", str(tmp_path / "mine.json"))
+
+    assert NOT_OURS.format(tmp_path / "mine.json") in result.stderr
+
+
+def test_out_naming_a_file_from_another_tool_leaves_it_alone(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+
+    _check(config_path, "--out", str(tmp_path / "mine.json"))
+
+    assert (tmp_path / "mine.json").read_text(encoding="utf-8") == "my data"
+
+
+def test_the_configured_output_is_protected_too(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").write_text("{}", encoding="utf-8")
+
+    result = _check(config_path)
+
+    assert NOT_OURS.format(tmp_path / "dashboard.json") in result.stderr
+
+
+def test_an_existing_folder_at_the_output_path_is_protected(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").mkdir()
+
+    result = _check(config_path)
+
+    assert result.exit_code == 1
+
+
+def test_the_output_is_checked_before_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pipeline, "compute_metrics", _raise_runtime_error)
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").write_text("{}", encoding="utf-8")
+
+    result = _check(config_path)
+
+    assert result.exit_code == 1
+
+
+def test_an_earlier_results_file_is_replaced(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    _check(config_path)
+
+    result = _check(config_path)
+
+    assert result.exit_code == 0
+
+
+def test_demo_protects_a_file_from_another_tool(tmp_path: Path) -> None:
+    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+
+    result = _invoke("demo", "--out", str(tmp_path / "mine.json"))
+
+    assert result.exit_code == 1

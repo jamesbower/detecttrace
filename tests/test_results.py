@@ -1,5 +1,7 @@
 import json
 import math
+import os
+import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -15,7 +17,7 @@ from detecttrace.join import join_cases
 from detecttrace.metrics import compute_metrics
 from detecttrace.model import Case, IssueKind, ToolCall, Verdict
 from detecttrace.otlp import load_spans
-from detecttrace.results import build_results, write_results_json
+from detecttrace.results import build_results, is_results_file, write_results_json
 from detecttrace.summary import JoinCoverage, Severity, SummaryLine
 from detecttrace.verdicts import read_verdicts
 
@@ -40,6 +42,7 @@ NOTE = SummaryLine(
     kind=IssueKind.DUPLICATE_VERDICT,
     count=2,
     message="2 duplicate verdict rows. Keep one row per case.",
+    terminal_message="2 duplicate verdict rows. Keep one row per case.",
     examples=("DT-1", "DT-2"),
 )
 
@@ -478,3 +481,96 @@ def test_case_rows_stay_within_60_bytes_per_case():
     size = len(json.dumps(results["case_rows"], separators=(",", ":"), ensure_ascii=False))
 
     assert size / 5_000 <= 60
+
+
+# Recognizing a results file before replacing it
+
+
+def test_a_written_results_file_is_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    write_results_json(results_for(MIXED), path)
+
+    assert is_results_file(path) is True
+
+
+def test_a_results_file_larger_than_the_read_limit_is_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    results = results_for(MIXED)
+    results["case_detail"] = [{"case_id": "x" * 200_000, "calls": []}]
+    write_results_json(results, path)
+
+    assert is_results_file(path) is True
+
+
+def test_generated_by_after_other_keys_is_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text('{ "a" : [1, {"b": 2}] ,\n "generated_by": "detecttrace 9"}', encoding="utf-8")
+
+    assert is_results_file(path) is True
+
+
+def test_a_file_from_another_tool_is_not_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text('{"generated_by": "othertool 1.0"}', encoding="utf-8")
+
+    assert is_results_file(path) is False
+
+
+def test_generated_by_in_a_nested_object_is_not_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text('{"x": {"generated_by": "detecttrace 1"}}', encoding="utf-8")
+
+    assert is_results_file(path) is False
+
+
+def test_generated_by_that_is_not_a_string_is_not_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text('{"generated_by": ["detecttrace"]}', encoding="utf-8")
+
+    assert is_results_file(path) is False
+
+
+def test_generated_by_beyond_the_read_limit_is_not_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text(
+        json.dumps({"a": "x" * 100_000, "generated_by": "detecttrace 1"}), encoding="utf-8"
+    )
+
+    assert is_results_file(path) is False
+
+
+def test_a_text_file_is_not_recognized(tmp_path: Path):
+    path = tmp_path / "notes.txt"
+    path.write_text("my notes about detecttrace", encoding="utf-8")
+
+    assert is_results_file(path) is False
+
+
+def test_a_binary_file_is_not_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_bytes(b"\xff\xfe\x00{")
+
+    assert is_results_file(path) is False
+
+
+def test_deeply_nested_json_is_not_recognized(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text('{"a": ' + "[" * 50_000, encoding="utf-8")
+
+    assert is_results_file(path) is False
+
+
+def test_a_folder_is_not_recognized(tmp_path: Path):
+    assert is_results_file(tmp_path) is False
+
+
+def test_a_missing_file_is_not_recognized(tmp_path: Path):
+    assert is_results_file(tmp_path / "missing.json") is False
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX named pipe")
+def test_a_named_pipe_is_not_recognized_and_not_opened(tmp_path: Path):
+    path = tmp_path / "pipe.json"
+    os.mkfifo(path)
+
+    assert is_results_file(path) is False

@@ -1170,3 +1170,98 @@ def test_folder_with_only_hidden_files_raises(tmp_path: Path) -> None:
 
     with pytest.raises(TraceFileError, match=r"No trace files found"):
         load_spans(tmp_path)
+
+
+# Lone surrogates: JSON can escape one, UTF-8 output cannot encode it.
+
+
+def _load_surrogate_document(tmp_path: Path, span: dict[str, object]) -> list[Span]:
+    # json.dumps writes the lone surrogate as the escape "\ud800", as a hostile exporter could.
+    path = write_jsonl(tmp_path / "traces.jsonl", [otlp_document([span])])
+    spans, _ = load_spans(path)
+    return spans
+
+
+def test_lone_surrogate_in_a_string_attribute_becomes_a_replacement_character(
+    tmp_path: Path,
+) -> None:
+    spans = _load_surrogate_document(tmp_path, otlp_span(S1, attributes={"k": "a\ud800b"}))
+    assert spans[0].attributes["k"] == "a�b"
+
+
+def test_lone_surrogate_in_an_attribute_key_becomes_a_replacement_character(
+    tmp_path: Path,
+) -> None:
+    spans = _load_surrogate_document(tmp_path, otlp_span(S1, attributes={"k\udfff": "v"}))
+    assert spans[0].attributes == {"k�": "v"}
+
+
+def test_lone_surrogate_in_a_span_name_becomes_a_replacement_character(tmp_path: Path) -> None:
+    spans = _load_surrogate_document(tmp_path, otlp_span(S1, name="tool \ud800"))
+    assert spans[0].name == "tool �"
+
+
+def test_lone_surrogate_in_an_array_value_becomes_a_replacement_character(
+    tmp_path: Path,
+) -> None:
+    spans = _load_surrogate_document(tmp_path, otlp_span(S1, attributes={"k": ["\ud800"]}))
+    assert spans[0].attributes["k"] == ["�"]
+
+
+def test_lone_surrogate_in_a_kvlist_value_becomes_a_replacement_character(
+    tmp_path: Path,
+) -> None:
+    span = otlp_span(S1)
+    span["attributes"] = [
+        {
+            "key": "k",
+            "value": {
+                "kvlistValue": {"values": [{"key": "\ud800", "value": {"stringValue": "\udc00"}}]}
+            },
+        }
+    ]
+    spans = _load_surrogate_document(tmp_path, span)
+    assert spans[0].attributes["k"] == {"�": "�"}
+
+
+def test_a_surrogate_pair_escape_still_decodes_to_one_character(tmp_path: Path) -> None:
+    path = tmp_path / "traces.jsonl"
+    line = _line(S1).replace('"name": "span"', '"name": "\\ud83d\\ude00"')
+    path.write_text(line, encoding="utf-8")
+
+    spans, _ = load_spans(path)
+
+    assert spans[0].name == "\U0001f600"
+
+
+def test_lone_surrogate_in_a_one_document_file_becomes_a_replacement_character(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "traces.json"
+    document = otlp_document([otlp_span(S1, name="\ud800")])
+    path.write_text(json.dumps(document, indent=2), encoding="utf-8")
+
+    spans, _ = load_spans(path)
+
+    assert spans[0].name == "�"
+
+
+def test_lone_surrogate_in_a_span_id_is_reported_as_an_invalid_span(tmp_path: Path) -> None:
+    path = write_jsonl(tmp_path / "traces.jsonl", [otlp_document([otlp_span("\ud800" * 16)])])
+
+    _, issues = load_spans(path)
+
+    assert [issue.kind for issue in issues] == [IssueKind.INVALID_SPAN]
+
+
+def test_surrogate_bytes_in_a_one_document_file_become_a_replacement_character(
+    tmp_path: Path,
+) -> None:
+    # json.loads reads bytes with "surrogatepass", so these three bytes decode to U+D800.
+    path = tmp_path / "traces.json"
+    text = json.dumps(otlp_document([otlp_span(S1, name="NAME")]), indent=2)
+    path.write_bytes(text.encode().replace(b"NAME", b"\xed\xa0\x80"))
+
+    spans, _ = load_spans(path)
+
+    assert spans[0].name == "�"

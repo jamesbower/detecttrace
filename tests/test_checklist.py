@@ -593,3 +593,10 @@ def test_parse_path_rejects_dollar_followed_by_more_parts(text: str, hint: str) 
 
 def test_safe_loader_still_reads_yaml_11_booleans() -> None:
     assert yaml.safe_load("no") is False
+
+
+def test_lone_surrogate_in_an_item_id_loads_as_a_replacement_character(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path, "c.yaml", 'alert_class: phishing\nitems:\n  - {id: "a\\ud800", tool: t}\n'
+    )
+    assert load_checklists(path)["phishing"].items[0].id == "a�"

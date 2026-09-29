@@ -11,6 +11,7 @@ from detecttrace.summary import (
     coverage_lines,
     has_invalid_input,
     summarize_issues,
+    to_terminal_text,
 )
 
 INVALID_INPUT_KINDS = [
@@ -200,14 +201,81 @@ def test_examples_skip_repeated_subjects() -> None:
     assert only_line(issues).examples == ("a.jsonl", "b.jsonl")
 
 
-def test_long_example_subjects_are_shortened_to_60_characters() -> None:
-    issue = Issue(IssueKind.EMPTY_FILE, "traces/" + "x" * 100 + ".jsonl")
-    assert len(only_line([issue]).examples[0]) == 60
+def test_long_example_subjects_are_kept_whole_for_the_results() -> None:
+    subject = "traces/" + "x" * 100 + ".jsonl"
+    assert only_line([Issue(IssueKind.EMPTY_FILE, subject)]).examples == (subject,)
 
 
 def test_short_example_subjects_are_kept_whole() -> None:
     issue = Issue(IssueKind.EMPTY_FILE, "traces/a.jsonl")
     assert only_line([issue]).examples == ("traces/a.jsonl",)
+
+
+# Terminal text
+
+
+def test_terminal_message_escapes_control_characters_in_the_key() -> None:
+    line = only_line(unmapped("X\x1b[2K", 1))
+    assert "'X\\x1b[2K'" in line.terminal_message
+
+
+def test_message_keeps_the_raw_key_for_the_results() -> None:
+    line = only_line(unmapped("X\x1b[2K", 1))
+    assert "'X\x1b[2K'" in line.message
+
+
+def test_terminal_message_shortens_a_long_key() -> None:
+    line = only_line(unmapped("x" * 1_000_000, 1))
+    assert len(line.terminal_message) < 200
+
+
+def test_terminal_message_escapes_the_config_name() -> None:
+    [line] = summarize_issues(unmapped("Escalated", 1), config_name="a\x1b.yaml")
+    assert line.terminal_message.endswith("Add it to label_map in a\\x1b.yaml.")
+
+
+def test_terminal_text_keeps_printable_text() -> None:
+    assert to_terminal_text("Café 'x' {y}") == "Café 'x' {y}"
+
+
+def test_terminal_text_escapes_an_escape_character() -> None:
+    assert to_terminal_text("a\x1b[2Kb") == "a\\x1b[2Kb"
+
+
+def test_terminal_text_escapes_an_osc_52_sequence() -> None:
+    assert to_terminal_text("\x1b]52;c;ZXZpbA==\x07") == "\\x1b]52;c;ZXZpbA==\\x07"
+
+
+def test_terminal_text_escapes_line_breaks() -> None:
+    assert to_terminal_text("a\r\nb") == "a\\x0d\\x0ab"
+
+
+def test_terminal_text_escapes_a_bidi_override() -> None:
+    assert to_terminal_text("a\u202eb") == "a\\u202eb"
+
+
+def test_terminal_text_escapes_an_astral_format_character() -> None:
+    assert to_terminal_text("\U000e0001") == "\\U000e0001"
+
+
+def test_terminal_text_shortens_to_60_characters() -> None:
+    assert len(to_terminal_text("x" * 1_000_000)) == 60
+
+
+def test_terminal_text_marks_a_shortened_text_with_an_ellipsis() -> None:
+    assert to_terminal_text("x" * 100).endswith("x…")
+
+
+def test_terminal_text_counts_escapes_toward_the_limit() -> None:
+    assert len(to_terminal_text("\x1b" * 30)) == 60
+
+
+def test_terminal_text_keeps_text_at_the_limit_whole() -> None:
+    assert to_terminal_text("x" * 60) == "x" * 60
+
+
+def test_terminal_text_without_a_limit_keeps_everything() -> None:
+    assert to_terminal_text("x" * 100, limit=None) == "x" * 100
 
 
 # Ordering

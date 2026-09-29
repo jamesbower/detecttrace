@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from builders import RUN_CONFIG, RUN_VERDICTS, write_run_folder
+from builders import RUN_CONFIG, RUN_VERDICTS, run_trace, write_jsonl, write_run_folder
 
 from detecttrace.model import IssueKind
 from detecttrace.pipeline import RunResult, run_check
+from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
 from detecttrace.summary import JoinCoverage
 
@@ -64,7 +65,9 @@ def test_source_paths_are_relative_to_the_configuration_folder(tmp_path: Path) -
     }
 
 
-def test_source_keeps_a_path_outside_the_configuration_folder_as_given(tmp_path: Path) -> None:
+def test_source_records_only_the_name_of_a_path_outside_the_configuration_folder(
+    tmp_path: Path,
+) -> None:
     write_run_folder(tmp_path / "data")
     config = RUN_CONFIG.replace("{path: traces}", "{path: ../data/traces}")
     config_path = write_run_folder(tmp_path / "project", config=config)
@@ -72,7 +75,55 @@ def test_source_keeps_a_path_outside_the_configuration_folder_as_given(tmp_path:
     result = _run(config_path)
 
     assert result.results["source"] == {
-        "traces": "../data/traces",
+        "traces": "traces",
+        "verdicts": "verdicts.csv",
+        "checklists": "checklists",
+    }
+
+
+def test_source_records_only_the_name_of_an_absolute_path_outside_the_folder(
+    tmp_path: Path,
+) -> None:
+    write_run_folder(tmp_path / "data")
+    config = RUN_CONFIG.replace(
+        "{path: verdicts.csv}", f"{{path: '{tmp_path / 'data' / 'verdicts.csv'}'}}"
+    )
+    config_path = write_run_folder(tmp_path / "project", config=config)
+
+    result = _run(config_path)
+
+    assert result.results["source"] == {
+        "traces": "traces",
+        "verdicts": "verdicts.csv",
+        "checklists": "checklists",
+    }
+
+
+def test_source_records_an_absolute_path_inside_the_folder_relative_to_it(
+    tmp_path: Path,
+) -> None:
+    config = RUN_CONFIG.replace("{path: traces}", f"{{path: '{tmp_path / 'traces'}'}}")
+    config_path = write_run_folder(tmp_path, config=config)
+
+    result = _run(config_path)
+
+    assert result.results["source"] == {
+        "traces": "traces",
+        "verdicts": "verdicts.csv",
+        "checklists": "checklists",
+    }
+
+
+def test_source_records_a_path_that_leaves_and_reenters_the_folder_relative_to_it(
+    tmp_path: Path,
+) -> None:
+    config = RUN_CONFIG.replace("{path: traces}", "{path: ../project/traces}")
+    config_path = write_run_folder(tmp_path / "project", config=config)
+
+    result = _run(config_path)
+
+    assert result.results["source"] == {
+        "traces": "traces",
         "verdicts": "verdicts.csv",
         "checklists": "checklists",
     }
@@ -114,3 +165,31 @@ def test_summary_lines_name_the_configuration_file(tmp_path: Path) -> None:
         "1 verdict has no matching trace. "
         "Check mapping.case_id in prod.yaml and that the traces cover the same cases."
     )
+
+
+def _write_surrogate_run(tmp_path: Path) -> Path:
+    config_path = write_run_folder(
+        tmp_path, verdicts="case_id,alert_class,verdict\nDT-\ufffd,impossible_travel,TP\n"
+    )
+    document = run_trace(1, "DT-\ud800")
+    tool = document["resourceSpans"][0]["scopeSpans"][0]["spans"][1]
+    tool["attributes"].append(
+        {"key": "gen_ai.tool.call.arguments", "value": {"stringValue": '{"user":"\ud800"}'}}
+    )
+    # json.dumps escapes the lone surrogate as "\ud800", as a hostile exporter could.
+    write_jsonl(tmp_path / "traces" / "batch.jsonl", [document])
+    return config_path
+
+
+def test_a_lone_surrogate_in_a_case_id_still_joins_its_verdict(tmp_path: Path) -> None:
+    result = _run(_write_surrogate_run(tmp_path))
+
+    assert result.case_count == 1
+
+
+def test_results_with_lone_surrogates_in_the_input_can_be_written(tmp_path: Path) -> None:
+    result = _run(_write_surrogate_run(tmp_path))
+
+    write_results_json(result.results, tmp_path / "out.json")
+
+    assert "DT-\ufffd" in (tmp_path / "out.json").read_text(encoding="utf-8")
