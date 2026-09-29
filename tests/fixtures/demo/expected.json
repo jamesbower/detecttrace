@@ -1,0 +1,6961 @@
+{
+ "schema_version": 1,
+ "generated_by": "detecttrace",
+ "source": {
+  "traces": "traces",
+  "verdicts": "verdicts.csv",
+  "checklists": "checklists"
+ },
+ "totals": {
+  "cases": 201,
+  "classes": 2,
+  "period": {
+   "first_week": "2026-W32",
+   "last_week": "2026-W37"
+  },
+  "versions": [
+   "v1",
+   "v2"
+  ],
+  "coverage": {
+   "verdicts_matched": 201,
+   "verdicts_total": 201,
+   "traces_matched": 201,
+   "traces_total": 201,
+   "verdicts_low": false,
+   "traces_low": false
+  }
+ },
+ "classes": [
+  {
+   "alert_class": "impossible_travel",
+   "checklist_item_ids": [
+    "signin_history",
+    "signin_query",
+    "mfa_check",
+    "ip_reputation",
+    "location_history"
+   ],
+   "versions": [
+    "v1",
+    "v2"
+   ],
+   "shown_versions": [
+    "v1",
+    "v2"
+   ],
+   "other_versions": [],
+   "overall": {
+    "case_count": 106,
+    "agreement": {
+     "agreed": 95,
+     "n": 106,
+     "rate": 0.8962264150943396,
+     "interval": {
+      "low": 0.8236781566158943,
+      "high": 0.9410604120617315
+     }
+    },
+    "kappa": {
+     "value": 0.8255535607420706,
+     "interval": {
+      "low": 0.727971977851441,
+      "high": 0.9231351436327003
+     },
+     "method": "analytic",
+     "note": null,
+     "dropped_resamples": 0
+    },
+    "confusion": [
+     [
+      11,
+      0,
+      3
+     ],
+     [
+      1,
+      37,
+      3
+     ],
+     [
+      0,
+      4,
+      47
+     ]
+    ],
+    "dangerous_false_closes": [
+     "DT-IT-0049",
+     "DT-IT-0050",
+     "DT-IT-0073"
+    ],
+    "true_positives_without_agent_verdict": [],
+    "completeness": {
+     "mean": 0.8132075471698114,
+     "interval": {
+      "low": 0.7811930513331788,
+      "high": 0.8452220430064439
+     },
+     "n": 106,
+     "method": "t"
+    }
+   },
+   "skipped_overall": [
+    {
+     "item_id": "signin_history",
+     "skipped": 26,
+     "n": 106,
+     "rate": 0.24528301886792453
+    },
+    {
+     "item_id": "signin_query",
+     "skipped": 10,
+     "n": 106,
+     "rate": 0.09433962264150944
+    },
+    {
+     "item_id": "mfa_check",
+     "skipped": 51,
+     "n": 106,
+     "rate": 0.4811320754716981
+    },
+    {
+     "item_id": "ip_reputation",
+     "skipped": 3,
+     "n": 106,
+     "rate": 0.02830188679245283
+    },
+    {
+     "item_id": "location_history",
+     "skipped": 9,
+     "n": 106,
+     "rate": 0.08490566037735849
+    }
+   ],
+   "by_version": [
+    {
+     "version": "v1",
+     "first_week": "2026-W32",
+     "metrics": {
+      "case_count": 36,
+      "agreement": {
+       "agreed": 32,
+       "n": 36,
+       "rate": 0.8888888888888888,
+       "interval": {
+        "low": 0.7468519140963514,
+        "high": 0.9559335969968434
+       }
+      },
+      "kappa": {
+       "value": 0.8226600985221675,
+       "interval": {
+        "low": 0.6417237122657389,
+        "high": 0.9571428571428571
+       },
+       "method": "bootstrap",
+       "note": null,
+       "dropped_resamples": 0
+      },
+      "confusion": [
+       [
+        6,
+        0,
+        0
+       ],
+       [
+        0,
+        13,
+        1
+       ],
+       [
+        0,
+        3,
+        13
+       ]
+      ],
+      "dangerous_false_closes": [],
+      "true_positives_without_agent_verdict": [],
+      "completeness": {
+       "mean": 0.9277777777777777,
+       "interval": {
+        "low": 0.8876528318604863,
+        "high": 0.9679027236950691
+       },
+       "n": 36,
+       "method": "t"
+      }
+     },
+     "skipped": [
+      {
+       "item_id": "signin_history",
+       "skipped": 1,
+       "n": 36,
+       "rate": 0.027777777777777776
+      },
+      {
+       "item_id": "signin_query",
+       "skipped": 6,
+       "n": 36,
+       "rate": 0.16666666666666666
+      },
+      {
+       "item_id": "mfa_check",
+       "skipped": 0,
+       "n": 36,
+       "rate": 0.0
+      },
+      {
+       "item_id": "ip_reputation",
+       "skipped": 1,
+       "n": 36,
+       "rate": 0.027777777777777776
+      },
+      {
+       "item_id": "location_history",
+       "skipped": 5,
+       "n": 36,
+       "rate": 0.1388888888888889
+      }
+     ]
+    },
+    {
+     "version": "v2",
+     "first_week": "2026-W34",
+     "metrics": {
+      "case_count": 70,
+      "agreement": {
+       "agreed": 63,
+       "n": 70,
+       "rate": 0.9,
+       "interval": {
+        "low": 0.807670851514326,
+        "high": 0.9507106985574605
+       }
+      },
+      "kappa": {
+       "value": 0.8257467994310099,
+       "interval": {
+        "low": 0.6904615840350179,
+        "high": 0.9448836526264198
+       },
+       "method": "bootstrap",
+       "note": null,
+       "dropped_resamples": 0
+      },
+      "confusion": [
+       [
+        5,
+        0,
+        3
+       ],
+       [
+        1,
+        24,
+        2
+       ],
+       [
+        0,
+        1,
+        34
+       ]
+      ],
+      "dangerous_false_closes": [
+       "DT-IT-0049",
+       "DT-IT-0050",
+       "DT-IT-0073"
+      ],
+      "true_positives_without_agent_verdict": [],
+      "completeness": {
+       "mean": 0.7542857142857143,
+       "interval": {
+        "low": 0.7169282382073643,
+        "high": 0.7916431903640644
+       },
+       "n": 70,
+       "method": "t"
+      }
+     },
+     "skipped": [
+      {
+       "item_id": "signin_history",
+       "skipped": 25,
+       "n": 70,
+       "rate": 0.35714285714285715
+      },
+      {
+       "item_id": "signin_query",
+       "skipped": 4,
+       "n": 70,
+       "rate": 0.05714285714285714
+      },
+      {
+       "item_id": "mfa_check",
+       "skipped": 51,
+       "n": 70,
+       "rate": 0.7285714285714285
+      },
+      {
+       "item_id": "ip_reputation",
+       "skipped": 2,
+       "n": 70,
+       "rate": 0.02857142857142857
+      },
+      {
+       "item_id": "location_history",
+       "skipped": 4,
+       "n": 70,
+       "rate": 0.05714285714285714
+      }
+     ]
+    }
+   ],
+   "other": null,
+   "trend": [
+    {
+     "week": "2026-W32",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.9411764705882353,
+     "completeness_n": 17,
+     "agreement": 0.8823529411764706,
+     "agreement_n": 17
+    },
+    {
+     "week": "2026-W32",
+     "scope": "version",
+     "version": "v1",
+     "completeness": 0.9411764705882353,
+     "completeness_n": 17,
+     "agreement": 0.8823529411764706,
+     "agreement_n": 17
+    },
+    {
+     "week": "2026-W33",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.9157894736842105,
+     "completeness_n": 19,
+     "agreement": 0.8947368421052632,
+     "agreement_n": 19
+    },
+    {
+     "week": "2026-W33",
+     "scope": "version",
+     "version": "v1",
+     "completeness": 0.9157894736842105,
+     "completeness_n": 19,
+     "agreement": 0.8947368421052632,
+     "agreement_n": 19
+    },
+    {
+     "week": "2026-W34",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.7444444444444445,
+     "completeness_n": 18,
+     "agreement": 0.8888888888888888,
+     "agreement_n": 18
+    },
+    {
+     "week": "2026-W34",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.7444444444444445,
+     "completeness_n": 18,
+     "agreement": 0.8888888888888888,
+     "agreement_n": 18
+    },
+    {
+     "week": "2026-W35",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.7444444444444445,
+     "completeness_n": 18,
+     "agreement": 1.0,
+     "agreement_n": 18
+    },
+    {
+     "week": "2026-W35",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.7444444444444445,
+     "completeness_n": 18,
+     "agreement": 1.0,
+     "agreement_n": 18
+    },
+    {
+     "week": "2026-W36",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.79,
+     "completeness_n": 20,
+     "agreement": 0.8,
+     "agreement_n": 20
+    },
+    {
+     "week": "2026-W36",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.79,
+     "completeness_n": 20,
+     "agreement": 0.8,
+     "agreement_n": 20
+    },
+    {
+     "week": "2026-W37",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.7285714285714286,
+     "completeness_n": 14,
+     "agreement": 0.9285714285714286,
+     "agreement_n": 14
+    },
+    {
+     "week": "2026-W37",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.7285714285714286,
+     "completeness_n": 14,
+     "agreement": 0.9285714285714286,
+     "agreement_n": 14
+    }
+   ]
+  },
+  {
+   "alert_class": "oauth_consent",
+   "checklist_item_ids": [
+    "grant_window",
+    "app_permissions",
+    "audit_query",
+    "consent_history"
+   ],
+   "versions": [
+    "v1",
+    "v2"
+   ],
+   "shown_versions": [
+    "v1",
+    "v2"
+   ],
+   "other_versions": [],
+   "overall": {
+    "case_count": 95,
+    "agreement": {
+     "agreed": 87,
+     "n": 95,
+     "rate": 0.9157894736842105,
+     "interval": {
+      "low": 0.8425478687567327,
+      "high": 0.9567118846157054
+     }
+    },
+    "kappa": {
+     "value": 0.8577844311377245,
+     "interval": {
+      "low": 0.7531929470351296,
+      "high": 0.9475193466417695
+     },
+     "method": "bootstrap",
+     "note": null,
+     "dropped_resamples": 0
+    },
+    "confusion": [
+     [
+      15,
+      1,
+      0
+     ],
+     [
+      1,
+      23,
+      1
+     ],
+     [
+      0,
+      5,
+      49
+     ]
+    ],
+    "dangerous_false_closes": [
+     "DT-OC-0083"
+    ],
+    "true_positives_without_agent_verdict": [],
+    "completeness": {
+     "mean": 0.9473684210526315,
+     "interval": {
+      "low": 0.9240012348068013,
+      "high": 0.9707356072984618
+     },
+     "n": 95,
+     "method": "t"
+    }
+   },
+   "skipped_overall": [
+    {
+     "item_id": "grant_window",
+     "skipped": 4,
+     "n": 95,
+     "rate": 0.042105263157894736
+    },
+    {
+     "item_id": "app_permissions",
+     "skipped": 2,
+     "n": 95,
+     "rate": 0.021052631578947368
+    },
+    {
+     "item_id": "audit_query",
+     "skipped": 6,
+     "n": 95,
+     "rate": 0.06315789473684211
+    },
+    {
+     "item_id": "consent_history",
+     "skipped": 8,
+     "n": 95,
+     "rate": 0.08421052631578947
+    }
+   ],
+   "by_version": [
+    {
+     "version": "v1",
+     "first_week": "2026-W32",
+     "metrics": {
+      "case_count": 30,
+      "agreement": {
+       "agreed": 27,
+       "n": 30,
+       "rate": 0.9,
+       "interval": {
+        "low": 0.7437891742081593,
+        "high": 0.9654001112526658
+       }
+      },
+      "kappa": {
+       "value": 0.8314606741573034,
+       "interval": {
+        "low": 0.6167532285233015,
+        "high": 1.0
+       },
+       "method": "bootstrap",
+       "note": null,
+       "dropped_resamples": 0
+      },
+      "confusion": [
+       [
+        8,
+        0,
+        0
+       ],
+       [
+        0,
+        4,
+        1
+       ],
+       [
+        0,
+        2,
+        15
+       ]
+      ],
+      "dangerous_false_closes": [],
+      "true_positives_without_agent_verdict": [],
+      "completeness": {
+       "mean": 0.9416666666666667,
+       "interval": {
+        "low": 0.8946168470759049,
+        "high": 0.9887164862574284
+       },
+       "n": 30,
+       "method": "t"
+      }
+     },
+     "skipped": [
+      {
+       "item_id": "grant_window",
+       "skipped": 2,
+       "n": 30,
+       "rate": 0.06666666666666667
+      },
+      {
+       "item_id": "app_permissions",
+       "skipped": 0,
+       "n": 30,
+       "rate": 0.0
+      },
+      {
+       "item_id": "audit_query",
+       "skipped": 3,
+       "n": 30,
+       "rate": 0.1
+      },
+      {
+       "item_id": "consent_history",
+       "skipped": 2,
+       "n": 30,
+       "rate": 0.06666666666666667
+      }
+     ]
+    },
+    {
+     "version": "v2",
+     "first_week": "2026-W34",
+     "metrics": {
+      "case_count": 65,
+      "agreement": {
+       "agreed": 60,
+       "n": 65,
+       "rate": 0.9230769230769231,
+       "interval": {
+        "low": 0.8322406672989,
+        "high": 0.9666964985048365
+       }
+      },
+      "kappa": {
+       "value": 0.866966844044208,
+       "interval": {
+        "low": 0.7388298922352264,
+        "high": 0.9711961500270385
+       },
+       "method": "bootstrap",
+       "note": null,
+       "dropped_resamples": 0
+      },
+      "confusion": [
+       [
+        7,
+        1,
+        0
+       ],
+       [
+        1,
+        19,
+        0
+       ],
+       [
+        0,
+        3,
+        34
+       ]
+      ],
+      "dangerous_false_closes": [
+       "DT-OC-0083"
+      ],
+      "true_positives_without_agent_verdict": [],
+      "completeness": {
+       "mean": 0.95,
+       "interval": {
+        "low": 0.9227327774918872,
+        "high": 0.9772672225081127
+       },
+       "n": 65,
+       "method": "t"
+      }
+     },
+     "skipped": [
+      {
+       "item_id": "grant_window",
+       "skipped": 2,
+       "n": 65,
+       "rate": 0.03076923076923077
+      },
+      {
+       "item_id": "app_permissions",
+       "skipped": 2,
+       "n": 65,
+       "rate": 0.03076923076923077
+      },
+      {
+       "item_id": "audit_query",
+       "skipped": 3,
+       "n": 65,
+       "rate": 0.046153846153846156
+      },
+      {
+       "item_id": "consent_history",
+       "skipped": 6,
+       "n": 65,
+       "rate": 0.09230769230769231
+      }
+     ]
+    }
+   ],
+   "other": null,
+   "trend": [
+    {
+     "week": "2026-W32",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.9,
+     "completeness_n": 15,
+     "agreement": 0.9333333333333333,
+     "agreement_n": 15
+    },
+    {
+     "week": "2026-W32",
+     "scope": "version",
+     "version": "v1",
+     "completeness": 0.9,
+     "completeness_n": 15,
+     "agreement": 0.9333333333333333,
+     "agreement_n": 15
+    },
+    {
+     "week": "2026-W33",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.9833333333333333,
+     "completeness_n": 15,
+     "agreement": 0.8666666666666667,
+     "agreement_n": 15
+    },
+    {
+     "week": "2026-W33",
+     "scope": "version",
+     "version": "v1",
+     "completeness": 0.9833333333333333,
+     "completeness_n": 15,
+     "agreement": 0.8666666666666667,
+     "agreement_n": 15
+    },
+    {
+     "week": "2026-W34",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.96875,
+     "completeness_n": 16,
+     "agreement": 0.9375,
+     "agreement_n": 16
+    },
+    {
+     "week": "2026-W34",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.96875,
+     "completeness_n": 16,
+     "agreement": 0.9375,
+     "agreement_n": 16
+    },
+    {
+     "week": "2026-W35",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.9423076923076923,
+     "completeness_n": 13,
+     "agreement": 1.0,
+     "agreement_n": 13
+    },
+    {
+     "week": "2026-W35",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.9423076923076923,
+     "completeness_n": 13,
+     "agreement": 1.0,
+     "agreement_n": 13
+    },
+    {
+     "week": "2026-W36",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.9605263157894737,
+     "completeness_n": 19,
+     "agreement": 0.8421052631578947,
+     "agreement_n": 19
+    },
+    {
+     "week": "2026-W36",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.9605263157894737,
+     "completeness_n": 19,
+     "agreement": 0.8421052631578947,
+     "agreement_n": 19
+    },
+    {
+     "week": "2026-W37",
+     "scope": "all",
+     "version": null,
+     "completeness": 0.9264705882352942,
+     "completeness_n": 17,
+     "agreement": 0.9411764705882353,
+     "agreement_n": 17
+    },
+    {
+     "week": "2026-W37",
+     "scope": "version",
+     "version": "v2",
+     "completeness": 0.9264705882352942,
+     "completeness_n": 17,
+     "agreement": 0.9411764705882353,
+     "agreement_n": 17
+    }
+   ]
+  }
+ ],
+ "data_notes": [],
+ "case_rows": {
+  "verdict_codes": [
+   "true_positive",
+   "false_positive",
+   "benign"
+  ],
+  "unknown_verdict_code": -1,
+  "checklists": [
+   {
+    "class": 0,
+    "items": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   },
+   {
+    "class": 6,
+    "items": [
+     7,
+     8,
+     9,
+     10
+    ]
+   }
+  ],
+  "strings": [
+   "impossible_travel",
+   "signin_history",
+   "signin_query",
+   "mfa_check",
+   "ip_reputation",
+   "location_history",
+   "oauth_consent",
+   "grant_window",
+   "app_permissions",
+   "audit_query",
+   "consent_history",
+   "2026-W32",
+   "v1",
+   "2026-W33",
+   "2026-W34",
+   "v2",
+   "2026-W35",
+   "2026-W36",
+   "2026-W37"
+  ],
+  "columns": {
+   "case_id": [
+    "DT-IT-0001",
+    "DT-IT-0002",
+    "DT-IT-0003",
+    "DT-IT-0004",
+    "DT-IT-0005",
+    "DT-IT-0006",
+    "DT-IT-0007",
+    "DT-IT-0008",
+    "DT-IT-0009",
+    "DT-IT-0010",
+    "DT-IT-0011",
+    "DT-IT-0012",
+    "DT-IT-0013",
+    "DT-IT-0014",
+    "DT-IT-0015",
+    "DT-IT-0016",
+    "DT-IT-0017",
+    "DT-IT-0018",
+    "DT-IT-0019",
+    "DT-IT-0020",
+    "DT-IT-0021",
+    "DT-IT-0022",
+    "DT-IT-0023",
+    "DT-IT-0024",
+    "DT-IT-0025",
+    "DT-IT-0026",
+    "DT-IT-0027",
+    "DT-IT-0028",
+    "DT-IT-0029",
+    "DT-IT-0030",
+    "DT-IT-0031",
+    "DT-IT-0032",
+    "DT-IT-0033",
+    "DT-IT-0034",
+    "DT-IT-0035",
+    "DT-IT-0036",
+    "DT-IT-0037",
+    "DT-IT-0038",
+    "DT-IT-0039",
+    "DT-IT-0040",
+    "DT-IT-0041",
+    "DT-IT-0042",
+    "DT-IT-0043",
+    "DT-IT-0044",
+    "DT-IT-0045",
+    "DT-IT-0046",
+    "DT-IT-0047",
+    "DT-IT-0048",
+    "DT-IT-0049",
+    "DT-IT-0050",
+    "DT-IT-0051",
+    "DT-IT-0052",
+    "DT-IT-0053",
+    "DT-IT-0054",
+    "DT-IT-0055",
+    "DT-IT-0056",
+    "DT-IT-0057",
+    "DT-IT-0058",
+    "DT-IT-0059",
+    "DT-IT-0060",
+    "DT-IT-0061",
+    "DT-IT-0062",
+    "DT-IT-0063",
+    "DT-IT-0064",
+    "DT-IT-0065",
+    "DT-IT-0066",
+    "DT-IT-0067",
+    "DT-IT-0068",
+    "DT-IT-0069",
+    "DT-IT-0070",
+    "DT-IT-0071",
+    "DT-IT-0072",
+    "DT-IT-0073",
+    "DT-IT-0074",
+    "DT-IT-0075",
+    "DT-IT-0076",
+    "DT-IT-0077",
+    "DT-IT-0078",
+    "DT-IT-0079",
+    "DT-IT-0080",
+    "DT-IT-0081",
+    "DT-IT-0082",
+    "DT-IT-0083",
+    "DT-IT-0084",
+    "DT-IT-0085",
+    "DT-IT-0086",
+    "DT-IT-0087",
+    "DT-IT-0088",
+    "DT-IT-0089",
+    "DT-IT-0090",
+    "DT-IT-0091",
+    "DT-IT-0092",
+    "DT-IT-0093",
+    "DT-IT-0094",
+    "DT-IT-0095",
+    "DT-IT-0096",
+    "DT-IT-0097",
+    "DT-IT-0098",
+    "DT-IT-0099",
+    "DT-IT-0100",
+    "DT-IT-0101",
+    "DT-IT-0102",
+    "DT-IT-0103",
+    "DT-IT-0104",
+    "DT-IT-0105",
+    "DT-IT-0106",
+    "DT-OC-0001",
+    "DT-OC-0002",
+    "DT-OC-0003",
+    "DT-OC-0004",
+    "DT-OC-0005",
+    "DT-OC-0006",
+    "DT-OC-0007",
+    "DT-OC-0008",
+    "DT-OC-0009",
+    "DT-OC-0010",
+    "DT-OC-0011",
+    "DT-OC-0012",
+    "DT-OC-0013",
+    "DT-OC-0014",
+    "DT-OC-0015",
+    "DT-OC-0016",
+    "DT-OC-0017",
+    "DT-OC-0018",
+    "DT-OC-0019",
+    "DT-OC-0020",
+    "DT-OC-0021",
+    "DT-OC-0022",
+    "DT-OC-0023",
+    "DT-OC-0024",
+    "DT-OC-0025",
+    "DT-OC-0026",
+    "DT-OC-0027",
+    "DT-OC-0028",
+    "DT-OC-0029",
+    "DT-OC-0030",
+    "DT-OC-0031",
+    "DT-OC-0032",
+    "DT-OC-0033",
+    "DT-OC-0034",
+    "DT-OC-0035",
+    "DT-OC-0036",
+    "DT-OC-0037",
+    "DT-OC-0038",
+    "DT-OC-0039",
+    "DT-OC-0040",
+    "DT-OC-0041",
+    "DT-OC-0042",
+    "DT-OC-0043",
+    "DT-OC-0044",
+    "DT-OC-0045",
+    "DT-OC-0046",
+    "DT-OC-0047",
+    "DT-OC-0048",
+    "DT-OC-0049",
+    "DT-OC-0050",
+    "DT-OC-0051",
+    "DT-OC-0052",
+    "DT-OC-0053",
+    "DT-OC-0054",
+    "DT-OC-0055",
+    "DT-OC-0056",
+    "DT-OC-0057",
+    "DT-OC-0058",
+    "DT-OC-0059",
+    "DT-OC-0060",
+    "DT-OC-0061",
+    "DT-OC-0062",
+    "DT-OC-0063",
+    "DT-OC-0064",
+    "DT-OC-0065",
+    "DT-OC-0066",
+    "DT-OC-0067",
+    "DT-OC-0068",
+    "DT-OC-0069",
+    "DT-OC-0070",
+    "DT-OC-0071",
+    "DT-OC-0072",
+    "DT-OC-0073",
+    "DT-OC-0074",
+    "DT-OC-0075",
+    "DT-OC-0076",
+    "DT-OC-0077",
+    "DT-OC-0078",
+    "DT-OC-0079",
+    "DT-OC-0080",
+    "DT-OC-0081",
+    "DT-OC-0082",
+    "DT-OC-0083",
+    "DT-OC-0084",
+    "DT-OC-0085",
+    "DT-OC-0086",
+    "DT-OC-0087",
+    "DT-OC-0088",
+    "DT-OC-0089",
+    "DT-OC-0090",
+    "DT-OC-0091",
+    "DT-OC-0092",
+    "DT-OC-0093",
+    "DT-OC-0094",
+    "DT-OC-0095"
+   ],
+   "class": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6
+   ],
+   "week": [
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    11,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    13,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    14,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    17,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18,
+    18
+   ],
+   "version": [
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    12,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15,
+    15
+   ],
+   "analyst": [
+    2,
+    1,
+    2,
+    0,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    0,
+    0,
+    1,
+    2,
+    2,
+    0,
+    2,
+    2,
+    0,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    2,
+    2,
+    2,
+    1,
+    1,
+    0,
+    0,
+    2,
+    1,
+    2,
+    2,
+    0,
+    0,
+    2,
+    0,
+    2,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    2,
+    1,
+    0,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    1,
+    2,
+    1,
+    2,
+    2,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    2,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    0,
+    2,
+    2,
+    2,
+    2,
+    0,
+    0,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    1,
+    0,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    0,
+    0,
+    0,
+    2,
+    0,
+    1,
+    2,
+    1,
+    1,
+    2,
+    0,
+    2,
+    2,
+    0,
+    1,
+    2,
+    2,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    2,
+    2,
+    1,
+    2,
+    2,
+    1,
+    0,
+    1,
+    2,
+    2,
+    2,
+    2,
+    0,
+    2,
+    2,
+    1,
+    1,
+    1,
+    0,
+    2,
+    2,
+    2,
+    2,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    0,
+    2,
+    0,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    0,
+    1,
+    1
+   ],
+   "agent": [
+    1,
+    1,
+    1,
+    0,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    0,
+    0,
+    1,
+    2,
+    2,
+    0,
+    2,
+    2,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    2,
+    0,
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    2,
+    2,
+    2,
+    1,
+    1,
+    0,
+    0,
+    2,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    0,
+    2,
+    1,
+    2,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    2,
+    2,
+    1,
+    0,
+    0,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    2,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    0,
+    1,
+    2,
+    2,
+    2,
+    0,
+    0,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    0,
+    2,
+    2,
+    2,
+    2,
+    2,
+    1,
+    2,
+    2,
+    0,
+    0,
+    0,
+    2,
+    0,
+    1,
+    2,
+    1,
+    1,
+    2,
+    0,
+    2,
+    2,
+    0,
+    1,
+    2,
+    2,
+    1,
+    2,
+    2,
+    1,
+    2,
+    1,
+    2,
+    2,
+    2,
+    1,
+    2,
+    2,
+    1,
+    0,
+    1,
+    2,
+    2,
+    1,
+    2,
+    0,
+    2,
+    2,
+    1,
+    1,
+    1,
+    0,
+    2,
+    2,
+    2,
+    1,
+    1,
+    0,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    0,
+    2,
+    1,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    0,
+    1,
+    1
+   ],
+   "satisfied": [
+    5,
+    5,
+    4,
+    5,
+    5,
+    5,
+    5,
+    4,
+    5,
+    5,
+    5,
+    4,
+    5,
+    4,
+    5,
+    5,
+    4,
+    5,
+    5,
+    5,
+    4,
+    5,
+    5,
+    3,
+    5,
+    4,
+    3,
+    5,
+    5,
+    5,
+    5,
+    4,
+    4,
+    5,
+    5,
+    5,
+    4,
+    3,
+    2,
+    3,
+    4,
+    4,
+    5,
+    5,
+    4,
+    4,
+    3,
+    4,
+    3,
+    4,
+    4,
+    5,
+    2,
+    4,
+    4,
+    3,
+    4,
+    5,
+    3,
+    3,
+    5,
+    3,
+    5,
+    4,
+    3,
+    2,
+    3,
+    3,
+    4,
+    4,
+    4,
+    5,
+    3,
+    4,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    4,
+    3,
+    5,
+    4,
+    4,
+    3,
+    5,
+    4,
+    3,
+    4,
+    5,
+    4,
+    4,
+    4,
+    4,
+    4,
+    2,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    3,
+    3,
+    4,
+    3,
+    4,
+    4,
+    3,
+    3,
+    4,
+    4,
+    4,
+    4,
+    2,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    3,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    4,
+    4,
+    4,
+    4,
+    2,
+    4,
+    4
+   ],
+   "missed_items": [
+    [],
+    [],
+    [
+     0
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+     1
+    ],
+    [],
+    [],
+    [],
+    [
+     1
+    ],
+    [],
+    [
+     1
+    ],
+    [],
+    [],
+    [
+     1
+    ],
+    [],
+    [],
+    [],
+    [
+     4
+    ],
+    [],
+    [],
+    [
+     1,
+     4
+    ],
+    [],
+    [],
+    [
+     3,
+     4
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+     4
+    ],
+    [
+     1
+    ],
+    [],
+    [],
+    [],
+    [
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     0,
+     1,
+     2
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0
+    ],
+    [
+     2
+    ],
+    [],
+    [],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [],
+    [
+     0,
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [],
+    [
+     0,
+     2
+    ],
+    [
+     2
+    ],
+    [],
+    [
+     0,
+     2
+    ],
+    [],
+    [
+     2
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     1,
+     2
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0
+    ],
+    [
+     0
+    ],
+    [
+     0
+    ],
+    [],
+    [
+     0,
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     2
+    ],
+    [],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     0,
+     2
+    ],
+    [],
+    [
+     0
+    ],
+    [
+     2
+    ],
+    [
+     0,
+     2
+    ],
+    [],
+    [
+     0
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     0,
+     2,
+     3
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     4
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     2
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [
+     2
+    ],
+    [],
+    [],
+    [
+     2
+    ],
+    [
+     0
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+     0
+    ],
+    [],
+    [],
+    [
+     3
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     3
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+     2
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     3
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     2
+    ],
+    [
+     3
+    ],
+    [
+     1
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     0
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     3
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     0
+    ],
+    [],
+    [
+     1
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     3
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+     2,
+     3
+    ],
+    [],
+    []
+   ],
+   "failed_items": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     4
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     4
+    ],
+    [],
+    [],
+    [
+     0
+    ],
+    [],
+    [],
+    [],
+    [
+     1
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     4
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     3
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     2
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+     3
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+   ]
+  }
+ },
+ "case_detail": [
+  {
+   "case_id": "DT-OC-0083",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1444.0,
+     "arguments": "{\"user\": \"user5456@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 947.0,
+     "arguments": "{\"user\": \"user5456@example.com\", \"window\": {\"start\": \"2026-09-07T11:23:13Z\", \"end\": \"2026-09-08T11:23:13Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1407.0,
+     "arguments": "{\"app_id\": \"6b659285-6fdf-7a0e-639a-2670925f9cc0\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1674.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(14d) | where OperationName == 'Consent to application' | where TargetResources has '6b659285-6fdf-7a0e-639a-2670925f9cc0' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1059.0,
+     "arguments": "{\"app_id\": \"6b659285-6fdf-7a0e-639a-2670925f9cc0\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0073",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1214.0,
+     "arguments": "{\"user\": \"user8490@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 629.0,
+     "arguments": "{\"user\": \"user8490@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1636.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user8490@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 599.0,
+     "arguments": "{\"ip\": \"198.51.100.38\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 835.0,
+     "arguments": "{\"user\": \"user8490@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0050",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1546.0,
+     "arguments": "{\"user\": \"user6750@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 308.0,
+     "arguments": "{\"user\": \"user6750@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 235.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user6750@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1346.0,
+     "arguments": "{\"ip\": \"192.0.2.53\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 485.0,
+     "arguments": "{\"user\": \"user6750@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0049",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 886.0,
+     "arguments": "{\"user\": \"user3410@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1502.0,
+     "arguments": "{\"user\": \"user3410@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 244.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user3410@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1747.0,
+     "arguments": "{\"ip\": \"198.51.100.196\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "failed",
+     "duration_ms": 292.0,
+     "arguments": "{\"user\": \"user3410@example.com\", \"lookback_days\": 60}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1190.0,
+     "arguments": "{\"user\": \"user3410@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0105",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 520.0,
+     "arguments": "{\"user\": \"user4401@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 927.0,
+     "arguments": "{\"user\": \"user4401@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1010.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user4401@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "failed",
+     "duration_ms": 1542.0,
+     "arguments": "{\"ip\": \"192.0.2.101\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 801.0,
+     "arguments": "{\"user\": \"user4401@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0074",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 268.0,
+     "arguments": "{\"user\": \"user1238@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 372.0,
+     "arguments": "{\"user\": \"user1238@example.com\", \"window\": {\"start\": \"2026-09-03T20:40:28Z\", \"end\": \"2026-09-05T20:40:28Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1728.0,
+     "arguments": "{\"app_id\": \"7e1d378d-b445-1013-a58e-dcb4523dff27\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 391.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has '7e1d378d-b445-1013-a58e-dcb4523dff27' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1187.0,
+     "arguments": "{\"app_id\": \"7e1d378d-b445-1013-a58e-dcb4523dff27\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0087",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 331.0,
+     "arguments": "{\"user\": \"user2518@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1501.0,
+     "arguments": "{\"user\": \"user2518@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 841.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user2518@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 281.0,
+     "arguments": "{\"user\": \"user2518@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 835.0,
+     "arguments": "{\"ip\": \"203.0.113.114\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1860.0,
+     "arguments": "{\"user\": \"user2518@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0072",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 954.0,
+     "arguments": "{\"user\": \"user1441@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 647.0,
+     "arguments": "{\"user\": \"user1441@example.com\", \"window\": {\"start\": \"2026-09-03T10:12:25Z\", \"end\": \"2026-09-05T10:12:25Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1224.0,
+     "arguments": "{\"app_id\": \"315ff98e-da3f-51b4-ac3c-66ad48055dc2\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 857.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '315ff98e-da3f-51b4-ac3c-66ad48055dc2' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 584.0,
+     "arguments": "{\"app_id\": \"315ff98e-da3f-51b4-ac3c-66ad48055dc2\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0084",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 508.0,
+     "arguments": "{\"user\": \"user1344@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1270.0,
+     "arguments": "{\"user\": \"user1344@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1826.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user1344@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 540.0,
+     "arguments": "{\"user\": \"user1344@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 656.0,
+     "arguments": "{\"ip\": \"203.0.113.226\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1399.0,
+     "arguments": "{\"user\": \"user1344@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0077",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 995.0,
+     "arguments": "{\"user\": \"user3827@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 743.0,
+     "arguments": "{\"user\": \"user3827@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 194.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user3827@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1545.0,
+     "arguments": "{\"ip\": \"198.51.100.247\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 960.0,
+     "arguments": "{\"user\": \"user3827@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0060",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 879.0,
+     "arguments": "{\"user\": \"user2215@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 211.0,
+     "arguments": "{\"user\": \"user2215@example.com\", \"window\": {\"start\": \"2026-08-24T06:39:18Z\", \"end\": \"2026-08-31T06:39:18Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 485.0,
+     "arguments": "{\"app_id\": \"3ddf2b1e-0c2c-3834-eb8e-d42b9f26fa94\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 596.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '3ddf2b1e-0c2c-3834-eb8e-d42b9f26fa94' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 404.0,
+     "arguments": "{\"app_id\": \"3ddf2b1e-0c2c-3834-eb8e-d42b9f26fa94\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0046",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1478.0,
+     "arguments": "{\"user\": \"user7416@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 916.0,
+     "arguments": "{\"user\": \"user7416@example.com\", \"window\": {\"start\": \"2026-08-15T23:06:08Z\", \"end\": \"2026-08-22T23:06:08Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 655.0,
+     "arguments": "{\"app_id\": \"82eba2a3-02ea-19a0-4a75-461f1ad342d7\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1025.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has '82eba2a3-02ea-19a0-4a75-461f1ad342d7' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 691.0,
+     "arguments": "{\"app_id\": \"82eba2a3-02ea-19a0-4a75-461f1ad342d7\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0023",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 695.0,
+     "arguments": "{\"user\": \"user9884@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 675.0,
+     "arguments": "{\"user\": \"user9884@example.com\", \"window\": {\"start\": \"2026-08-05T06:12:35Z\", \"end\": \"2026-08-12T06:12:35Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 459.0,
+     "arguments": "{\"app_id\": \"5dd9374c-9dda-819a-f62c-ad50330469f4\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1427.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has '5dd9374c-9dda-819a-f62c-ad50330469f4' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1033.0,
+     "arguments": "{\"app_id\": \"5dd9374c-9dda-819a-f62c-ad50330469f4\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0028",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1760.0,
+     "arguments": "{\"user\": \"user9033@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 732.0,
+     "arguments": "{\"user\": \"user9033@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 153.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user9033@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1100.0,
+     "arguments": "{\"user\": \"user9033@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 904.0,
+     "arguments": "{\"ip\": \"198.51.100.185\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1295.0,
+     "arguments": "{\"user\": \"user9033@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0022",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 487.0,
+     "arguments": "{\"user\": \"user8790@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 320.0,
+     "arguments": "{\"user\": \"user8790@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 630.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user8790@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 739.0,
+     "arguments": "{\"user\": \"user8790@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1231.0,
+     "arguments": "{\"ip\": \"203.0.113.20\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 535.0,
+     "arguments": "{\"user\": \"user8790@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0016",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 438.0,
+     "arguments": "{\"user\": \"user7119@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1900.0,
+     "arguments": "{\"user\": \"user7119@example.com\", \"window\": {\"start\": \"2026-08-03T00:55:44Z\", \"end\": \"2026-08-10T00:55:44Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 626.0,
+     "arguments": "{\"app_id\": \"a397f7d6-7860-dd34-3303-22ddb4f43b3c\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1803.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(14d) | where OperationName == 'Consent to application' | where TargetResources has 'a397f7d6-7860-dd34-3303-22ddb4f43b3c' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1032.0,
+     "arguments": "{\"app_id\": \"a397f7d6-7860-dd34-3303-22ddb4f43b3c\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0002",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 983.0,
+     "arguments": "{\"user\": \"user3189@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1391.0,
+     "arguments": "{\"user\": \"user3189@example.com\", \"window\": {\"start\": \"2026-07-27T13:32:34Z\", \"end\": \"2026-08-03T13:32:34Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 459.0,
+     "arguments": "{\"app_id\": \"059b26f0-a23d-9a3a-dd25-068cdbc8f431\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1294.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '059b26f0-a23d-9a3a-dd25-068cdbc8f431' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 621.0,
+     "arguments": "{\"app_id\": \"059b26f0-a23d-9a3a-dd25-068cdbc8f431\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0003",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 146.0,
+     "arguments": "{\"user\": \"user1515@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 563.0,
+     "arguments": "{\"user\": \"user1515@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1189.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user1515@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1457.0,
+     "arguments": "{\"user\": \"user1515@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 628.0,
+     "arguments": "{\"ip\": \"198.51.100.242\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1681.0,
+     "arguments": "{\"user\": \"user1515@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0001",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1426.0,
+     "arguments": "{\"user\": \"user0800@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 629.0,
+     "arguments": "{\"user\": \"user0800@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1518.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user0800@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 340.0,
+     "arguments": "{\"user\": \"user0800@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1264.0,
+     "arguments": "{\"ip\": \"203.0.113.234\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1553.0,
+     "arguments": "{\"user\": \"user0800@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0086",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1742.0,
+     "arguments": "{\"user\": \"user4825@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "failed",
+     "duration_ms": 880.0,
+     "arguments": "{\"user\": \"user4825@example.com\", \"window\": {\"start\": \"2026-09-01T13:12:40Z\", \"end\": \"2026-09-08T13:12:40Z\"}}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1156.0,
+     "arguments": "{\"user\": \"user4825@example.com\", \"window\": {\"start\": \"2026-09-06T13:12:40Z\", \"end\": \"2026-09-08T13:12:40Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1449.0,
+     "arguments": "{\"app_id\": \"8e25ab88-2c9f-560f-e90f-ff957e8ffa2c\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 580.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has '8e25ab88-2c9f-560f-e90f-ff957e8ffa2c' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 860.0,
+     "arguments": "{\"app_id\": \"8e25ab88-2c9f-560f-e90f-ff957e8ffa2c\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0096",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1886.0,
+     "arguments": "{\"user\": \"user2296@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 131.0,
+     "arguments": "{\"user\": \"user2296@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1228.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user2296@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "failed",
+     "duration_ms": 1708.0,
+     "arguments": "{\"ip\": \"203.0.113.216\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 506.0,
+     "arguments": "{\"ip\": \"203.0.113.216\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 802.0,
+     "arguments": "{\"user\": \"user2296@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0079",
+   "calls": [
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1467.0,
+     "arguments": "{\"user\": \"user5967@example.com\", \"window\": {\"start\": \"2026-09-06T05:37:07Z\", \"end\": \"2026-09-07T05:37:07Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "failed",
+     "duration_ms": 199.0,
+     "arguments": "{\"app_id\": \"9589a93a-5202-dc95-1b60-348c9670d1d6\"}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 841.0,
+     "arguments": "{\"app_id\": \"9589a93a-5202-dc95-1b60-348c9670d1d6\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1067.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has '9589a93a-5202-dc95-1b60-348c9670d1d6' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 541.0,
+     "arguments": "{\"app_id\": \"9589a93a-5202-dc95-1b60-348c9670d1d6\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0089",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 403.0,
+     "arguments": "{\"user\": \"user1736@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1494.0,
+     "arguments": "{\"user\": \"user1736@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 293.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user1736@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 208.0,
+     "arguments": "{\"ip\": \"198.51.100.46\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "failed",
+     "duration_ms": 348.0,
+     "arguments": "{\"user\": \"user1736@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0071",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 533.0,
+     "arguments": "{\"user\": \"user0824@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1811.0,
+     "arguments": "{\"user\": \"user0824@example.com\", \"window\": {\"start\": \"2026-09-03T02:07:49Z\", \"end\": \"2026-09-05T02:07:49Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1201.0,
+     "arguments": "{\"app_id\": \"7d96f921-2cb0-5bac-d6ef-6647db88cd89\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 224.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '7d96f921-2cb0-5bac-d6ef-6647db88cd89' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "failed",
+     "duration_ms": 141.0,
+     "arguments": "{\"app_id\": \"7d96f921-2cb0-5bac-d6ef-6647db88cd89\", \"lookback_days\": 30}"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 675.0,
+     "arguments": "{\"app_id\": \"7d96f921-2cb0-5bac-d6ef-6647db88cd89\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0067",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 516.0,
+     "arguments": "{\"user\": \"user4815@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 851.0,
+     "arguments": "{\"user\": \"user4815@example.com\", \"window\": {\"start\": \"2026-09-02T09:23:06Z\", \"end\": \"2026-09-03T09:23:06Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1537.0,
+     "arguments": "{\"app_id\": \"2da52fc2-6192-b9d0-4d66-23893aa4b9ee\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 451.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '2da52fc2-6192-b9d0-4d66-23893aa4b9ee' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "failed",
+     "duration_ms": 1103.0,
+     "arguments": "{\"app_id\": \"2da52fc2-6192-b9d0-4d66-23893aa4b9ee\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0066",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1580.0,
+     "arguments": "{\"user\": \"user8168@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "failed",
+     "duration_ms": 231.0,
+     "arguments": "{\"user\": \"user8168@example.com\", \"window\": {\"start\": \"2026-09-01T22:30:37Z\", \"end\": \"2026-09-02T22:30:37Z\"}}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1018.0,
+     "arguments": "{\"user\": \"user8168@example.com\", \"window\": {\"start\": \"2026-09-01T22:30:37Z\", \"end\": \"2026-09-02T22:30:37Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1400.0,
+     "arguments": "{\"app_id\": \"45a446f8-7c59-7573-04de-56aa2be3049c\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 585.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(14d) | where OperationName == 'Consent to application' | where TargetResources has '45a446f8-7c59-7573-04de-56aa2be3049c' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 184.0,
+     "arguments": "{\"app_id\": \"45a446f8-7c59-7573-04de-56aa2be3049c\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0064",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 885.0,
+     "arguments": "{\"user\": \"user5166@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1767.0,
+     "arguments": "{\"user\": \"user5166@example.com\", \"window\": {\"start\": \"2026-09-01T00:16:43Z\", \"end\": \"2026-09-02T00:16:43Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "failed",
+     "duration_ms": 1015.0,
+     "arguments": "{\"app_id\": \"cd771e33-839c-3ca5-07fc-1582b8fd2d97\"}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 317.0,
+     "arguments": "{\"app_id\": \"cd771e33-839c-3ca5-07fc-1582b8fd2d97\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1383.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has 'cd771e33-839c-3ca5-07fc-1582b8fd2d97' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1418.0,
+     "arguments": "{\"app_id\": \"cd771e33-839c-3ca5-07fc-1582b8fd2d97\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0060",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1336.0,
+     "arguments": "{\"user\": \"user8750@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1317.0,
+     "arguments": "{\"user\": \"user8750@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "failed",
+     "duration_ms": 1205.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user8750@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1347.0,
+     "arguments": "{\"ip\": \"198.51.100.254\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1641.0,
+     "arguments": "{\"user\": \"user8750@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0049",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1594.0,
+     "arguments": "{\"user\": \"user5501@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "failed",
+     "duration_ms": 1187.0,
+     "arguments": "{\"user\": \"user5501@example.com\", \"window\": {\"start\": \"2026-08-18T17:03:48Z\", \"end\": \"2026-08-25T17:03:48Z\"}}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 821.0,
+     "arguments": "{\"user\": \"user5501@example.com\", \"window\": {\"start\": \"2026-08-18T17:03:48Z\", \"end\": \"2026-08-25T17:03:48Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 226.0,
+     "arguments": "{\"app_id\": \"bb32c6d8-42aa-07da-73c0-9411413c02a0\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1145.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(14d) | where OperationName == 'Consent to application' | where TargetResources has 'bb32c6d8-42aa-07da-73c0-9411413c02a0' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1566.0,
+     "arguments": "{\"app_id\": \"bb32c6d8-42aa-07da-73c0-9411413c02a0\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0056",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 611.0,
+     "arguments": "{\"user\": \"user8689@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "failed",
+     "duration_ms": 1140.0,
+     "arguments": "{\"user\": \"user8689@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1195.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user8689@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 662.0,
+     "arguments": "{\"ip\": \"203.0.113.17\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1190.0,
+     "arguments": "{\"user\": \"user8689@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0053",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1671.0,
+     "arguments": "{\"user\": \"user3708@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 483.0,
+     "arguments": "{\"user\": \"user3708@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1323.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user3708@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 270.0,
+     "arguments": "{\"ip\": \"203.0.113.11\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "failed",
+     "duration_ms": 525.0,
+     "arguments": "{\"user\": \"user3708@example.com\", \"lookback_days\": 14}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 543.0,
+     "arguments": "{\"user\": \"user3708@example.com\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0052",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1819.0,
+     "arguments": "{\"user\": \"user0360@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1769.0,
+     "arguments": "{\"user\": \"user0360@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1632.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user0360@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 879.0,
+     "arguments": "{\"user\": \"user0360@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1132.0,
+     "arguments": "{\"ip\": \"198.51.100.43\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "failed",
+     "duration_ms": 949.0,
+     "arguments": "{\"user\": \"user0360@example.com\", \"lookback_days\": 90}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1794.0,
+     "arguments": "{\"user\": \"user0360@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0042",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1055.0,
+     "arguments": "{\"user\": \"user6788@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1044.0,
+     "arguments": "{\"user\": \"user6788@example.com\", \"window\": {\"start\": \"2026-08-14T02:03:31Z\", \"end\": \"2026-08-21T02:03:31Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 618.0,
+     "arguments": "{\"app_id\": \"fdd50d91-b5ac-16ad-7696-3efd8dc28931\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1820.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has 'fdd50d91-b5ac-16ad-7696-3efd8dc28931' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "failed",
+     "duration_ms": 1730.0,
+     "arguments": "{\"app_id\": \"fdd50d91-b5ac-16ad-7696-3efd8dc28931\", \"lookback_days\": 90}"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 269.0,
+     "arguments": "{\"app_id\": \"fdd50d91-b5ac-16ad-7696-3efd8dc28931\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0046",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 509.0,
+     "arguments": "{\"user\": \"user9638@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 705.0,
+     "arguments": "{\"user\": \"user9638@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1070.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user9638@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 478.0,
+     "arguments": "{\"ip\": \"192.0.2.87\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "failed",
+     "duration_ms": 522.0,
+     "arguments": "{\"user\": \"user9638@example.com\", \"lookback_days\": 30}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1095.0,
+     "arguments": "{\"user\": \"user9638@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0039",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1680.0,
+     "arguments": "{\"user\": \"user1784@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 570.0,
+     "arguments": "{\"user\": \"user1784@example.com\", \"window\": {\"start\": \"2026-08-12T19:41:13Z\", \"end\": \"2026-08-19T19:41:13Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "failed",
+     "duration_ms": 1762.0,
+     "arguments": "{\"app_id\": \"35ed0990-d789-2936-fee8-879c838766e7\"}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1141.0,
+     "arguments": "{\"app_id\": \"35ed0990-d789-2936-fee8-879c838766e7\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 163.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '35ed0990-d789-2936-fee8-879c838766e7' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 185.0,
+     "arguments": "{\"app_id\": \"35ed0990-d789-2936-fee8-879c838766e7\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0031",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 640.0,
+     "arguments": "{\"user\": \"user4604@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 549.0,
+     "arguments": "{\"user\": \"user4604@example.com\", \"window\": {\"start\": \"2026-08-16T02:43:35Z\", \"end\": \"2026-08-17T02:43:35Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "failed",
+     "duration_ms": 1542.0,
+     "arguments": "{\"app_id\": \"758c49c6-299d-e63d-def7-b9aae3806797\"}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1290.0,
+     "arguments": "{\"app_id\": \"758c49c6-299d-e63d-def7-b9aae3806797\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1131.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '758c49c6-299d-e63d-def7-b9aae3806797' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 944.0,
+     "arguments": "{\"app_id\": \"758c49c6-299d-e63d-def7-b9aae3806797\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0037",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 690.0,
+     "arguments": "{\"user\": \"user2419@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 655.0,
+     "arguments": "{\"user\": \"user2419@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 709.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user2419@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "failed",
+     "duration_ms": 1786.0,
+     "arguments": "{\"ip\": \"198.51.100.226\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1609.0,
+     "arguments": "{\"ip\": \"198.51.100.226\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1371.0,
+     "arguments": "{\"user\": \"user2419@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0029",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1462.0,
+     "arguments": "{\"user\": \"user1111@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "failed",
+     "duration_ms": 1788.0,
+     "arguments": "{\"user\": \"user1111@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1244.0,
+     "arguments": "{\"user\": \"user1111@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1802.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user1111@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 905.0,
+     "arguments": "{\"user\": \"user1111@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 172.0,
+     "arguments": "{\"ip\": \"203.0.113.118\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 145.0,
+     "arguments": "{\"user\": \"user1111@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0026",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1659.0,
+     "arguments": "{\"user\": \"user8660@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1769.0,
+     "arguments": "{\"user\": \"user8660@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1387.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user8660@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 199.0,
+     "arguments": "{\"user\": \"user8660@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1405.0,
+     "arguments": "{\"ip\": \"198.51.100.162\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "failed",
+     "duration_ms": 256.0,
+     "arguments": "{\"user\": \"user8660@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0014",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1141.0,
+     "arguments": "{\"user\": \"user4726@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 315.0,
+     "arguments": "{\"user\": \"user4726@example.com\", \"window\": {\"start\": \"2026-08-07T21:59:33Z\", \"end\": \"2026-08-08T21:59:33Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1077.0,
+     "arguments": "{\"app_id\": \"abe72a06-8fdc-e8da-1d70-35edab158bf7\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1787.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has 'abe72a06-8fdc-e8da-1d70-35edab158bf7' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "failed",
+     "duration_ms": 570.0,
+     "arguments": "{\"app_id\": \"abe72a06-8fdc-e8da-1d70-35edab158bf7\", \"lookback_days\": 90}"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 994.0,
+     "arguments": "{\"app_id\": \"abe72a06-8fdc-e8da-1d70-35edab158bf7\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0013",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1565.0,
+     "arguments": "{\"user\": \"user8329@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "failed",
+     "duration_ms": 976.0,
+     "arguments": "{\"user\": \"user8329@example.com\", \"window\": {\"start\": \"2026-08-06T18:16:34Z\", \"end\": \"2026-08-08T18:16:34Z\"}}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1514.0,
+     "arguments": "{\"user\": \"user8329@example.com\", \"window\": {\"start\": \"2026-08-06T18:16:34Z\", \"end\": \"2026-08-08T18:16:34Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 403.0,
+     "arguments": "{\"app_id\": \"d858ce02-691f-f7c9-4312-66f50a1a150e\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 703.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has 'd858ce02-691f-f7c9-4312-66f50a1a150e' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1821.0,
+     "arguments": "{\"app_id\": \"d858ce02-691f-f7c9-4312-66f50a1a150e\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0012",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 582.0,
+     "arguments": "{\"user\": \"user0565@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1504.0,
+     "arguments": "{\"user\": \"user0565@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1441.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(12h) | where UserPrincipalName == 'user0565@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "failed",
+     "duration_ms": 1049.0,
+     "arguments": "{\"user\": \"user0565@example.com\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1338.0,
+     "arguments": "{\"user\": \"user0565@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1651.0,
+     "arguments": "{\"ip\": \"192.0.2.164\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1296.0,
+     "arguments": "{\"user\": \"user0565@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0010",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 920.0,
+     "arguments": "{\"user\": \"user4857@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 311.0,
+     "arguments": "{\"user\": \"user4857@example.com\", \"window\": {\"start\": \"2026-08-06T19:33:35Z\", \"end\": \"2026-08-07T07:33:35Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1731.0,
+     "arguments": "{\"app_id\": \"1129ead2-de32-e034-75cc-be97325c53f4\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "failed",
+     "duration_ms": 882.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '1129ead2-de32-e034-75cc-be97325c53f4' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1018.0,
+     "arguments": "{\"app_id\": \"1129ead2-de32-e034-75cc-be97325c53f4\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0106",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 990.0,
+     "arguments": "{\"user\": \"user6959@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 559.0,
+     "arguments": "{\"user\": \"user6959@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1499.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user6959@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 262.0,
+     "arguments": "{\"ip\": \"198.51.100.145\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1217.0,
+     "arguments": "{\"user\": \"user6959@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0104",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1624.0,
+     "arguments": "{\"user\": \"user1778@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 763.0,
+     "arguments": "{\"user\": \"user1778@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1375.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user1778@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1871.0,
+     "arguments": "{\"ip\": \"203.0.113.101\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1284.0,
+     "arguments": "{\"user\": \"user1778@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0103",
+   "calls": [
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1028.0,
+     "arguments": "{\"user\": \"user5875@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 514.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user5875@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1572.0,
+     "arguments": "{\"ip\": \"198.51.100.131\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 930.0,
+     "arguments": "{\"user\": \"user5875@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0093",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1736.0,
+     "arguments": "{\"user\": \"user0209@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 709.0,
+     "arguments": "{\"user\": \"user0209@example.com\", \"window\": {\"start\": \"2026-09-11T09:35:48Z\", \"end\": \"2026-09-12T09:35:48Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 176.0,
+     "arguments": "{\"app_id\": \"b29a1947-5fed-6b82-77ec-1aeddb5bae5f\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 202.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(12h) | where OperationName == 'Consent to application' | where TargetResources has 'b29a1947-5fed-6b82-77ec-1aeddb5bae5f' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1757.0,
+     "arguments": "{\"app_id\": \"b29a1947-5fed-6b82-77ec-1aeddb5bae5f\", \"lookback_days\": 14}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0102",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 989.0,
+     "arguments": "{\"user\": \"user0457@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 426.0,
+     "arguments": "{\"user\": \"user0457@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 469.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user0457@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 820.0,
+     "arguments": "{\"ip\": \"192.0.2.21\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 837.0,
+     "arguments": "{\"user\": \"user0457@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0101",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1645.0,
+     "arguments": "{\"user\": \"user1770@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 861.0,
+     "arguments": "{\"user\": \"user1770@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 965.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user1770@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 518.0,
+     "arguments": "{\"user\": \"user1770@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 196.0,
+     "arguments": "{\"ip\": \"198.51.100.77\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 746.0,
+     "arguments": "{\"user\": \"user1770@example.com\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0100",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 532.0,
+     "arguments": "{\"user\": \"user3806@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1653.0,
+     "arguments": "{\"user\": \"user3806@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 710.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user3806@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1164.0,
+     "arguments": "{\"ip\": \"203.0.113.76\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1546.0,
+     "arguments": "{\"user\": \"user3806@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0088",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 904.0,
+     "arguments": "{\"user\": \"user9339@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 927.0,
+     "arguments": "{\"user\": \"user9339@example.com\", \"window\": {\"start\": \"2026-09-03T02:04:44Z\", \"end\": \"2026-09-10T02:04:44Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 248.0,
+     "arguments": "{\"app_id\": \"fe7904f3-264e-9ef1-cdcb-39d9d503507b\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 175.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has 'fe7904f3-264e-9ef1-cdcb-39d9d503507b' | summarize count() by Initia…"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0099",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1690.0,
+     "arguments": "{\"user\": \"user4569@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1199.0,
+     "arguments": "{\"user\": \"user4569@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 930.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user4569@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 830.0,
+     "arguments": "{\"ip\": \"203.0.113.57\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1131.0,
+     "arguments": "{\"user\": \"user4569@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0098",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1447.0,
+     "arguments": "{\"user\": \"user1570@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 625.0,
+     "arguments": "{\"user\": \"user1570@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 926.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user1570@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 873.0,
+     "arguments": "{\"ip\": \"198.51.100.2\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 872.0,
+     "arguments": "{\"user\": \"user1570@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0097",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 283.0,
+     "arguments": "{\"user\": \"user4571@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1152.0,
+     "arguments": "{\"user\": \"user4571@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1599.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user4571@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 875.0,
+     "arguments": "{\"user\": \"user4571@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0082",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 221.0,
+     "arguments": "{\"user\": \"user8238@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 574.0,
+     "arguments": "{\"user\": \"user8238@example.com\", \"window\": {\"start\": \"2026-08-31T16:58:36Z\", \"end\": \"2026-09-07T16:58:36Z\"}}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1053.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(14d) | where OperationName == 'Consent to application' | where TargetResources has '5d14fcc7-8842-60f7-e372-34a5b13bb8ca' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1147.0,
+     "arguments": "{\"app_id\": \"5d14fcc7-8842-60f7-e372-34a5b13bb8ca\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0095",
+   "calls": [
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1387.0,
+     "arguments": "{\"user\": \"user1124@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 848.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user1124@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1489.0,
+     "arguments": "{\"ip\": \"203.0.113.142\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1023.0,
+     "arguments": "{\"user\": \"user1124@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0080",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1220.0,
+     "arguments": "{\"user\": \"user4825@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1799.0,
+     "arguments": "{\"user\": \"user4825@example.com\", \"window\": {\"start\": \"2026-09-07T01:26:19Z\", \"end\": \"2026-09-07T05:26:19Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 279.0,
+     "arguments": "{\"app_id\": \"a8f21985-c49c-ae78-eda7-493dd3562104\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 397.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(14d) | where OperationName == 'Consent to application' | where TargetResources has 'a8f21985-c49c-ae78-eda7-493dd3562104' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 535.0,
+     "arguments": "{\"app_id\": \"a8f21985-c49c-ae78-eda7-493dd3562104\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0094",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1225.0,
+     "arguments": "{\"user\": \"user1146@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1238.0,
+     "arguments": "{\"user\": \"user1146@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1244.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user1146@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 231.0,
+     "arguments": "{\"ip\": \"203.0.113.2\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1287.0,
+     "arguments": "{\"user\": \"user1146@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0093",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1353.0,
+     "arguments": "{\"user\": \"user2718@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 801.0,
+     "arguments": "{\"user\": \"user2718@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 840.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user2718@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1208.0,
+     "arguments": "{\"ip\": \"198.51.100.17\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1592.0,
+     "arguments": "{\"user\": \"user2718@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0092",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1434.0,
+     "arguments": "{\"user\": \"user8424@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1430.0,
+     "arguments": "{\"user\": \"user8424@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1129.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user8424@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 413.0,
+     "arguments": "{\"ip\": \"203.0.113.119\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 663.0,
+     "arguments": "{\"user\": \"user8424@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0090",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1835.0,
+     "arguments": "{\"user\": \"user4721@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1046.0,
+     "arguments": "{\"user\": \"user4721@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 996.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user4721@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1175.0,
+     "arguments": "{\"ip\": \"203.0.113.139\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1232.0,
+     "arguments": "{\"user\": \"user4721@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0088",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 685.0,
+     "arguments": "{\"user\": \"user4190@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 746.0,
+     "arguments": "{\"user\": \"user4190@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 456.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user4190@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 929.0,
+     "arguments": "{\"user\": \"user4190@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1252.0,
+     "arguments": "{\"ip\": \"198.51.100.88\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1823.0,
+     "arguments": "{\"user\": \"user4190@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0073",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 696.0,
+     "arguments": "{\"user\": \"user5938@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 564.0,
+     "arguments": "{\"user\": \"user5938@example.com\", \"window\": {\"start\": \"2026-08-29T19:03:35Z\", \"end\": \"2026-09-05T19:03:35Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 197.0,
+     "arguments": "{\"app_id\": \"a7bdce22-b890-3832-ead2-1ac05eaa86a6\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 591.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has 'a7bdce22-b890-3832-ead2-1ac05eaa86a6' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 415.0,
+     "arguments": "{\"app_id\": \"a7bdce22-b890-3832-ead2-1ac05eaa86a6\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0086",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 478.0,
+     "arguments": "{\"user\": \"user1846@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1169.0,
+     "arguments": "{\"user\": \"user1846@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1747.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user1846@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1318.0,
+     "arguments": "{\"ip\": \"203.0.113.85\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 257.0,
+     "arguments": "{\"user\": \"user1846@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0085",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1143.0,
+     "arguments": "{\"user\": \"user1260@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1685.0,
+     "arguments": "{\"user\": \"user1260@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1356.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user1260@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1754.0,
+     "arguments": "{\"ip\": \"198.51.100.209\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 462.0,
+     "arguments": "{\"user\": \"user1260@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0082",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1104.0,
+     "arguments": "{\"user\": \"user5708@example.com\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 848.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user5708@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 950.0,
+     "arguments": "{\"ip\": \"192.0.2.225\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 811.0,
+     "arguments": "{\"user\": \"user5708@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0081",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 252.0,
+     "arguments": "{\"user\": \"user8448@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1844.0,
+     "arguments": "{\"user\": \"user8448@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1065.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user8448@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 198.0,
+     "arguments": "{\"ip\": \"192.0.2.17\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 455.0,
+     "arguments": "{\"user\": \"user8448@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0080",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 354.0,
+     "arguments": "{\"user\": \"user3735@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1807.0,
+     "arguments": "{\"user\": \"user3735@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 491.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user3735@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1723.0,
+     "arguments": "{\"ip\": \"203.0.113.148\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 333.0,
+     "arguments": "{\"user\": \"user3735@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0079",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1629.0,
+     "arguments": "{\"user\": \"user3116@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 615.0,
+     "arguments": "{\"user\": \"user3116@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1020.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user3116@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 521.0,
+     "arguments": "{\"ip\": \"198.51.100.40\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1180.0,
+     "arguments": "{\"user\": \"user3116@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0076",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1032.0,
+     "arguments": "{\"user\": \"user2312@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 245.0,
+     "arguments": "{\"user\": \"user2312@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 418.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user2312@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 504.0,
+     "arguments": "{\"ip\": \"198.51.100.166\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1693.0,
+     "arguments": "{\"user\": \"user2312@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0075",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 711.0,
+     "arguments": "{\"user\": \"user8754@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 724.0,
+     "arguments": "{\"user\": \"user8754@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 343.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user8754@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1018.0,
+     "arguments": "{\"ip\": \"203.0.113.230\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1783.0,
+     "arguments": "{\"user\": \"user8754@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0074",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 794.0,
+     "arguments": "{\"user\": \"user8700@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1190.0,
+     "arguments": "{\"user\": \"user8700@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1215.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user8700@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1011.0,
+     "arguments": "{\"ip\": \"198.51.100.165\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1307.0,
+     "arguments": "{\"user\": \"user8700@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0061",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1077.0,
+     "arguments": "{\"user\": \"user3440@example.com\"}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1032.0,
+     "arguments": "{\"app_id\": \"80ef70ba-3684-3beb-94dd-dae29c078bfa\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1787.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has '80ef70ba-3684-3beb-94dd-dae29c078bfa' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 127.0,
+     "arguments": "{\"app_id\": \"80ef70ba-3684-3beb-94dd-dae29c078bfa\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0071",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1536.0,
+     "arguments": "{\"user\": \"user2354@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1274.0,
+     "arguments": "{\"user\": \"user2354@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1892.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user2354@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 371.0,
+     "arguments": "{\"user\": \"user2354@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1330.0,
+     "arguments": "{\"ip\": \"203.0.113.252\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1757.0,
+     "arguments": "{\"user\": \"user2354@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0070",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1004.0,
+     "arguments": "{\"user\": \"user3507@example.com\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1169.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user3507@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1707.0,
+     "arguments": "{\"user\": \"user3507@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 734.0,
+     "arguments": "{\"ip\": \"192.0.2.100\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1569.0,
+     "arguments": "{\"user\": \"user3507@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0069",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 967.0,
+     "arguments": "{\"user\": \"user7883@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 187.0,
+     "arguments": "{\"user\": \"user7883@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1214.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user7883@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1569.0,
+     "arguments": "{\"user\": \"user7883@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1322.0,
+     "arguments": "{\"ip\": \"192.0.2.93\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 350.0,
+     "arguments": "{\"user\": \"user7883@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0068",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1182.0,
+     "arguments": "{\"user\": \"user9274@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 752.0,
+     "arguments": "{\"user\": \"user9274@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 334.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user9274@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1748.0,
+     "arguments": "{\"ip\": \"198.51.100.194\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 222.0,
+     "arguments": "{\"user\": \"user9274@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0067",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 563.0,
+     "arguments": "{\"user\": \"user3562@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1228.0,
+     "arguments": "{\"user\": \"user3562@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 218.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user3562@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 826.0,
+     "arguments": "{\"ip\": \"192.0.2.29\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 427.0,
+     "arguments": "{\"user\": \"user3562@example.com\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0066",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1256.0,
+     "arguments": "{\"user\": \"user0801@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 486.0,
+     "arguments": "{\"user\": \"user0801@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1169.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(6h) | where UserPrincipalName == 'user0801@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1549.0,
+     "arguments": "{\"ip\": \"198.51.100.42\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 256.0,
+     "arguments": "{\"user\": \"user0801@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0065",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1722.0,
+     "arguments": "{\"user\": \"user7859@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1453.0,
+     "arguments": "{\"user\": \"user7859@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 877.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user7859@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1459.0,
+     "arguments": "{\"ip\": \"192.0.2.69\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1313.0,
+     "arguments": "{\"user\": \"user7859@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0064",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 517.0,
+     "arguments": "{\"user\": \"user9970@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 623.0,
+     "arguments": "{\"user\": \"user9970@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 439.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user9970@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1295.0,
+     "arguments": "{\"ip\": \"203.0.113.248\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1166.0,
+     "arguments": "{\"user\": \"user9970@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0062",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 164.0,
+     "arguments": "{\"user\": \"user3294@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 187.0,
+     "arguments": "{\"user\": \"user3294@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 563.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user3294@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1780.0,
+     "arguments": "{\"ip\": \"198.51.100.36\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 290.0,
+     "arguments": "{\"user\": \"user3294@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0059",
+   "calls": [
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 786.0,
+     "arguments": "{\"user\": \"user3158@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 253.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user3158@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1024.0,
+     "arguments": "{\"ip\": \"198.51.100.243\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 763.0,
+     "arguments": "{\"user\": \"user3158@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0052",
+   "calls": [
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 151.0,
+     "arguments": "{\"user\": \"user3706@example.com\", \"window\": {\"start\": \"2026-08-19T13:58:25Z\", \"end\": \"2026-08-26T13:58:25Z\"}}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 678.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(14d) | where OperationName == 'Consent to application' | where TargetResources has 'c2fe73f2-d8df-e26a-f0d6-613821ea1f6f' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 570.0,
+     "arguments": "{\"app_id\": \"c2fe73f2-d8df-e26a-f0d6-613821ea1f6f\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0051",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 948.0,
+     "arguments": "{\"user\": \"user1901@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1842.0,
+     "arguments": "{\"user\": \"user1901@example.com\", \"window\": {\"start\": \"2026-08-24T09:03:17Z\", \"end\": \"2026-08-26T09:03:17Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1071.0,
+     "arguments": "{\"app_id\": \"a7204a91-901b-1e27-7b01-878adc788a4f\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 376.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has 'a7204a91-901b-1e27-7b01-878adc788a4f' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 634.0,
+     "arguments": "{\"app_id\": \"a7204a91-901b-1e27-7b01-878adc788a4f\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0050",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 429.0,
+     "arguments": "{\"user\": \"user6917@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1207.0,
+     "arguments": "{\"user\": \"user6917@example.com\", \"window\": {\"start\": \"2026-08-18T21:42:21Z\", \"end\": \"2026-08-25T21:42:21Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 288.0,
+     "arguments": "{\"app_id\": \"00d28d56-6f5d-7eb0-1d20-3e3a129e65c1\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 669.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(1d) | where OperationName == 'Consent to application' | where TargetResources has '00d28d56-6f5d-7eb0-1d20-3e3a129e65c1' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 390.0,
+     "arguments": "{\"app_id\": \"00d28d56-6f5d-7eb0-1d20-3e3a129e65c1\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0057",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1830.0,
+     "arguments": "{\"user\": \"user0141@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1008.0,
+     "arguments": "{\"user\": \"user0141@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 710.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user0141@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1750.0,
+     "arguments": "{\"ip\": \"192.0.2.233\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1193.0,
+     "arguments": "{\"user\": \"user0141@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0055",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1066.0,
+     "arguments": "{\"user\": \"user3649@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1080.0,
+     "arguments": "{\"user\": \"user3649@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 558.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user3649@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1851.0,
+     "arguments": "{\"ip\": \"198.51.100.92\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 351.0,
+     "arguments": "{\"user\": \"user3649@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0054",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 514.0,
+     "arguments": "{\"user\": \"user4271@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1269.0,
+     "arguments": "{\"user\": \"user4271@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 345.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user4271@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1514.0,
+     "arguments": "{\"ip\": \"192.0.2.129\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1677.0,
+     "arguments": "{\"user\": \"user4271@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0044",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 641.0,
+     "arguments": "{\"user\": \"user7397@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1601.0,
+     "arguments": "{\"user\": \"user7397@example.com\", \"window\": {\"start\": \"2026-08-20T03:34:18Z\", \"end\": \"2026-08-22T03:34:18Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 931.0,
+     "arguments": "{\"app_id\": \"7cf64a62-1cab-e9f8-cb15-71166f32326f\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 215.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '7cf64a62-1cab-e9f8-cb15-71166f32326f' | summarize count() by Initia…"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0051",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1199.0,
+     "arguments": "{\"user\": \"user9247@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 410.0,
+     "arguments": "{\"user\": \"user9247@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1761.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user9247@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1123.0,
+     "arguments": "{\"ip\": \"203.0.113.52\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 509.0,
+     "arguments": "{\"user\": \"user9247@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0048",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1018.0,
+     "arguments": "{\"user\": \"user4100@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 547.0,
+     "arguments": "{\"user\": \"user4100@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 619.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user4100@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 157.0,
+     "arguments": "{\"user\": \"user4100@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1745.0,
+     "arguments": "{\"ip\": \"203.0.113.30\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 155.0,
+     "arguments": "{\"user\": \"user4100@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0047",
+   "calls": [
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1038.0,
+     "arguments": "{\"user\": \"user2431@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 563.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user2431@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1106.0,
+     "arguments": "{\"ip\": \"203.0.113.105\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 605.0,
+     "arguments": "{\"user\": \"user2431@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0045",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1328.0,
+     "arguments": "{\"user\": \"user7344@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 159.0,
+     "arguments": "{\"user\": \"user7344@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 337.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user7344@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1477.0,
+     "arguments": "{\"ip\": \"198.51.100.35\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1791.0,
+     "arguments": "{\"user\": \"user7344@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0042",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1592.0,
+     "arguments": "{\"user\": \"user6979@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 935.0,
+     "arguments": "{\"user\": \"user6979@example.com\", \"range\": \"48h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 860.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(24h) | where UserPrincipalName == 'user6979@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1895.0,
+     "arguments": "{\"ip\": \"203.0.113.233\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1768.0,
+     "arguments": "{\"user\": \"user6979@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0041",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1725.0,
+     "arguments": "{\"user\": \"user1851@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1296.0,
+     "arguments": "{\"user\": \"user1851@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 676.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(1d) | where UserPrincipalName == 'user1851@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 567.0,
+     "arguments": "{\"user\": \"user1851@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 584.0,
+     "arguments": "{\"ip\": \"198.51.100.47\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1856.0,
+     "arguments": "{\"user\": \"user1851@example.com\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0040",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 151.0,
+     "arguments": "{\"user\": \"user9386@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 421.0,
+     "arguments": "{\"user\": \"user9386@example.com\", \"range\": \"6h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 353.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user9386@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1382.0,
+     "arguments": "{\"ip\": \"203.0.113.242\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 378.0,
+     "arguments": "{\"user\": \"user9386@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0034",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1132.0,
+     "arguments": "{\"user\": \"user8333@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 349.0,
+     "arguments": "{\"user\": \"user8333@example.com\", \"window\": {\"start\": \"2026-08-11T05:28:39Z\", \"end\": \"2026-08-18T05:28:39Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 121.0,
+     "arguments": "{\"app_id\": \"d55e1a93-c91d-759e-d0a7-f3bcae11c59e\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 308.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(1d) | where OperationName == 'Consent to application' | where TargetResources has 'd55e1a93-c91d-759e-d0a7-f3bcae11c59e' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 253.0,
+     "arguments": "{\"app_id\": \"d55e1a93-c91d-759e-d0a7-f3bcae11c59e\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0039",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1729.0,
+     "arguments": "{\"user\": \"user3534@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 988.0,
+     "arguments": "{\"user\": \"user3534@example.com\", \"range\": \"12h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 679.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(6h) | where UserPrincipalName == 'user3534@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 419.0,
+     "arguments": "{\"ip\": \"198.51.100.147\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 602.0,
+     "arguments": "{\"user\": \"user3534@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0038",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 473.0,
+     "arguments": "{\"user\": \"user6606@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 618.0,
+     "arguments": "{\"user\": \"user6606@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1028.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(6h) | where UserPrincipalName == 'user6606@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 939.0,
+     "arguments": "{\"ip\": \"198.51.100.127\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 378.0,
+     "arguments": "{\"user\": \"user6606@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0029",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1355.0,
+     "arguments": "{\"user\": \"user4920@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 208.0,
+     "arguments": "{\"user\": \"user4920@example.com\", \"window\": {\"start\": \"2026-08-15T02:26:19Z\", \"end\": \"2026-08-16T02:26:19Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 1186.0,
+     "arguments": "{\"app_id\": \"30f491ce-a751-1dc1-48f7-8d12d2932220\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1709.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has '30f491ce-a751-1dc1-48f7-8d12d2932220' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 295.0,
+     "arguments": "{\"app_id\": \"30f491ce-a751-1dc1-48f7-8d12d2932220\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0033",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 987.0,
+     "arguments": "{\"user\": \"user8082@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1209.0,
+     "arguments": "{\"user\": \"user8082@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 596.0,
+     "arguments": "{\"user\": \"user8082@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 207.0,
+     "arguments": "{\"ip\": \"203.0.113.241\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1152.0,
+     "arguments": "{\"user\": \"user8082@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0032",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 734.0,
+     "arguments": "{\"user\": \"user7693@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 497.0,
+     "arguments": "{\"user\": \"user7693@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 399.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user7693@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 638.0,
+     "arguments": "{\"user\": \"user7693@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1828.0,
+     "arguments": "{\"ip\": \"203.0.113.197\"}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0027",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1123.0,
+     "arguments": "{\"user\": \"user7333@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1837.0,
+     "arguments": "{\"user\": \"user7333@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 340.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(7d) | where UserPrincipalName == 'user7333@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1324.0,
+     "arguments": "{\"user\": \"user7333@example.com\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1863.0,
+     "arguments": "{\"user\": \"user7333@example.com\", \"lookback_days\": 14}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0024",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 719.0,
+     "arguments": "{\"user\": \"user4154@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 271.0,
+     "arguments": "{\"user\": \"user4154@example.com\", \"range\": \"7d\", \"limit\": 100}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 608.0,
+     "arguments": "{\"user\": \"user4154@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1630.0,
+     "arguments": "{\"ip\": \"203.0.113.124\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 628.0,
+     "arguments": "{\"user\": \"user4154@example.com\", \"lookback_days\": 7}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0021",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 279.0,
+     "arguments": "{\"user\": \"user4277@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 228.0,
+     "arguments": "{\"user\": \"user4277@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 640.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(30d) | where UserPrincipalName == 'user4277@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1592.0,
+     "arguments": "{\"user\": \"user4277@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1151.0,
+     "arguments": "{\"ip\": \"198.51.100.8\"}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0017",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 749.0,
+     "arguments": "{\"user\": \"user0957@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 343.0,
+     "arguments": "{\"user\": \"user0957@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 471.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(12h) | where UserPrincipalName == 'user0957@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1364.0,
+     "arguments": "{\"user\": \"user0957@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 1873.0,
+     "arguments": "{\"ip\": \"192.0.2.81\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 456.0,
+     "arguments": "{\"user\": \"user0957@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0014",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 252.0,
+     "arguments": "{\"user\": \"user0206@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 370.0,
+     "arguments": "{\"user\": \"user0206@example.com\", \"range\": \"P1D\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 837.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(12h) | where UserPrincipalName == 'user0206@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1419.0,
+     "arguments": "{\"user\": \"user0206@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 408.0,
+     "arguments": "{\"ip\": \"203.0.113.18\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 1497.0,
+     "arguments": "{\"user\": \"user0206@example.com\", \"lookback_days\": 90}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-IT-0008",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 876.0,
+     "arguments": "{\"user\": \"user4060@example.com\"}"
+    },
+    {
+     "tool": "get_signin_logs",
+     "status": "success",
+     "duration_ms": 1879.0,
+     "arguments": "{\"user\": \"user4060@example.com\", \"range\": \"24h\", \"limit\": 100}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 375.0,
+     "arguments": "{\"query\": \"SigninLogs | where TimeGenerated > ago(12h) | where UserPrincipalName == 'user4060@example.com' | summarize count() by IPAddress, Location\"}"
+    },
+    {
+     "tool": "check_mfa_status",
+     "status": "success",
+     "duration_ms": 1626.0,
+     "arguments": "{\"user\": \"user4060@example.com\"}"
+    },
+    {
+     "tool": "get_ip_reputation",
+     "status": "success",
+     "duration_ms": 548.0,
+     "arguments": "{\"ip\": \"203.0.113.252\"}"
+    },
+    {
+     "tool": "get_user_locations",
+     "status": "success",
+     "duration_ms": 320.0,
+     "arguments": "{\"user\": \"user4060@example.com\", \"lookback_days\": 60}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0005",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1092.0,
+     "arguments": "{\"user\": \"user9109@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 357.0,
+     "arguments": "{\"user\": \"user9109@example.com\", \"window\": {\"start\": \"2026-08-04T17:23:39Z\", \"end\": \"2026-08-04T21:23:39Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 413.0,
+     "arguments": "{\"app_id\": \"e9b3ce67-132e-90fb-8299-91c664de185d\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 248.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(3d) | where OperationName == 'Consent to application' | where TargetResources has 'e9b3ce67-132e-90fb-8299-91c664de185d' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1382.0,
+     "arguments": "{\"app_id\": \"e9b3ce67-132e-90fb-8299-91c664de185d\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0004",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1265.0,
+     "arguments": "{\"user\": \"user8496@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 1553.0,
+     "arguments": "{\"user\": \"user8496@example.com\", \"window\": {\"start\": \"2026-07-28T10:54:03Z\", \"end\": \"2026-08-04T10:54:03Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 775.0,
+     "arguments": "{\"app_id\": \"99bfe0c4-545d-670e-17b6-ea643effd621\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 1787.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(1d) | where OperationName == 'Consent to application' | where TargetResources has '99bfe0c4-545d-670e-17b6-ea643effd621' | summarize count() by Initia…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1821.0,
+     "arguments": "{\"app_id\": \"99bfe0c4-545d-670e-17b6-ea643effd621\", \"lookback_days\": 30}"
+    }
+   ]
+  },
+  {
+   "case_id": "DT-OC-0001",
+   "calls": [
+    {
+     "tool": "get_user_profile",
+     "status": "success",
+     "duration_ms": 1164.0,
+     "arguments": "{\"user\": \"user1487@example.com\"}"
+    },
+    {
+     "tool": "get_oauth_grants",
+     "status": "success",
+     "duration_ms": 975.0,
+     "arguments": "{\"user\": \"user1487@example.com\", \"window\": {\"start\": \"2026-07-27T00:16:31Z\", \"end\": \"2026-08-03T00:16:31Z\"}}"
+    },
+    {
+     "tool": "get_app_permissions",
+     "status": "success",
+     "duration_ms": 245.0,
+     "arguments": "{\"app_id\": \"dfc40b7a-3c38-13c6-1690-ad4360fa0757\"}"
+    },
+    {
+     "tool": "query_sentinel",
+     "status": "success",
+     "duration_ms": 225.0,
+     "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(12h) | where OperationName == 'Consent to application' | where TargetResources has 'dfc40b7a-3c38-13c6-1690-ad4360fa0757' | summarize count() by Initi…"
+    },
+    {
+     "tool": "get_consent_events",
+     "status": "success",
+     "duration_ms": 1090.0,
+     "arguments": "{\"app_id\": \"dfc40b7a-3c38-13c6-1690-ad4360fa0757\", \"lookback_days\": 90}"
+    }
+   ]
+  }
+ ]
+}

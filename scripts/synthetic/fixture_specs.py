@@ -184,11 +184,16 @@ _OPENINFERENCE_KINDS = {
     conventions.EXECUTE_TOOL: "TOOL",
     "chat": "LLM",
 }
+# Tool attribute names from the OpenInference semantic conventions:
+# https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
+# (`openinference.span.kind`, `tool.name`, `tool.parameters` as a JSON string).
 _OPENINFERENCE_NAMES = {
     "detecttrace.case_id": "soc.case.id",
     "detecttrace.alert_class": "soc.alert.class",
     "detecttrace.verdict": "soc.agent.verdict",
     "detecttrace.prompt_version": "soc.prompt.version",
+    conventions.TOOL_NAME: "tool.name",
+    conventions.TOOL_CALL_ARGUMENTS: "tool.parameters",
 }
 
 
@@ -305,6 +310,8 @@ _register(
                 "alert_class": _OPENINFERENCE_NAMES["detecttrace.alert_class"],
                 "verdict": _OPENINFERENCE_NAMES["detecttrace.verdict"],
                 "prompt_version": _OPENINFERENCE_NAMES["detecttrace.prompt_version"],
+                "tool_name": _OPENINFERENCE_NAMES[conventions.TOOL_NAME],
+                "tool_arguments": _OPENINFERENCE_NAMES[conventions.TOOL_CALL_ARGUMENTS],
                 "operation": {
                     "attribute": _OPENINFERENCE_KIND_ATTRIBUTE,
                     "agent_value": _OPENINFERENCE_KINDS[conventions.INVOKE_AGENT],

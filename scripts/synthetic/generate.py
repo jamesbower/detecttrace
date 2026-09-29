@@ -137,6 +137,8 @@ class Scenario(_Strict):
     weeks: int = Field(ge=1)
     # Where `--scenario NAME` writes; fixture scenarios have none, their folder is registered.
     output_dir: Path | None = None
+    # Where `--update-golden` writes the golden file; without it, next to the data.
+    golden_dir: Path | None = None
     has_readme: bool = False
     agent: AgentSpec
     versions: tuple[VersionSpec, ...]
@@ -175,15 +177,19 @@ def generate(scenario: Scenario, out_dir: Path) -> list[Path]:
     return sorted(written, key=lambda path: path.as_posix())
 
 
-def update_golden(out_dir: Path) -> Path:
-    """Run the check on `out_dir` and write its results, with the version normalized."""
+def update_golden(out_dir: Path, golden_dir: Path) -> Path:
+    """Run the check on `out_dir` and write its results into `golden_dir`, version normalized."""
     # Imported here so generating data never depends on the pipeline being importable.
     from detecttrace.pipeline import run_check
     from detecttrace.runconfig import load_run_config
 
     config_path = out_dir / "detecttrace.yaml"
     results = normalize_results(run_check(load_run_config(config_path), config_path).results)
-    return write_text(out_dir / GOLDEN_NAME, to_golden_text(results))
+    return write_text(golden_dir / GOLDEN_NAME, to_golden_text(results))
+
+
+def to_golden_dir(scenario: Scenario, out_dir: Path) -> Path:
+    return REPO_ROOT / scenario.golden_dir if scenario.golden_dir else out_dir
 
 
 def normalize_results(results: dict[str, object]) -> dict[str, object]:
@@ -212,7 +218,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         out_dir: Path = args.out or REPO_ROOT / (scenario.output_dir or "")
         paths = generate(scenario, out_dir)
         if args.update_golden:
-            paths.append(update_golden(out_dir))
+            paths.append(update_golden(out_dir, to_golden_dir(scenario, out_dir)))
     for path in paths:
         print(path)
     return 0
@@ -226,7 +232,7 @@ def _write_everything(should_update_golden: bool) -> list[Path]:
     demo_dir = REPO_ROOT / (scenario.output_dir or "")
     paths = generate(scenario, demo_dir)
     if should_update_golden:
-        paths.append(update_golden(demo_dir))
+        paths.append(update_golden(demo_dir, to_golden_dir(scenario, demo_dir)))
     for spec in fixture_specs.FIXTURES:
         paths.extend(fixture_specs.write_fixture(spec, fixture_specs.FIXTURE_ROOT))
         if should_update_golden:

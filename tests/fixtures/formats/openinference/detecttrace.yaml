@@ -17,6 +17,8 @@ mapping:
   alert_class: soc.alert.class
   verdict: soc.agent.verdict
   prompt_version: soc.prompt.version
+  tool_name: tool.name
+  tool_arguments: tool.parameters
   operation:
     attribute: openinference.span.kind
     agent_value: AGENT

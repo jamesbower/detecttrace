@@ -66,7 +66,8 @@ def generated_text(request: pytest.FixtureRequest) -> str:
 
 
 def test_regenerating_writes_the_same_file_names(generated: tuple[Path, float]) -> None:
-    assert _list_files(generated[0]) == _list_generated(DEMO_DIR)
+    # Every committed demo file, so a golden file left in the package fails here too.
+    assert _list_files(generated[0]) == _list_files(DEMO_DIR)
 
 
 def test_regenerated_plain_files_are_byte_identical(generated: tuple[Path, float]) -> None:

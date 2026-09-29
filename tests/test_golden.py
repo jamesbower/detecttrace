@@ -22,6 +22,8 @@ from detecttrace.runconfig import load_run_config
 
 DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 FIXTURE_ROOT = fixture_specs.FIXTURE_ROOT
+# Outside the package so it doesn't ship in every wheel; unlike fixture goldens it has no `keep`.
+DEMO_GOLDEN = FIXTURE_ROOT / "demo" / generate.GOLDEN_NAME
 FORMATS_DIR = FIXTURE_ROOT / "formats"
 NEEDS_ZSTD = pytest.mark.skipif(
     importlib.util.find_spec("zstandard") is None, reason="zstandard is not installed"
@@ -48,7 +50,7 @@ RESULT_ONLY_KEYS = (
 
 @pytest.fixture(scope="module")
 def golden_text() -> str:
-    return (DEMO_DIR / generate.GOLDEN_NAME).read_text(encoding="utf-8")
+    return DEMO_GOLDEN.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -92,7 +94,9 @@ def _fixture_param(folder: Path) -> object:
     return pytest.param(folder, id=name, marks=[NEEDS_ZSTD] if "zstd" in name else [])
 
 
-FIXTURE_FOLDERS = sorted(path.parent for path in FIXTURE_ROOT.rglob(generate.GOLDEN_NAME))
+FIXTURE_FOLDERS = sorted(
+    path.parent for path in FIXTURE_ROOT.rglob(generate.GOLDEN_NAME) if path != DEMO_GOLDEN
+)
 
 
 @pytest.mark.parametrize("folder", [_fixture_param(folder) for folder in FIXTURE_FOLDERS])
