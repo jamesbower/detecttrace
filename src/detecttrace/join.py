@@ -48,6 +48,18 @@ def _join_one(
                 f"CSV '{row.alert_class}', trace '{trace_case.alert_class}'; using the CSV value",
             )
         )
+    classes_by_key: dict[str, str] = {}
+    for r in rows:
+        classes_by_key.setdefault(normalize_label(r.alert_class), r.alert_class)
+    if len(classes_by_key) > 1:
+        listed = ", ".join(f"'{alert_class}'" for alert_class in classes_by_key.values())
+        issues.append(
+            Issue(
+                IssueKind.ALERT_CLASS_CONFLICT,
+                row.case_id,
+                f"CSV rows give {listed}; using the first row's '{row.alert_class}'",
+            )
+        )
     analyst_verdict = _resolve_analyst_verdict(rows, config, issues)
     agent_verdict = None
     if trace_case.agent_label is None:
@@ -75,8 +87,14 @@ def _resolve_analyst_verdict(
 ) -> Verdict | None:
     """One verdict per case. Rows that disagree leave the ground truth unclear, so none is picked."""
     first = rows[0]
+    unmapped_by_key: dict[str, str] = {}
+    for r in rows:
+        if config.to_analyst_verdict(r.label) is None:
+            unmapped_by_key.setdefault(normalize_label(r.label), r.label)
+    for label in unmapped_by_key.values():
+        issues.append(Issue(IssueKind.UNMAPPED_ANALYST_LABEL, first.case_id, label))
     if len(rows) > 1:
-        lines = ", ".join(f"line {r.line_number}: {r.label}" for r in rows)
+        lines = ", ".join(f"line {r.line_number}: {r.alert_class}/{r.label}" for r in rows)
         # Same verdict means the same mapped verdict ("TP" and "Malicious"), or the same
         # normalized text when a label is unmapped.
         keys = {
@@ -87,7 +105,4 @@ def _resolve_analyst_verdict(
             issues.append(Issue(IssueKind.CONFLICTING_ANALYST_VERDICT, first.case_id, lines))
             return None
         issues.append(Issue(IssueKind.DUPLICATE_VERDICT, first.case_id, lines))
-    verdict = config.to_analyst_verdict(first.label)
-    if verdict is None:
-        issues.append(Issue(IssueKind.UNMAPPED_ANALYST_LABEL, first.case_id, first.label))
-    return verdict
+    return config.to_analyst_verdict(first.label)

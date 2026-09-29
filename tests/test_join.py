@@ -153,6 +153,77 @@ def test_conflicting_analyst_verdicts_are_reported() -> None:
     assert [i.kind for i in issues] == [IssueKind.CONFLICTING_ANALYST_VERDICT]
 
 
+def test_duplicate_verdict_detail_names_each_row_alert_class_and_label() -> None:
+    _, issues = join_cases(
+        [trace_case(alert_class=None)],
+        [row(alert_class="Phishing"), row(alert_class="phishing ", line=3)],
+        CONFIG,
+    )
+
+    assert [i.detail for i in issues] == ["line 2: Phishing/TP, line 3: phishing /TP"]
+
+
+def test_conflicting_verdict_detail_names_each_row_alert_class_and_label() -> None:
+    _, issues = join_cases(
+        [trace_case(alert_class=None)],
+        [row(alert_class="Phishing"), row(alert_class="Phishing", label="FP", line=3)],
+        CONFIG,
+    )
+
+    assert [i.detail for i in issues] == ["line 2: Phishing/TP, line 3: Phishing/FP"]
+
+
+def test_duplicate_rows_with_different_alert_classes_are_reported() -> None:
+    _, issues = join_cases(
+        [trace_case(alert_class=None)],
+        [row(alert_class="Phishing"), row(alert_class="Malware", line=3)],
+        CONFIG,
+    )
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (
+            IssueKind.ALERT_CLASS_CONFLICT,
+            "CSV rows give 'Phishing', 'Malware'; using the first row's 'Phishing'",
+        ),
+        (IssueKind.DUPLICATE_VERDICT, "line 2: Phishing/TP, line 3: Malware/TP"),
+    ]
+
+
+def test_duplicate_rows_with_different_alert_classes_use_the_first_class() -> None:
+    cases, _ = join_cases(
+        [trace_case(alert_class=None)],
+        [row(alert_class="Phishing"), row(alert_class="Malware", line=3)],
+        CONFIG,
+    )
+
+    assert cases[0].alert_class == "Phishing"
+
+
+def test_mapped_label_mixed_with_an_unmapped_one_reports_both_problems() -> None:
+    _, issues = join_cases(
+        [trace_case()], [row(label="TP"), row(label="Malicious", line=3)], CONFIG
+    )
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.UNMAPPED_ANALYST_LABEL, "Malicious"),
+        (
+            IssueKind.CONFLICTING_ANALYST_VERDICT,
+            "line 2: impossible_travel/TP, line 3: impossible_travel/Malicious",
+        ),
+    ]
+
+
+def test_repeated_unmapped_label_is_reported_once() -> None:
+    _, issues = join_cases(
+        [trace_case()], [row(label="Escalated"), row(label=" escalated", line=3)], CONFIG
+    )
+
+    assert [i.kind for i in issues] == [
+        IssueKind.UNMAPPED_ANALYST_LABEL,
+        IssueKind.DUPLICATE_VERDICT,
+    ]
+
+
 def test_cases_are_sorted_by_case_id() -> None:
     cases, _ = join_cases(
         [trace_case("DT-2"), trace_case("DT-1")], [row("DT-1"), row("DT-2")], CONFIG

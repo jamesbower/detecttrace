@@ -90,11 +90,99 @@ def test_invalid_row_issue_subject_is_the_file_name_and_line(tmp_path: Path) -> 
     assert [i.subject for i in issues] == ["verdicts.csv:2"]
 
 
-def test_field_over_the_csv_size_limit_raises_csv_error(tmp_path: Path) -> None:
+def test_row_with_a_field_over_the_csv_size_limit_is_reported(tmp_path: Path) -> None:
     oversized = "x" * (csv.field_size_limit() + 1)
-    path = write_csv(tmp_path, f"case_id,alert_class,verdict\nDT-1,{oversized},TP\n")
+    path = write_csv(tmp_path, f"case_id,alert_class,verdict\nDT-1,{oversized},TP\nDT-2,x,FP\n")
 
-    with pytest.raises(VerdictFileError, match="could not be read as CSV"):
+    _, issues = read_verdicts(path)
+
+    assert [(i.kind, i.subject) for i in issues] == [
+        (IssueKind.INVALID_VERDICT_ROW, "verdicts.csv:2")
+    ]
+
+
+def test_rows_after_a_field_over_the_csv_size_limit_are_still_read(tmp_path: Path) -> None:
+    oversized = "x" * (csv.field_size_limit() + 1)
+    path = write_csv(tmp_path, f"case_id,alert_class,verdict\nDT-1,{oversized},TP\nDT-2,x,FP\n")
+
+    rows, _ = read_verdicts(path)
+
+    assert rows == [VerdictRow("DT-2", "x", "FP", 3)]
+
+
+def test_quoted_value_over_the_csv_size_limit_spanning_lines_raises(tmp_path: Path) -> None:
+    multiline = "x\n" * (csv.field_size_limit() // 2 + 1)
+    path = write_csv(tmp_path, f'case_id,alert_class,verdict\nDT-1,"{multiline}",TP\n')
+
+    with pytest.raises(VerdictFileError, match="unbalanced quote"):
+        read_verdicts(path)
+
+
+def test_unbalanced_quote_is_reported_with_the_merged_lines(tmp_path: Path) -> None:
+    path = write_csv(
+        tmp_path, 'case_id,alert_class,verdict\nDT-1,"Phish,TP\nDT-2,Mal,FP\nDT-3,Mal,TP\n'
+    )
+
+    _, issues = read_verdicts(path)
+
+    assert [(i.kind, i.subject, i.detail) for i in issues] == [
+        (
+            IssueKind.INVALID_VERDICT_ROW,
+            "verdicts.csv:4",
+            "unbalanced quote; lines 2\u20134 were read as one row",
+        )
+    ]
+
+
+def test_row_merged_by_an_unbalanced_quote_is_not_returned(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, 'case_id,alert_class,verdict\nDT-1,"Phish,TP\nDT-2,Mal",FP\n')
+
+    rows, _ = read_verdicts(path)
+
+    assert rows == []
+
+
+def test_unbalanced_quote_in_an_extra_column_is_reported(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, 'case_id,alert_class,verdict,notes\nDT-1,x,TP,"odd\nDT-2,y,FP,\n')
+
+    _, issues = read_verdicts(path)
+
+    assert [i.kind for i in issues] == [IssueKind.INVALID_VERDICT_ROW]
+
+
+def test_blank_lines_between_rows_are_not_reported(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, "case_id,alert_class,verdict\nDT-1,x,TP\n\n\nDT-2,y,FP\n")
+
+    _, issues = read_verdicts(path)
+
+    assert issues == []
+
+
+def test_row_with_more_fields_than_the_header_is_reported(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, "case_id,alert_class,verdict\nDT-1,Phishing, Malware,TP\n")
+
+    _, issues = read_verdicts(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (
+            IssueKind.INVALID_VERDICT_ROW,
+            "1 more fields than the header; quote values that contain commas",
+        )
+    ]
+
+
+def test_row_with_more_fields_than_the_header_is_not_returned(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, "case_id,alert_class,verdict\nDT-1,Phishing, Malware,TP\n")
+
+    rows, _ = read_verdicts(path)
+
+    assert rows == []
+
+
+def test_duplicate_required_header_column_raises_with_its_name(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, "case_id,alert_class,verdict, verdict\nDT-1,x,TP,FP\n")
+
+    with pytest.raises(VerdictFileError, match="repeats the column\\(s\\) verdict"):
         read_verdicts(path)
 
 
