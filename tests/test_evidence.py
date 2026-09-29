@@ -230,6 +230,10 @@ def test_matches_honours_an_inline_ignorecase_flag():
     assert passes({"q": {"matches": "(?i)signinlogs"}}, {"q": "SigninLogs | take 1"})
 
 
+def test_matches_is_case_sensitive_by_default():
+    assert not passes({"q": {"matches": "signinlogs"}}, {"q": "SigninLogs | take 1"})
+
+
 def test_matches_fails_on_a_number():
     assert not passes({"q": {"matches": "24"}}, {"q": 24})
 
@@ -312,6 +316,11 @@ def test_missing_end_fails_without_a_report():
     assert reported_kinds(WINDOW_RULE, {"start": "2026-09-01T00:00:00Z"}) == []
 
 
+def test_start_and_end_exactly_24_hours_apart_pass_24h():
+    arguments = {"start": "2026-09-01T00:00:00Z", "end": "2026-09-02T00:00:00Z"}
+    assert passes(WINDOW_RULE, arguments)
+
+
 # min_duration on a value
 
 
@@ -388,6 +397,11 @@ def test_max_is_inclusive(value, expected):
 
 def test_min_and_max_together_pass_a_value_between():
     assert passes({"hours": {"min": 24, "max": 48}}, {"hours": 36})
+
+
+def test_min_and_max_under_one_key_must_both_pass():
+    items = [make_item({"hours": {"min": 24, "max": 48}})]
+    assert outcomes(items, make_call({"hours": 60})) == (WRONG_ARGUMENTS,)
 
 
 # kql_min_ago

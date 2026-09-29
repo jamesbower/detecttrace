@@ -201,18 +201,24 @@ def test_checklist_without_items_raises(tmp_path: Path, text: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "text",
+    ("text", "reason"),
     [
-        "alert_class: phishing\nitems:\n  - {id: ' ', tool: t}\n",
-        "alert_class: phishing\nitems:\n  - {id: a, tool: ''}\n",
-        "alert_class: '  '\nitems:\n  - {id: a, tool: t}\n",
-        "alert_class: 12\nitems:\n  - {id: a, tool: t}\n",
+        (
+            "alert_class: phishing\nitems:\n  - {id: ' ', tool: t}\n",
+            r"items\.0\.id: must not be empty",
+        ),
+        (
+            "alert_class: phishing\nitems:\n  - {id: a, tool: ''}\n",
+            r"items\.0\.tool: must not be empty",
+        ),
+        ("alert_class: '  '\nitems:\n  - {id: a, tool: t}\n", "alert_class: must not be empty"),
+        ("alert_class: 12\nitems:\n  - {id: a, tool: t}\n", "alert_class: .*valid string"),
     ],
     ids=["blank-id", "blank-tool", "blank-class", "numeric-class"],
 )
-def test_blank_or_non_string_names_raise(tmp_path: Path, text: str) -> None:
+def test_blank_or_non_string_names_raise(tmp_path: Path, text: str, reason: str) -> None:
     path = _write(tmp_path, "c.yaml", text)
-    with pytest.raises(ChecklistFileError):
+    with pytest.raises(ChecklistFileError, match=reason):
         load_checklists(path)
 
 
@@ -375,6 +381,21 @@ def test_explicit_core_tags_accept_yaml_12_forms(
 
 def test_file_over_one_mebibyte_raises(tmp_path: Path) -> None:
     path = _write(tmp_path, "c.yaml", _one_item(f"      x: {{ equals: {'x' * (1 << 20)} }}\n"))
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: larger than 1 MiB"):
+        load_checklists(path)
+
+
+ONE_ITEM = "alert_class: phishing\nitems:\n  - {id: a, tool: t}\n# "
+ONE_MEBIBYTE = 1_048_576
+
+
+def test_file_of_exactly_one_mebibyte_loads(tmp_path: Path) -> None:
+    path = _write(tmp_path, "c.yaml", ONE_ITEM + "x" * (ONE_MEBIBYTE - len(ONE_ITEM)))
+    assert list(load_checklists(path)) == ["phishing"]
+
+
+def test_file_one_byte_over_one_mebibyte_raises(tmp_path: Path) -> None:
+    path = _write(tmp_path, "c.yaml", ONE_ITEM + "x" * (ONE_MEBIBYTE + 1 - len(ONE_ITEM)))
     with pytest.raises(ChecklistFileError, match=r"c\.yaml: larger than 1 MiB"):
         load_checklists(path)
 

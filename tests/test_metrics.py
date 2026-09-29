@@ -23,8 +23,6 @@ from detecttrace.metrics import (
 )
 from detecttrace.model import Case, IssueKind, ToolCall, Verdict
 from detecttrace.stats import (
-    BOOTSTRAP_MIN_VALID,
-    BOOTSTRAP_RESAMPLES,
     Interval,
     kappa_analytic_interval,
     mean_t_interval,
@@ -231,14 +229,24 @@ def test_kappa_at_99_cases_uses_bootstrap_method() -> None:
 
 
 def test_kappa_bootstrap_with_enough_valid_resamples_has_interval() -> None:
+    # Computed by a throwaway script that does not import detecttrace: random.Random(20260928),
+    # 1,000 resamples of rng.choices(range(99), k=99) over the MIXED_99 verdict pairs in
+    # make_cases order, kappa from scratch with fractions, then
+    # statistics.quantiles(values, n=40, method="inclusive") -> (cuts[0], cuts[-1]).
+    expected = pytest.approx((0.7430119713899326, 0.9331243219151467), rel=1e-12)
     metrics = slice_of(MIXED_99)
 
-    assert metrics.kappa.interval is not None
+    assert (
+        metrics.kappa.interval is not None
+        and (metrics.kappa.interval.low, metrics.kappa.interval.high) == expected
+    )
 
 
 # 98 agreed TP cases and one agreed FP case: a resample misses the FP case with probability
 # (98/99)^99 ≈ 0.37, leaving both sides all TP, so kappa is undefined. About 370 of 1,000
-# resamples are dropped (351 with the fixed seed), well over the 100 that the interval allows.
+# resamples are dropped, well over the 100 that the interval allows. The exact count, 351, comes
+# from a throwaway script that does not import detecttrace: random.Random(20260928), 1,000
+# resamples of rng.choices(range(99), k=99), counting those that miss index 98 (the FP case).
 DEGENERATE_99: VerdictCounts = {(TP, TP): 98, (FP, FP): 1}
 
 
@@ -257,7 +265,7 @@ def test_kappa_bootstrap_with_many_undefined_resamples_notes_why() -> None:
 def test_kappa_bootstrap_with_many_undefined_resamples_reports_dropped_count() -> None:
     metrics = slice_of(DEGENERATE_99)
 
-    assert metrics.kappa.dropped_resamples > BOOTSTRAP_RESAMPLES - BOOTSTRAP_MIN_VALID
+    assert metrics.kappa.dropped_resamples == 351
 
 
 def test_kappa_bootstrap_with_many_undefined_resamples_still_has_a_value() -> None:
@@ -297,6 +305,27 @@ def test_completeness_t_interval_is_clipped_to_one() -> None:
     completeness = completeness_of(make_cases({(TP, TP): 30}), [4] * 29 + [0], 4)
 
     assert completeness.interval == Interval(mean_t_interval([1.0] * 29 + [0.0]).low, 1.0)
+
+
+def test_completeness_t_interval_is_clipped_to_zero() -> None:
+    # 29 empty cases and one complete one: the unclipped lower bound is about -0.035.
+    completeness = completeness_of(make_cases({(TP, TP): 30}), [0] * 29 + [4], 4)
+
+    assert completeness.interval is not None and completeness.interval.low == 0.0
+
+
+def test_completeness_at_29_cases_has_bootstrap_interval() -> None:
+    # Computed by a throwaway script that does not import detecttrace: random.Random(20260928),
+    # 1,000 resamples of rng.choices(range(29), k=29) over the VARIED_29 shares, the mean of
+    # each from scratch, then statistics.quantiles(values, n=40, method="inclusive")
+    # -> (cuts[0], cuts[-1]).
+    expected = pytest.approx((0.3706896551724138, 0.6120689655172413), rel=1e-12)
+    completeness = completeness_of(make_cases({(TP, TP): 29}), VARIED_29, 4)
+
+    assert (
+        completeness.interval is not None
+        and (completeness.interval.low, completeness.interval.high) == expected
+    )
 
 
 def test_completeness_at_29_cases_uses_bootstrap_method() -> None:
@@ -561,6 +590,15 @@ def test_rollback_marks_the_first_week_of_each_version() -> None:
     ]
 
     assert report_of(cases).classes[0].version_first_week == {"v1": W38, "v2": W39}
+
+
+def test_first_week_is_the_earliest_start_not_the_first_case_id() -> None:
+    cases = [
+        make_case("a-1", TP, TP, version="v1", start_ns=IN_W40),
+        make_case("a-2", TP, TP, version="v1", start_ns=IN_W38),
+    ]
+
+    assert report_of(cases).classes[0].version_first_week["v1"] == W38
 
 
 def test_rollback_version_has_points_in_both_periods() -> None:

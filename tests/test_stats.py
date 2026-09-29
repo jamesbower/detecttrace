@@ -1,11 +1,10 @@
+import itertools
 import math
-import random
+from collections.abc import Callable
 
 import pytest
 
 from detecttrace.stats import (
-    BOOTSTRAP_RESAMPLES,
-    BOOTSTRAP_SEED,
     Interval,
     _kappa_standard_error,
     cohens_kappa,
@@ -155,6 +154,18 @@ def test_kappa_interval_is_clipped_at_one() -> None:
     assert interval is not None and interval.high == 1.0
 
 
+def test_kappa_interval_is_clipped_at_minus_one() -> None:
+    # kappa-hat = -0.90566 and SE = 0.07252 (recomputed by hand from the Fleiss, Cohen and
+    # Everitt formula), so the unclipped lower bound is -1.04780.
+    interval = kappa_analytic_interval([[1, 60, 0], [40, 0, 0], [0, 0, 0]])
+
+    assert interval is not None and interval.low == -1.0
+
+
+def test_kappa_interval_of_perfect_agreement_is_a_point_at_one() -> None:
+    assert kappa_analytic_interval([[40, 0, 0], [0, 30, 0], [0, 0, 30]]) == Interval(1.0, 1.0)
+
+
 def test_kappa_interval_is_none_when_chance_agreement_is_certain() -> None:
     assert kappa_analytic_interval(ONE_VERDICT_ONLY) is None
 
@@ -199,15 +210,27 @@ def _none_when_zero_drawn(sample: list[int]) -> float | None:
     return None if 0 in sample else 1.0
 
 
-def _count_resamples_containing_zero(n: int) -> int:
-    rng = random.Random(BOOTSTRAP_SEED)
-    return sum(0 in rng.choices(range(n), k=n) for _ in range(BOOTSTRAP_RESAMPLES))
+# Resamples of n = 5 that draw index 0, for seed 20260928 and 1,000 resamples. Counted by a
+# throwaway script that calls random.Random(20260928).choices(range(5), k=5) 1,000 times,
+# without importing detecttrace.
+DROPPED_WHEN_ZERO_DRAWN_OF_5 = 652
 
 
 def test_bootstrap_reports_dropped_resamples() -> None:
-    expected = _count_resamples_containing_zero(5)
+    assert percentile_bootstrap(5, _none_when_zero_drawn).dropped == DROPPED_WHEN_ZERO_DRAWN_OF_5
 
-    assert percentile_bootstrap(5, _none_when_zero_drawn).dropped == expected
+
+def _none_for_first_calls(count: int) -> Callable[[list[int]], float | None]:
+    calls = itertools.count()
+    return lambda sample: None if next(calls) < count else 1.0
+
+
+def test_bootstrap_with_exactly_900_valid_resamples_has_interval() -> None:
+    assert percentile_bootstrap(10, _none_for_first_calls(100)).interval == Interval(1.0, 1.0)
+
+
+def test_bootstrap_with_899_valid_resamples_has_no_interval() -> None:
+    assert percentile_bootstrap(10, _none_for_first_calls(101)).interval is None
 
 
 def test_bootstrap_gives_no_interval_when_too_few_resamples_are_valid() -> None:
@@ -228,6 +251,4 @@ def _nan_when_zero_drawn(sample: list[int]) -> float:
 
 
 def test_bootstrap_drops_resamples_whose_statistic_is_nan() -> None:
-    expected = _count_resamples_containing_zero(5)
-
-    assert percentile_bootstrap(5, _nan_when_zero_drawn).dropped == expected
+    assert percentile_bootstrap(5, _nan_when_zero_drawn).dropped == DROPPED_WHEN_ZERO_DRAWN_OF_5
