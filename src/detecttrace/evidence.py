@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
 from functools import cache
-from typing import TypeGuard
+from typing import NoReturn, TypeGuard
 
 from detecttrace.checklist import ArgRule, Checklist, ChecklistItem, parse_path
 from detecttrace.config import normalize_label
@@ -18,7 +18,11 @@ from detecttrace.model import Case, Issue, IssueKind, ToolCall
 _MAX_SHOWN = 80
 # A path with no value. Distinct from None, because JSON null is a value.
 _MISSING = object()
+# Arguments that could not be parsed. Distinct from _MISSING, because a call with no arguments
+# can still pass `exists: false`, while an unreadable call passes nothing.
 _UNREADABLE = object()
+# A query that repeats one bad lookback thousands of times should cost a few issues, not thousands.
+_MAX_KQL_REPORTS_PER_CALL = 5
 
 
 class ItemStatus(StrEnum):
@@ -68,7 +72,11 @@ def json_equal(left: object, right: object) -> bool:
 
 
 def evaluate_case(case: Case, checklist: Checklist, issues: list[Issue]) -> CaseEvidence:
-    """Give each checklist item a status for this case; unreadable input is appended to `issues`."""
+    """Give each checklist item a status for this case; unreadable input is appended to `issues`.
+
+    Unreadable arguments are reported only for calls that an item with argument rules looks at;
+    calls to other tools are never parsed.
+    """
     calls_by_tool: dict[str, list[ToolCall]] = {}
     for call in case.tool_calls:
         calls_by_tool.setdefault(call.tool_name, []).append(call)
@@ -85,33 +93,49 @@ def evaluate_case(case: Case, checklist: Checklist, issues: list[Issue]) -> Case
 def find_rule_type_mismatches(
     cases: Sequence[Case], checklists: Mapping[str, Checklist]
 ) -> list[Issue]:
-    """Warn once per checklist item whose numeric or duration rule meets the other kind of value.
+    """Warn once per checklist item whose min, max, min_duration or kql_min_ago rule meets a value
+    of a type it can't read, naming the first case where that happened.
 
     `checklists` is keyed by the normalized alert class. Issues follow class-key order, then item order.
     """
-    wanted = {
-        (key, item.tool)
-        for key, checklist in checklists.items()
-        for item in checklist.items
-        if any(_checks_duration_value(rule) or _checks_number(rule) for rule in item.args.values())
-    }
-    calls_by_class_tool: dict[tuple[str, str], list[ToolCall]] = {}
+    # Per (class key, tool): the items that have no warning yet, by index, with their type checks.
+    waiting: dict[tuple[str, str], list[tuple[int, list[_TypeCheck]]]] = {}
+    for key, checklist in checklists.items():
+        for index, item in enumerate(checklist.items):
+            checks = _type_checks(item)
+            if checks:
+                waiting.setdefault((key, item.tool), []).append((index, checks))
+    details: dict[tuple[str, int], str] = {}
     for case in cases:
+        if not waiting:
+            break
         key = normalize_label(case.alert_class)
         for call in case.tool_calls:
-            if (key, call.tool_name) in wanted:
-                calls_by_class_tool.setdefault((key, call.tool_name), []).append(call)
-    # Keyed by id(): span IDs repeat across traces, and every call stays alive in `cases`.
-    arguments_by_call: dict[int, object] = {}
+            entries = waiting.get((key, call.tool_name))
+            if entries is None:
+                continue
+            # Parsed once per call and dropped after it, so memory stays flat at any case count.
+            root = _parse_arguments(call.arguments)[0]
+            if root is _UNREADABLE:
+                continue
+            remaining: list[tuple[int, list[_TypeCheck]]] = []
+            for index, checks in entries:
+                detail = _find_mismatch(root, checks)
+                if detail:
+                    details[(key, index)] = f"{detail}; first seen in case {case.case_id}"
+                else:
+                    remaining.append((index, checks))
+            if not remaining:
+                del waiting[(key, call.tool_name)]
+            elif len(remaining) < len(entries):
+                waiting[(key, call.tool_name)] = remaining
     issues: list[Issue] = []
     for key in sorted(checklists):
         checklist = checklists[key]
-        for item in checklist.items:
-            calls = calls_by_class_tool.get((key, item.tool), [])
-            detail = _find_mismatch(item, calls, arguments_by_call)
-            if detail:
+        for index, item in enumerate(checklist.items):
+            if (key, index) in details:
                 subject = f"{checklist.alert_class}/{item.id}"
-                issues.append(Issue(IssueKind.RULE_TYPE_MISMATCH, subject, detail))
+                issues.append(Issue(IssueKind.RULE_TYPE_MISMATCH, subject, details[(key, index)]))
     return issues
 
 
@@ -191,12 +215,27 @@ def _parse_arguments(arguments: str | dict[str, object] | None) -> tuple[object,
     if not isinstance(arguments, str):
         return arguments, ""
     try:
-        return json.loads(arguments), ""
+        return _DECODER.decode(arguments), ""
     except RecursionError:
         return _UNREADABLE, "are nested too deeply to read"
+    except _NonFiniteNumberError:
+        return _UNREADABLE, "contain NaN or Infinity, which is not valid JSON"
     # ValueError also covers integers longer than Python's int-string conversion limit.
     except ValueError:
         return _UNREADABLE, "are not valid JSON"
+
+
+class _NonFiniteNumberError(Exception):
+    pass
+
+
+def _reject_non_finite(constant: str) -> NoReturn:
+    # Python's json accepts NaN and Infinity, but JSON doesn't, and NaN would never compare equal.
+    raise _NonFiniteNumberError(constant)
+
+
+# One shared decoder: json.loads with any keyword builds a new decoder on every call.
+_DECODER = json.JSONDecoder(parse_constant=_reject_non_finite)
 
 
 def _resolve(root: object, path: tuple[str | int, ...]) -> object:
@@ -265,7 +304,7 @@ def _kql_passes(value: object, threshold: timedelta, where: _Where) -> bool:
     if not isinstance(value, str):
         return False
     readable, unreadable = kql_lookbacks(value)
-    for text in unreadable:
+    for text in sorted(set(unreadable))[:_MAX_KQL_REPORTS_PER_CALL]:
         where.report(
             IssueKind.UNREADABLE_KQL_TIMESPAN,
             f"lookback {_shorten(f'ago({text})')} could not be read",
@@ -273,41 +312,57 @@ def _kql_passes(value: object, threshold: timedelta, where: _Where) -> bool:
     return any(lookback >= threshold for lookback in readable)
 
 
-def _find_mismatch(
-    item: ChecklistItem, calls: list[ToolCall], arguments_by_call: dict[int, object]
-) -> str:
+@dataclass(frozen=True, slots=True)
+class _TypeCheck:
+    key: str
+    path: tuple[str | int, ...]
+    rule_name: str
+    wants_number: bool  # min and max read numbers; min_duration and kql_min_ago read text
+
+
+def _type_checks(item: ChecklistItem) -> list[_TypeCheck]:
+    checks: list[_TypeCheck] = []
     for key, rule in item.args.items():
-        checks_duration = _checks_duration_value(rule)
-        checks_number = _checks_number(rule)
-        if not checks_duration and not checks_number:
-            continue
         path = _path(key)
-        for call in calls:
-            if id(call) not in arguments_by_call:
-                arguments_by_call[id(call)] = _parse_arguments(call.arguments)[0]
-            value = _resolve(arguments_by_call[id(call)], path)
-            if value is _MISSING:
-                continue
-            if checks_duration and _is_number(value):
-                return (
-                    f"'{key}': a call's value is a number, but min_duration reads text like "
-                    "'24h'; for numbers use min or max"
-                )
-            if checks_number and not _is_number(value):
-                return (
-                    f"'{key}': a call's value is not a number, but min and max compare numbers; "
-                    "for text like '24h' use min_duration"
-                )
+        if rule.min is not None or rule.max is not None:
+            names = [name for name in ("min", "max") if getattr(rule, name) is not None]
+            checks.append(_TypeCheck(key, path, " and ".join(names), wants_number=True))
+        # With start and end, min_duration reads two timestamps, not the value at the path.
+        if rule.min_duration is not None and rule.start is None:
+            checks.append(_TypeCheck(key, path, "min_duration", wants_number=False))
+        if rule.kql_min_ago is not None:
+            checks.append(_TypeCheck(key, path, "kql_min_ago", wants_number=False))
+    return checks
+
+
+def _find_mismatch(root: object, checks: list[_TypeCheck]) -> str:
+    for check in checks:
+        value = _resolve(root, check.path)
+        fits = _is_number(value) if check.wants_number else isinstance(value, str)
+        if value is _MISSING or fits:
+            continue
+        if check.wants_number and isinstance(value, str):
+            advice = "use min_duration or equals"
+        elif check.rule_name == "min_duration" and _is_number(value):
+            advice = "use min"
+        else:
+            advice = "this rule can't read it"
+        return f"'{check.key}' ({check.rule_name}): the value is {_describe(value)}; {advice}"
     return ""
 
 
-def _checks_duration_value(rule: ArgRule) -> bool:
-    # With start and end, min_duration reads two timestamps, not the value at the path.
-    return rule.min_duration is not None and rule.start is None
-
-
-def _checks_number(rule: ArgRule) -> bool:
-    return rule.min is not None or rule.max is not None
+def _describe(value: object) -> str:
+    if isinstance(value, str):
+        return "text"
+    if isinstance(value, bool):
+        return "a boolean"
+    if _is_number(value):
+        return "a number"
+    if value is None:
+        return "null"
+    if isinstance(value, list):
+        return "a list"
+    return "an object"
 
 
 def _is_number(value: object) -> TypeGuard[int | float]:
@@ -336,6 +391,8 @@ def _pattern(text: str) -> re.Pattern[str]:
 @cache
 def _threshold(text: str) -> timedelta:
     threshold = parse_duration(text)
+    # Checklist validation already rejected unreadable durations, so only a programming error
+    # (a rule built without validation) gets here.
     if threshold is None:
         raise ValueError(f"checklist duration '{text}' was not validated")
     return threshold

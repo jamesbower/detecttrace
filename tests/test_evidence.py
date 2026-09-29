@@ -140,8 +140,13 @@ def test_one_call_satisfies_two_items():
     assert outcomes(items, make_call({"range": "24h"})) == (SATISFIED, SATISFIED)
 
 
-def test_unknown_tool_name_matches_nothing():
+def test_call_with_an_empty_tool_name_does_not_count_as_a_call_to_the_item_tool():
     assert outcomes([make_item()], make_call(tool="")) == (NOT_CALLED,)
+
+
+def test_unreadable_arguments_plus_a_failed_call_is_failed():
+    calls = (make_call("{not json"), make_call(span_id="00f0000000000002", is_failed=True))
+    assert outcomes([make_item({"range": {"exists": True}})], *calls) == (FAILED,)
 
 
 def test_satisfied_count_counts_satisfied_items():
@@ -352,7 +357,10 @@ def test_unreadable_value_in_a_detail_is_shortened():
     issues = reported(
         [make_item({"range": {"min_duration": "24h"}})], make_call({"range": "x" * 1000})
     )
-    assert len(issues[0].detail) < 150
+    assert (
+        issues[0].detail
+        == f"signin_history: call {SPAN}: duration '{'x' * 77}...' could not be read"
+    )
 
 
 # min and max
@@ -417,6 +425,38 @@ def test_kql_min_ago_reports_each_unreadable_lookback():
     ]
 
 
+def test_kql_min_ago_reports_a_repeated_unreadable_lookback_once():
+    query = "ago(x) " * 100_000
+    assert len(reported_kinds({"query": {"kql_min_ago": "24h"}}, {"query": query})) == 1
+
+
+def test_kql_min_ago_reports_at_most_five_unreadable_lookbacks_per_call():
+    query = " ".join(f"ago({n}day)" for n in range(10))
+    assert len(reported_kinds({"query": {"kql_min_ago": "24h"}}, {"query": query})) == 5
+
+
+def test_kql_min_ago_reports_the_first_five_unreadable_lookbacks_in_sorted_order():
+    query = "ago(f) ago(e) ago(d) ago(c) ago(b) ago(a)"
+    issues = reported([make_item({"query": {"kql_min_ago": "24h"}})], make_call({"query": query}))
+    prefix = f"signin_history: call {SPAN}: lookback"
+    assert [issue.detail for issue in issues] == [
+        f"{prefix} 'ago(a)' could not be read",
+        f"{prefix} 'ago(b)' could not be read",
+        f"{prefix} 'ago(c)' could not be read",
+        f"{prefix} 'ago(d)' could not be read",
+        f"{prefix} 'ago(e)' could not be read",
+    ]
+
+
+def test_unreadable_lookback_in_a_later_call_is_reported_after_an_earlier_call_passes():
+    calls = (
+        make_call({"query": "T | where ago(2d)"}),
+        make_call({"query": "T | where ago(1day)"}, span_id="00f0000000000002"),
+    )
+    issues = reported([make_item({"query": {"kql_min_ago": "24h"}})], *calls)
+    assert [issue.kind for issue in issues] == [IssueKind.UNREADABLE_KQL_TIMESPAN]
+
+
 # Unreadable arguments
 
 
@@ -444,6 +484,25 @@ def test_arguments_with_a_10000_digit_integer_are_unreadable():
     assert reported_kinds({"x": {"exists": True}}, arguments) == [IssueKind.UNREADABLE_ARGUMENTS]
 
 
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_arguments_with_a_non_finite_constant_are_unreadable(constant):
+    issues = reported([make_item({"x": {"exists": True}})], make_call('{"x": ' + constant + "}"))
+    assert issues == [
+        Issue(
+            IssueKind.UNREADABLE_ARGUMENTS,
+            "case-1",
+            f"call {SPAN}: arguments for tool '{TOOL}' contain NaN or Infinity, "
+            "which is not valid JSON",
+        )
+    ]
+
+
+def test_arguments_with_a_non_finite_constant_do_not_satisfy_an_item():
+    assert outcomes([make_item({"x": {"exists": True}})], make_call('{"x": NaN}')) == (
+        WRONG_ARGUMENTS,
+    )
+
+
 def test_item_without_args_does_not_read_arguments():
     assert reported([make_item()], make_call("{not json")) == []
 
@@ -460,28 +519,90 @@ def test_mismatch_is_reported_once_per_item_across_many_cases():
     assert [issue.subject for issue in issues] == ["impossible_travel/signin_history"]
 
 
-def test_mismatch_for_min_on_a_string_names_the_path_and_suggests_min_duration():
+def mismatch_details(rules: Mapping[str, Any], *cases: Case) -> list[str]:
+    checklists = {"impossible_travel": make_checklist(make_item(rules))}
+    return [issue.detail for issue in find_rule_type_mismatches(cases, checklists)]
+
+
+def test_mismatch_for_min_on_text_suggests_min_duration_or_equals():
     checklists = {"impossible_travel": make_checklist(make_item({"hours": {"min": 24}}))}
     issues = find_rule_type_mismatches([make_case(make_call({"hours": "24"}))], checklists)
     assert issues == [
         Issue(
             IssueKind.RULE_TYPE_MISMATCH,
             "impossible_travel/signin_history",
-            "'hours': a call's value is not a number, but min and max compare numbers; "
-            "for text like '24h' use min_duration",
+            "'hours' (min): the value is text; use min_duration or equals; "
+            "first seen in case case-1",
         )
     ]
 
 
 def test_mismatch_for_min_duration_on_a_number_suggests_min():
-    checklists = {
-        "impossible_travel": make_checklist(make_item({"range": {"min_duration": "24h"}}))
-    }
-    issues = find_rule_type_mismatches([make_case(make_call({"range": 24}))], checklists)
-    assert issues[0].detail == (
-        "'range': a call's value is a number, but min_duration reads text like '24h'; "
-        "for numbers use min or max"
+    details = mismatch_details(
+        {"range": {"min_duration": "24h"}}, make_case(make_call({"range": 24}))
     )
+    assert details == [
+        "'range' (min_duration): the value is a number; use min; first seen in case case-1"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("value", "described"),
+    [(None, "null"), (True, "a boolean"), ([24], "a list"), ({"h": 24}, "an object")],
+)
+def test_mismatch_for_min_and_max_on_other_values_suggests_no_rule(value, described):
+    details = mismatch_details(
+        {"hours": {"min": 1, "max": 48}}, make_case(make_call({"hours": value}))
+    )
+    assert details == [
+        f"'hours' (min and max): the value is {described}; this rule can't read it; "
+        "first seen in case case-1"
+    ]
+
+
+def test_mismatch_for_min_duration_on_a_list_suggests_no_rule():
+    details = mismatch_details(
+        {"range": {"min_duration": "24h"}}, make_case(make_call({"range": ["24h"]}))
+    )
+    assert details == [
+        "'range' (min_duration): the value is a list; this rule can't read it; "
+        "first seen in case case-1"
+    ]
+
+
+def test_mismatch_for_kql_min_ago_on_a_number_suggests_no_rule():
+    details = mismatch_details(
+        {"query": {"kql_min_ago": "24h"}}, make_case(make_call({"query": 24}))
+    )
+    assert details == [
+        "'query' (kql_min_ago): the value is a number; this rule can't read it; "
+        "first seen in case case-1"
+    ]
+
+
+def test_mismatch_names_the_first_case_with_a_mismatching_value():
+    cases = (
+        make_case(make_call({"hours": 24})),
+        make_case(make_call({"hours": "24"}), case_id="case-2"),
+        make_case(make_call({"hours": "48"}), case_id="case-3"),
+    )
+    assert mismatch_details({"hours": {"min": 24}}, *cases) == [
+        "'hours' (min): the value is text; use min_duration or equals; first seen in case case-2"
+    ]
+
+
+def test_mismatch_is_found_in_a_failed_call():
+    case = make_case(make_call({"hours": "24"}, is_failed=True))
+    assert len(mismatch_details({"hours": {"min": 24}}, case)) == 1
+
+
+def test_no_mismatch_from_unreadable_arguments_at_the_top_level():
+    assert mismatch_details({"$": {"min": 24}}, make_case(make_call("{bad"))) == []
+
+
+def test_no_mismatch_for_kql_min_ago_on_text():
+    case = make_case(make_call({"query": "T | where ago(1h)"}))
+    assert mismatch_details({"query": {"kql_min_ago": "24h"}}, case) == []
 
 
 def test_mismatch_subject_uses_the_checklist_alert_class_as_written():
