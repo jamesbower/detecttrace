@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from detecttrace.config import Config, normalize_label
+from detecttrace.config import Config, OperationConfig, normalize_label
 from detecttrace.model import Verdict
 
 
@@ -91,3 +91,8 @@ def test_analyst_lookup_never_uses_agent_label_map() -> None:
 
 def test_mapping_defaults_to_detecttrace_attributes() -> None:
     assert Config().mapping.case_id == "detecttrace.case_id"
+
+
+def test_span_name_fallback_rejects_a_yes_string() -> None:
+    with pytest.raises(ValidationError, match="span_name_fallback"):
+        OperationConfig(span_name_fallback="yes")  # type: ignore[arg-type]

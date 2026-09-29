@@ -924,6 +924,23 @@ def test_tie_at_the_cut_with_the_same_start_goes_to_the_name() -> None:
     assert report_of(cases).classes[0].other_versions == ("y",)
 
 
+def test_tie_at_the_cut_ignores_the_order_cases_arrive_in() -> None:
+    # Cases are grouped in case ID order, so these IDs make "y" arrive before "x".
+    tied = [
+        make_case("0-y", TP, TP, version="y", start_ns=10),
+        make_case("1-y", FP, FP, version="y", start_ns=10),
+        make_case("2-x", TP, TP, version="x", start_ns=10),
+        make_case("3-x", FP, FP, version="x", start_ns=10),
+    ]
+    cases = tied + make_version_cases(
+        *(("a", 5, 0), ("b", 5, 1), ("c", 5, 2), ("d", 5, 3)),
+        ("early", 2, 5),
+        ("late", 2, 20),
+    )
+
+    assert report_of(cases).classes[0].other_versions == ("y", "late")
+
+
 def test_no_version_is_shown_without_taking_one_of_the_six_places() -> None:
     cases = make_version_cases(*SIX_VERSIONS, ("v6", 4, 60), (None, 20, 25))
 

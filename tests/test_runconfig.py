@@ -245,9 +245,73 @@ def test_absolute_paths_are_kept(tmp_path: Path) -> None:
     assert config.traces.path == Path("/srv/traces")
 
 
-def test_tilde_is_not_expanded(tmp_path: Path) -> None:
-    config = _load(tmp_path, "traces: {path: ~/traces}\nverdicts: {path: v}\n")
-    assert config.traces.path == tmp_path / "~" / "traces"
+@pytest.mark.parametrize(
+    "text",
+    [
+        MINIMAL + "mapping: {operation: {span_name_fallback: yes}}\n",
+        MINIMAL + "mapping: {operation: {span_name_fallback: 1}}\n",
+        MINIMAL + "mapping: {operation: {span_name_fallback: 'true'}}\n",
+    ],
+    ids=["yes", "one", "quoted-true"],
+)
+def test_span_name_fallback_must_be_a_real_boolean(tmp_path: Path, text: str) -> None:
+    with pytest.raises(
+        ConfigFileError, match="span_name_fallback: Input should be a valid boolean"
+    ):
+        _load(tmp_path, text)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["'10'", "10.0", "true"],
+    ids=["quoted", "float", "boolean"],
+)
+def test_max_detail_cases_must_be_a_real_integer(tmp_path: Path, value: str) -> None:
+    with pytest.raises(ConfigFileError, match="max_detail_cases: Input should be a valid integer"):
+        _load(tmp_path, MINIMAL + f"dashboard: {{max_detail_cases: {value}}}\n")
+
+
+@pytest.mark.parametrize(
+    ("text", "location"),
+    [
+        ("traces: {path: ''}\nverdicts: {path: v}\n", "traces.path"),
+        ("traces: {path: t}\nverdicts: {path: '  '}\n", "verdicts.path"),
+        (MINIMAL + "checklists: ''\n", "checklists"),
+        (MINIMAL + "output: ' '\n", "output"),
+    ],
+    ids=["traces", "verdicts", "checklists", "output"],
+)
+def test_empty_path_is_rejected(tmp_path: Path, text: str, location: str) -> None:
+    with pytest.raises(ConfigFileError, match=rf"\n  {location}: path is empty"):
+        _load(tmp_path, text)
+
+
+def test_dot_path_is_the_config_folder(tmp_path: Path) -> None:
+    assert _load(tmp_path, "traces: {path: .}\nverdicts: {path: v}\n").traces.path == tmp_path
+
+
+@pytest.mark.parametrize(
+    ("text", "location"),
+    [
+        ("traces: {path: ~/traces}\nverdicts: {path: v}\n", "traces.path"),
+        ("traces: {path: t}\nverdicts: {path: '~'}\n", "verdicts.path"),
+        (MINIMAL + "checklists: '~/checklists'\n", "checklists"),
+        (MINIMAL + "output: '~/out.html'\n", "output"),
+    ],
+    ids=["traces", "verdicts", "checklists", "output"],
+)
+def test_tilde_as_the_first_part_is_rejected(tmp_path: Path, text: str, location: str) -> None:
+    with pytest.raises(
+        ConfigFileError,
+        match=rf"\n  {location}: `~` is not expanded; "
+        "write the full path or a path relative to this file",
+    ):
+        _load(tmp_path, text)
+
+
+def test_tilde_inside_a_name_is_an_ordinary_name(tmp_path: Path) -> None:
+    config = _load(tmp_path, "traces: {path: ~traces/a}\nverdicts: {path: v}\n")
+    assert config.traces.path == tmp_path / "~traces" / "a"
 
 
 def test_run_config_is_frozen(tmp_path: Path) -> None:

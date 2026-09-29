@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from detecttrace import conventions
 from detecttrace.model import Verdict
@@ -19,7 +19,7 @@ class OperationConfig(BaseModel):
     attribute: str = conventions.OPERATION_ATTRIBUTE
     agent_value: str = conventions.INVOKE_AGENT
     tool_value: str = conventions.EXECUTE_TOOL
-    span_name_fallback: bool = True
+    span_name_fallback: StrictBool = True
 
 
 class MappingConfig(BaseModel):

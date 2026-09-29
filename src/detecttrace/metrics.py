@@ -232,11 +232,12 @@ def _build_class_report(
         sorted(cases_by_version, key=lambda version: (first_start[version], version or ""))
     )
     real_versions = [version for version in versions if version is not None]
+    # Ranked from arrival order, not `versions`, so the tie-break below decides the cut on its own.
     ranked = sorted(
-        real_versions,
+        (version for version in cases_by_version if version is not None),
         key=lambda version: (-len(cases_by_version[version]), first_start[version], version),
     )
-    pooled = set(ranked[MAX_SHOWN_VERSIONS:]) if len(ranked) > MAX_SHOWN_VERSIONS else set()
+    pooled = set(ranked[MAX_SHOWN_VERSIONS:])
     other_cases = [case for case in cases if case.prompt_version in pooled]
     item_ids = tuple(item.id for item in checklist.items) if checklist is not None else ()
     shown_versions = tuple(version for version in versions if version not in pooled)

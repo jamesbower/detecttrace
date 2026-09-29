@@ -3,7 +3,15 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    ValidationError,
+    field_validator,
+)
 
 from detecttrace.config import Config
 from detecttrace.model import InputFileError
@@ -17,11 +25,25 @@ class ConfigFileError(InputFileError):
     """The configuration file cannot be used: missing, unreadable, or invalid."""
 
 
+def _check_path(value: object) -> object:
+    # Runs before conversion because Path("") silently becomes ".", the config folder.
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError("path is empty")
+        if Path(value).parts[:1] == ("~",):
+            raise ValueError(
+                "`~` is not expanded; write the full path or a path relative to this file"
+            )
+    return value
+
+
 class TracesConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     path: Path
     format: Literal["otlp_jsonl", "otlp_json", "langfuse"] = "otlp_jsonl"
+
+    _check_path = field_validator("path", mode="before")(_check_path)
 
     @field_validator("format")
     @classmethod
@@ -36,12 +58,13 @@ class VerdictsConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     path: Path
+    _check_path = field_validator("path", mode="before")(_check_path)
 
 
 class DashboardConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    max_detail_cases: int = Field(default=2000, ge=0)
+    max_detail_cases: StrictInt = Field(default=2000, ge=0)
 
 
 class RunConfig(Config):
@@ -55,6 +78,8 @@ class RunConfig(Config):
     # Validated now so a bad value fails early; it has no effect yet.
     telemetry: StrictBool = False
 
+    _check_path = field_validator("checklists", "output", mode="before")(_check_path)
+
     def to_config(self) -> Config:
         return Config(
             mapping=self.mapping, label_map=self.label_map, agent_label_map=self.agent_label_map
@@ -65,7 +90,8 @@ def load_run_config(path: Path) -> RunConfig:
     """Load and validate a configuration file; any problem raises ConfigFileError.
 
     Relative paths in the file are resolved against the file's folder, never the working
-    folder, so a run gives the same result from anywhere. `~` is not expanded.
+    folder, so a run gives the same result from anywhere. A path starting with `~` is
+    rejected rather than expanded.
     """
     try:
         document = load_yaml12(
