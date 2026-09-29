@@ -14,10 +14,18 @@ from datetime import date
 from typing import Any
 
 from detecttrace.results import SCHEMA_VERSION
-from detecttrace.summary import to_visible_text
+from detecttrace.stats import BOOTSTRAP_RESAMPLES
+from detecttrace.summary import (
+    CoverageLine,
+    JoinCoverage,
+    coverage_lines,
+    to_message_without_count,
+    to_visible_text,
+)
 
 FEW_CASES_BELOW = 10
 FEW_CASES_TEXT = "Few cases."
+FEW_CASES_LEGEND_TEXT = f"Hollow marker: fewer than {FEW_CASES_BELOW} cases"
 NO_CHECKLIST_TEXT = "No checklist for this class."
 NO_VERSION_LABEL = "(no version)"
 ALL_VERSIONS_LABEL = "All versions"
@@ -27,6 +35,15 @@ OTHER_STYLE = "other"
 NO_VERSION_STYLE = "none"
 ALL_STYLE = "all"
 RANGE_DASH = "\u2013"
+MINUS_SIGN = "\u2212"
+MAX_LISTED_CASE_IDS = 3
+TP_WITHOUT_AGENT_HINT = (
+    "Check that the agent emits a verdict on every case and that its labels are mapped."
+)
+DROPPED_RESAMPLES_HINT = (
+    "The kappa interval is built from the remaining resamples; more cases with both verdicts "
+    "make it steadier."
+)
 
 BANNER_TITLE = "Self-reported. Not verified by DetectTrace."
 BANNER_TEXT = (
@@ -61,9 +78,12 @@ _KAPPA_NOTES = {
     "one_side_same_verdict": "(one side always gives the same verdict)",
     "interval_not_available": "No interval (too few usable resamples)",
 }
+_NO_INTERVAL = "No interval"
+_EMPTY_TREND_CELLS = {"agreement": "no cases with both verdicts"}
 _NO_BOTH_VERDICTS = "(no cases with both verdicts)"
 # The smallest interval strip still visible when an interval is very narrow.
 _MIN_STRIP_WIDTH = 0.8
+_STRIP_POINT_WIDTH = 1.2
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,11 +112,16 @@ class BannerView:
 
 @dataclass(frozen=True, slots=True)
 class StripView:
-    """An interval strip on a 0-100 scale: the range bar and the point for the value."""
+    """An interval strip on a 0-100 scale: the range bar and the point for the value.
+
+    Percentages map 0-1 onto it; kappa maps -1 to 1.
+    """
 
     range_x: float
     range_width: float
     point_x: float
+    point_left: float  # the point's mark is drawn from here, `point_width` wide
+    point_width: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +146,8 @@ class VersionRowView:
     kappa: MetricView
     dangerous_text: str
     is_dangerous: bool
+    tp_without_agent_count: int
+    tp_without_agent_text: str | None  # "2 true positives with no agent verdict: DT-1, DT-2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +195,7 @@ class TrendLineView:
 @dataclass(frozen=True, slots=True)
 class TrendTableRowView:
     week: str
-    cells: tuple[str, ...]  # one per line: "95% (n 170)", "no cases"
+    cells: tuple[str, ...]  # one per line: "95% (n 170)", "no cases", ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +213,7 @@ class TrendView:
     completeness: TrendMetricView
     agreement: TrendMetricView
     version_first_weeks: Mapping[str, str]  # version label -> its first week
+    few_legend_text: str  # "Hollow marker: fewer than 10 cases"
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +221,7 @@ class ConfusionCellView:
     count_text: str
     heat: str  # "h-0", "h-ok-1".."h-ok-4", "h-off-1".."h-off-4"
     is_dangerous: bool
+    is_flagged: bool  # a dangerous cell that holds cases
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +261,7 @@ class ClassFilterView:
 class CasesView:
     total_text: str
     detail_count_text: str
+    detail_sentence: str  # how many cases carry tool calls, with the right plural
     class_filters: tuple[ClassFilterView, ...]
 
 
@@ -255,6 +285,7 @@ class NoteView:
 @dataclass(frozen=True, slots=True)
 class CoverageView:
     text: str
+    hint: str | None  # set only when coverage is low
     is_low: bool
 
 
@@ -311,32 +342,58 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
         ),
         cases=_to_cases_view(data),
         coverage=_to_coverage_views(totals["coverage"], data["source"].get("config")),
-        notes=tuple(_to_note_view(note) for note in data["data_notes"]),
+        notes=(
+            *(_to_note_view(note) for note in data["data_notes"]),
+            *(note for class_data in classes for note in _to_tp_without_agent_note(class_data)),
+            *(note for class_data in classes for note in _to_dropped_notes(class_data, styles)),
+        ),
         limits=tuple(LimitView(term, text) for term, text in LIMITS),
     )
 
 
 def format_percent(value: float) -> str:
-    return f"{_to_whole_percent(value)}%"
+    return f"{_to_percent_number(value)}%"
 
 
 def format_percent_range(low: float, high: float) -> str:
-    return f"{_to_whole_percent(low)}{RANGE_DASH}{_to_whole_percent(high)}%"
+    low_text, high_text = _to_percent_number(low), _to_percent_number(high)
+    # "<1" and ">99" next to an en dash read as arithmetic, so such a range is spelled out.
+    if not (low_text.isdigit() and high_text.isdigit()):
+        return f"{low_text}% to {high_text}%"
+    return f"{low_text}{RANGE_DASH}{high_text}%"
 
 
 def format_kappa(value: float) -> str:
     text = f"{value:.2f}"
     # A kappa just below zero rounds to "-0.00", which reads as a real negative value.
-    return "0.00" if text == "-0.00" else text
+    if text == "-0.00":
+        return "0.00"
+    # Only a perfect kappa may read as one; 0.996 shown as "1.00" would claim perfect agreement.
+    if abs(value) < 1 and text.endswith("1.00"):
+        text = text.replace("1.00", "0.99")
+    return text.replace("-", MINUS_SIGN)
+
+
+def format_kappa_range(low: float, high: float) -> str:
+    low_text, high_text = format_kappa(low), format_kappa(high)
+    # A minus sign right after an en dash is easy to misread, so a negative end uses "to".
+    separator = " to " if low_text.startswith(MINUS_SIGN) else RANGE_DASH
+    return f"{low_text}{separator}{high_text}"
 
 
 def format_count(count: int) -> str:
     return f"{count:,}"
 
 
-def _to_whole_percent(value: float) -> int:
+def _to_percent_number(value: float) -> str:
     # Half up, not Python's half-even, so 0.125 reads 13% like a reader rounding by hand.
-    return math.floor(value * 100 + 0.5)
+    whole = math.floor(value * 100 + 0.5)
+    # Only an exact 1 or 0 may read as all or none; 299 of 300 is not "100%".
+    if whole >= 100 and value < 1:
+        return ">99"
+    if whole <= 0 and value > 0:
+        return "<1"
+    return str(whole)
 
 
 def _order_page_versions(classes: Sequence[Any]) -> list[str]:
@@ -414,19 +471,22 @@ def _week_start(week: str) -> date:
 
 
 def _to_low_coverage_text(coverage: Any) -> str | None:
-    parts = []
-    if coverage["verdicts_low"]:
-        share = _floored_share(coverage["verdicts_matched"], coverage["verdicts_total"])
-        parts.append(f"{share}% of verdicts matched a trace")
-    if coverage["traces_low"]:
-        share = _floored_share(coverage["traces_matched"], coverage["traces_total"])
-        parts.append(f"{share}% of traces matched a verdict")
+    parts = [
+        line.share_text
+        for line in _to_coverage_lines(coverage, "")
+        if line.is_low and line.share_text is not None
+    ]
     return f"Low coverage: {', '.join(parts)}." if parts else None
 
 
-def _floored_share(matched: int, total: int) -> int:
-    # Floored so a side just under half never shows as 50% next to the warning.
-    return matched * 100 // total
+def _to_coverage_lines(coverage: Any, config_text: str) -> list[CoverageLine]:
+    join = JoinCoverage(
+        coverage["verdicts_matched"],
+        coverage["verdicts_total"],
+        coverage["traces_matched"],
+        coverage["traces_total"],
+    )
+    return coverage_lines(join, config_text)
 
 
 def _to_class_view(index: int, class_data: Any, styles: Mapping[str, str]) -> ClassView:
@@ -514,6 +574,7 @@ def _to_version_row(
 ) -> VersionRowView:
     case_count = metrics["case_count"]
     dangerous = len(metrics["dangerous_false_closes"])
+    without_agent = metrics["true_positives_without_agent_verdict"]
     return VersionRowView(
         label=label,
         style=style,
@@ -525,7 +586,20 @@ def _to_version_row(
         kappa=_to_kappa_metric(metrics["kappa"], metrics["agreement"]["n"]),
         dangerous_text=format_count(dangerous),
         is_dangerous=dangerous > 0,
+        tp_without_agent_count=len(without_agent),
+        tp_without_agent_text=_to_tp_without_agent_text(without_agent),
     )
+
+
+def _to_tp_without_agent_text(case_ids: Sequence[str]) -> str | None:
+    if not case_ids:
+        return None
+    count = len(case_ids)
+    listed = ", ".join(to_visible_text(case_id) for case_id in case_ids[:MAX_LISTED_CASE_IDS])
+    rest = count - MAX_LISTED_CASE_IDS
+    more = f" and {format_count(rest)} more" if rest > 0 else ""
+    noun = _plural(count, "true positive", "true positives")
+    return f"{noun} with no agent verdict: {listed}{more}"
 
 
 def _to_completeness_metric(completeness: Any, has_checklist: bool, case_count: int) -> MetricView:
@@ -566,35 +640,49 @@ def _to_agreement_metric(agreement: Any) -> MetricView:
 
 def _to_kappa_metric(kappa: Any, n: int) -> MetricView:
     value, interval, note = kappa["value"], kappa["interval"], kappa["note"]
-    why = _KAPPA_NOTES.get(note) if note is not None else None
+    # A note this version does not know still says the interval is missing, never a bare n/a.
+    why = _KAPPA_NOTES.get(note, _NO_INTERVAL) if note is not None else None
+    if value is None or interval is None:
+        why = why or _NO_INTERVAL
+    dropped = kappa["dropped_resamples"]
+    if dropped > 0:
+        dropped_text = (
+            f"{format_count(dropped)} of {format_count(BOOTSTRAP_RESAMPLES)} resamples dropped"
+        )
+        why = dropped_text if why is None else f"{why}; {dropped_text}"
     if value is None:
         return MetricView("n/a", None, why, _n_text(n), _few_note(n), None)
     if interval is None:
-        return MetricView(
-            format_kappa(value), None, why or "No interval", _n_text(n), _few_note(n), None
-        )
+        return MetricView(format_kappa(value), None, why, _n_text(n), _few_note(n), None)
     low, high = interval["low"], interval["high"]
     return MetricView(
         format_kappa(value),
-        f"{format_kappa(low)}{RANGE_DASH}{format_kappa(high)}",
+        format_kappa_range(low, high),
         why,
         _n_text(n),
         _few_note(n),
-        _to_strip(low, high, value),
+        _to_strip(_to_kappa_scale(low), _to_kappa_scale(high), _to_kappa_scale(value)),
     )
 
 
 def _to_strip(low: float, high: float, value: float) -> StripView:
-    low_x, high_x = _to_scale(low), _to_scale(high)
+    """A strip from values already on the 0-1 scale."""
+    low_x, high_x, point_x = _to_scale(low), _to_scale(high), _to_scale(value)
     return StripView(
         range_x=low_x,
         range_width=round(max(high_x - low_x, _MIN_STRIP_WIDTH), 1),
-        point_x=_to_scale(value),
+        point_x=point_x,
+        point_left=round(point_x - _STRIP_POINT_WIDTH / 2, 1),
+        point_width=_STRIP_POINT_WIDTH,
     )
 
 
+def _to_kappa_scale(value: float) -> float:
+    return (value + 1) / 2
+
+
 def _to_scale(value: float) -> float:
-    # Clamped because a kappa interval can reach below zero; the text still shows the number.
+    # Clamped so a hand-edited value outside the scale never draws outside the strip.
     return round(min(max(value, 0.0), 1.0) * 100, 1)
 
 
@@ -653,6 +741,7 @@ def _to_trend_view(class_data: Any, groups: Sequence[_Group], has_checklist: boo
             for version in class_data["shown_versions"]
             if version is not None
         },
+        few_legend_text=FEW_CASES_LEGEND_TEXT,
     )
 
 
@@ -664,6 +753,7 @@ def _to_trend_metric(
     by_key: Mapping[tuple[str, str | None, str], Any],
 ) -> TrendMetricView:
     lines = []
+    cells_by_line = []
     for scope, version, style, label in series:
         found = [by_key.get((scope, version, week)) for week in weeks]
         values = tuple(None if point is None else point[field] for point in found)
@@ -678,19 +768,21 @@ def _to_trend_metric(
                 few=tuple(0 < count < FEW_CASES_BELOW for count in counts),
             )
         )
+        cells_by_line.append([_to_trend_cell(point, field) for point in found])
     table_rows = tuple(
-        TrendTableRowView(
-            week=week,
-            cells=tuple(_to_trend_cell(line.values[i], line.counts[i]) for line in lines),
-        )
+        TrendTableRowView(week=week, cells=tuple(cells[i] for cells in cells_by_line))
         for i, week in enumerate(weeks)
     )
     return TrendMetricView(title, tuple(lines), table_rows, None)
 
 
-def _to_trend_cell(value: float | None, count: int) -> str:
-    if value is None:
+def _to_trend_cell(point: Any, field: str) -> str:
+    if point is None:
         return "no cases"
+    value, count = point[field], point[f"{field}_n"]
+    if value is None:
+        # The week has cases, but none the metric can use.
+        return _EMPTY_TREND_CELLS.get(field, "no cases")
     text = f"{format_percent(value)} (n {format_count(count)})"
     return f"{text} {FEW_CASES_TEXT}" if count < FEW_CASES_BELOW else text
 
@@ -705,7 +797,8 @@ def _to_confusion_view(overall: Any) -> ConfusionView:
             ConfusionCellView(
                 count_text=format_count(count),
                 heat=_to_heat(count, total, is_diagonal=row_index == column_index),
-                is_dangerous=row_index == _TRUE_POSITIVE and column_index != _TRUE_POSITIVE,
+                is_dangerous=_is_dangerous_cell(row_index, column_index),
+                is_flagged=_is_dangerous_cell(row_index, column_index) and count > 0,
             )
             for column_index, count in enumerate(row)
         )
@@ -716,6 +809,10 @@ def _to_confusion_view(overall: Any) -> ConfusionView:
         column_labels=tuple(f"Agent: {label}" for label in _VERDICT_LABELS),
         rows=tuple(rows),
     )
+
+
+def _is_dangerous_cell(row_index: int, column_index: int) -> bool:
+    return row_index == _TRUE_POSITIVE and column_index != _TRUE_POSITIVE
 
 
 def _to_heat(count: int, row_total: int, *, is_diagonal: bool) -> str:
@@ -730,10 +827,14 @@ def _to_cases_view(data: Any) -> CasesView:
     string_index: dict[str, int] = {}
     for index, text in enumerate(case_rows["strings"]):
         string_index.setdefault(text, index)
-    detail = data["case_detail"]
+    detail_count = len(data["case_detail"])
     return CasesView(
         total_text=format_count(data["totals"]["cases"]),
-        detail_count_text=format_count(len(detail)),
+        detail_count_text=format_count(detail_count),
+        detail_sentence=(
+            f"Tool calls are included for {_plural(detail_count, 'notable case', 'notable cases')} "
+            "(dashboard.max_detail_cases); tool results are never included."
+        ),
         class_filters=tuple(
             ClassFilterView(
                 string_index[class_data["alert_class"]], to_visible_text(class_data["alert_class"])
@@ -746,48 +847,9 @@ def _to_cases_view(data: Any) -> CasesView:
 def _to_coverage_views(coverage: Any, config_name: str | None) -> tuple[CoverageView, ...]:
     # Results written before the configuration's name was recorded still get a hint.
     config_text = "the configuration" if config_name is None else to_visible_text(config_name)
-    return (
-        _to_coverage_view(
-            coverage["verdicts_matched"],
-            coverage["verdicts_total"],
-            ("verdict", "verdicts"),
-            "a trace",
-            config_text,
-            is_low=coverage["verdicts_low"],
-        ),
-        _to_coverage_view(
-            coverage["traces_matched"],
-            coverage["traces_total"],
-            ("trace", "traces"),
-            "a verdict",
-            config_text,
-            is_low=coverage["traces_low"],
-        ),
-    )
-
-
-def _to_coverage_view(
-    matched: int,
-    total: int,
-    nouns: tuple[str, str],
-    other_side: str,
-    config_text: str,
-    *,
-    is_low: bool,
-) -> CoverageView:
-    noun = nouns[0] if total == 1 else nouns[1]
-    if total == 0:
-        return CoverageView(f"0 of 0 {noun} matched {other_side}: no {noun} were read.", False)
-    sentence = (
-        f"{format_count(matched)} of {format_count(total)} {noun} matched {other_side} "
-        f"({_floored_share(matched, total)}%)."
-    )
-    if not is_low:
-        return CoverageView(sentence, False)
-    return CoverageView(
-        f"{sentence} Less than half matched, so the results may be misleading; "
-        f"check mapping.case_id in {config_text}.",
-        True,
+    return tuple(
+        CoverageView(line.sentence, line.raw_hint, line.is_low)
+        for line in _to_coverage_lines(coverage, config_text)
     )
 
 
@@ -804,8 +866,60 @@ def _to_note_view(note: Any) -> NoteView:
         severity=note["severity"],
         severity_label=_SEVERITY_LABELS.get(note["severity"], "Note"),
         count_text=format_count(count),
-        message=to_visible_text(note["message"].removeprefix(f"{format_count(count)} ")),
+        message=to_visible_text(to_message_without_count(note["message"], count)),
         hint=to_visible_text(note["hint"]),
+        examples=examples,
+        more_text=f"{len(examples)} of {format_count(count)} shown."
+        if count > len(examples) > 0
+        else None,
+    )
+
+
+def _to_tp_without_agent_note(class_data: Any) -> tuple[NoteView, ...]:
+    case_ids = class_data["overall"]["true_positives_without_agent_verdict"]
+    if not case_ids:
+        return ()
+    count = len(case_ids)
+    name = to_visible_text(class_data["alert_class"])
+    message = (
+        f"analyst true positive in {name} has no agent verdict."
+        if count == 1
+        else f"analyst true positives in {name} have no agent verdict."
+    )
+    examples = tuple(
+        ExampleView(to_visible_text(case_id), None) for case_id in case_ids[:MAX_LISTED_CASE_IDS]
+    )
+    return (_create_warning_note(count, message, TP_WITHOUT_AGENT_HINT, examples),)
+
+
+def _to_dropped_notes(class_data: Any, styles: Mapping[str, str]) -> tuple[NoteView, ...]:
+    """One note per slice whose kappa interval lost resamples: all versions, then the rows."""
+    groups = _to_groups(class_data, styles)
+    slices = [("all versions", class_data["overall"])]
+    slices.extend((group.label, group.metrics) for group in groups)
+    name = to_visible_text(class_data["alert_class"])
+    return tuple(
+        _create_warning_note(
+            metrics["kappa"]["dropped_resamples"],
+            f"of {format_count(BOOTSTRAP_RESAMPLES)} kappa resamples in {name}, {label}, were "
+            "dropped because kappa was undefined in them.",
+            DROPPED_RESAMPLES_HINT,
+            (),
+        )
+        for label, metrics in slices
+        if metrics["kappa"]["dropped_resamples"] > 0
+    )
+
+
+def _create_warning_note(
+    count: int, message: str, hint: str, examples: tuple[ExampleView, ...]
+) -> NoteView:
+    return NoteView(
+        severity="warning",
+        severity_label=_SEVERITY_LABELS["warning"],
+        count_text=format_count(count),
+        message=message,
+        hint=hint,
         examples=examples,
         more_text=f"{len(examples)} of {format_count(count)} shown."
         if count > len(examples) > 0

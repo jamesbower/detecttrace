@@ -4,7 +4,14 @@ from typing import Any
 
 import pytest
 
-from detecttrace.dashboard_view import build_view, format_kappa, format_percent
+from detecttrace.dashboard_view import (
+    build_view,
+    format_kappa,
+    format_kappa_range,
+    format_percent,
+    format_percent_range,
+)
+from detecttrace.summary import JoinCoverage, coverage_lines
 
 DEMO_GOLDEN = Path(__file__).parent / "fixtures" / "demo" / "expected.json"
 UNSET: Any = object()
@@ -33,6 +40,9 @@ def metrics(
     kappa_note: str | None = None,
     completeness_data: Any = UNSET,
     confusion: Any = UNSET,
+    dropped: int = 0,
+    dangerous: tuple[str, ...] = ("C-1", "C-2"),
+    without_agent: tuple[str, ...] = (),
 ) -> dict[str, object]:
     return {
         "case_count": case_count,
@@ -47,11 +57,11 @@ def metrics(
             "interval": interval(0.62, 0.86) if kappa_interval is UNSET else kappa_interval,
             "method": "analytic",
             "note": kappa_note,
-            "dropped_resamples": 0,
+            "dropped_resamples": dropped,
         },
         "confusion": [[5, 1, 1], [0, 5, 0], [0, 0, 3]] if confusion is UNSET else confusion,
-        "dangerous_false_closes": ["C-1", "C-2"],
-        "true_positives_without_agent_verdict": [],
+        "dangerous_false_closes": list(dangerous),
+        "true_positives_without_agent_verdict": list(without_agent),
         "completeness": completeness() if completeness_data is UNSET else completeness_data,
     }
 
@@ -193,6 +203,16 @@ def test_a_value_with_nine_cases_says_few_cases() -> None:
     assert first_version_row(data).agreement.few_note == "Few cases."
 
 
+def test_a_value_with_ten_cases_is_not_few() -> None:
+    data = results([class_data(entries=[version_entry("v1", slice_data=metrics(n=10))])])
+    assert first_version_row(data).agreement.few_note is None
+
+
+def test_a_row_with_enough_cases_and_one_thin_metric_is_not_few_itself() -> None:
+    data = results([class_data(entries=[version_entry("v1", slice_data=metrics(n=9))])])
+    assert first_version_row(data).few_note is None
+
+
 def test_a_version_with_nine_cases_says_few_cases_on_its_row() -> None:
     data = results([class_data(entries=[version_entry("v1", slice_data=metrics(case_count=9))])])
     assert first_version_row(data).few_note == "Few cases."
@@ -218,6 +238,83 @@ def test_a_percent_rounds_half_up() -> None:
     assert format_percent(0.125) == "13%"
 
 
+def test_a_rate_just_below_one_never_reads_one_hundred_percent() -> None:
+    assert format_percent(299 / 300) == ">99%"
+
+
+def test_a_rate_just_above_zero_never_reads_zero_percent() -> None:
+    assert format_percent(1 / 300) == "<1%"
+
+
+def test_a_rate_of_exactly_one_reads_one_hundred_percent() -> None:
+    assert format_percent(1.0) == "100%"
+
+
+def test_a_rate_of_exactly_zero_reads_zero_percent() -> None:
+    assert format_percent(0.0) == "0%"
+
+
+def test_an_interval_reaching_past_ninety_nine_percent_spells_out_its_ends() -> None:
+    assert format_percent_range(0.98, 299 / 300) == "98% to >99%"
+
+
+def test_an_interval_starting_near_zero_spells_out_its_ends() -> None:
+    assert format_percent_range(1 / 300, 0.04) == "<1% to 4%"
+
+
+def test_an_interval_up_to_exactly_one_keeps_the_en_dash() -> None:
+    assert format_percent_range(0.95, 1.0) == "95\u2013100%"
+
+
+def test_a_completeness_mean_just_below_one_never_reads_one_hundred_percent() -> None:
+    mean = metrics(completeness_data=completeness(mean=299 / 300))
+    row = first_version_row(results([class_data(entries=[version_entry("v1", slice_data=mean)])]))
+    assert row.completeness.value == ">99%"
+
+
+def test_a_skipped_step_rate_just_above_zero_never_reads_zero_percent() -> None:
+    entry = version_entry("v1")
+    entry["skipped"] = [{"item_id": "signin", "skipped": 1, "n": 300, "rate": 1 / 300}]
+    data = results([class_data(entries=[entry])])
+    assert build_view(data).classes[0].skipped.rows[0].cells[0].rate_text == "<1%"
+
+
+def test_a_kappa_just_below_one_reads_below_one() -> None:
+    assert format_kappa(0.996) == "0.99"
+
+
+def test_a_kappa_of_exactly_one_reads_one() -> None:
+    assert format_kappa(1.0) == "1.00"
+
+
+def test_a_negative_kappa_uses_a_minus_sign() -> None:
+    assert format_kappa(-0.17) == "\u22120.17"
+
+
+def test_a_kappa_just_above_minus_one_never_reads_minus_one() -> None:
+    assert format_kappa(-0.996) == "\u22120.99"
+
+
+def test_a_kappa_interval_crossing_zero_reads_to() -> None:
+    assert format_kappa_range(-0.17, 0.78) == "\u22120.17 to 0.78"
+
+
+def test_a_positive_kappa_interval_keeps_the_en_dash() -> None:
+    assert format_kappa_range(0.62, 0.86) == "0.62\u20130.86"
+
+
+def test_a_kappa_strip_uses_a_minus_one_to_one_scale() -> None:
+    kappa = metrics(kappa_value=0.0, kappa_interval=interval(-0.5, 0.5))
+    row = first_version_row(results([class_data(entries=[version_entry("v1", slice_data=kappa)])]))
+    strip = row.kappa.strip
+    assert (strip.range_x, strip.range_width, strip.point_x) == (25.0, 50.0, 50.0)
+
+
+def test_a_strip_point_carries_its_left_edge_and_width() -> None:
+    strip = first_version_row(results()).agreement.strip
+    assert (strip.point_left, strip.point_width) == (86.1, 1.2)
+
+
 def test_counts_have_thousands_separators() -> None:
     data = results([class_data(entries=[version_entry("v1", slice_data=metrics(case_count=1030))])])
     assert first_version_row(data).cases_text == "1,030"
@@ -239,6 +336,32 @@ def test_kappa_with_one_side_the_same_verdict_is_zero_without_an_interval() -> N
         "0.00",
         None,
         "(one side always gives the same verdict)",
+    )
+
+
+def test_kappa_with_an_unknown_note_says_no_interval() -> None:
+    kappa = metrics(kappa_value=None, kappa_interval=None, kappa_note="something_new")
+    row = first_version_row(results([class_data(entries=[version_entry("v1", slice_data=kappa)])]))
+    assert row.kappa.note == "No interval"
+
+
+def test_kappa_with_dropped_resamples_says_how_many() -> None:
+    kappa = metrics(dropped=87)
+    row = first_version_row(results([class_data(entries=[version_entry("v1", slice_data=kappa)])]))
+    assert row.kappa.note == "87 of 1,000 resamples dropped"
+
+
+def test_kappa_with_dropped_resamples_keeps_its_interval() -> None:
+    kappa = metrics(dropped=87)
+    row = first_version_row(results([class_data(entries=[version_entry("v1", slice_data=kappa)])]))
+    assert row.kappa.interval == "0.62\u20130.86"
+
+
+def test_kappa_without_an_interval_and_with_dropped_resamples_keeps_both_notes() -> None:
+    kappa = metrics(kappa_interval=None, kappa_note="interval_not_available", dropped=950)
+    row = first_version_row(results([class_data(entries=[version_entry("v1", slice_data=kappa)])]))
+    assert row.kappa.note == (
+        "No interval (too few usable resamples); 950 of 1,000 resamples dropped"
     )
 
 
@@ -311,6 +434,108 @@ def test_a_long_class_name_is_not_shortened() -> None:
     assert build_view(data).classes[0].name == "x" * 300
 
 
+def test_each_version_row_shows_its_dangerous_false_close_count() -> None:
+    entries = [
+        version_entry("v1", slice_data=metrics(dangerous=("C-1",))),
+        version_entry("v2", slice_data=metrics(dangerous=())),
+    ]
+    data = results([class_data(entries=entries, overall=metrics(dangerous=("C-1",)))])
+    assert [row.dangerous_text for row in build_view(data).classes[0].rows] == ["1", "1", "0"]
+
+
+# True positives without an agent verdict
+
+
+def without_agent_class(ids: tuple[str, ...]) -> dict[str, object]:
+    slice_data = metrics(without_agent=ids)
+    return class_data(entries=[version_entry("v1", slice_data=slice_data)], overall=slice_data)
+
+
+def test_a_row_counts_true_positives_without_an_agent_verdict() -> None:
+    data = results([without_agent_class(("DT-1", "DT-2"))])
+    assert first_version_row(data).tp_without_agent_count == 2
+
+
+def test_a_row_names_true_positives_without_an_agent_verdict() -> None:
+    data = results([without_agent_class(("DT-1", "DT-2"))])
+    assert (
+        first_version_row(data).tp_without_agent_text
+        == "2 true positives with no agent verdict: DT-1, DT-2"
+    )
+
+
+def test_a_row_names_three_true_positives_without_an_agent_verdict_and_counts_the_rest() -> None:
+    data = results([without_agent_class(("DT-1", "DT-2", "DT-3", "DT-4", "DT-5"))])
+    assert (
+        first_version_row(data).tp_without_agent_text
+        == "5 true positives with no agent verdict: DT-1, DT-2, DT-3 and 2 more"
+    )
+
+
+def test_one_true_positive_without_an_agent_verdict_is_singular() -> None:
+    data = results([without_agent_class(("DT-1",))])
+    assert (
+        first_version_row(data).tp_without_agent_text
+        == "1 true positive with no agent verdict: DT-1"
+    )
+
+
+def test_a_true_positive_id_without_an_agent_verdict_shows_escapes() -> None:
+    data = results([without_agent_class(("DT\u202e1",))])
+    assert first_version_row(data).tp_without_agent_text.endswith("DT\\u202e1")
+
+
+def test_a_row_without_such_true_positives_has_no_text() -> None:
+    assert first_version_row(results()).tp_without_agent_text is None
+
+
+def test_a_class_with_true_positives_without_an_agent_verdict_gets_a_warning_note() -> None:
+    note = build_view(results([without_agent_class(("DT-1", "DT-2"))])).notes[0]
+    assert (note.severity, note.count_text, note.message, note.hint) == (
+        "warning",
+        "2",
+        "analyst true positives in impossible_travel have no agent verdict.",
+        "Check that the agent emits a verdict on every case and that its labels are mapped.",
+    )
+
+
+def test_a_true_positive_note_lists_its_case_ids_as_examples() -> None:
+    note = build_view(results([without_agent_class(("DT-1", "DT-2"))])).notes[0]
+    assert [example.subject for example in note.examples] == ["DT-1", "DT-2"]
+
+
+def test_a_class_without_such_true_positives_gets_no_note() -> None:
+    assert build_view(results()).notes == ()
+
+
+def test_true_positive_notes_follow_the_data_notes() -> None:
+    data = results([without_agent_class(("DT-1",))], notes=[unmapped_label_note()])
+    assert [note.severity for note in build_view(data).notes] == ["invalid_input", "warning"]
+
+
+# Dropped resamples
+
+
+def test_a_slice_with_dropped_resamples_gets_a_warning_note() -> None:
+    entries = [version_entry("v1", slice_data=metrics(dropped=87))]
+    note = build_view(results([class_data(entries=entries)])).notes[0]
+    assert (note.severity, note.count_text, note.message) == (
+        "warning",
+        "87",
+        "of 1,000 kappa resamples in impossible_travel, v1, were dropped because kappa was "
+        "undefined in them.",
+    )
+
+
+def test_each_slice_with_dropped_resamples_gets_its_own_note() -> None:
+    entries = [
+        version_entry("v1", slice_data=metrics(dropped=87)),
+        version_entry("v2", slice_data=metrics(dropped=3)),
+    ]
+    data = results([class_data(entries=entries, overall=metrics(dropped=40))])
+    assert [note.count_text for note in build_view(data).notes] == ["40", "87", "3"]
+
+
 # Version styles
 
 
@@ -367,6 +592,16 @@ def test_dangerous_false_close_cells_are_flagged() -> None:
         [False, False, False],
         [False, False, False],
     ]
+
+
+def test_a_dangerous_cell_with_cases_is_flagged() -> None:
+    cells = build_view(results()).classes[0].confusion.rows[0].cells
+    assert [cell.is_flagged for cell in cells] == [False, True, True]
+
+
+def test_a_dangerous_cell_without_cases_is_not_flagged() -> None:
+    data = results([class_data(overall=metrics(confusion=[[5, 0, 1], [0, 5, 0], [0, 0, 3]]))])
+    assert build_view(data).classes[0].confusion.rows[0].cells[1].is_flagged is False
 
 
 def test_the_confusion_matrix_counts_dangerous_false_closes() -> None:
@@ -430,6 +665,30 @@ def test_a_week_with_five_cases_is_marked_few() -> None:
     assert build_view(version_trend()).classes[0].trend.agreement.lines[0].few == (False, True)
 
 
+def test_a_week_with_ten_cases_is_not_few_and_nine_is() -> None:
+    points = [
+        trend_point("2026-W10", "all", None, 0.9, 10),
+        trend_point("2026-W11", "all", None, 0.9, 9),
+    ]
+    view = build_view(results([class_data(trend=points)]))
+    assert view.classes[0].trend.agreement.lines[0].few == (False, True)
+
+
+def test_the_trend_names_the_few_cases_marker_in_its_legend() -> None:
+    assert (
+        build_view(version_trend()).classes[0].trend.few_legend_text
+        == "Hollow marker: fewer than 10 cases"
+    )
+
+
+def test_a_trend_week_with_cases_but_no_agreement_says_why() -> None:
+    point = trend_point("2026-W10", "all", None, 0.9, 4)
+    point["agreement"] = None
+    point["agreement_n"] = 0
+    view = build_view(results([class_data(trend=[point])]))
+    assert view.classes[0].trend.agreement.table_rows[0].cells[0] == "no cases with both verdicts"
+
+
 def test_the_trend_table_says_when_a_version_has_no_cases() -> None:
     rows = build_view(version_trend()).classes[0].trend.agreement.table_rows
     assert rows[1].cells == ("50% (n 5) Few cases.", "no cases")
@@ -440,6 +699,20 @@ def test_the_trend_gives_each_version_its_first_week() -> None:
 
 
 # Header
+
+
+def test_the_header_shows_the_data_source_paths() -> None:
+    sources = build_view(results()).header.sources
+    assert [(source.name, source.path) for source in sources] == [
+        ("traces", "traces"),
+        ("verdicts", "verdicts.csv"),
+        ("config", "detecttrace.yaml"),
+    ]
+
+
+def test_the_header_counts_cases_and_classes() -> None:
+    data = results([class_data(), class_data(alert_class="oauth_consent")], cases=201)
+    assert build_view(data).header.cases_text == "201 in 2 alert classes"
 
 
 def test_the_header_counts_weeks_across_a_53_week_year() -> None:
@@ -471,8 +744,19 @@ def test_low_coverage_gets_a_warning_line() -> None:
     data = results(join=coverage(traces_matched=44))
     assert build_view(data).coverage[1].text == (
         "44 of 100 traces matched a verdict (44%). Less than half matched, so the results may "
-        "be misleading; check mapping.case_id in detecttrace.yaml."
+        "be misleading."
     )
+
+
+def test_low_coverage_gets_a_hint() -> None:
+    data = results(join=coverage(traces_matched=44))
+    assert build_view(data).coverage[1].hint == "Check mapping.case_id in detecttrace.yaml."
+
+
+def test_the_page_and_the_terminal_share_the_coverage_sentence() -> None:
+    data = results(join=coverage(traces_matched=44))
+    [_, terminal] = coverage_lines(JoinCoverage(100, 100, 44, 100))
+    assert build_view(data).coverage[1].text == terminal.sentence
 
 
 def test_low_coverage_without_a_configuration_name_names_the_configuration() -> None:
@@ -480,7 +764,15 @@ def test_low_coverage_without_a_configuration_name_names_the_configuration() -> 
         join=coverage(traces_matched=44),
         source={"traces": "traces", "verdicts": "verdicts.csv", "checklists": None},
     )
-    assert build_view(data).coverage[1].text.endswith("check mapping.case_id in the configuration.")
+    assert build_view(data).coverage[1].hint == "Check mapping.case_id in the configuration."
+
+
+def test_a_coverage_hint_shows_control_characters_in_the_config_name_as_escapes() -> None:
+    data = results(
+        join=coverage(traces_matched=44),
+        source={"traces": "t", "verdicts": "v.csv", "checklists": None, "config": "a\x1b.yaml"},
+    )
+    assert build_view(data).coverage[1].hint == "Check mapping.case_id in a\\x1b.yaml."
 
 
 def unmapped_label_note() -> dict[str, object]:
@@ -514,6 +806,21 @@ def test_a_note_keeps_its_examples_as_subject_and_detail() -> None:
 
 
 # Cases
+
+
+def test_the_detail_sentence_counts_one_case_in_the_singular() -> None:
+    data = results(case_detail=[{"case_id": "C-1"}])
+    assert build_view(data).cases.detail_sentence == (
+        "Tool calls are included for 1 notable case (dashboard.max_detail_cases); tool results "
+        "are never included."
+    )
+
+
+def test_the_detail_sentence_counts_cases_in_the_plural() -> None:
+    data = results(case_detail=[{"case_id": "C-1"}, {"case_id": "C-2"}])
+    assert build_view(data).cases.detail_sentence.startswith(
+        "Tool calls are included for 2 notable cases "
+    )
 
 
 def test_a_class_filter_uses_the_class_index_in_the_strings_table() -> None:
