@@ -2920,6 +2920,32 @@
      "duration_ms": 1059.0,
      "arguments": "{\"app_id\": \"6b659285-6fdf-7a0e-639a-2670925f9cc0\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -2955,6 +2981,38 @@
      "duration_ms": 835.0,
      "arguments": "{\"user\": \"user8490@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -2989,6 +3047,38 @@
      "status": "success",
      "duration_ms": 485.0,
      "arguments": "{\"user\": \"user6750@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3031,6 +3121,38 @@
      "duration_ms": 1190.0,
      "arguments": "{\"user\": \"user3410@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3066,6 +3188,38 @@
      "duration_ms": 801.0,
      "arguments": "{\"user\": \"user4401@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3100,6 +3254,32 @@
      "status": "success",
      "duration_ms": 1187.0,
      "arguments": "{\"app_id\": \"7e1d378d-b445-1013-a58e-dcb4523dff27\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3142,6 +3322,38 @@
      "duration_ms": 1860.0,
      "arguments": "{\"user\": \"user2518@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3176,6 +3388,32 @@
      "status": "success",
      "duration_ms": 584.0,
      "arguments": "{\"app_id\": \"315ff98e-da3f-51b4-ac3c-66ad48055dc2\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3218,6 +3456,38 @@
      "duration_ms": 1399.0,
      "arguments": "{\"user\": \"user1344@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3252,6 +3522,38 @@
      "status": "success",
      "duration_ms": 960.0,
      "arguments": "{\"user\": \"user3827@example.com\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3288,6 +3590,32 @@
      "duration_ms": 404.0,
      "arguments": "{\"app_id\": \"3ddf2b1e-0c2c-3834-eb8e-d42b9f26fa94\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3323,6 +3651,32 @@
      "duration_ms": 691.0,
      "arguments": "{\"app_id\": \"82eba2a3-02ea-19a0-4a75-461f1ad342d7\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3357,6 +3711,32 @@
      "status": "success",
      "duration_ms": 1033.0,
      "arguments": "{\"app_id\": \"5dd9374c-9dda-819a-f62c-ad50330469f4\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3399,6 +3779,38 @@
      "duration_ms": 1295.0,
      "arguments": "{\"user\": \"user9033@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3440,6 +3852,38 @@
      "duration_ms": 535.0,
      "arguments": "{\"user\": \"user8790@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3475,6 +3919,32 @@
      "duration_ms": 1032.0,
      "arguments": "{\"app_id\": \"a397f7d6-7860-dd34-3303-22ddb4f43b3c\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3509,6 +3979,32 @@
      "status": "success",
      "duration_ms": 621.0,
      "arguments": "{\"app_id\": \"059b26f0-a23d-9a3a-dd25-068cdbc8f431\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3551,6 +4047,38 @@
      "duration_ms": 1681.0,
      "arguments": "{\"user\": \"user1515@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3591,6 +4119,38 @@
      "status": "success",
      "duration_ms": 1553.0,
      "arguments": "{\"user\": \"user0800@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3633,6 +4193,32 @@
      "duration_ms": 860.0,
      "arguments": "{\"app_id\": \"8e25ab88-2c9f-560f-e90f-ff957e8ffa2c\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3674,6 +4260,38 @@
      "duration_ms": 802.0,
      "arguments": "{\"user\": \"user2296@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3709,6 +4327,32 @@
      "duration_ms": 541.0,
      "arguments": "{\"app_id\": \"9589a93a-5202-dc95-1b60-348c9670d1d6\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3743,6 +4387,38 @@
      "status": "failed",
      "duration_ms": 348.0,
      "arguments": "{\"user\": \"user1736@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3785,6 +4461,32 @@
      "duration_ms": 675.0,
      "arguments": "{\"app_id\": \"7d96f921-2cb0-5bac-d6ef-6647db88cd89\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3819,6 +4521,32 @@
      "status": "failed",
      "duration_ms": 1103.0,
      "arguments": "{\"app_id\": \"2da52fc2-6192-b9d0-4d66-23893aa4b9ee\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3861,6 +4589,32 @@
      "duration_ms": 184.0,
      "arguments": "{\"app_id\": \"45a446f8-7c59-7573-04de-56aa2be3049c\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3902,6 +4656,32 @@
      "duration_ms": 1418.0,
      "arguments": "{\"app_id\": \"cd771e33-839c-3ca5-07fc-1582b8fd2d97\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -3936,6 +4716,38 @@
      "status": "success",
      "duration_ms": 1641.0,
      "arguments": "{\"user\": \"user8750@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -3978,6 +4790,32 @@
      "duration_ms": 1566.0,
      "arguments": "{\"app_id\": \"bb32c6d8-42aa-07da-73c0-9411413c02a0\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4012,6 +4850,38 @@
      "status": "success",
      "duration_ms": 1190.0,
      "arguments": "{\"user\": \"user8689@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4053,6 +4923,38 @@
      "status": "success",
      "duration_ms": 543.0,
      "arguments": "{\"user\": \"user3708@example.com\", \"lookback_days\": 7}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4101,6 +5003,38 @@
      "duration_ms": 1794.0,
      "arguments": "{\"user\": \"user0360@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4141,6 +5075,32 @@
      "status": "success",
      "duration_ms": 269.0,
      "arguments": "{\"app_id\": \"fdd50d91-b5ac-16ad-7696-3efd8dc28931\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4183,6 +5143,38 @@
      "duration_ms": 1095.0,
      "arguments": "{\"user\": \"user9638@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4223,6 +5215,32 @@
      "status": "success",
      "duration_ms": 185.0,
      "arguments": "{\"app_id\": \"35ed0990-d789-2936-fee8-879c838766e7\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4265,6 +5283,32 @@
      "duration_ms": 944.0,
      "arguments": "{\"app_id\": \"758c49c6-299d-e63d-def7-b9aae3806797\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4305,6 +5349,38 @@
      "status": "success",
      "duration_ms": 1371.0,
      "arguments": "{\"user\": \"user2419@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4353,6 +5429,38 @@
      "duration_ms": 145.0,
      "arguments": "{\"user\": \"user1111@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4393,6 +5501,38 @@
      "status": "failed",
      "duration_ms": 256.0,
      "arguments": "{\"user\": \"user8660@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4435,6 +5575,32 @@
      "duration_ms": 994.0,
      "arguments": "{\"app_id\": \"abe72a06-8fdc-e8da-1d70-35edab158bf7\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4475,6 +5641,32 @@
      "status": "success",
      "duration_ms": 1821.0,
      "arguments": "{\"app_id\": \"d858ce02-691f-f7c9-4312-66f50a1a150e\", \"lookback_days\": 7}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
     }
    ]
   },
@@ -4523,6 +5715,38 @@
      "duration_ms": 1296.0,
      "arguments": "{\"user\": \"user0565@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4557,6 +5781,32 @@
      "status": "success",
      "duration_ms": 1018.0,
      "arguments": "{\"app_id\": \"1129ead2-de32-e034-75cc-be97325c53f4\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "window: min_duration"
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "failed",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4593,6 +5843,38 @@
      "duration_ms": 1217.0,
      "arguments": "{\"user\": \"user6959@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4628,6 +5910,38 @@
      "duration_ms": 1284.0,
      "arguments": "{\"user\": \"user1778@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4656,6 +5970,38 @@
      "status": "success",
      "duration_ms": 930.0,
      "arguments": "{\"user\": \"user5875@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4692,6 +6038,32 @@
      "duration_ms": 1757.0,
      "arguments": "{\"app_id\": \"b29a1947-5fed-6b82-77ec-1aeddb5bae5f\", \"lookback_days\": 14}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "consent_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
+    }
    ]
   },
   {
@@ -4726,6 +6098,38 @@
      "status": "success",
      "duration_ms": 837.0,
      "arguments": "{\"user\": \"user0457@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4768,6 +6172,38 @@
      "duration_ms": 746.0,
      "arguments": "{\"user\": \"user1770@example.com\", \"lookback_days\": 7}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
+    }
    ]
   },
   {
@@ -4803,6 +6239,38 @@
      "duration_ms": 1546.0,
      "arguments": "{\"user\": \"user3806@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4831,6 +6299,32 @@
      "status": "success",
      "duration_ms": 175.0,
      "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has 'fe7904f3-264e-9ef1-cdcb-39d9d503507b' | summarize count() by Initia…"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
     }
    ]
   },
@@ -4867,6 +6361,38 @@
      "duration_ms": 1131.0,
      "arguments": "{\"user\": \"user4569@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4902,6 +6428,38 @@
      "duration_ms": 872.0,
      "arguments": "{\"user\": \"user1570@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4930,6 +6488,38 @@
      "status": "success",
      "duration_ms": 875.0,
      "arguments": "{\"user\": \"user4571@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -4960,6 +6550,32 @@
      "duration_ms": 1147.0,
      "arguments": "{\"app_id\": \"5d14fcc7-8842-60f7-e372-34a5b13bb8ca\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -4988,6 +6604,38 @@
      "status": "success",
      "duration_ms": 1023.0,
      "arguments": "{\"user\": \"user1124@example.com\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5024,6 +6672,32 @@
      "duration_ms": 535.0,
      "arguments": "{\"app_id\": \"a8f21985-c49c-ae78-eda7-493dd3562104\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "window: min_duration"
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5058,6 +6732,38 @@
      "status": "success",
      "duration_ms": 1287.0,
      "arguments": "{\"user\": \"user1146@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5094,6 +6800,38 @@
      "duration_ms": 1592.0,
      "arguments": "{\"user\": \"user2718@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5129,6 +6867,38 @@
      "duration_ms": 663.0,
      "arguments": "{\"user\": \"user8424@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5163,6 +6933,38 @@
      "status": "success",
      "duration_ms": 1232.0,
      "arguments": "{\"user\": \"user4721@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5205,6 +7007,38 @@
      "duration_ms": 1823.0,
      "arguments": "{\"user\": \"user4190@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5239,6 +7073,32 @@
      "status": "success",
      "duration_ms": 415.0,
      "arguments": "{\"app_id\": \"a7bdce22-b890-3832-ead2-1ac05eaa86a6\", \"lookback_days\": 7}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
     }
    ]
   },
@@ -5275,6 +7135,38 @@
      "duration_ms": 257.0,
      "arguments": "{\"user\": \"user1846@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5310,6 +7202,38 @@
      "duration_ms": 462.0,
      "arguments": "{\"user\": \"user1260@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5338,6 +7262,38 @@
      "status": "success",
      "duration_ms": 811.0,
      "arguments": "{\"user\": \"user5708@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5374,6 +7330,38 @@
      "duration_ms": 455.0,
      "arguments": "{\"user\": \"user8448@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5408,6 +7396,38 @@
      "status": "success",
      "duration_ms": 333.0,
      "arguments": "{\"user\": \"user3735@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5444,6 +7464,38 @@
      "duration_ms": 1180.0,
      "arguments": "{\"user\": \"user3116@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5478,6 +7530,38 @@
      "status": "success",
      "duration_ms": 1693.0,
      "arguments": "{\"user\": \"user2312@example.com\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5514,6 +7598,38 @@
      "duration_ms": 1783.0,
      "arguments": "{\"user\": \"user8754@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5549,6 +7665,38 @@
      "duration_ms": 1307.0,
      "arguments": "{\"user\": \"user8700@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5577,6 +7725,32 @@
      "status": "success",
      "duration_ms": 127.0,
      "arguments": "{\"app_id\": \"80ef70ba-3684-3beb-94dd-dae29c078bfa\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5619,6 +7793,38 @@
      "duration_ms": 1757.0,
      "arguments": "{\"user\": \"user2354@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5653,6 +7859,38 @@
      "status": "success",
      "duration_ms": 1569.0,
      "arguments": "{\"user\": \"user3507@example.com\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5695,6 +7933,38 @@
      "duration_ms": 350.0,
      "arguments": "{\"user\": \"user7883@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5729,6 +7999,38 @@
      "status": "success",
      "duration_ms": 222.0,
      "arguments": "{\"user\": \"user9274@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5765,6 +8067,38 @@
      "duration_ms": 427.0,
      "arguments": "{\"user\": \"user3562@example.com\", \"lookback_days\": 7}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
+    }
    ]
   },
   {
@@ -5799,6 +8133,38 @@
      "status": "success",
      "duration_ms": 256.0,
      "arguments": "{\"user\": \"user0801@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5835,6 +8201,38 @@
      "duration_ms": 1313.0,
      "arguments": "{\"user\": \"user7859@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5869,6 +8267,38 @@
      "status": "success",
      "duration_ms": 1166.0,
      "arguments": "{\"user\": \"user9970@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5905,6 +8335,38 @@
      "duration_ms": 290.0,
      "arguments": "{\"user\": \"user3294@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5934,6 +8396,38 @@
      "duration_ms": 763.0,
      "arguments": "{\"user\": \"user3158@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -5956,6 +8450,32 @@
      "status": "success",
      "duration_ms": 570.0,
      "arguments": "{\"app_id\": \"c2fe73f2-d8df-e26a-f0d6-613821ea1f6f\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -5992,6 +8512,32 @@
      "duration_ms": 634.0,
      "arguments": "{\"app_id\": \"a7204a91-901b-1e27-7b01-878adc788a4f\", \"lookback_days\": 7}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
+    }
    ]
   },
   {
@@ -6026,6 +8572,32 @@
      "status": "success",
      "duration_ms": 390.0,
      "arguments": "{\"app_id\": \"00d28d56-6f5d-7eb0-1d20-3e3a129e65c1\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6062,6 +8634,38 @@
      "duration_ms": 1193.0,
      "arguments": "{\"user\": \"user0141@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6096,6 +8700,38 @@
      "status": "success",
      "duration_ms": 351.0,
      "arguments": "{\"user\": \"user3649@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6132,6 +8768,38 @@
      "duration_ms": 1677.0,
      "arguments": "{\"user\": \"user4271@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6160,6 +8828,32 @@
      "status": "success",
      "duration_ms": 215.0,
      "arguments": "{\"query\": \"AuditLogs | where TimeGenerated > ago(7d) | where OperationName == 'Consent to application' | where TargetResources has '7cf64a62-1cab-e9f8-cb15-71166f32326f' | summarize count() by Initia…"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
     }
    ]
   },
@@ -6195,6 +8889,38 @@
      "status": "success",
      "duration_ms": 509.0,
      "arguments": "{\"user\": \"user9247@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6237,6 +8963,38 @@
      "duration_ms": 155.0,
      "arguments": "{\"user\": \"user4100@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6265,6 +9023,38 @@
      "status": "success",
      "duration_ms": 605.0,
      "arguments": "{\"user\": \"user2431@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6301,6 +9091,38 @@
      "duration_ms": 1791.0,
      "arguments": "{\"user\": \"user7344@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6335,6 +9157,38 @@
      "status": "success",
      "duration_ms": 1768.0,
      "arguments": "{\"user\": \"user6979@example.com\", \"lookback_days\": 60}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6377,6 +9231,38 @@
      "duration_ms": 1856.0,
      "arguments": "{\"user\": \"user1851@example.com\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6411,6 +9297,38 @@
      "status": "success",
      "duration_ms": 378.0,
      "arguments": "{\"user\": \"user9386@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6447,6 +9365,32 @@
      "duration_ms": 253.0,
      "arguments": "{\"app_id\": \"d55e1a93-c91d-759e-d0a7-f3bcae11c59e\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6481,6 +9425,38 @@
      "status": "success",
      "duration_ms": 602.0,
      "arguments": "{\"user\": \"user3534@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "range: min_duration"
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6517,6 +9493,38 @@
      "duration_ms": 378.0,
      "arguments": "{\"user\": \"user6606@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "mfa_check",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6551,6 +9559,32 @@
      "status": "success",
      "duration_ms": 295.0,
      "arguments": "{\"app_id\": \"30f491ce-a751-1dc1-48f7-8d12d2932220\", \"lookback_days\": 7}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
     }
    ]
   },
@@ -6587,6 +9621,38 @@
      "duration_ms": 1152.0,
      "arguments": "{\"user\": \"user8082@example.com\", \"lookback_days\": 90}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6621,6 +9687,38 @@
      "status": "success",
      "duration_ms": 1828.0,
      "arguments": "{\"ip\": \"203.0.113.197\"}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
     }
    ]
   },
@@ -6657,6 +9755,38 @@
      "duration_ms": 1863.0,
      "arguments": "{\"user\": \"user7333@example.com\", \"lookback_days\": 14}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
+    }
    ]
   },
   {
@@ -6692,6 +9822,38 @@
      "duration_ms": 628.0,
      "arguments": "{\"user\": \"user4154@example.com\", \"lookback_days\": 7}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "lookback_days: min"
+    }
    ]
   },
   {
@@ -6726,6 +9888,38 @@
      "status": "success",
      "duration_ms": 1151.0,
      "arguments": "{\"ip\": \"198.51.100.8\"}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "missed",
+     "reason": "not_called",
+     "failed_rule": null
     }
    ]
   },
@@ -6768,6 +9962,38 @@
      "duration_ms": 456.0,
      "arguments": "{\"user\": \"user0957@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6808,6 +10034,38 @@
      "status": "success",
      "duration_ms": 1497.0,
      "arguments": "{\"user\": \"user0206@example.com\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6850,6 +10108,38 @@
      "duration_ms": 320.0,
      "arguments": "{\"user\": \"user4060@example.com\", \"lookback_days\": 60}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "signin_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "signin_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "mfa_check",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "ip_reputation",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "location_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6884,6 +10174,32 @@
      "status": "success",
      "duration_ms": 1382.0,
      "arguments": "{\"app_id\": \"e9b3ce67-132e-90fb-8299-91c664de185d\", \"lookback_days\": 30}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "window: min_duration"
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   },
@@ -6920,6 +10236,32 @@
      "duration_ms": 1821.0,
      "arguments": "{\"app_id\": \"99bfe0c4-545d-670e-17b6-ea643effd621\", \"lookback_days\": 30}"
     }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    }
    ]
   },
   {
@@ -6954,6 +10296,32 @@
      "status": "success",
      "duration_ms": 1090.0,
      "arguments": "{\"app_id\": \"dfc40b7a-3c38-13c6-1690-ad4360fa0757\", \"lookback_days\": 90}"
+    }
+   ],
+   "outcomes": [
+    {
+     "item": "grant_window",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "app_permissions",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
+    },
+    {
+     "item": "audit_query",
+     "status": "missed",
+     "reason": "wrong_arguments",
+     "failed_rule": "query: kql_min_ago"
+    },
+    {
+     "item": "consent_history",
+     "status": "satisfied",
+     "reason": null,
+     "failed_rule": null
     }
    ]
   }

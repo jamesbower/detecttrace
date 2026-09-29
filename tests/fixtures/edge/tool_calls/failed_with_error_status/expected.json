@@ -51,6 +51,14 @@
       "duration_ms": 500.0,
       "arguments": "{\"user\": \"user0001@example.com\"}"
      }
+    ],
+    "outcomes": [
+     {
+      "item": "mfa_check",
+      "status": "failed",
+      "reason": null,
+      "failed_rule": null
+     }
     ]
    }
   ]
