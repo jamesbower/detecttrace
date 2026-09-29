@@ -1,9 +1,12 @@
 import gzip
+import io
 import json
 import os
 import sys
+import tracemalloc
 from collections.abc import Iterator
 from pathlib import Path
+from typing import BinaryIO
 
 import pytest
 import zstandard
@@ -22,6 +25,7 @@ from detecttrace.otlp import TraceFileError, load_spans
 S1 = span_hex(1)
 S2 = span_hex(2)
 BOM = "﻿"
+MIB = 1 << 20
 CONSOLE_OUTPUT = Path(__file__).parent / "fixtures" / "console_exporter" / "console.json"
 needs_permissions = pytest.mark.skipif(
     sys.platform == "win32" or os.geteuid() == 0,
@@ -734,6 +738,98 @@ def test_zstd_with_trailing_garbage_keeps_earlier_lines(tmp_path: Path) -> None:
     spans, _ = load_spans(path)
 
     assert [s.span_id for s in spans] == [S1, S2]
+
+
+BOMB_BYTES = 200 * MIB
+MEMORY_BUDGET = 64 * MIB
+
+
+def _write_bomb(path: Path, writer: BinaryIO | io.BufferedIOBase) -> Path:
+    # Written a mebibyte at a time so the test itself never holds the whole bomb.
+    zeros = bytes(MIB)
+    for _ in range(BOMB_BYTES // MIB):
+        writer.write(zeros)
+    writer.close()
+    return path
+
+
+@pytest.fixture(scope="module")
+def zstd_bomb(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    path = tmp_path_factory.mktemp("bomb") / "bomb.jsonl.zst"
+    handle = path.open("wb")
+    return _write_bomb(path, zstandard.ZstdCompressor(level=19).stream_writer(handle))
+
+
+@pytest.fixture(scope="module")
+def gzip_bomb(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    path = tmp_path_factory.mktemp("bomb") / "bomb.jsonl.gz"
+    return _write_bomb(path, gzip.open(path, "wb", compresslevel=1))
+
+
+def _peak_bytes_while_loading(path: Path) -> int:
+    tracemalloc.start()
+    try:
+        load_spans(path)
+        return tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+def test_zstd_bomb_loads_within_memory_budget(zstd_bomb: Path) -> None:
+    assert _peak_bytes_while_loading(zstd_bomb) < MEMORY_BUDGET
+
+
+def test_zstd_bomb_is_reported_as_too_long_line(zstd_bomb: Path) -> None:
+    _, issues = load_spans(zstd_bomb)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_LINE, "line 1 is over 32 MiB")
+    ]
+
+
+def test_gzip_bomb_loads_within_memory_budget(gzip_bomb: Path) -> None:
+    assert _peak_bytes_while_loading(gzip_bomb) < MEMORY_BUDGET
+
+
+def test_gzip_bomb_is_reported_as_too_long_line(gzip_bomb: Path) -> None:
+    _, issues = load_spans(gzip_bomb)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_LINE, "line 1 is over 32 MiB")
+    ]
+
+
+@pytest.fixture
+def long_line_file(tmp_path: Path) -> Path:
+    # Opens like a JSON object, so the one-document reader sees it before the line reader.
+    path = tmp_path / "t.jsonl"
+    path.write_text('{"k": "' + "x" * (33 * MIB) + '"}\n' + _line(S2))
+    return path
+
+
+def test_too_long_plain_line_is_reported(long_line_file: Path) -> None:
+    _, issues = load_spans(long_line_file)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_LINE, "line 1 is over 32 MiB")
+    ]
+
+
+def test_too_long_plain_line_keeps_later_lines(long_line_file: Path) -> None:
+    spans, _ = load_spans(long_line_file)
+
+    assert [s.span_id for s in spans] == [S2]
+
+
+def test_too_large_document_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.json"
+    path.write_text("{\n" + " " * (33 * MIB) + "}\n")
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "document is over 32 MiB")
+    ]
 
 
 def test_console_exporter_output_is_reported_once(tmp_path: Path) -> None:

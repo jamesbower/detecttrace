@@ -18,7 +18,13 @@ if TYPE_CHECKING:
 
 _GZIP_MAGIC = b"\x1f\x8b"
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
-_ZSTD_CHUNK_SIZE = 64 * 1024
+# A zstd block is at least 4 bytes and at most 128 KiB decoded, so 256 compressed bytes
+# decode to at most about 8 MiB however hostile the file.
+_ZSTD_CHUNK_SIZE = 256
+_READ_SIZE = 1 << 20
+# Bounds memory for any one line or one-document file, compressed or not.
+_MAX_LINE_BYTES = 32 << 20
+_MAX_LINE_TEXT = f"{_MAX_LINE_BYTES >> 20} MiB"
 _SNIFF_SIZE = 64 * 1024
 _CONSOLE_CONTEXT = b'"context": {'
 _CONSOLE_TRACE_ID = b'"trace_id": "0x'
@@ -187,8 +193,9 @@ def _compression_issue(error: Exception, subject: str, suffix: str = "") -> Issu
 def _first_content_line(file_path: Path) -> bytes | None:
     """Return the first non-blank line, stripped, or None when the file has no content."""
     with _open_binary(file_path) as handle:
-        for line in handle:
-            stripped = line.removeprefix(_BOM).strip()
+        # Pieces, not whole lines: the start of a line is enough to tell the format.
+        for piece in iter(lambda: handle.readline(_READ_SIZE), b""):
+            stripped = piece.removeprefix(_BOM).strip()
             if stripped:
                 return stripped
     return None
@@ -202,7 +209,11 @@ def _may_open_document(first_line: bytes) -> bool:
 def _read_one_document(
     file_path: Path, subject: str, issues: list[Issue]
 ) -> Iterator[tuple[Json, None]]:
-    document = _load_document(file_path)
+    text = _read_document_bytes(file_path)
+    if text is None:
+        issues.append(Issue(IssueKind.INVALID_FILE, subject, f"document is over {_MAX_LINE_TEXT}"))
+        return
+    document = _parse_document_bytes(text)
     if document is None:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
         return
@@ -210,13 +221,25 @@ def _read_one_document(
 
 
 def _load_document(file_path: Path) -> Json | None:
+    # A too-large file whose first line is not a whole document is read as JSON lines instead.
+    text = _read_document_bytes(file_path)
+    return None if text is None else _parse_document_bytes(text)
+
+
+def _read_document_bytes(file_path: Path) -> bytes | None:
+    """Return the whole decompressed file, or None when it is over the size limit."""
     # NOTE: a one-document file is read whole; JSON lines is the format for large inputs.
     with _open_binary(file_path) as handle:
-        try:
-            # json.load on bytes detects UTF-8 with or without a BOM.
-            return json.load(handle)
-        except (ValueError, RecursionError):
-            return None
+        text = handle.read(_MAX_LINE_BYTES + 1)
+    return None if len(text) > _MAX_LINE_BYTES else text
+
+
+def _parse_document_bytes(text: bytes) -> Json | None:
+    try:
+        # json.loads on bytes detects UTF-8 with or without a BOM.
+        return json.loads(text)
+    except (ValueError, RecursionError):
+        return None
 
 
 def _read_json_lines(
@@ -224,7 +247,11 @@ def _read_json_lines(
 ) -> Iterator[tuple[Json, int]]:
     with _open_binary(file_path) as handle:
         try:
-            for line_number, line in enumerate(handle, start=1):
+            for line_number, line in enumerate(_read_lines(handle), start=1):
+                if line is None:
+                    detail = f"line {line_number} is over {_MAX_LINE_TEXT}"
+                    issues.append(Issue(IssueKind.INVALID_LINE, subject, detail))
+                    continue
                 if line_number == 1:
                     line = line.removeprefix(_BOM)
                 if not line.strip():
@@ -240,6 +267,24 @@ def _read_json_lines(
                 yield document, line_number
         except _COMPRESSION_ERRORS as error:
             issues.append(_compression_issue(error, subject, "; earlier lines were read"))
+
+
+def _read_lines(handle: io.BufferedIOBase) -> Iterator[bytes | None]:
+    """Yield each line with its newline, or None for a line over the size limit."""
+    while line := handle.readline(_READ_SIZE):
+        if line.endswith(b"\n"):
+            yield line
+            continue
+        pieces = [line]
+        size = len(line)
+        while not line.endswith(b"\n") and (line := handle.readline(_READ_SIZE)):
+            size += len(line)
+            if size > _MAX_LINE_BYTES:
+                # Keep reading to the newline so the next line starts in the right place.
+                pieces.clear()
+            else:
+                pieces.append(line)
+        yield b"".join(pieces) if size <= _MAX_LINE_BYTES else None
 
 
 def _open_binary(file_path: Path) -> io.BufferedIOBase:
@@ -262,7 +307,8 @@ class _ZstdReader(io.RawIOBase):
     """Decompress a zstd stream of one or more frames, raising EOFError when it ends early.
 
     zstandard's own stream_reader treats a cut-off stream as a clean end, which would
-    hide a truncated file, so frames are decoded here with decompressobj.
+    hide a truncated file, so frames are decoded here with decompressobj. It is fed a
+    few compressed bytes at a time because it has no cap on how much one call decodes.
     """
 
     def __init__(
