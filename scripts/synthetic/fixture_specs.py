@@ -129,7 +129,7 @@ CLASS_KEEP = (
     "classes.alert_class",
     "case_rows.strings",
     "case_rows.columns.case_id",
-    "case_rows.columns.class",
+    "case_rows.columns.class_index",
 )
 DETAIL_KEEP = ("totals.coverage", "case_rows.columns.case_id", "case_detail")
 LABEL_KEEP = (
@@ -142,7 +142,7 @@ LABEL_KEEP = (
 ATTRIBUTE_KEEP = (
     "case_rows.strings",
     "case_rows.columns.case_id",
-    "case_rows.columns.class",
+    "case_rows.columns.class_index",
     "case_rows.columns.version",
     "case_rows.columns.agent",
 )

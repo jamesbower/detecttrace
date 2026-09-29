@@ -2,7 +2,7 @@
  "keep": [
   "case_rows.strings",
   "case_rows.columns.case_id",
-  "case_rows.columns.class",
+  "case_rows.columns.class_index",
   "case_rows.columns.version",
   "case_rows.columns.agent"
  ],
@@ -16,7 +16,7 @@
     "case_id": [
      "C-1"
     ],
-    "class": [
+    "class_index": [
      0
     ],
     "version": [

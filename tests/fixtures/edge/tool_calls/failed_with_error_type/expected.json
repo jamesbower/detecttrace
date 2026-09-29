@@ -12,7 +12,7 @@
   "case_rows": {
    "checklists": [
     {
-     "class": 0,
+     "class_index": 0,
      "items": [
       1
      ]
