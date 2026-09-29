@@ -184,16 +184,25 @@ _OPENINFERENCE_KINDS = {
     conventions.EXECUTE_TOOL: "TOOL",
     "chat": "LLM",
 }
-# Tool attribute names from the OpenInference semantic conventions:
+# Attribute names from the OpenInference semantic conventions:
 # https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md
-# (`openinference.span.kind`, `tool.name`, `tool.parameters` as a JSON string).
+# A TOOL span carries its call arguments in `input.value` (with `input.mime_type`), while
+# `tool.parameters` is the tool's parameter schema, not the arguments of this call.
 _OPENINFERENCE_NAMES = {
     "detecttrace.case_id": "soc.case.id",
     "detecttrace.alert_class": "soc.alert.class",
     "detecttrace.verdict": "soc.agent.verdict",
     "detecttrace.prompt_version": "soc.prompt.version",
     conventions.TOOL_NAME: "tool.name",
-    conventions.TOOL_CALL_ARGUMENTS: "tool.parameters",
+    conventions.TOOL_CALL_ARGUMENTS: "input.value",
+}
+_JSON_SCHEMA_TYPES = {
+    bool: "boolean",
+    int: "integer",
+    float: "number",
+    str: "string",
+    list: "array",
+    dict: "object",
 }
 
 
@@ -231,10 +240,25 @@ def _to_openinference(span: dict[str, Any]) -> dict[str, Any]:
             attributes.append(
                 {"key": _OPENINFERENCE_KIND_ATTRIBUTE, "value": {"stringValue": kind}}
             )
+        elif item["key"] == conventions.TOOL_CALL_ARGUMENTS:
+            arguments = item["value"]["stringValue"]
+            attributes += [
+                {"key": "input.value", "value": {"stringValue": arguments}},
+                {"key": "input.mime_type", "value": {"stringValue": "application/json"}},
+                {"key": "tool.parameters", "value": {"stringValue": _to_schema(arguments)}},
+            ]
         else:
             attributes.append({**item, "key": _OPENINFERENCE_NAMES.get(item["key"], item["key"])})
     # OpenInference names a span after the agent, tool or model alone.
     return {**span, "name": span["name"].partition(" ")[2], "attributes": attributes}
+
+
+def _to_schema(arguments: str) -> str:
+    properties = {
+        name: {"type": _JSON_SCHEMA_TYPES[type(value)]}
+        for name, value in json.loads(arguments).items()
+    }
+    return json.dumps({"type": "object", "properties": properties})
 
 
 def _without_operation_name(span: dict[str, Any]) -> dict[str, Any]:
