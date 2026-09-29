@@ -26,6 +26,10 @@ def read_verdicts(path: Path) -> tuple[list[VerdictRow], list[Issue]]:
         ) from error
     except UnicodeDecodeError as error:
         raise VerdictFileError(f"{path} is not UTF-8. Save it as UTF-8 CSV.") from error
+    except OSError as error:
+        raise VerdictFileError(
+            f"Verdict file {path} could not be opened: {error.strerror or error}."
+        ) from error
 
 
 def _read_rows(reader: csv.DictReader[str], path: Path) -> tuple[list[VerdictRow], list[Issue]]:
@@ -39,7 +43,17 @@ def _read_rows(reader: csv.DictReader[str], path: Path) -> tuple[list[VerdictRow
     reader.fieldnames = columns
     rows: list[VerdictRow] = []
     issues: list[Issue] = []
-    for row in reader:
+    # The reader raises csv.Error mid-iteration, so only here is its line number known.
+    while True:
+        try:
+            row = next(reader)
+        except StopIteration:
+            break
+        except csv.Error as error:
+            raise VerdictFileError(
+                f"{path} could not be read as CSV at line {reader.line_num}: {error}. "
+                "Save it as a plain UTF-8 CSV."
+            ) from error
         line_number = reader.line_num
         case_id = (row.get("case_id") or "").strip()
         alert_class = (row.get("alert_class") or "").strip()

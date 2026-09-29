@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 
 import pytest
@@ -87,3 +88,16 @@ def test_invalid_row_issue_subject_is_the_file_name_and_line(tmp_path: Path) -> 
     _, issues = read_verdicts(path)
 
     assert [i.subject for i in issues] == ["verdicts.csv:2"]
+
+
+def test_field_over_the_csv_size_limit_raises_csv_error(tmp_path: Path) -> None:
+    oversized = "x" * (csv.field_size_limit() + 1)
+    path = write_csv(tmp_path, f"case_id,alert_class,verdict\nDT-1,{oversized},TP\n")
+
+    with pytest.raises(VerdictFileError, match="could not be read as CSV"):
+        read_verdicts(path)
+
+
+def test_directory_path_raises_could_not_be_opened(tmp_path: Path) -> None:
+    with pytest.raises(VerdictFileError, match="could not be opened"):
+        read_verdicts(tmp_path)
