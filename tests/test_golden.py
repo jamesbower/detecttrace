@@ -17,7 +17,8 @@ import generate
 import pytest
 from typer.testing import CliRunner
 
-from detecttrace import cli
+from detecttrace import __version__, cli
+from detecttrace.dashboard import render_dashboard
 from detecttrace.model import IssueKind
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.runconfig import load_run_config
@@ -113,6 +114,41 @@ def test_demo_command_writes_the_golden_dashboard(demo_command: tuple[int, Path]
     assert (
         _first_difference(expected, generate.normalize_dashboard(text), DEMO_GOLDEN_HTML.name) == ""
     )
+
+
+@pytest.fixture(scope="module")
+def normalized_demo_page() -> str:
+    results = json.loads(DEMO_GOLDEN.read_text(encoding="utf-8"))
+    return generate.normalize_dashboard(render_dashboard(results))
+
+
+def test_the_golden_page_holds_a_placeholder_for_the_stylesheet(normalized_demo_page: str) -> None:
+    assert "<style>" + generate.STYLESHEET_PLACEHOLDER + "</style>" in normalized_demo_page
+
+
+def test_the_golden_page_holds_a_placeholder_for_the_script(normalized_demo_page: str) -> None:
+    assert "<script>" + generate.SCRIPT_PLACEHOLDER + "</script>" in normalized_demo_page
+
+
+def test_the_golden_page_holds_a_placeholder_for_the_results(normalized_demo_page: str) -> None:
+    assert (
+        '<script type="application/json" id="dt-results">'
+        + generate.RESULTS_PLACEHOLDER
+        + "</script>"
+    ) in normalized_demo_page
+
+
+def test_the_golden_page_holds_placeholders_for_the_policy_hashes(
+    normalized_demo_page: str,
+) -> None:
+    assert (
+        f"script-src '{generate.SCRIPT_HASH_PLACEHOLDER}'; "
+        f"style-src '{generate.STYLE_HASH_PLACEHOLDER}';"
+    ) in normalized_demo_page
+
+
+def test_the_golden_page_has_no_version(normalized_demo_page: str) -> None:
+    assert __version__ not in normalized_demo_page
 
 
 def _fixture_param(folder: Path) -> object:
