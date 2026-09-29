@@ -33,6 +33,9 @@ _CONSOLE_DETAIL = (
     "the Collector file exporter, or with FileSpanExporter (pip install detecttrace[otel])"
 )
 _BOM = b"\xef\xbb\xbf"
+# A UTF-16 or UTF-32 BOM, or an ASCII character padded with NULs: JSON text starts with
+# an ASCII character, so this is UTF-16 or UTF-32 without a BOM. Covers the UTF-32 BOMs too.
+_UTF16_OR_UTF32_START = re.compile(rb"\xff\xfe|\xfe\xff|[^\x00]\x00|\x00{1,3}[^\x00]")
 _STATUS_ERROR = (2, "STATUS_CODE_ERROR")
 _TRACE_ID = re.compile(r"[0-9a-f]{32}")
 _SPAN_ID = re.compile(r"[0-9a-f]{16}")
@@ -40,9 +43,9 @@ _HEX = re.compile(r"[0-9a-f]*")
 _BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
 _INT_TEXT = re.compile(r"-?[0-9]+")
 _UINT64_LIMIT = 2**64
-# JSON escapes of a surrogate, plus raw surrogate bytes that json.loads accepts in bytes
-# input. A valid pair decodes to one character, so any surrogate left over is a lone one.
-_MAY_HOLD_SURROGATE = re.compile(rb"\\u[dD][89a-fA-F]|\xed[\xa0-\xbf]")
+# Strict UTF-8 decoding rejects raw surrogates, so only a JSON escape can produce one.
+# A valid pair decodes to one character, so any surrogate left over is a lone one.
+_MAY_HOLD_SURROGATE = re.compile(r"\\u[dD][89a-fA-F]")
 _SURROGATE = re.compile("[\ud800-\udfff]")
 
 
@@ -168,6 +171,9 @@ def _read_documents(
         first_line = _first_content_line(file_path)
         if first_line is None:
             issues.append(Issue(IssueKind.EMPTY_FILE, subject))
+        elif _UTF16_OR_UTF32_START.match(first_line):
+            # One issue for the file: every line of it would fail the same way.
+            issues.append(Issue(IssueKind.INVALID_FILE, subject, "not UTF-8"))
         elif first_line in (b"{", b"["):
             yield from _read_one_document(file_path, subject, issues)
         elif _may_open_document(first_line) and (document := _load_document(file_path)) is not None:
@@ -213,11 +219,16 @@ def _may_open_document(first_line: bytes) -> bool:
 def _read_one_document(
     file_path: Path, subject: str, issues: list[Issue]
 ) -> Iterator[tuple[Json, None]]:
-    text = _read_document_bytes(file_path)
-    if text is None:
+    data = _read_document_bytes(file_path)
+    if data is None:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, f"document is over {_MAX_LINE_TEXT}"))
         return
-    document = _parse_document_bytes(text)
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        issues.append(Issue(IssueKind.INVALID_FILE, subject, "not UTF-8"))
+        return
+    document = _parse_json_text(text)
     if document is None:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
         return
@@ -226,8 +237,11 @@ def _read_one_document(
 
 def _load_document(file_path: Path) -> Json | None:
     # A too-large file whose first line is not a whole document is read as JSON lines instead.
-    text = _read_document_bytes(file_path)
-    return None if text is None else _parse_document_bytes(text)
+    data = _read_document_bytes(file_path)
+    try:
+        return None if data is None else _parse_json_text(data.decode("utf-8-sig"))
+    except UnicodeDecodeError:
+        return None
 
 
 def _read_document_bytes(file_path: Path) -> bytes | None:
@@ -236,15 +250,6 @@ def _read_document_bytes(file_path: Path) -> bytes | None:
     with _open_binary(file_path) as handle:
         text = handle.read(_MAX_LINE_BYTES + 1)
     return None if len(text) > _MAX_LINE_BYTES else text
-
-
-def _parse_document_bytes(text: bytes) -> Json | None:
-    try:
-        # json.loads on bytes detects UTF-8 with or without a BOM.
-        document = json.loads(text)
-    except (ValueError, RecursionError):
-        return None
-    return _replace_surrogates(document) if _MAY_HOLD_SURROGATE.search(text) else document
 
 
 def _read_json_lines(
@@ -387,10 +392,19 @@ def _is_console_exporter_output(file_path: Path) -> bool:
 
 def _parse_json_line(line: bytes) -> Json | None:
     try:
-        document = json.loads(line.decode("utf-8"))
+        text = line.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    return _parse_json_text(text)
+
+
+def _parse_json_text(text: str) -> Json | None:
+    # A str, never bytes: json.loads on bytes would also accept UTF-16 and UTF-32.
+    try:
+        document = json.loads(text)
     except (ValueError, RecursionError):
         return None
-    return _replace_surrogates(document) if _MAY_HOLD_SURROGATE.search(line) else document
+    return _replace_surrogates(document) if _MAY_HOLD_SURROGATE.search(text) else document
 
 
 def _replace_surrogates(document: Json) -> Json:

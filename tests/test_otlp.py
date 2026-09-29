@@ -832,6 +832,30 @@ def test_too_large_document_is_reported(tmp_path: Path) -> None:
     ]
 
 
+@pytest.fixture(scope="module")
+def gzip_document_bomb(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    # Opens like a one-document file, so the whole-document reader gets the bomb.
+    path = tmp_path_factory.mktemp("bomb") / "bomb.json.gz"
+    spaces = b" " * MIB
+    with gzip.open(path, "wb", compresslevel=1) as writer:
+        writer.write(b"{\n")
+        for _ in range(BOMB_BYTES // MIB):
+            writer.write(spaces)
+    return path
+
+
+def test_gzip_document_bomb_loads_within_memory_budget(gzip_document_bomb: Path) -> None:
+    assert _peak_bytes_while_loading(gzip_document_bomb) < MEMORY_BUDGET
+
+
+def test_gzip_document_bomb_is_reported_as_too_large_document(gzip_document_bomb: Path) -> None:
+    _, issues = load_spans(gzip_document_bomb)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "document is over 32 MiB")
+    ]
+
+
 def test_console_exporter_output_is_reported_once(tmp_path: Path) -> None:
     path = tmp_path / "console.json"
     path.write_bytes(CONSOLE_OUTPUT.read_bytes())
@@ -884,6 +908,15 @@ def test_otlp_mentioning_console_trace_id_loads_without_issues(tmp_path: Path) -
     _, issues = load_spans(path)
 
     assert issues == []
+
+
+def test_console_trace_id_without_context_object_is_not_console_output(tmp_path: Path) -> None:
+    path = tmp_path / "t.log"
+    path.write_text('span "trace_id": "0x5b8aa5a2d2c872e8321cf37308d69df2"\n')
+
+    _, issues = load_spans(path)
+
+    assert [i.kind for i in issues] == [IssueKind.INVALID_LINE]
 
 
 def test_console_sniff_reads_only_the_first_64_kib(tmp_path: Path) -> None:
@@ -1254,14 +1287,59 @@ def test_lone_surrogate_in_a_span_id_is_reported_as_an_invalid_span(tmp_path: Pa
     assert [issue.kind for issue in issues] == [IssueKind.INVALID_SPAN]
 
 
-def test_surrogate_bytes_in_a_one_document_file_become_a_replacement_character(
+def test_surrogate_bytes_in_a_one_document_file_are_reported_as_not_utf8(
     tmp_path: Path,
 ) -> None:
-    # json.loads reads bytes with "surrogatepass", so these three bytes decode to U+D800.
+    # These three bytes would be U+D800, which strict UTF-8 does not allow.
     path = tmp_path / "traces.json"
     text = json.dumps(otlp_document([otlp_span(S1, name="NAME")]), indent=2)
     path.write_bytes(text.encode().replace(b"NAME", b"\xed\xa0\x80"))
 
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [(IssueKind.INVALID_FILE, "not UTF-8")]
+
+
+def test_lone_surrogate_in_a_value_type_key_is_replaced_in_the_issue_detail(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_attribute_line({"k\ud800": "DT-1"}) + "\n")
+
+    _, issues = load_spans(path)
+
+    assert issues[0].detail.encode("utf-8").endswith(b"unknown value type: k\xef\xbf\xbd")
+
+
+# Trace files are UTF-8; json.loads on bytes would also accept UTF-16 and UTF-32.
+
+
+def _utf16_document(case_id: str) -> str:
+    return json.dumps(otlp_document([otlp_span(S1, attributes={"case.id": case_id})]), indent=2)
+
+
+def test_utf16_document_without_bom_is_reported_as_invalid_file(tmp_path: Path) -> None:
+    path = tmp_path / "traces.json"
+    path.write_bytes(_utf16_document("DT-\ud800").encode("utf-16-le", "surrogatepass"))
+
+    _, issues = load_spans(path)
+
+    assert [i.kind for i in issues] == [IssueKind.INVALID_FILE]
+
+
+def test_utf16_file_with_bom_is_reported_once_as_not_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "traces.jsonl"
+    path.write_bytes((_line(S1) + _line(S2)).encode("utf-16"))
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [(IssueKind.INVALID_FILE, "not UTF-8")]
+
+
+def test_utf8_document_with_bom_loads(tmp_path: Path) -> None:
+    path = tmp_path / "traces.json"
+    path.write_bytes(_utf16_document("DT-1").encode("utf-8-sig"))
+
     spans, _ = load_spans(path)
 
-    assert spans[0].name == "�"
+    assert [s.span_id for s in spans] == [S1]
