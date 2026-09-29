@@ -1,5 +1,7 @@
 """The run configuration file (detecttrace.yaml): where the inputs are and how to read them."""
 
+import os
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -19,6 +21,8 @@ from detecttrace.yaml12 import Yaml12Error, load_yaml12
 
 # Real configuration files are a few KB, and PyYAML's pure-Python parser takes seconds per megabyte.
 _MAX_FILE_BYTES = 1 << 20
+_SEPARATORS = "|".join(re.escape(separator) for separator in (os.sep, os.altsep) if separator)
+_NO_NAME = ("", ".", "..")
 
 
 class ConfigFileError(InputFileError):
@@ -79,6 +83,19 @@ class RunConfig(Config):
     telemetry: StrictBool = False
 
     _check_path = field_validator("checklists", "output", mode="before")(_check_path)
+
+    @field_validator("output", mode="before")
+    @classmethod
+    def _check_file_name(cls, value: object) -> object:
+        # Checked on the text, since Path drops a trailing "/" or "/." and would turn
+        # "results/" into a file named "results". Without a name, the ".json" results
+        # path would be a hidden file or a folder.
+        # An empty path is left to _check_path, which gives the clearer message.
+        if not isinstance(value, str) or not value.strip():
+            return value
+        if re.split(_SEPARATORS, value.strip())[-1] in _NO_NAME:
+            raise ValueError("path must end in a file name")
+        return value
 
     def to_config(self) -> Config:
         return Config(

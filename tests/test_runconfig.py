@@ -298,6 +298,16 @@ def test_empty_path_is_rejected(tmp_path: Path, text: str, location: str) -> Non
         _load(tmp_path, text)
 
 
+@pytest.mark.parametrize("output", ["/", ".", "..", "results/..", "'results/.'"])
+def test_output_without_a_file_name_is_rejected(tmp_path: Path, output: str) -> None:
+    with pytest.raises(ConfigFileError, match=r"\n  output: path must end in a file name"):
+        _load(tmp_path, MINIMAL + f"output: {output}\n")
+
+
+def test_output_ending_in_a_file_name_is_accepted(tmp_path: Path) -> None:
+    assert _load(tmp_path, MINIMAL + "output: ../results/run.html\n").output.name == "run.html"
+
+
 def test_dot_path_is_the_config_folder(tmp_path: Path) -> None:
     assert _load(tmp_path, "traces: {path: .}\nverdicts: {path: v}\n").traces.path == tmp_path
 

@@ -1,7 +1,9 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from builders import RUN_CONFIG, RUN_VERDICTS, write_run_folder
@@ -461,6 +463,80 @@ def test_an_existing_folder_at_the_output_path_is_protected(tmp_path: Path) -> N
     assert result.exit_code == 1
 
 
+def test_a_folder_at_the_output_path_is_named_as_a_folder(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").mkdir()
+
+    result = _check(config_path)
+
+    assert f"{tmp_path / 'dashboard.json'} is a folder; choose another path." in result.stderr
+
+
+def test_a_broken_link_at_the_output_path_exits_1(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").symlink_to(tmp_path / "gone.json")
+
+    result = _check(config_path)
+
+    assert result.exit_code == 1
+
+
+def test_a_broken_link_at_the_output_path_is_named_as_one(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").symlink_to(tmp_path / "gone.json")
+
+    result = _check(config_path)
+
+    assert (
+        f"{tmp_path / 'dashboard.json'} is a broken link; delete it or choose another path."
+        in result.stderr
+    )
+
+
+def test_a_broken_link_at_the_output_path_is_left_in_place(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").symlink_to(tmp_path / "gone.json")
+
+    _check(config_path)
+
+    assert (tmp_path / "dashboard.json").is_symlink()
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions as non-root"
+)
+def test_an_unreadable_output_file_is_reported_as_unreadable(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "dashboard.json").chmod(0)
+
+    result = _check(config_path)
+
+    assert (
+        f"Could not read {tmp_path / 'dashboard.json'} to check it before replacing it: "
+        "Permission denied." in result.stderr
+    )
+
+
+def test_the_output_is_checked_again_just_before_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = write_run_folder(tmp_path)
+    target = tmp_path / "dashboard.json"
+    real_run_check = cli.run_check
+
+    def run_then_create_a_file(*args: Any) -> pipeline.RunResult:
+        result = real_run_check(*args)
+        target.write_text("my data", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(cli, "run_check", run_then_create_a_file)
+
+    _check(config_path)
+
+    assert target.read_text(encoding="utf-8") == "my data"
+
+
 def test_the_output_is_checked_before_the_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -610,6 +686,14 @@ def test_an_unknown_option_names_the_option() -> None:
 
 def test_help_still_exits_0() -> None:
     assert _invoke("--help").exit_code == 0
+
+
+def test_an_option_without_its_value_exits_1() -> None:
+    assert _invoke("check", "--config").exit_code == 1
+
+
+def test_version_exits_0() -> None:
+    assert _invoke("--version").exit_code == 0
 
 
 # Nothing written

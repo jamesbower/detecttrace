@@ -119,16 +119,14 @@ def write_results_json(results: Mapping[str, object], path: Path) -> None:
 def is_results_file(path: Path) -> bool:
     """Whether `path` is a regular file whose top-level `generated_by` names detecttrace.
 
-    Reads at most the first 64 KiB, so a large or hostile file costs little to check.
+    Reads at most the first 64 KiB, so a large or hostile file costs little to check. A path
+    that can't be read raises OSError: "can't tell" must not look like "not ours".
     """
-    try:
-        # stat() before open(), so a named pipe never blocks the run.
-        if not stat.S_ISREG(path.stat().st_mode):
-            return False
-        with path.open("rb") as file:
-            head = file.read(_MARKER_READ_BYTES)
-    except OSError:
+    # stat() before open(), so a named pipe never blocks the run.
+    if not stat.S_ISREG(path.stat().st_mode):
         return False
+    with path.open("rb") as file:
+        head = file.read(_MARKER_READ_BYTES)
     generated_by = _read_generated_by(head.decode("utf-8", errors="replace"))
     return generated_by is not None and generated_by.startswith(GENERATED_BY_PREFIX)
 

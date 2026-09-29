@@ -604,8 +604,21 @@ def test_a_folder_is_not_recognized(tmp_path: Path):
     assert is_results_file(tmp_path) is False
 
 
-def test_a_missing_file_is_not_recognized(tmp_path: Path):
-    assert is_results_file(tmp_path / "missing.json") is False
+def test_a_missing_file_cannot_be_checked(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        is_results_file(tmp_path / "missing.json")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions as non-root"
+)
+def test_an_unreadable_file_cannot_be_checked(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text('{"generated_by": "detecttrace 1"}', encoding="utf-8")
+    path.chmod(0)
+
+    with pytest.raises(PermissionError):
+        is_results_file(path)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX named pipe")

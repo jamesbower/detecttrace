@@ -6,6 +6,7 @@ run cannot use, a usage error, an output path that can't be written, no scored c
 """
 
 import os
+import stat
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -34,9 +35,7 @@ DEMO_FOLDER = "demo_data"
 DEMO_OUTPUT = Path("detecttrace-demo.json")
 SELF_REPORTED = "Self-reported. Not verified by DetectTrace."
 NOTHING_WRITTEN = "Nothing was written."
-# Typer 0.2x bundles Click as a private module and older releases depend on Click itself;
-# both export BadParameter, whose base class is Click's UsageError.
-_USAGE_ERROR: type[Exception] = typer.BadParameter.__mro__[1]
+_USAGE_ERROR_EXIT_CODE = 2
 
 
 class _UsageErrorExitsOne(TyperGroup):
@@ -56,9 +55,10 @@ class _UsageErrorExitsOne(TyperGroup):
 def _usage_errors_exit_one() -> Iterator[None]:
     try:
         yield
-    except _USAGE_ERROR as error:
-        # Known only as type[Exception]: Click's import path differs between Typer releases.
-        error.exit_code = 1  # type: ignore[attr-defined]
+    # Usage errors are the Typer exceptions that exit 2; Exit and Abort aren't TyperExceptions.
+    except typer.TyperException as error:
+        if error.exit_code == _USAGE_ERROR_EXIT_CODE:
+            error.exit_code = 1
         raise
 
 
@@ -158,11 +158,9 @@ def _run(
     if not target.parent.is_dir():
         _echo_error(f"Output folder not found: {target.parent}. Create it or choose another --out.")
         return 1
-    # Only a file this tool wrote may be replaced, so a mistyped path can't destroy other data.
-    if (target.exists() or target.is_symlink()) and not is_results_file(target):
-        _echo_error(
-            f"{target} exists and wasn't written by detecttrace; delete it or choose another path."
-        )
+    problem = _find_output_problem(target)
+    if problem is not None:
+        _echo_error(problem)
         return 1
     run = run_check(config, config_path)
     if run.case_count == 0:
@@ -171,6 +169,12 @@ def _run(
             "See the summary below."
         )
         _echo_summary(run, config_path.name, is_err=True)
+        return 1
+    # Checked again because the run can take minutes, and another program may have created
+    # the file meanwhile.
+    problem = _find_output_problem(target)
+    if problem is not None:
+        _echo_error(f"{problem} {NOTHING_WRITTEN}")
         return 1
     try:
         write_results_json(run.results, target)
@@ -194,6 +198,31 @@ def _run(
         _echo_error("Some input is invalid and --strict is set. The results were still written.")
         return 1
     return 0
+
+
+def _find_output_problem(target: Path) -> str | None:
+    """Why `target` must not be replaced, or None when it is free or a file this tool wrote.
+
+    Only a file this tool wrote may be replaced, so a mistyped path can't destroy other data.
+    """
+    try:
+        mode = target.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            try:
+                mode = target.stat().st_mode
+            except FileNotFoundError:
+                return f"{target} is a broken link; delete it or choose another path."
+        if stat.S_ISDIR(mode):
+            return f"{target} is a folder; choose another path."
+        if is_results_file(target):
+            return None
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        return (
+            f"Could not read {target} to check it before replacing it: {error.strerror or error}."
+        )
+    return f"{target} exists and wasn't written by detecttrace; delete it or choose another path."
 
 
 def _echo_error(message: str) -> None:
