@@ -1,36 +1,53 @@
 """Read OTLP JSON trace files (JSON lines or one document, plain or gzip) into spans."""
 
 import gzip
+import io
 import json
-from collections.abc import Iterator
+import math
+import re
+import zlib
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, TypeVar
 
 from detecttrace.model import Issue, IssueKind, Span
 
 _GZIP_MAGIC = b"\x1f\x8b"
+_BOM = b"\xef\xbb\xbf"
 _STATUS_ERROR = (2, "STATUS_CODE_ERROR")
+_TRACE_ID = re.compile(r"[0-9a-f]{32}")
+_SPAN_ID = re.compile(r"[0-9a-f]{16}")
+_HEX = re.compile(r"[0-9a-f]*")
+_BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
 
 # OTLP JSON is untyped input: Any is the honest type until fields are validated in _to_span.
 Json = Any
+Report = Callable[[IssueKind, str], None]
+T = TypeVar("T")
 
 
 def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
     """Read every trace file at `path` (a file or a folder) and return unique spans.
 
     Files are read in sorted path order and the first copy of a duplicate span wins,
-    so the same input always gives the same spans.
+    so the same input always gives the same spans. Invalid input is reported as an
+    Issue and never stops the run.
     """
     if not path.exists():
         raise FileNotFoundError(
             f"Trace path not found: {path}. Check traces.path in detecttrace.yaml."
         )
+    trace_files = _list_trace_files(path)
+    if not trace_files:
+        raise FileNotFoundError(
+            f"No trace files found under {path}. Check traces.path in detecttrace.yaml."
+        )
     spans: list[Span] = []
     issues: list[Issue] = []
     seen: dict[tuple[str, str], Span] = {}
-    for file_path in _list_trace_files(path):
-        for document in _read_documents(file_path, issues):
-            for span in _parse_document(document, file_path, issues):
+    for file_path, subject in trace_files:
+        for document, line_number in _read_documents(file_path, subject, issues):
+            for span in _parse_document(document, subject, line_number, issues):
                 key = (span.trace_id, span.span_id)
                 first = seen.get(key)
                 if first is not None:
@@ -39,58 +56,38 @@ def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
                         if span == first
                         else IssueKind.CONFLICTING_DUPLICATE_SPAN
                     )
-                    issues.append(Issue(kind, str(file_path), f"{span.trace_id}/{span.span_id}"))
+                    issues.append(Issue(kind, subject, f"{span.trace_id}/{span.span_id}"))
                     continue
                 seen[key] = span
                 spans.append(span)
     return spans, issues
 
 
-def _list_trace_files(path: Path) -> list[Path]:
+def _list_trace_files(path: Path) -> list[tuple[Path, str]]:
+    """Return (file, subject) pairs; the subject is the POSIX path relative to `path`."""
     if path.is_file():
-        return [path]
-    files = [p for p in path.rglob("*") if p.is_file() and not p.name.startswith(".")]
+        return [(path, path.name)]
+    files: list[tuple[Path, str]] = []
+    for file_path in path.rglob("*"):
+        relative = file_path.relative_to(path)
+        if file_path.is_file() and not any(part.startswith(".") for part in relative.parts):
+            files.append((file_path, relative.as_posix()))
     # POSIX form so Windows and Linux read files, and so pick duplicate winners, in the same order.
-    return sorted(files, key=lambda p: p.relative_to(path).as_posix())
+    return sorted(files, key=lambda item: item[1])
 
 
-def _read_documents(file_path: Path, issues: list[Issue]) -> Iterator[Json]:
-    subject = str(file_path)
+def _read_documents(
+    file_path: Path, subject: str, issues: list[Issue]
+) -> Iterator[tuple[Json, int | None]]:
+    """Yield (document, line number); the line number is None for a one-document file."""
     try:
-        with _open_text(file_path) as handle:
-            line_number = 0
-            first_line = ""
-            for line in handle:
-                line_number += 1
-                if line.strip():
-                    first_line = line
-                    break
-            if not first_line:
-                issues.append(Issue(IssueKind.EMPTY_FILE, subject))
-                return
-            first_document = _parse_json(first_line)
-            if first_document is None:
-                # Not JSON lines: the whole file is one (pretty-printed) document.
-                document = _parse_json(first_line + handle.read())
-                if document is None:
-                    issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
-                    return
-                yield document
-                return
-            yield first_document
-            for line in handle:
-                line_number += 1
-                if not line.strip():
-                    continue
-                document = _parse_json(line)
-                if document is None:
-                    # Only the last line of a file can lack its newline: a writer is still busy.
-                    kind = (
-                        IssueKind.INVALID_LINE if line.endswith("\n") else IssueKind.TRUNCATED_LINE
-                    )
-                    issues.append(Issue(kind, subject, f"line {line_number}"))
-                    continue
-                yield document
+        first_line = _first_content_line(file_path)
+        if first_line is None:
+            issues.append(Issue(IssueKind.EMPTY_FILE, subject))
+        elif first_line in (b"{", b"["):
+            yield from _read_one_document(file_path, subject, issues)
+        else:
+            yield from _read_json_lines(file_path, subject, issues)
     except EOFError:
         issues.append(
             Issue(
@@ -99,86 +96,249 @@ def _read_documents(file_path: Path, issues: list[Issue]) -> Iterator[Json]:
                 "compressed file ends early; earlier data was read",
             )
         )
-    except (OSError, UnicodeDecodeError) as error:
+    except zlib.error:
+        issues.append(
+            Issue(IssueKind.INVALID_FILE, subject, "corrupt compressed data; earlier data was read")
+        )
+    except OSError as error:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, str(error)))
 
 
-def _open_text(file_path: Path) -> TextIO:
+def _first_content_line(file_path: Path) -> bytes | None:
+    """Return the first non-blank line, stripped, or None when the file has no content."""
+    with _open_binary(file_path) as handle:
+        for line in handle:
+            stripped = line.removeprefix(_BOM).strip()
+            if stripped:
+                return stripped
+    return None
+
+
+def _read_one_document(
+    file_path: Path, subject: str, issues: list[Issue]
+) -> Iterator[tuple[Json, None]]:
+    # NOTE: a one-document file is loaded whole; streaming one huge document is not
+    # supported. JSON lines is the format for large inputs.
+    with _open_binary(file_path) as handle:
+        try:
+            # json.load on bytes detects UTF-8 with or without a BOM.
+            document = json.load(handle)
+        except (ValueError, RecursionError):
+            issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
+            return
+    yield document, None
+
+
+def _read_json_lines(
+    file_path: Path, subject: str, issues: list[Issue]
+) -> Iterator[tuple[Json, int]]:
+    with _open_binary(file_path) as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if line_number == 1:
+                line = line.removeprefix(_BOM)
+            if not line.strip():
+                continue
+            document = _parse_json_line(line)
+            if document is None:
+                # Only the last line of a file can lack its newline: a writer is still busy.
+                kind = IssueKind.INVALID_LINE if line.endswith(b"\n") else IssueKind.TRUNCATED_LINE
+                issues.append(Issue(kind, subject, f"line {line_number}"))
+                continue
+            yield document, line_number
+
+
+def _open_binary(file_path: Path) -> io.BufferedIOBase:
     with file_path.open("rb") as probe:
         is_gzip = probe.read(2) == _GZIP_MAGIC
     if is_gzip:
-        return gzip.open(file_path, "rt", encoding="utf-8")
-    return file_path.open(encoding="utf-8")
+        return gzip.open(file_path, "rb")
+    return file_path.open("rb")
 
 
-def _parse_json(text: str) -> Json | None:
+def _parse_json_line(line: bytes) -> Json | None:
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        return json.loads(line.decode("utf-8"))
+    except (ValueError, RecursionError):
         return None
 
 
-def _parse_document(document: Json, file_path: Path, issues: list[Issue]) -> Iterator[Span]:
+def _parse_document(
+    document: Json, subject: str, line_number: int | None, issues: list[Issue]
+) -> Iterator[Span]:
+    prefix = "" if line_number is None else f"line {line_number}: "
+
+    def report(kind: IssueKind, detail: str) -> None:
+        issues.append(Issue(kind, subject, prefix + detail))
+
     if not isinstance(document, dict) or not isinstance(document.get("resourceSpans"), list):
-        issues.append(
-            Issue(IssueKind.INVALID_FILE, str(file_path), "a document has no resourceSpans")
-        )
+        report(IssueKind.INVALID_FILE, "a document has no resourceSpans")
         return
-    for resource_spans in document["resourceSpans"]:
-        resource = resource_spans.get("resource") or {}
-        resource_attributes = _decode_attributes(resource.get("attributes") or [])
-        for scope_spans in resource_spans.get("scopeSpans") or []:
-            for raw in scope_spans.get("spans") or []:
-                span = _to_span(raw, resource_attributes)
-                if span is None:
-                    issues.append(
-                        Issue(IssueKind.INVALID_SPAN, str(file_path), "missing IDs or times")
-                    )
-                    continue
+    for index, resource_spans in enumerate(document["resourceSpans"]):
+        yield from _parse_resource_spans(resource_spans, f"resourceSpans[{index}]", report)
+
+
+def _parse_resource_spans(resource_spans: Json, where: str, report: Report) -> Iterator[Span]:
+    if not isinstance(resource_spans, dict):
+        report(IssueKind.INVALID_FILE, f"{where} is not an object")
+        return
+    resource = resource_spans.get("resource") or {}
+    if not isinstance(resource, dict):
+        report(IssueKind.INVALID_FILE, f"{where}.resource is not an object")
+        return
+    # NOTE: this one dict is shared by every span of the resource; treat it as read-only.
+    resource_attributes = _decode_attributes(
+        resource.get("attributes"), f"{where}.resource", report
+    )
+    scope_spans_list = resource_spans.get("scopeSpans") or []
+    if not isinstance(scope_spans_list, list):
+        report(IssueKind.INVALID_FILE, f"{where}.scopeSpans is not a list")
+        return
+    for scope_index, scope_spans in enumerate(scope_spans_list):
+        scope_where = f"{where}.scopeSpans[{scope_index}]"
+        raw_spans = (scope_spans.get("spans") or []) if isinstance(scope_spans, dict) else None
+        if not isinstance(raw_spans, list):
+            report(IssueKind.INVALID_FILE, f"{scope_where} is not an object with a spans list")
+            continue
+        for span_index, raw in enumerate(raw_spans):
+            span_where = f"{scope_where}.spans[{span_index}]"
+            span = _to_span(raw, resource_attributes, span_where, report)
+            if span is not None:
                 yield span
 
 
-def _to_span(raw: Json, resource_attributes: dict[str, object]) -> Span | None:
+def _to_span(
+    raw: Json, resource_attributes: dict[str, object], where: str, report: Report
+) -> Span | None:
+    if not isinstance(raw, dict):
+        report(IssueKind.INVALID_SPAN, f"{where} is not an object")
+        return None
     try:
-        trace_id = str(raw["traceId"]).lower()
-        span_id = str(raw["spanId"]).lower()
-        start_ns = int(raw["startTimeUnixNano"])
-        end_ns = int(raw.get("endTimeUnixNano") or start_ns)
-    except (KeyError, TypeError, ValueError, AttributeError):
+        trace_id = _to_id(raw.get("traceId"), _TRACE_ID, "trace ID", 32)
+        span_id = _to_id(raw.get("spanId"), _SPAN_ID, "span ID", 16)
+        parent = raw.get("parentSpanId")
+        parent_span_id = (
+            None if parent in (None, "") else _to_id(parent, _SPAN_ID, "parent span ID", 16)
+        )
+        start_ns = _to_nanos(raw.get("startTimeUnixNano"), "start time")
+        end = raw.get("endTimeUnixNano")
+        end_ns = start_ns if end is None else _to_nanos(end, "end time")
+        if end_ns < start_ns:
+            raise ValueError("end time is before start time")
+        status = raw.get("status") or {}
+        if not isinstance(status, dict):
+            raise ValueError("status is not an object")
+    except ValueError as error:
+        report(IssueKind.INVALID_SPAN, f"{where}: {error}")
         return None
-    if not trace_id or not span_id:
-        return None
-    status = raw.get("status") or {}
     return Span(
         trace_id=trace_id,
         span_id=span_id,
-        parent_span_id=str(raw.get("parentSpanId") or "").lower() or None,
+        parent_span_id=parent_span_id,
         name=str(raw.get("name") or ""),
         start_ns=start_ns,
         end_ns=end_ns,
         is_error=status.get("code") in _STATUS_ERROR,
-        attributes=_decode_attributes(raw.get("attributes") or []),
+        attributes=_decode_attributes(raw.get("attributes"), where, report),
         resource_attributes=resource_attributes,
     )
 
 
-def _decode_attributes(items: Json) -> dict[str, object]:
-    return {item["key"]: _decode_value(item.get("value") or {}) for item in items if "key" in item}
+def _to_id(value: Json, pattern: re.Pattern[str], label: str, length: int) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} is missing or not a string")
+    lowered = value.lower()
+    if pattern.fullmatch(lowered):
+        return lowered
+    reason = f"{label} must be {length} hex characters"
+    if _BASE64.fullmatch(value) and not _HEX.fullmatch(lowered):
+        reason += "; IDs look base64; OTLP JSON uses hex"
+    raise ValueError(reason)
+
+
+def _to_nanos(value: Json, label: str) -> int:
+    # OTLP times are unsigned 64-bit integers: at most 20 ASCII digits.
+    if isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 20:
+        return int(value)
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    if isinstance(value, float) and math.isfinite(value) and value.is_integer() and value >= 0:
+        return int(value)
+    raise ValueError(f"{label} must be a whole, non-negative number of nanoseconds")
+
+
+def _decode_attributes(items: Json, where: str, report: Report) -> dict[str, object]:
+    """Decode an attribute list, skipping and reporting each malformed entry."""
+    if items is None:
+        return {}
+    if not isinstance(items, list):
+        report(IssueKind.INVALID_ATTRIBUTE, f"{where}.attributes is not a list")
+        return {}
+    attributes: dict[str, object] = {}
+    for index, item in enumerate(items):
+        # Fast path for the common string attribute: this loop runs millions of times at scale.
+        if isinstance(item, dict):
+            key = item.get("key")
+            value = item.get("value")
+            if isinstance(key, str) and isinstance(value, dict):
+                text = value.get("stringValue")
+                if isinstance(text, str):
+                    attributes[key] = text
+                    continue
+        try:
+            key, value = _decode_key_value(item)
+        except (ValueError, RecursionError) as error:
+            report(IssueKind.INVALID_ATTRIBUTE, f"{where}.attributes[{index}]: {error}")
+            continue
+        attributes[key] = value
+    return attributes
+
+
+def _decode_key_value(item: Json) -> tuple[str, object]:
+    if not isinstance(item, dict) or not isinstance(item.get("key"), str):
+        raise ValueError("attribute has no string key")
+    value = item.get("value")
+    return item["key"], _decode_value({} if value is None else value)
 
 
 def _decode_value(value: Json) -> object:
+    """Decode one OTLP AnyValue; raise ValueError when its shape is wrong."""
+    if not isinstance(value, dict):
+        raise ValueError("value is not an object")
     if "stringValue" in value:
-        return value["stringValue"]
+        return _require(value["stringValue"], str, "stringValue")
     if "boolValue" in value:
-        return bool(value["boolValue"])
+        return _require(value["boolValue"], bool, "boolValue")
     if "intValue" in value:
-        return int(value["intValue"])  # OTLP JSON encodes 64-bit integers as strings
+        # OTLP JSON encodes 64-bit integers as strings; int() raises ValueError on bad text.
+        raw = value["intValue"]
+        if isinstance(raw, int) and not isinstance(raw, bool):
+            return raw
+        return int(_require(raw, str, "intValue"))
     if "doubleValue" in value:
-        return float(value["doubleValue"])
+        raw = value["doubleValue"]
+        if isinstance(raw, int | float) and not isinstance(raw, bool):
+            return float(raw)
+        # Strings cover the JSON encodings "NaN", "Infinity" and "-Infinity".
+        return float(_require(raw, str, "doubleValue"))
     if "arrayValue" in value:
-        return [_decode_value(v) for v in value["arrayValue"].get("values") or []]
+        return [_decode_value(v) for v in _values(value["arrayValue"], "arrayValue")]
     if "kvlistValue" in value:
-        return _decode_attributes(value["kvlistValue"].get("values") or [])
+        return dict(_decode_key_value(i) for i in _values(value["kvlistValue"], "kvlistValue"))
     if "bytesValue" in value:
-        return value["bytesValue"]
+        return _require(value["bytesValue"], str, "bytesValue")
     return None
+
+
+def _values(container: Json, name: str) -> list[Json]:
+    if not isinstance(container, dict):
+        raise ValueError(f"{name} is not an object")
+    values = container.get("values") or []
+    if not isinstance(values, list):
+        raise ValueError(f"{name}.values is not a list")
+    return values
+
+
+def _require(value: Json, expected: type[T], name: str) -> T:
+    if not isinstance(value, expected):
+        raise ValueError(f"{name} is not a {expected.__name__}")
+    return value

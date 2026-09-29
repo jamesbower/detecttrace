@@ -8,6 +8,10 @@ from typing import Any
 TRACE_ID = "0af7651916cd43dd8448eb211c80319c"
 
 
+def span_hex(n: int) -> str:
+    return f"{n:016x}"
+
+
 def otlp_value(value: object) -> dict[str, Any]:
     if isinstance(value, bool):
         return {"boolValue": value}
