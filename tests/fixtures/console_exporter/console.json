@@ -1,0 +1,60 @@
+{
+    "name": "execute_tool lookup_ip",
+    "context": {
+        "trace_id": "0xef25cf8546859e3568f0ff4dea5217b8",
+        "span_id": "0xd2f33b216130b2ae",
+        "trace_state": "[]"
+    },
+    "kind": "SpanKind.INTERNAL",
+    "parent_id": "0x9327ff0cf359508a",
+    "start_time": "2026-09-29T18:13:45.721180Z",
+    "end_time": "2026-09-29T18:13:45.721192Z",
+    "status": {
+        "status_code": "UNSET"
+    },
+    "attributes": {
+        "gen_ai.tool.name": "lookup_ip"
+    },
+    "events": [],
+    "links": [],
+    "resource": {
+        "attributes": {
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.45.0",
+            "service.instance.id": "e86a9d88-2646-4cbe-9707-cff029889740",
+            "service.name": "unknown_service:python"
+        },
+        "schema_url": ""
+    }
+}
+{
+    "name": "invoke_agent triage",
+    "context": {
+        "trace_id": "0xef25cf8546859e3568f0ff4dea5217b8",
+        "span_id": "0x9327ff0cf359508a",
+        "trace_state": "[]"
+    },
+    "kind": "SpanKind.INTERNAL",
+    "parent_id": null,
+    "start_time": "2026-09-29T18:13:45.721126Z",
+    "end_time": "2026-09-29T18:13:45.721884Z",
+    "status": {
+        "status_code": "UNSET"
+    },
+    "attributes": {
+        "case.id": "CASE-1"
+    },
+    "events": [],
+    "links": [],
+    "resource": {
+        "attributes": {
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.45.0",
+            "service.instance.id": "e86a9d88-2646-4cbe-9707-cff029889740",
+            "service.name": "unknown_service:python"
+        },
+        "schema_url": ""
+    }
+}

@@ -1,0 +1,29 @@
+Captured stdout of the OpenTelemetry Python SDK ConsoleSpanExporter. Not hand-written.
+
+opentelemetry-sdk version: 1.45.0
+Captured on: 2026-09-29
+
+Command (run from an empty temporary folder):
+
+uvx --with opentelemetry-sdk python - > console.json <<'SCRIPT'
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+provider = TracerProvider()
+provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+trace.set_tracer_provider(provider)
+tracer = trace.get_tracer("detecttrace.fixture")
+with tracer.start_as_current_span("invoke_agent triage") as root:
+    root.set_attribute("case.id", "CASE-1")
+    with tracer.start_as_current_span("execute_tool lookup_ip") as child:
+        child.set_attribute("gen_ai.tool.name", "lookup_ip")
+SCRIPT
+
+Version check:
+
+uvx --with opentelemetry-sdk python -c "import opentelemetry.sdk, importlib.metadata as m; print(m.version('opentelemetry-sdk'))"
+
+Resource attributes were checked before saving: the SDK adds only telemetry.sdk.*,
+service.name ("unknown_service:python") and a random service.instance.id UUID. Nothing
+host- or user-specific, so no resource override was set.

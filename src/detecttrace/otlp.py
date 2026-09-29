@@ -1,4 +1,4 @@
-"""Read OTLP JSON trace files (JSON lines or one document, plain or gzip) into spans."""
+"""Read OTLP JSON trace files (JSON lines or one document; plain, gzip or zstd) into spans."""
 
 import gzip
 import io
@@ -8,11 +8,24 @@ import re
 import zlib
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from detecttrace.model import InputFileError, Issue, IssueKind, Span, describe_os_error
 
+if TYPE_CHECKING:
+    from _typeshed import WriteableBuffer
+    from zstandard import ZstdDecompressor
+
 _GZIP_MAGIC = b"\x1f\x8b"
+_ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+_ZSTD_CHUNK_SIZE = 64 * 1024
+_SNIFF_SIZE = 64 * 1024
+_CONSOLE_CONTEXT = b'"context": {'
+_CONSOLE_TRACE_ID = b'"trace_id": "0x'
+_CONSOLE_DETAIL = (
+    "this is OpenTelemetry console exporter output, not OTLP JSON; write traces with "
+    "the Collector file exporter, or with FileSpanExporter (pip install detecttrace[otel])"
+)
 _BOM = b"\xef\xbb\xbf"
 _STATUS_ERROR = (2, "STATUS_CODE_ERROR")
 _TRACE_ID = re.compile(r"[0-9a-f]{32}")
@@ -21,8 +34,18 @@ _HEX = re.compile(r"[0-9a-f]*")
 _BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
 _INT_TEXT = re.compile(r"-?[0-9]+")
 _UINT64_LIMIT = 2**64
+
+
+class _CorruptZstdError(Exception):
+    """A zstd stream that cannot be decoded; not a ValueError, so JSON parsing never swallows it."""
+
+
+class _MissingZstdError(Exception):
+    """A zstd file was found but the optional zstandard package is not installed."""
+
+
 # BadGzipFile covers a broken member header, including trailing bytes after the last member.
-_COMPRESSION_ERRORS = (EOFError, zlib.error, gzip.BadGzipFile)
+_COMPRESSION_ERRORS = (EOFError, zlib.error, gzip.BadGzipFile, _CorruptZstdError)
 
 # OTLP JSON is untyped input: Any is the honest type until fields are validated in _to_span.
 Json = Any
@@ -54,8 +77,11 @@ def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
     spans: list[Span] = []
     seen: dict[tuple[str, str], Span] = {}
     for file_path, subject in trace_files:
-        for document, line_number in _read_documents(file_path, subject, issues):
-            for span in _parse_document(document, subject, line_number, issues):
+        file_issues: list[Issue] = []
+        span_count = 0
+        for document, line_number in _read_documents(file_path, subject, file_issues):
+            for span in _parse_document(document, subject, line_number, file_issues):
+                span_count += 1
                 key = (span.trace_id, span.span_id)
                 first = seen.get(key)
                 if first is not None:
@@ -66,10 +92,16 @@ def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
                         if is_same
                         else IssueKind.CONFLICTING_DUPLICATE_SPAN
                     )
-                    issues.append(Issue(kind, subject, f"{span.trace_id}/{span.span_id}"))
+                    file_issues.append(Issue(kind, subject, f"{span.trace_id}/{span.span_id}"))
                     continue
                 seen[key] = span
                 spans.append(span)
+        # Only a file with no OTLP spans is sniffed, so OTLP text quoting the marker is safe.
+        if span_count == 0 and file_issues and _is_console_exporter_output(file_path):
+            # One clear issue beats a line-by-line flood about a format we don't read.
+            issues.append(Issue(IssueKind.CONSOLE_EXPORTER_OUTPUT, subject, _CONSOLE_DETAIL))
+        else:
+            issues.extend(file_issues)
     return spans, issues
 
 
@@ -134,6 +166,14 @@ def _read_documents(
             yield from _read_json_lines(file_path, subject, issues)
     except _COMPRESSION_ERRORS as error:
         issues.append(_compression_issue(error, subject))
+    except _MissingZstdError:
+        issues.append(
+            Issue(
+                IssueKind.UNSUPPORTED_COMPRESSION,
+                subject,
+                "zstd-compressed; install detecttrace[zstd] to read it",
+            )
+        )
     except OSError as error:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, describe_os_error(error)))
 
@@ -204,10 +244,94 @@ def _read_json_lines(
 
 def _open_binary(file_path: Path) -> io.BufferedIOBase:
     with file_path.open("rb") as probe:
-        is_gzip = probe.read(2) == _GZIP_MAGIC
-    if is_gzip:
+        magic = probe.read(len(_ZSTD_MAGIC))
+    if magic.startswith(_GZIP_MAGIC):
         return gzip.open(file_path, "rb")
+    if magic == _ZSTD_MAGIC:
+        try:
+            import zstandard
+        except ImportError:
+            raise _MissingZstdError from None
+        return io.BufferedReader(
+            _ZstdReader(file_path.open("rb"), zstandard.ZstdDecompressor(), zstandard.ZstdError)
+        )
     return file_path.open("rb")
+
+
+class _ZstdReader(io.RawIOBase):
+    """Decompress a zstd stream of one or more frames, raising EOFError when it ends early.
+
+    zstandard's own stream_reader treats a cut-off stream as a clean end, which would
+    hide a truncated file, so frames are decoded here with decompressobj.
+    """
+
+    def __init__(
+        self,
+        source: io.BufferedIOBase,
+        decompressor: "ZstdDecompressor",
+        error_type: type[Exception],
+    ) -> None:
+        self._source = source
+        self._decompressor = decompressor
+        self._error_type = error_type
+        self._frame = self._decompressor.decompressobj()
+        self._is_frame_open = False
+        self._pending = b""
+        self._offset = 0
+        self._deferred_error: _CorruptZstdError | None = None
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: "WriteableBuffer", /) -> int:
+        while self._offset == len(self._pending):
+            if self._deferred_error is not None:
+                raise self._deferred_error
+            chunk = self._source.read(_ZSTD_CHUNK_SIZE)
+            if not chunk:
+                if self._is_frame_open:
+                    raise EOFError("zstd stream ends inside a frame")
+                return 0
+            self._pending = self._decompress(chunk)
+            self._offset = 0
+        target = memoryview(buffer).cast("B")
+        size = min(len(target), len(self._pending) - self._offset)
+        target[:size] = self._pending[self._offset : self._offset + size]
+        self._offset += size
+        return size
+
+    def close(self) -> None:
+        self._source.close()
+        super().close()
+
+    def _decompress(self, chunk: bytes) -> bytes:
+        output: list[bytes] = []
+        while chunk:
+            try:
+                output.append(self._frame.decompress(chunk))
+            except self._error_type as error:
+                # Hand out frames decoded before the bad bytes first, as gzip does.
+                self._deferred_error = _CorruptZstdError(str(error))
+                break
+            if self._frame.eof:
+                chunk = self._frame.unused_data
+                self._frame = self._decompressor.decompressobj()
+                self._is_frame_open = False
+            else:
+                chunk = b""
+                self._is_frame_open = True
+        return b"".join(output)
+
+
+def _is_console_exporter_output(file_path: Path) -> bool:
+    """Whether the start of the file looks like the OTel SDK ConsoleSpanExporter's output."""
+    try:
+        with _open_binary(file_path) as handle:
+            head = handle.read(_SNIFF_SIZE)
+    except (*_COMPRESSION_ERRORS, _MissingZstdError, OSError):
+        return False
+    context_at = head.find(_CONSOLE_CONTEXT)
+    return context_at != -1 and head.find(_CONSOLE_TRACE_ID, context_at) != -1
 
 
 def _parse_json_line(line: bytes) -> Json | None:

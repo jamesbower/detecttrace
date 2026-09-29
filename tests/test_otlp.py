@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+import zstandard
 from builders import (
     TRACE_ID,
     otlp_document,
@@ -21,6 +22,7 @@ from detecttrace.otlp import TraceFileError, load_spans
 S1 = span_hex(1)
 S2 = span_hex(2)
 BOM = "﻿"
+CONSOLE_OUTPUT = Path(__file__).parent / "fixtures" / "console_exporter" / "console.json"
 needs_permissions = pytest.mark.skipif(
     sys.platform == "win32" or os.geteuid() == 0,
     reason="needs POSIX permissions that the current user cannot bypass",
@@ -614,6 +616,188 @@ def test_corrupt_gzip_data_keeps_earlier_spans(tmp_path: Path) -> None:
     spans, _ = load_spans(path)
 
     assert [s.span_id for s in spans] == [S1]
+
+
+def _zstd(text: str) -> bytes:
+    return zstandard.ZstdCompressor().compress(text.encode())
+
+
+def test_reads_zstd_json_lines(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.zst"
+    path.write_bytes(_zstd(_line(S1) + _line(S2)))
+
+    spans, _ = load_spans(path)
+
+    assert [s.span_id for s in spans] == [S1, S2]
+
+
+def test_reads_zstd_pretty_printed_document(tmp_path: Path) -> None:
+    path = tmp_path / "t.json.zst"
+    path.write_bytes(_zstd(json.dumps(otlp_document([otlp_span(S1), otlp_span(S2)]), indent=2)))
+
+    spans, _ = load_spans(path)
+
+    assert [s.span_id for s in spans] == [S1, S2]
+
+
+@pytest.fixture
+def zstd_and_plain_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    # None in sys.modules makes `import zstandard` raise ImportError, as without the extra.
+    monkeypatch.setitem(sys.modules, "zstandard", None)
+    (tmp_path / "a.jsonl.zst").write_bytes(_zstd(_line(S1)))
+    (tmp_path / "b.jsonl").write_text(_line(S2))
+    return tmp_path
+
+
+def test_zstd_without_extra_is_reported_once(zstd_and_plain_files: Path) -> None:
+    _, issues = load_spans(zstd_and_plain_files)
+
+    assert [(i.kind, i.subject) for i in issues] == [
+        (IssueKind.UNSUPPORTED_COMPRESSION, "a.jsonl.zst")
+    ]
+
+
+def test_zstd_without_extra_detail_names_the_extra(zstd_and_plain_files: Path) -> None:
+    _, issues = load_spans(zstd_and_plain_files)
+
+    assert "detecttrace[zstd]" in issues[0].detail
+
+
+def test_zstd_without_extra_still_loads_other_files(zstd_and_plain_files: Path) -> None:
+    spans, _ = load_spans(zstd_and_plain_files)
+
+    assert [s.span_id for s in spans] == [S2]
+
+
+def _truncated_zstd() -> bytes:
+    # Two zstd frames: the first line is intact, the second frame is cut short.
+    return _zstd(_line(S1)) + _zstd(_line(S2))[:-6]
+
+
+def test_truncated_zstd_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.zst"
+    path.write_bytes(_truncated_zstd())
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.TRUNCATED_FILE, "compressed file ends early; earlier lines were read")
+    ]
+
+
+def test_truncated_zstd_keeps_earlier_spans(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.zst"
+    path.write_bytes(_truncated_zstd())
+
+    spans, _ = load_spans(path)
+
+    assert [s.span_id for s in spans] == [S1]
+
+
+def test_zstd_cut_inside_first_frame_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.zst"
+    path.write_bytes(_zstd(_line(S1))[:-6])
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.TRUNCATED_FILE, "compressed file ends early")
+    ]
+
+
+def test_corrupt_zstd_frame_header_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.zst"
+    path.write_bytes(b"\x28\xb5\x2f\xfd" + b"\xff" * 20)
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "corrupt compressed data")
+    ]
+
+
+def test_zstd_with_trailing_garbage_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.zst"
+    path.write_bytes(_zstd(_line(S1) + _line(S2)) + b"garbage")
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "corrupt compressed data; earlier lines were read")
+    ]
+
+
+def test_zstd_with_trailing_garbage_keeps_earlier_lines(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.zst"
+    path.write_bytes(_zstd(_line(S1) + _line(S2)) + b"garbage")
+
+    spans, _ = load_spans(path)
+
+    assert [s.span_id for s in spans] == [S1, S2]
+
+
+def test_console_exporter_output_is_reported_once(tmp_path: Path) -> None:
+    path = tmp_path / "console.json"
+    path.write_bytes(CONSOLE_OUTPUT.read_bytes())
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.subject) for i in issues] == [
+        (IssueKind.CONSOLE_EXPORTER_OUTPUT, "console.json")
+    ]
+
+
+def test_console_exporter_detail_points_to_file_exporters(tmp_path: Path) -> None:
+    path = tmp_path / "console.json"
+    path.write_bytes(CONSOLE_OUTPUT.read_bytes())
+
+    _, issues = load_spans(path)
+
+    assert issues[0].detail == (
+        "this is OpenTelemetry console exporter output, not OTLP JSON; write traces with "
+        "the Collector file exporter, or with FileSpanExporter (pip install detecttrace[otel])"
+    )
+
+
+def test_gzip_console_exporter_output_is_reported_once(tmp_path: Path) -> None:
+    path = tmp_path / "console.json.gz"
+    path.write_bytes(gzip.compress(CONSOLE_OUTPUT.read_bytes()))
+
+    _, issues = load_spans(path)
+
+    assert [i.kind for i in issues] == [IssueKind.CONSOLE_EXPORTER_OUTPUT]
+
+
+def test_console_exporter_output_one_object_per_line_is_reported_once(tmp_path: Path) -> None:
+    # Pretty-printed objects re-joined one per line would otherwise give one issue per line.
+    text = CONSOLE_OUTPUT.read_text().replace("\n", "").replace("}{", "}\n{") + "\n"
+    path = tmp_path / "console.jsonl"
+    path.write_text(text)
+
+    _, issues = load_spans(path)
+
+    assert [i.kind for i in issues] == [IssueKind.CONSOLE_EXPORTER_OUTPUT]
+
+
+def test_otlp_mentioning_console_trace_id_loads_without_issues(tmp_path: Path) -> None:
+    value = '"context": {"trace_id": "0x5b8aa5a2d2c872e8321cf37308d69df2"}'
+    path = write_jsonl(
+        tmp_path / "t.jsonl", [otlp_document([otlp_span(S1, attributes={"k": value})])]
+    )
+
+    _, issues = load_spans(path)
+
+    assert issues == []
+
+
+def test_console_sniff_reads_only_the_first_64_kib(tmp_path: Path) -> None:
+    # 10 MB with the console marker only at the end: a sniff past 64 KiB would find it.
+    path = tmp_path / "big.json"
+    path.write_text('{"context": ' * 850_000 + '{"trace_id": "0x1"}')
+
+    _, issues = load_spans(path)
+
+    assert [i.kind for i in issues] == [IssueKind.TRUNCATED_LINE]
 
 
 def test_document_without_resource_spans_is_reported(tmp_path: Path) -> None:
