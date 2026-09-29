@@ -12,6 +12,7 @@ from typer.testing import CliRunner, Result
 from detecttrace import __version__, cli, pipeline
 
 EXTRA_VERDICTS = "DT-7,impossible_travel,TP\nDT-8,impossible_travel,FP\nDT-9,impossible_travel,FP\nDT-10,impossible_travel,FP\n"
+DEMO_DATA = Path(cli.__file__).parent / cli.DEMO_FOLDER
 INTERNAL_ERROR = "detecttrace: internal error (RuntimeError). Please report it.\n"
 
 
@@ -352,6 +353,61 @@ def test_out_into_a_missing_folder_does_not_create_it(tmp_path: Path) -> None:
     assert not (tmp_path / "missing").exists()
 
 
+def test_demo_writes_to_the_working_folder_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    _invoke("demo", "--quiet")
+
+    assert (tmp_path / "detecttrace-demo.json").is_file()
+
+
+def test_demo_with_the_default_output_exits_0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = _invoke("demo", "--quiet")
+
+    assert result.exit_code == 0
+
+
+def test_demo_writes_nothing_into_the_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before = sorted(DEMO_DATA.rglob("*"))
+    monkeypatch.chdir(tmp_path)
+
+    _invoke("demo", "--quiet")
+
+    assert sorted(DEMO_DATA.rglob("*")) == before
+
+
+def test_demo_with_out_and_quiet_prints_nothing(tmp_path: Path) -> None:
+    result = _invoke("demo", "--out", str(tmp_path / "demo.json"), "--quiet")
+
+    assert result.stdout == ""
+
+
+def test_config_caps_the_detail_cases(tmp_path: Path) -> None:
+    config = RUN_CONFIG + "dashboard: {max_detail_cases: 1}\n"
+    config_path = write_run_folder(tmp_path, config=config)
+
+    _check(config_path)
+
+    assert (
+        len(json.loads((tmp_path / "dashboard.json").read_text(encoding="utf-8"))["case_detail"])
+        == 1
+    )
+
+
+def test_a_fully_matched_check_prints_the_coverage(tmp_path: Path) -> None:
+    result = _check(write_run_folder(tmp_path))
+
+    assert "3 of 3 verdicts matched a trace (100%).\n" in result.stdout
+
+
 def test_demo_without_bundled_data_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "DEMO_FOLDER", "no_such_demo_data")
 
@@ -438,6 +494,26 @@ def test_an_output_path_with_an_escape_sequence_is_printed_escaped(tmp_path: Pat
     result = _check(config_path, "--out", str(tmp_path / "gone\x1b[2K" / "out.json"))
 
     assert "gone\\x1b[2K" in result.stderr
+
+
+def test_a_version_with_an_escape_sequence_is_printed_escaped(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    traces = tmp_path / "traces" / "batch.jsonl"
+    text = traces.read_text(encoding="utf-8")
+    traces.write_text(text.replace('"v1"', json.dumps("v\x1b[2K")), encoding="utf-8")
+
+    result = _check(config_path)
+
+    assert "versions: v\\x1b[2K" in result.stdout
+
+
+def test_a_100_kb_class_name_is_shortened_on_the_terminal(tmp_path: Path) -> None:
+    # Just under the CSV reader's field limit, so the name reaches the per-class line.
+    verdicts = RUN_VERDICTS.replace("impossible_travel", "x" * 100_000)
+
+    result = _check(write_run_folder(tmp_path, verdicts=verdicts))
+
+    assert len(result.stdout) < 5_000
 
 
 # Replacing an existing output file

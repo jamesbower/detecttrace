@@ -10,6 +10,7 @@ import pytest
 from builders import case_root, otlp_document, otlp_span, span_hex, tool_span, write_jsonl
 from scale import SCALE_CHECKLISTS, make_scale_cases
 
+from detecttrace import __version__
 from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import Checklist, ChecklistItem
 from detecttrace.config import Config
@@ -138,7 +139,7 @@ def test_top_level_keys_come_in_a_fixed_order():
 
 
 def test_generated_by_names_the_tool_and_its_version():
-    assert results_for(MIXED)["generated_by"].startswith("detecttrace ")
+    assert results_for(MIXED)["generated_by"] == f"detecttrace {__version__}"
 
 
 def test_source_is_copied_as_given():
@@ -505,6 +506,47 @@ def test_writing_replaces_an_existing_file(tmp_path: Path):
     path.write_text("old", encoding="utf-8")
 
     assert json.loads(dumped(results_for(MIXED), path))["schema_version"] == 1
+
+
+class _FullDisk:
+    """Stands in for the temporary file: opening works, writing fails."""
+
+    def __init__(self, handle: int, *_args: object, **_kwargs: object) -> None:
+        self._handle = handle
+
+    def __enter__(self) -> "_FullDisk":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        os.close(self._handle)
+
+    def write(self, _text: str) -> int:
+        raise OSError(28, "No space left on device")
+
+
+def test_a_failed_write_leaves_the_existing_file_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    path = tmp_path / "out.json"
+    write_results_json(results_for(MIXED), path)
+    before = path.read_bytes()
+    monkeypatch.setattr(os, "fdopen", _FullDisk)
+
+    with pytest.raises(OSError):
+        write_results_json(results_for(MIXED[:1]), path)
+
+    assert path.read_bytes() == before
+
+
+def test_a_failed_write_leaves_no_temporary_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    path = tmp_path / "out.json"
+    write_results_json(results_for(MIXED), path)
+    monkeypatch.setattr(os, "fdopen", _FullDisk)
+
+    with pytest.raises(OSError):
+        write_results_json(results_for(MIXED[:1]), path)
+
+    assert sorted(child.name for child in tmp_path.iterdir()) == ["out.json"]
 
 
 def test_coverage_below_half_is_flagged_low():

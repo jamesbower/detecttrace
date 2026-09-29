@@ -375,6 +375,7 @@ def test_no_issues_give_no_lines() -> None:
     assert summarize_issues([]) == []
 
 
+@pytest.mark.benchmark
 def test_100000_issues_summarize_quickly() -> None:
     kinds = list(IssueKind)
     issues = [

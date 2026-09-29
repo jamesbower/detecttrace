@@ -6,6 +6,7 @@ import re
 import shutil
 import time
 from pathlib import Path
+from typing import Any
 
 import fixture_specs
 import generate
@@ -13,6 +14,7 @@ import pytest
 
 from detecttrace.metrics import SliceMetrics
 from detecttrace.model import IssueKind
+from detecttrace.otlp import load_spans
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.runconfig import load_run_config
 
@@ -30,6 +32,7 @@ IPV4 = re.compile(r"(?<![0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9.])")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 # Tool results are JSON inside a JSON string, so the quote before the colon may be escaped.
 AS_NUMBER = re.compile(r'"asn\\?":\s*([0-9]+)')
+TRUE_POSITIVE_CODE = 0
 MAX_DEMO_BYTES = 500 * 1024
 MAX_GENERATION_SECONDS = 5.0
 MAX_FIXTURE_BYTES = 3 * 1024 * 1024
@@ -121,6 +124,7 @@ def test_every_trace_file_is_gzip_compressed() -> None:
     assert {path.read_bytes()[:2] for path in (DEMO_DIR / "traces").iterdir()} == {b"\x1f\x8b"}
 
 
+@pytest.mark.benchmark
 def test_generating_the_demo_takes_under_five_seconds(generated: tuple[Path, float]) -> None:
     assert generated[1] < MAX_GENERATION_SECONDS
 
@@ -183,6 +187,39 @@ def test_a_wrong_tool_arguments_mapping_warns_once_per_item_with_rules(tmp_path:
     ]
 
 
+def test_demo_has_between_180_and_220_cases(demo_run: RunResult) -> None:
+    assert 180 <= demo_run.case_count <= 220
+
+
+def test_demo_true_positive_share_is_between_10_and_20_percent(demo_run: RunResult) -> None:
+    analyst = _case_columns(demo_run)["analyst"]
+
+    assert 0.10 <= analyst.count(TRUE_POSITIVE_CODE) / len(analyst) <= 0.20
+
+
+def test_demo_spans_six_iso_weeks(demo_run: RunResult) -> None:
+    assert len(set(_case_strings(demo_run, "week"))) == 6
+
+
+def test_demo_runs_v1_only_in_the_first_two_weeks(demo_run: RunResult) -> None:
+    weeks = _case_strings(demo_run, "week")
+    versions = _case_strings(demo_run, "version")
+
+    v1_weeks = {week for week, version in zip(weeks, versions, strict=True) if version == "v1"}
+
+    assert sorted(v1_weeks) == sorted(set(weeks))[:2]
+
+
+def test_demo_has_exactly_one_sub_agent_case() -> None:
+    spans, _ = load_spans(DEMO_DIR / "traces")
+
+    assert [
+        span.name
+        for span in spans
+        if span.attributes.get("gen_ai.operation.name") == "invoke_agent" and span.parent_span_id
+    ] == ["invoke_agent ip-enrichment-agent"]
+
+
 def test_every_ip_address_is_in_a_documentation_range(generated_text: str) -> None:
     outside = {
         address
@@ -210,6 +247,17 @@ def test_the_safe_value_scans_find_values_to_check(generated_text: str) -> None:
     counts = [len(pattern.findall(generated_text)) for pattern in (IPV4, EMAIL, AS_NUMBER)]
 
     assert min(counts) > 0
+
+
+def _case_columns(run: RunResult) -> dict[str, list[Any]]:
+    rows: Any = run.results["case_rows"]
+    return rows["columns"]
+
+
+def _case_strings(run: RunResult, column: str) -> list[str]:
+    """A string-table column of the case rows, resolved to its text; the demo has no nulls."""
+    rows: Any = run.results["case_rows"]
+    return [rows["strings"][index] for index in rows["columns"][column]]
 
 
 def _slice(run: RunResult, alert_class: str, version: str) -> SliceMetrics:
