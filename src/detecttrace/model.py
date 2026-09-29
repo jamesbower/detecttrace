@@ -43,6 +43,12 @@ class IssueKind(StrEnum):
     UNMAPPED_ANALYST_LABEL = "unmapped_analyst_label"
     UNMAPPED_AGENT_LABEL = "unmapped_agent_label"
     MISSING_AGENT_VERDICT = "missing_agent_verdict"
+    UNREADABLE_ARGUMENTS = "unreadable_arguments"
+    UNREADABLE_DURATION = "unreadable_duration"
+    UNREADABLE_KQL_TIMESPAN = "unreadable_kql_timespan"
+    RULE_TYPE_MISMATCH = "rule_type_mismatch"
+    UNKNOWN_CHECKLIST_TOOL = "unknown_checklist_tool"
+    UNUSED_CHECKLIST = "unused_checklist"
 
 
 @dataclass(frozen=True, slots=True)
