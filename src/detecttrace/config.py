@@ -1,4 +1,4 @@
-"""Configuration models (PRD Appendix A). M1 covers the mapping and the label maps."""
+"""Configuration models. M1 covers the attribute mapping and the label maps."""
 
 from typing import Literal
 
@@ -9,7 +9,7 @@ from detecttrace.model import Verdict
 
 
 def normalize_label(text: str) -> str:
-    """Normalize a verdict label or alert class for matching (PRD §7.2)."""
+    """Normalize a verdict label or alert class for matching: collapse whitespace and ignore case."""
     return " ".join(text.split()).casefold()
 
 

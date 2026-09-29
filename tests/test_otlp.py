@@ -16,7 +16,7 @@ from builders import (
 )
 
 from detecttrace.model import IssueKind, Span
-from detecttrace.otlp import load_spans
+from detecttrace.otlp import TraceFileError, load_spans
 
 S1 = span_hex(1)
 S2 = span_hex(2)
@@ -310,8 +310,8 @@ def unreadable_root(tmp_path: Path) -> Iterator[Path]:
 
 
 @needs_permissions
-def test_unreadable_root_folder_raises_permission_error(unreadable_root: Path) -> None:
-    with pytest.raises(PermissionError, match=r"cannot be read: Permission denied"):
+def test_unreadable_root_folder_raises_trace_file_error(unreadable_root: Path) -> None:
+    with pytest.raises(TraceFileError, match=r"cannot be read: Permission denied"):
         load_spans(unreadable_root)
 
 
@@ -876,17 +876,17 @@ def test_end_before_start_is_reported(tmp_path: Path) -> None:
 
 
 def test_missing_path_raises(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match=r"traces\.path"):
+    with pytest.raises(TraceFileError, match=r"traces\.path"):
         load_spans(tmp_path / "missing")
 
 
 def test_empty_folder_raises(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match=r"No trace files found"):
+    with pytest.raises(TraceFileError, match=r"No trace files found"):
         load_spans(tmp_path)
 
 
 def test_folder_with_only_hidden_files_raises(tmp_path: Path) -> None:
     (tmp_path / ".DS_Store").write_text("x")
 
-    with pytest.raises(FileNotFoundError, match=r"No trace files found"):
+    with pytest.raises(TraceFileError, match=r"No trace files found"):
         load_spans(tmp_path)

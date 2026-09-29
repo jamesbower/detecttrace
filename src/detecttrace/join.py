@@ -1,4 +1,4 @@
-"""Join trace cases with analyst verdicts (PRD §7.3 joining rules)."""
+"""Join trace cases with analyst verdicts by case ID."""
 
 from collections import defaultdict
 
@@ -49,8 +49,8 @@ def _join_one(
             )
         )
     classes_by_key: dict[str, str] = {}
-    for r in rows:
-        classes_by_key.setdefault(normalize_label(r.alert_class), r.alert_class)
+    for verdict_row in rows:
+        classes_by_key.setdefault(normalize_label(verdict_row.alert_class), verdict_row.alert_class)
     if len(classes_by_key) > 1:
         listed = ", ".join(f"'{alert_class}'" for alert_class in classes_by_key.values())
         issues.append(
@@ -88,18 +88,22 @@ def _resolve_analyst_verdict(
     """One verdict per case. Rows that disagree leave the ground truth unclear, so none is picked."""
     first = rows[0]
     unmapped_by_key: dict[str, str] = {}
-    for r in rows:
-        if config.to_analyst_verdict(r.label) is None:
-            unmapped_by_key.setdefault(normalize_label(r.label), r.label)
+    for verdict_row in rows:
+        if config.to_analyst_verdict(verdict_row.label) is None:
+            unmapped_by_key.setdefault(normalize_label(verdict_row.label), verdict_row.label)
     for label in unmapped_by_key.values():
         issues.append(Issue(IssueKind.UNMAPPED_ANALYST_LABEL, first.case_id, label))
     if len(rows) > 1:
-        lines = ", ".join(f"line {r.line_number}: {r.alert_class}/{r.label}" for r in rows)
+        lines = ", ".join(
+            f"line {verdict_row.line_number}: {verdict_row.alert_class}/{verdict_row.label}"
+            for verdict_row in rows
+        )
         # Same verdict means the same mapped verdict ("TP" and "Malicious"), or the same
         # normalized text when a label is unmapped.
         keys = {
-            config.to_analyst_verdict(r.label) or f"unmapped:{normalize_label(r.label)}"
-            for r in rows
+            config.to_analyst_verdict(verdict_row.label)
+            or f"unmapped:{normalize_label(verdict_row.label)}"
+            for verdict_row in rows
         }
         if len(keys) > 1:
             issues.append(Issue(IssueKind.CONFLICTING_ANALYST_VERDICT, first.case_id, lines))

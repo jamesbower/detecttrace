@@ -6,6 +6,10 @@ from enum import StrEnum
 UNKNOWN_VERSION = "unknown"
 
 
+class InputFileError(Exception):
+    """Input the run cannot use at all; the CLI exits 1."""
+
+
 class Verdict(StrEnum):
     TRUE_POSITIVE = "true_positive"
     FALSE_POSITIVE = "false_positive"

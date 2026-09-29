@@ -21,17 +21,20 @@ def test_reads_rows_and_ignores_extra_columns(tmp_path: Path) -> None:
     assert rows == [VerdictRow("DT-1", "impossible_travel", "TP", 2)]
 
 
-def test_closed_at_is_optional(tmp_path: Path) -> None:
-    path = write_csv(tmp_path, "case_id,alert_class,verdict\nDT-1,oauth_consent,Benign\n")
+def test_row_with_a_closed_at_time_zone_offset_is_read(tmp_path: Path) -> None:
+    path = write_csv(
+        tmp_path,
+        "case_id,alert_class,verdict,closed_at\nDT-1,oauth_consent,Benign,2026-03-01T09:30:00+02:00\n",
+    )
 
     rows, _ = read_verdicts(path)
 
-    assert rows[0].label == "Benign"
+    assert rows == [VerdictRow("DT-1", "oauth_consent", "Benign", 2)]
 
 
 def test_reads_excel_csv_with_byte_order_mark_and_crlf(tmp_path: Path) -> None:
     path = tmp_path / "verdicts.csv"
-    path.write_bytes("﻿case_id,alert_class,verdict\r\nDT-1,impossible_travel,FP\r\n".encode())
+    path.write_bytes("\ufeffcase_id,alert_class,verdict\r\nDT-1,impossible_travel,FP\r\n".encode())
 
     rows, _ = read_verdicts(path)
 
@@ -142,12 +145,56 @@ def test_row_merged_by_an_unbalanced_quote_is_not_returned(tmp_path: Path) -> No
     assert rows == []
 
 
-def test_unbalanced_quote_in_an_extra_column_is_reported(tmp_path: Path) -> None:
+def test_unbalanced_quote_in_an_extra_column_is_reported_with_the_merged_lines(
+    tmp_path: Path,
+) -> None:
     path = write_csv(tmp_path, 'case_id,alert_class,verdict,notes\nDT-1,x,TP,"odd\nDT-2,y,FP,\n')
 
     _, issues = read_verdicts(path)
 
-    assert [i.kind for i in issues] == [IssueKind.INVALID_VERDICT_ROW]
+    assert [(i.kind, i.subject, i.detail) for i in issues] == [
+        (
+            IssueKind.INVALID_VERDICT_ROW,
+            "verdicts.csv:3",
+            "unbalanced quote; lines 2\u20133 were read as one row",
+        )
+    ]
+
+
+def test_quoted_multiline_value_in_an_extra_column_is_read(tmp_path: Path) -> None:
+    path = write_csv(
+        tmp_path, 'case_id,alert_class,verdict,notes\nDT-1,x,TP,"line one\nline two"\n'
+    )
+
+    rows, _ = read_verdicts(path)
+
+    assert [row.case_id for row in rows] == ["DT-1"]
+
+
+def test_oversized_field_after_blank_lines_is_reported_at_its_own_line(tmp_path: Path) -> None:
+    oversized = "x" * (csv.field_size_limit() + 1)
+    path = write_csv(
+        tmp_path,
+        f"case_id,alert_class,verdict\nDT-1,x,TP\n\n\nDT-2,{oversized},FP\nDT-3,y,TP\n",
+    )
+
+    _, issues = read_verdicts(path)
+
+    assert [(i.kind, i.subject) for i in issues] == [
+        (IssueKind.INVALID_VERDICT_ROW, "verdicts.csv:5")
+    ]
+
+
+def test_rows_around_an_oversized_field_after_blank_lines_are_read(tmp_path: Path) -> None:
+    oversized = "x" * (csv.field_size_limit() + 1)
+    path = write_csv(
+        tmp_path,
+        f"case_id,alert_class,verdict\nDT-1,x,TP\n\n\nDT-2,{oversized},FP\nDT-3,y,TP\n",
+    )
+
+    rows, _ = read_verdicts(path)
+
+    assert [row.case_id for row in rows] == ["DT-1", "DT-3"]
 
 
 def test_blank_lines_between_rows_are_not_reported(tmp_path: Path) -> None:

@@ -1,26 +1,28 @@
-"""Read the analyst verdict CSV (PRD §7.2, Appendix B)."""
+"""Read the analyst verdict CSV.
 
-# csv.DictReader is not subscriptable at runtime on 3.11.
-from __future__ import annotations
+A malformed row is reported and skipped. The file is unusable only when it is missing,
+unreadable, not UTF-8, lacks or repeats a required column, or holds a runaway quoted value
+the reader cannot recover from.
+"""
 
 import csv
 from pathlib import Path
-from typing import cast
+from typing import TextIO
 
-from detecttrace.model import Issue, IssueKind, VerdictRow
+from detecttrace.model import InputFileError, Issue, IssueKind, VerdictRow
 
 REQUIRED_COLUMNS = ("case_id", "alert_class", "verdict")
 
 
-class VerdictFileError(Exception):
+class VerdictFileError(InputFileError):
     """The verdict file cannot be used at all: missing, unreadable, or its required columns are missing or repeated."""
 
 
 def read_verdicts(path: Path) -> tuple[list[VerdictRow], list[Issue]]:
-    """Read every verdict row. Rows that share a case ID are resolved by the join (decision D5)."""
+    """Read every verdict row. Rows that share a case ID are all returned; the join resolves them."""
     try:
         with path.open(encoding="utf-8-sig", newline="") as handle:
-            return _read_rows(csv.DictReader(handle), path)
+            return _read_rows(handle, path)
     except FileNotFoundError as error:
         raise VerdictFileError(
             f"Verdict file not found: {path}. Check verdicts.path in detecttrace.yaml."
@@ -33,69 +35,71 @@ def read_verdicts(path: Path) -> tuple[list[VerdictRow], list[Issue]]:
         ) from error
 
 
-def _read_rows(reader: csv.DictReader[str], path: Path) -> tuple[list[VerdictRow], list[Issue]]:
-    columns = [name.strip() for name in reader.fieldnames or []]
-    missing = [column for column in REQUIRED_COLUMNS if column not in columns]
+def _read_rows(handle: TextIO, path: Path) -> tuple[list[VerdictRow], list[Issue]]:
+    reader = csv.reader(handle, strict=True)
+    try:
+        header = [name.strip() for name in next((row for row in reader if row), [])]
+    except csv.Error as error:
+        raise VerdictFileError(f"{path} header could not be read as CSV: {error}.") from error
+    missing = [column for column in REQUIRED_COLUMNS if column not in header]
     if missing:
         raise VerdictFileError(
             f"{path} is missing the column(s) {', '.join(missing)}. "
             f"Required columns: {', '.join(REQUIRED_COLUMNS)}."
         )
-    repeated = [column for column in REQUIRED_COLUMNS if columns.count(column) > 1]
+    repeated = [column for column in REQUIRED_COLUMNS if header.count(column) > 1]
     if repeated:
         raise VerdictFileError(
             f"{path} repeats the column(s) {', '.join(repeated)} in its header. Keep one of each."
         )
-    reader.fieldnames = columns
+    positions = [header.index(column) for column in REQUIRED_COLUMNS]
     rows: list[VerdictRow] = []
     issues: list[Issue] = []
     while True:
-        # DictReader.line_num goes stale when the reader raises; the inner reader's does not.
-        previous_line = reader.reader.line_num
+        previous_line = reader.line_num
         try:
-            row = next(reader)
+            fields = next(reader)
         except StopIteration:
             break
         except csv.Error as error:
-            line_number = reader.reader.line_num
-            # On one physical line the reader drops the rest of it and resumes cleanly. Across
-            # lines it resumes inside a quoted value, so what follows cannot be trusted.
-            if line_number - previous_line > 1:
-                raise VerdictFileError(
-                    f"{path} could not be read as CSV at lines {previous_line + 1}"
-                    f"\u2013{line_number}: {error}. Check for an unbalanced quote."
-                ) from error
-            issues.append(_invalid_row(path, line_number, str(error)))
+            line_number = reader.line_num
+            if line_number - previous_line == 1:
+                # On one physical line the reader drops the rest of it and resumes cleanly.
+                issues.append(_invalid_row(path, line_number, str(error)))
+                continue
+            # A quoted value left open to the end of the file swallowed everything after it,
+            # so nothing is left to misread.
+            if not handle.read(1):
+                issues.append(_merged_rows(path, previous_line, line_number))
+                continue
+            # Mid-file the reader would resume inside a quoted value, so what follows
+            # cannot be trusted.
+            raise VerdictFileError(
+                f"{path} could not be read as CSV at lines {previous_line + 1}"
+                f"\u2013{line_number}: {error}. Check for an unbalanced quote."
+            ) from error
+        if not fields:
             continue
-        line_number = reader.reader.line_num
-        # DictReader puts fields beyond the header in a list under the None key.
-        extra_fields = cast("list[str]", row.get(None) or [])
-        values = [value for value in row.values() if isinstance(value, str)] + extra_fields
-        line_breaks = sum(_count_line_breaks(value) for value in values)
-        if line_breaks:
-            # A quote left open at end of file also holds the last line's own line ending.
-            first_line = max(previous_line + 1, line_number - line_breaks)
+        line_number = reader.line_num
+        values = [
+            fields[position].strip() if position < len(fields) else "" for position in positions
+        ]
+        # A line break in a required value means a quote ran on into the next rows; other
+        # columns such as notes may hold quoted multi-line text.
+        if any("\n" in value or "\r" in value for value in values):
+            issues.append(_merged_rows(path, previous_line, line_number))
+            continue
+        if len(fields) > len(header):
             issues.append(
                 _invalid_row(
                     path,
                     line_number,
-                    f"unbalanced quote; lines {first_line}\u2013{line_number} were read as one row",
-                )
-            )
-            continue
-        if extra_fields:
-            issues.append(
-                _invalid_row(
-                    path,
-                    line_number,
-                    f"{len(extra_fields)} more fields than the header; "
+                    f"{len(fields) - len(header)} more fields than the header; "
                     "quote values that contain commas",
                 )
             )
             continue
-        case_id = (row.get("case_id") or "").strip()
-        alert_class = (row.get("alert_class") or "").strip()
-        label = (row.get("verdict") or "").strip()
+        case_id, alert_class, label = values
         if not (case_id and alert_class and label):
             issues.append(
                 _invalid_row(
@@ -111,6 +115,9 @@ def _invalid_row(path: Path, line_number: int, detail: str) -> Issue:
     return Issue(IssueKind.INVALID_VERDICT_ROW, f"{path.name}:{line_number}", detail)
 
 
-def _count_line_breaks(value: str) -> int:
-    # Counts line endings the way a newline="" file splits lines, so CRLF is one break.
-    return value.count("\n") + value.count("\r") - value.count("\r\n")
+def _merged_rows(path: Path, previous_line: int, line_number: int) -> Issue:
+    return _invalid_row(
+        path,
+        line_number,
+        f"unbalanced quote; lines {previous_line + 1}\u2013{line_number} were read as one row",
+    )

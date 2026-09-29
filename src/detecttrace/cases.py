@@ -1,4 +1,4 @@
-"""Build cases from spans: operation matching, case roots, and tool-call ownership (PRD §7.3)."""
+"""Build cases from spans: operation matching, case roots, and tool-call ownership."""
 
 import math
 from collections import defaultdict
@@ -298,7 +298,7 @@ def _read_descendant_version(case: _OpenCase, key: str, issues: list[Issue]) -> 
 
 
 def _to_text(value: object, subject: str, key: str, issues: list[Issue]) -> str | None:
-    """Convert one attribute value to text (PRD §7.3 type conversion); None means missing."""
+    """Convert one attribute value to text; None means missing."""
     if value is None:
         return None
     if isinstance(value, bool):

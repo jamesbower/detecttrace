@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, TypeVar
 
-from detecttrace.model import Issue, IssueKind, Span
+from detecttrace.model import InputFileError, Issue, IssueKind, Span
 
 _GZIP_MAGIC = b"\x1f\x8b"
 _BOM = b"\xef\xbb\xbf"
@@ -30,21 +30,25 @@ Report = Callable[[IssueKind, str], None]
 T = TypeVar("T")
 
 
+class TraceFileError(InputFileError):
+    """The trace path cannot be used at all: missing, unreadable, or holding no trace files."""
+
+
 def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
     """Read every trace file at `path` (a file or a folder) and return unique spans.
 
     Files are read in sorted path order and the first copy of a duplicate span wins,
     so the same input always gives the same spans. Invalid input is reported as an
-    Issue and never stops the run.
+    Issue; TraceFileError is raised only when there is nothing to read.
     """
     if not path.exists():
-        raise FileNotFoundError(
+        raise TraceFileError(
             f"Trace path not found: {path}. Check traces.path in detecttrace.yaml."
         )
     issues: list[Issue] = []
     trace_files = _list_trace_files(path, issues)
     if not trace_files:
-        raise FileNotFoundError(
+        raise TraceFileError(
             f"No trace files found under {path}. Check traces.path in detecttrace.yaml."
         )
     spans: list[Span] = []
@@ -78,7 +82,7 @@ def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]
         folder = Path(error.filename)
         if folder == path:
             # An issue for "." would only be followed by a misleading "No trace files found".
-            raise PermissionError(
+            raise TraceFileError(
                 f"Trace folder {path} cannot be read: {_describe_os_error(error)}. "
                 "Check its permissions."
             )
