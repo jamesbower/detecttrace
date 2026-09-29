@@ -330,4 +330,23 @@ def _to_text(value: object, subject: str, key: str, issues: list[Issue]) -> str 
 
 
 def _pick_latest_roots(candidates: list[TraceCase], issues: list[Issue]) -> list[TraceCase]:
-    return candidates  # replaced in Task 7
+    """Keep one root per case ID: latest start, then latest end, highest trace ID, highest span ID."""
+    by_case: dict[str, list[TraceCase]] = defaultdict(list)
+    for candidate in candidates:
+        by_case[candidate.case_id].append(candidate)
+    chosen: list[TraceCase] = []
+    for case_id in sorted(by_case):
+        group = by_case[case_id]
+        latest = max(group, key=lambda c: (c.start_ns, c.end_ns, c.trace_id, c.root_span_id))
+        for other in group:
+            if other is not latest:
+                issues.append(
+                    Issue(
+                        IssueKind.DUPLICATE_ROOT,
+                        case_id,
+                        f"kept {latest.trace_id}/{latest.root_span_id}, "
+                        f"ignored {other.trace_id}/{other.root_span_id}",
+                    )
+                )
+        chosen.append(latest)
+    return chosen

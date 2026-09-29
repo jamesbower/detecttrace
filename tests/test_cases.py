@@ -527,3 +527,53 @@ def test_invalid_resource_value_is_reported_once_for_all_cases() -> None:
             "detecttrace.prompt_version is a list, not a single value",
         )
     ]
+
+
+# Duplicate roots
+
+TRACE_A = "0000000000000000000000000000000a"
+TRACE_B = "0000000000000000000000000000000b"
+
+
+def kept_root(spans: list[Span]) -> list[tuple[str, str]]:
+    cases, _ = build_trace_cases(spans, MAPPING)
+    return [(c.trace_id, c.root_span_id) for c in cases]
+
+
+def test_duplicate_roots_keep_the_latest_start() -> None:
+    spans = [
+        case_root("r1", "DT-1", trace_id=TRACE_A, start_ns=200),
+        case_root("r2", "DT-1", trace_id=TRACE_B, start_ns=100),
+    ]
+
+    assert kept_root(spans) == [(TRACE_A, "r1")]
+
+
+def test_duplicate_roots_tied_on_start_keep_the_latest_end() -> None:
+    spans = [
+        case_root("r1", "DT-1", trace_id=TRACE_A, start_ns=100, end_ns=500),
+        case_root("r2", "DT-1", trace_id=TRACE_B, start_ns=100, end_ns=300),
+    ]
+
+    assert kept_root(spans) == [(TRACE_A, "r1")]
+
+
+def test_duplicate_roots_tied_on_times_keep_the_highest_trace_id() -> None:
+    spans = [
+        case_root("r1", "DT-1", trace_id=TRACE_A),
+        case_root("r2", "DT-1", trace_id=TRACE_B),
+    ]
+
+    assert kept_root(spans) == [(TRACE_B, "r2")]
+
+
+def test_duplicate_roots_in_one_trace_keep_the_highest_span_id() -> None:
+    spans = [case_root("r1", "DT-1"), case_root("r2", "DT-1")]
+
+    assert kept_root(spans) == [(spans[1].trace_id, "r2")]
+
+
+def test_duplicate_roots_are_reported() -> None:
+    spans = [case_root("r1", "DT-1", trace_id=TRACE_A), case_root("r2", "DT-1", trace_id=TRACE_B)]
+
+    assert issue_kinds(spans) == [IssueKind.DUPLICATE_ROOT]
