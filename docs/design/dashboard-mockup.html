@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<!--
+  DetectTrace POC: dashboard mockup (design reference, 2026-09-28).
+  Repository path: docs/design/dashboard-mockup.html
+  Synthetic data only. The real dashboard template must remove the
+  Google Fonts link and use the system font stack (PRD section 7.7).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DetectTrace POC dashboard (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#141a22; --surface:#1b232e; --surface-2:#212b38; --line:#2c3746;
+  --text:#dce3ea; --muted:#8e9bab; --faint:#5d6a7a;
+  --v1:#7fa7d9; --v2:#e0a458; --danger:#e36d6d; --ok:#7cc3a3;
+  --focus:#b9d4ff;
+  color-scheme: dark;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#141a22; } }
+:root[data-theme="dark"]{ --bg:#141a22; }
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size:15px; line-height:1.5; font-variant-numeric: tabular-nums;
+}
+a{color:var(--v1)}
+:focus-visible{outline:2px solid var(--focus); outline-offset:2px; border-radius:4px}
+.wrap{max-width:1180px; margin:0 auto; padding:24px 20px 56px}
+
+/* Header */
+header.top{display:flex; flex-wrap:wrap; gap:16px 32px; align-items:flex-end; justify-content:space-between; padding-bottom:18px; border-bottom:1px solid var(--line)}
+.brand h1{margin:0; font-size:28px; font-weight:700; letter-spacing:-0.01em}
+.brand p{margin:4px 0 0; color:var(--muted); max-width:60ch}
+dl.meta{display:grid; grid-template-columns:repeat(4,auto); gap:4px 28px; margin:0; font-size:13px}
+dl.meta dt{color:var(--faint)}
+dl.meta dd{margin:0; color:var(--text); font-weight:500}
+
+.banner{margin:18px 0 28px; display:flex; gap:14px; align-items:flex-start; padding:12px 16px; border:1px solid #5a4a2e; background:#231f19; border-radius:6px}
+.banner strong{color:var(--v2)}
+.banner p{margin:0; color:#d8cdb9}
+.banner svg{flex:none; margin-top:2px}
+
+/* Legend */
+.legend{display:flex; gap:18px; align-items:center; font-size:13px; color:var(--muted)}
+.key{display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
+.legend{flex-wrap:wrap}
+.dot{width:10px; height:10px; border-radius:50%; display:inline-block}
+
+section{margin-top:40px}
+section > h2{font-size:19px; font-weight:600; margin:0 0 4px}
+section > .lede{margin:0 0 16px; color:var(--muted); max-width:72ch}
+
+/* Hero comparison */
+.compare{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+.cls{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:18px 18px 10px}
+.cls h3{margin:0 0 2px; font-size:17px; font-weight:600}
+.cls .sub{margin:0 0 12px; color:var(--muted); font-size:13px}
+.metric{display:grid; grid-template-columns:150px 1fr 56px; gap:10px; align-items:center; padding:8px 0; border-top:1px solid var(--line)}
+.metric:first-of-type{border-top:none}
+.metric .name{font-size:13px; color:var(--muted)}
+.metric .name b{display:block; color:var(--text); font-weight:600; font-size:14px}
+.metric svg{width:100%; height:46px; overflow:visible}
+.vals{display:grid; gap:2px; text-align:right; font-weight:700; font-size:14px}
+.vals .a{color:var(--v1)} .vals .b{color:var(--v2)}
+.dfc{display:flex; gap:24px; padding:10px 0 8px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+.dfc b{font-size:20px; font-weight:700; margin-right:6px}
+.dfc .v1 b{color:var(--v1)} .dfc .v2 b{color:var(--v2)}
+.dfc .alarm b{color:var(--danger)}
+
+/* Skipped steps */
+.skips{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+table{border-collapse:collapse; width:100%}
+.tbl-wrap{overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:8px}
+th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle}
+th{font-weight:600; color:var(--muted); font-size:13px; background:var(--surface-2)}
+tr:last-child td{border-bottom:none}
+td.num{text-align:right; white-space:nowrap}
+.pair{display:grid; grid-template-columns:1fr; gap:3px; min-width:140px}
+.bar{height:7px; border-radius:4px; background:var(--line); position:relative; overflow:hidden}
+.bar i{position:absolute; left:0; top:0; bottom:0; border-radius:4px}
+.tool{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px}
+.up{color:var(--danger); font-weight:600}
+
+/* Trend */
+.trend{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:16px}
+.panel h3{margin:0 0 8px; font-size:15px; font-weight:600}
+.panel svg{width:100%; height:auto; display:block}
+
+/* Confusion */
+.cm-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+.cm{display:grid; grid-template-columns:130px repeat(3,1fr); gap:4px; font-size:13px}
+.cm .h{color:var(--muted); align-self:end; padding:4px}
+.cm .rh{color:var(--muted); display:flex; align-items:center; padding-right:6px}
+.cm .c{padding:12px 8px; border-radius:4px; text-align:center; font-weight:600; font-size:15px}
+.cm .c.danger{outline:2px solid var(--danger); outline-offset:-2px}
+.cm-note{margin:10px 0 0; font-size:13px; color:var(--muted)}
+
+/* Cases */
+.filters{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px}
+.filters button{font:inherit; font-size:13px; color:var(--text); background:var(--surface); border:1px solid var(--line); padding:6px 12px; border-radius:16px; cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--surface-2); border-color:var(--v1)}
+.cases td{font-size:13.5px}
+.cases tr.row{cursor:pointer}
+.cases tr.row:hover td{background:#1f2834}
+.pill{display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; font-weight:600}
+.pill.v1{background:#1f2c3d; color:var(--v1)} .pill.v2{background:#33291b; color:var(--v2)}
+.pill.bad{background:#3a2122; color:var(--danger)}
+.pill.agree{background:#1d3129; color:var(--ok)}
+.pill.disagree{background:#302a1f; color:#e3c28a}
+tr.detail td{background:#18202a; padding:0}
+.detail-body{padding:12px 16px 16px}
+.detail-body h4{margin:0 0 6px; font-size:13px; color:var(--muted); font-weight:600}
+.calls{list-style:none; margin:0; padding:0; display:grid; gap:4px}
+.calls li{display:grid; grid-template-columns:22px 210px 1fr 70px; gap:10px; font-size:13px; align-items:baseline}
+.calls .miss{color:var(--danger)}
+.calls .args{color:var(--muted); overflow-wrap:anywhere}
+
+/* Limits */
+.limits{background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--v2); border-radius:6px; padding:16px 20px}
+.limits h2{margin:0 0 8px; font-size:17px}
+.limits ul{margin:0; padding-left:20px; color:#c9d1da; max-width:80ch}
+.limits li{margin:4px 0}
+footer{margin-top:28px; color:var(--faint); font-size:12.5px}
+
+@media (max-width: 860px){
+  .compare,.skips,.trend,.cm-grid{grid-template-columns:1fr}
+  dl.meta{grid-template-columns:repeat(2,auto)}
+  .metric{grid-template-columns:110px 1fr 48px}
+  .calls li{grid-template-columns:18px 1fr; }
+  .calls li .args,.calls li .dur{grid-column:2}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important; animation:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">
+    <h1>DetectTrace POC</h1>
+    <p>How your SOC agent compares with your analysts, per alert class and per prompt version.</p>
+  </div>
+  <dl class="meta">
+    <dt>Data</dt><dd>Synthetic demo</dd>
+    <dt>Cases</dt><dd>200</dd>
+    <dt>Period</dt><dd>6 weeks</dd>
+    <dt>Versions</dt><dd>Prompt v1, v2</dd>
+  </dl>
+</header>
+
+<div class="banner" role="note">
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="none" stroke="#e0a458" stroke-width="1.6"/><path d="M9 5v5M9 12.5v.5" stroke="#e0a458" stroke-width="1.8" stroke-linecap="round"/></svg>
+  <p><strong>Self-reported. Not verified by DetectTrace.</strong> These numbers come from your own traces and verdicts, computed on your machine. If you must show results to a client, a CISO, or an auditor, you need verified results: <a href="https://detecttrace.ai">detecttrace.ai</a></p>
+</div>
+
+<div class="legend" aria-label="Legend">
+  <span class="key"><span class="dot" style="background:var(--v1)"></span>Prompt v1 (weeks 1 to 2)</span>
+  <span class="key"><span class="dot" style="background:var(--v2)"></span>Prompt v2 (weeks 3 to 6)</span>
+  <span class="key"><svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="#8e9bab" stroke-width="2"/><line x1="1" y1="1" x2="1" y2="9" stroke="#8e9bab" stroke-width="2"/><line x1="25" y1="1" x2="25" y2="9" stroke="#8e9bab" stroke-width="2"/></svg>95% confidence interval</span>
+</div>
+
+<section aria-labelledby="s-compare">
+  <h2 id="s-compare">By alert class, before and after the prompt change</h2>
+  <p class="lede">Each row shows the value for v1 and v2, with its confidence interval. Wide intervals mean few cases: read them with care.</p>
+  <div class="compare" id="compare"></div>
+</section>
+
+<section aria-labelledby="s-skips">
+  <h2 id="s-skips">Checklist steps the agent skipped</h2>
+  <p class="lede">Share of cases where the agent did not run a step that your checklist requires, per version.</p>
+  <div class="skips" id="skips"></div>
+</section>
+
+<section aria-labelledby="s-trend">
+  <h2 id="s-trend">Weekly trend</h2>
+  <p class="lede">Evidence completeness and verdict agreement per week. The line marks the switch to prompt v2.</p>
+  <div class="trend" id="trend"></div>
+</section>
+
+<section aria-labelledby="s-cm">
+  <h2 id="s-cm">Agent verdict against analyst verdict</h2>
+  <p class="lede">All six weeks. The outlined cell is the dangerous false close: the analyst found a true positive, and the agent closed it as benign.</p>
+  <div class="cm-grid" id="cms"></div>
+</section>
+
+<section aria-labelledby="s-cases">
+  <h2 id="s-cases">Cases</h2>
+  <p class="lede">Select a row to see the agent's tool calls and the checklist steps it missed.</p>
+  <div class="filters" role="group" aria-label="Filter cases">
+    <button type="button" data-f="all" aria-pressed="true">All cases</button>
+    <button type="button" data-f="disagree" aria-pressed="false">Disagreements only</button>
+    <button type="button" data-f="dfc" aria-pressed="false">Dangerous false closes</button>
+    <button type="button" data-f="it" aria-pressed="false">Impossible travel</button>
+    <button type="button" data-f="oc" aria-pressed="false">OAuth consent</button>
+  </div>
+  <div class="tbl-wrap">
+    <table class="cases">
+      <thead><tr><th>Case</th><th>Alert class</th><th>Week</th><th>Version</th><th>Agent</th><th>Analyst</th><th>Result</th><th class="num">Checklist</th></tr></thead>
+      <tbody id="cases"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="limits" aria-labelledby="s-limits">
+  <h2 id="s-limits">What this dashboard does not tell you</h2>
+  <ul>
+    <li><b>Why the numbers changed.</b> A drop after v2 can come from the prompt, a change in the alert mix, or a log source that stopped. The POC does not separate these.</li>
+    <li><b>Whether the agent's claims match the evidence.</b> The POC checks which steps ran, not what the results showed.</li>
+    <li><b>When to act.</b> There is no baseline and no alert. You read the numbers and decide.</li>
+  </ul>
+</section>
+
+<footer>Mockup of the dashboard file that the POC generates. All data is synthetic. Users are under example.com, and IP addresses are from documentation ranges.</footer>
+</div>
+
+<script>
+const D = [
+  { id:"it", name:"Impossible travel", total:102,
+    v1:{n:34, agree:[32,34], kappa:[0.78,0.49,1.00], dfc:0, comp:[96,0.92,0.99]},
+    v2:{n:68, agree:[58,68], kappa:[0.52,0.29,0.75], dfc:4, comp:[78,0.74,0.82]},
+    skipped:[["check_mfa_status",3,44],["get_ip_reputation",6,9],["get_user_profile",3,4],["get_signin_logs",0,1]],
+    weekly:{comp:[97,95,80,77,79,76], agree:[94,94,85,84,86,85], n:[17,17,17,17,17,17]},
+    cm:[[11,0,4],[1,17,2],[2,3,62]] },
+  { id:"oc", name:"Suspicious OAuth consent", total:98,
+    v1:{n:33, agree:[31,33], kappa:[0.74,0.42,1.00], dfc:0, comp:[94,0.89,0.97]},
+    v2:{n:65, agree:[60,65], kappa:[0.71,0.50,0.92], dfc:1, comp:[93,0.89,0.96]},
+    skipped:[["check_publisher_verification",9,8],["get_app_permissions",6,6],["list_oauth_grants",3,5],["get_user_profile",0,2]],
+    weekly:{comp:[94,95,92,94,93,93], agree:[94,94,92,93,92,92], n:[16,17,16,16,17,16]},
+    cm:[[13,0,1],[1,16,1],[1,3,62]] }
+];
+const V1 = "#7fa7d9", V2 = "#e0a458", LINE = "#2c3746", MUTED = "#8e9bab", DANGER = "#e36d6d";
+
+function wilson(k,n){ const z=1.96, p=k/n, d=1+z*z/n, c=p+z*z/(2*n), m=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n)); return [p,(c-m)/d,(c+m)/d]; }
+const pct = x => Math.round(x*100)+"%";
+
+function dumbbell(a, b, lo, hi, fmt){
+  // a, b: [value, low, high] on scale lo..hi
+  const W=420, pad=8, x = v => pad + (v-lo)/(hi-lo)*(W-2*pad);
+  const row = (t, y, col) => `
+    <line x1="${x(t[1])}" y1="${y}" x2="${x(t[2])}" y2="${y}" stroke="${col}" stroke-opacity=".55" stroke-width="2"/>
+    <line x1="${x(t[1])}" y1="${y-4}" x2="${x(t[1])}" y2="${y+4}" stroke="${col}" stroke-opacity=".55" stroke-width="2"/>
+    <line x1="${x(t[2])}" y1="${y-4}" x2="${x(t[2])}" y2="${y+4}" stroke="${col}" stroke-opacity=".55" stroke-width="2"/>
+    <circle cx="${x(t[0])}" cy="${y}" r="5.5" fill="${col}"/>`;
+  const ticks = [lo, (lo+hi)/2, hi].map(v=>`<text x="${x(v)}" y="46" fill="#5d6a7a" font-size="10" text-anchor="middle">${fmt(v)}</text>`).join("");
+  return `<svg viewBox="0 0 ${W} 48" role="img" aria-label="v1 ${fmt(a[0])}, v2 ${fmt(b[0])}">
+    <line x1="${pad}" y1="36" x2="${W-pad}" y2="36" stroke="${LINE}"/>${ticks}
+    ${row(a,12,V1)}${row(b,26,V2)}</svg>`;
+}
+
+// Comparison
+const vals=(a,b)=>`<div class="vals" aria-hidden="true"><span class="a">${a}</span><span class="b">${b}</span></div>`;
+document.getElementById("compare").innerHTML = D.map(c=>{
+  const a1=wilson(...c.v1.agree), a2=wilson(...c.v2.agree);
+  const kfmt = v => v.toFixed(2);
+  const c1=[c.v1.comp[0]/100,c.v1.comp[1],c.v1.comp[2]], c2=[c.v2.comp[0]/100,c.v2.comp[1],c.v2.comp[2]];
+  return `<article class="cls" aria-label="${c.name}">
+    <h3>${c.name}</h3>
+    <p class="sub">${c.total} cases: v1 n = ${c.v1.n}, v2 n = ${c.v2.n}</p>
+    <div class="metric"><div class="name"><b>Evidence completeness</b>checklist steps run</div>${dumbbell(c1,c2,0.5,1,pct)}${vals(pct(c1[0]),pct(c2[0]))}</div>
+    <div class="metric"><div class="name"><b>Verdict agreement</b>with the analyst</div>${dumbbell(a1,a2,0.5,1,pct)}${vals(pct(a1[0]),pct(a2[0]))}</div>
+    <div class="metric"><div class="name"><b>Cohen's kappa</b>agreement beyond chance</div>${dumbbell(c.v1.kappa,c.v2.kappa,0,1,kfmt)}${vals(kfmt(c.v1.kappa[0]),kfmt(c.v2.kappa[0]))}</div>
+    <div class="dfc"><span>Dangerous false closes</span>
+      <span class="v1"><b>${c.v1.dfc}</b>v1</span>
+      <span class="v2 ${c.v2.dfc>0?"alarm":""}"><b>${c.v2.dfc}</b>v2</span></div>
+  </article>`;
+}).join("");
+
+// Skipped steps
+document.getElementById("skips").innerHTML = D.map(c=>`
+  <div class="tbl-wrap"><table>
+    <caption style="text-align:left;padding:12px 12px 4px;font-weight:600">${c.name}</caption>
+    <thead><tr><th>Checklist step</th><th class="num">v1</th><th class="num">v2</th><th>Skipped</th></tr></thead>
+    <tbody>${c.skipped.map(([t,p1,p2])=>`<tr>
+      <td class="tool">${t}</td>
+      <td class="num">${p1}%</td>
+      <td class="num ${p2-p1>=10?"up":""}">${p2}%</td>
+      <td><div class="pair" aria-hidden="true">
+        <div class="bar"><i style="width:${p1*2}%;background:${V1}"></i></div>
+        <div class="bar"><i style="width:${Math.min(p2*2,100)}%;background:${V2}"></i></div></div></td></tr>`).join("")}
+    </tbody></table></div>`).join("");
+
+// Trend
+function trendChart(c){
+  const W=520,H=220,L=36,R=26,T=14,B=34, xs=i=>L+i*(W-L-R)/5, ys=v=>T+(100-v)/(100-60)*(H-T-B);
+  const grid=[60,70,80,90,100].map(v=>`<line x1="${L}" y1="${ys(v)}" x2="${W-R}" y2="${ys(v)}" stroke="${LINE}"/><text x="${L-6}" y="${ys(v)+4}" fill="#5d6a7a" font-size="11" text-anchor="end">${v}%</text>`).join("");
+  const seg=(arr,dash)=>{
+    const p=arr.map((v,i)=>[xs(i),ys(v)]);
+    const s1=p.slice(0,2).map(q=>q.join(",")).join(" "), s2=p.slice(1).map(q=>q.join(",")).join(" ");
+    return `<polyline points="${s1}" fill="none" stroke="${V1}" stroke-width="2.2" ${dash}/><polyline points="${s2}" fill="none" stroke="${V2}" stroke-width="2.2" ${dash}/>`+
+      p.map((q,i)=>`<circle cx="${q[0]}" cy="${q[1]}" r="3.2" fill="${i<2?V1:V2}"/>`).join("");
+  };
+  const mx=(xs(1)+xs(2))/2;
+  const weeks=c.weekly.n.map((n,i)=>`<text x="${xs(i)}" y="${H-16}" fill="${MUTED}" font-size="11" text-anchor="middle">Wk ${i+1}</text><text x="${xs(i)}" y="${H-3}" fill="#5d6a7a" font-size="10" text-anchor="middle">n ${n}</text>`).join("");
+  return `<div class="panel"><h3>${c.name}</h3>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly completeness and agreement for ${c.name}">
+      ${grid}
+      <line x1="${mx}" y1="${T}" x2="${mx}" y2="${H-B}" stroke="${MUTED}" stroke-dasharray="3 3"/>
+      <text x="${mx+6}" y="${T+10}" fill="${MUTED}" font-size="11">prompt v2</text>
+      ${seg(c.weekly.comp,"")}${seg(c.weekly.agree,'stroke-dasharray="5 4"')}
+      ${weeks}
+    </svg>
+    <div class="legend" style="margin-top:6px">
+      <span class="key"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" stroke="${MUTED}" stroke-width="2.2"/></svg>Evidence completeness</span>
+      <span class="key"><svg width="22" height="6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" stroke="${MUTED}" stroke-width="2.2" stroke-dasharray="5 4"/></svg>Verdict agreement</span>
+    </div></div>`;
+}
+document.getElementById("trend").innerHTML = D.map(trendChart).join("");
+
+// Confusion matrices (rows: analyst, columns: agent)
+const LBL=["True positive","False positive","Benign"];
+document.getElementById("cms").innerHTML = D.map(c=>{
+  const cells=c.cm.map((row,r)=>{
+    const tot=row.reduce((a,b)=>a+b,0);
+    return `<div class="rh">Analyst: ${LBL[r].toLowerCase()}</div>`+row.map((v,k)=>{
+      const share=v/tot, diag=r===k, danger=(r===0&&k===2&&v>0);
+      const bg = diag ? `rgba(124,195,163,${0.12+share*0.45})` : (v? `rgba(224,164,88,${0.10+share*0.9})` : "#1b232e");
+      return `<div class="c ${danger?"danger":""}" style="background:${bg}" aria-label="Analyst ${LBL[r]}, agent ${LBL[k]}: ${v}">${v}</div>`;
+    }).join("");
+  }).join("");
+  return `<div class="panel"><h3>${c.name}</h3>
+    <div class="cm"><div class="h"></div>${LBL.map(l=>`<div class="h">Agent: ${l.toLowerCase()}</div>`).join("")}${cells}</div>
+    <p class="cm-note">Rows are the analyst verdict. ${c.cm[0][2]} dangerous false ${c.cm[0][2]===1?"close":"closes"}.</p></div>`;
+}).join("");
+
+// Cases
+const C = [
+  {id:"DT-IT-0418", cls:"it", wk:3, v:"v2", ag:"Benign", an:"True positive", ck:[3,4], calls:[["get_signin_logs",'{"user":"m.ortiz@example.com","range":"24h"}',"0.8s"],["get_ip_reputation",'{"ip":"203.0.113.45"}',"0.4s"],["get_user_profile",'{"user":"m.ortiz@example.com"}',"0.3s"]], miss:["check_mfa_status"]},
+  {id:"DT-IT-0433", cls:"it", wk:4, v:"v2", ag:"Benign", an:"True positive", ck:[3,4], calls:[["get_signin_logs",'{"user":"j.chen@example.com","range":"24h"}',"0.7s"],["get_ip_reputation",'{"ip":"198.51.100.23"}',"0.5s"],["get_user_profile",'{"user":"j.chen@example.com"}',"0.3s"]], miss:["check_mfa_status"]},
+  {id:"DT-IT-0440", cls:"it", wk:4, v:"v2", ag:"Benign", an:"Benign", ck:[3,4], calls:[["get_signin_logs",'{"user":"a.khan@example.com","range":"24h"}',"0.6s"],["get_ip_reputation",'{"ip":"192.0.2.77"}',"0.4s"],["get_user_profile",'{"user":"a.khan@example.com"}',"0.3s"]], miss:["check_mfa_status"]},
+  {id:"DT-IT-0452", cls:"it", wk:5, v:"v2", ag:"False positive", an:"Benign", ck:[4,4], calls:[["get_signin_logs",'{"user":"r.silva@example.com","range":"24h"}',"0.9s"],["check_mfa_status",'{"user":"r.silva@example.com"}',"0.2s"],["get_ip_reputation",'{"ip":"203.0.113.9"}',"0.4s"],["get_user_profile",'{"user":"r.silva@example.com"}',"0.3s"]], miss:[]},
+  {id:"DT-IT-0461", cls:"it", wk:5, v:"v2", ag:"Benign", an:"True positive", ck:[2,4], calls:[["get_signin_logs",'{"user":"l.nguyen@example.com","range":"24h"}',"0.8s"],["get_user_profile",'{"user":"l.nguyen@example.com"}',"0.3s"]], miss:["check_mfa_status","get_ip_reputation"]},
+  {id:"DT-IT-0477", cls:"it", wk:6, v:"v2", ag:"Benign", an:"True positive", ck:[3,4], calls:[["get_signin_logs",'{"user":"s.patel@example.com","range":"24h"}',"0.7s"],["get_ip_reputation",'{"ip":"198.51.100.140"}',"0.5s"],["get_user_profile",'{"user":"s.patel@example.com"}',"0.3s"]], miss:["check_mfa_status"]},
+  {id:"DT-IT-0409", cls:"it", wk:2, v:"v1", ag:"True positive", an:"True positive", ck:[4,4], calls:[["get_signin_logs",'{"user":"d.moreau@example.com","range":"24h"}',"0.8s"],["check_mfa_status",'{"user":"d.moreau@example.com"}',"0.2s"],["get_ip_reputation",'{"ip":"203.0.113.201"}',"0.4s"],["get_user_profile",'{"user":"d.moreau@example.com"}',"0.3s"]], miss:[]},
+  {id:"DT-OC-0391", cls:"oc", wk:1, v:"v1", ag:"Benign", an:"Benign", ck:[4,4], calls:[["list_oauth_grants",'{"user":"t.berg@example.com"}',"0.5s"],["get_app_permissions",'{"app_id":"app-5510"}',"0.4s"],["check_publisher_verification",'{"app_id":"app-5510"}',"0.3s"],["get_user_profile",'{"user":"t.berg@example.com"}',"0.3s"]], miss:[]},
+  {id:"DT-OC-0447", cls:"oc", wk:5, v:"v2", ag:"Benign", an:"True positive", ck:[3,4], calls:[["list_oauth_grants",'{"user":"k.osei@example.com"}',"0.5s"],["get_app_permissions",'{"app_id":"app-7702"}',"0.4s"],["get_user_profile",'{"user":"k.osei@example.com"}',"0.3s"]], miss:["check_publisher_verification"]},
+  {id:"DT-OC-0455", cls:"oc", wk:5, v:"v2", ag:"False positive", an:"False positive", ck:[4,4], calls:[["list_oauth_grants",'{"user":"n.ivanova@example.com"}',"0.6s"],["get_app_permissions",'{"app_id":"app-2231"}',"0.4s"],["check_publisher_verification",'{"app_id":"app-2231"}',"0.3s"],["get_user_profile",'{"user":"n.ivanova@example.com"}',"0.3s"]], miss:[]}
+];
+const clsName = {it:"Impossible travel", oc:"OAuth consent"};
+function result(c){
+  if(c.an==="True positive" && c.ag==="Benign") return `<span class="pill bad">Dangerous false close</span>`;
+  return c.ag===c.an ? `<span class="pill agree">Agree</span>` : `<span class="pill disagree">Disagree</span>`;
+}
+function renderCases(f){
+  const rows = C.filter(c=> f==="all" || (f==="disagree" && c.ag!==c.an) || (f==="dfc" && c.an==="True positive" && c.ag==="Benign") || f===c.cls);
+  document.getElementById("cases").innerHTML = rows.map((c,i)=>`
+    <tr class="row" tabindex="0" aria-expanded="false" data-i="${i}">
+      <td class="tool">${c.id}</td><td>${clsName[c.cls]}</td><td>${c.wk}</td>
+      <td><span class="pill ${c.v}">${c.v}</span></td><td>${c.ag}</td><td>${c.an}</td><td>${result(c)}</td>
+      <td class="num">${c.ck[0]} of ${c.ck[1]}</td></tr>
+    <tr class="detail" hidden><td colspan="8"><div class="detail-body">
+      <h4>Tool calls</h4>
+      <ul class="calls">${c.calls.map(([t,a,d])=>`<li><span aria-hidden="true" style="color:var(--ok)">&#10003;</span><span class="tool">${t}</span><span class="args">${a}</span><span class="dur">${d}</span></li>`).join("")}
+      ${c.miss.map(t=>`<li class="miss"><span aria-hidden="true">&#10007;</span><span class="tool">${t}</span><span class="args">Required by the checklist. Not run.</span><span></span></li>`).join("")}</ul>
+    </div></td></tr>`).join("") || `<tr><td colspan="8">No cases match this filter. Select "All cases" to see every case.</td></tr>`;
+  document.querySelectorAll("#cases tr.row").forEach(tr=>{
+    const toggle=()=>{ const d=tr.nextElementSibling, open=d.hidden; d.hidden=!open; tr.setAttribute("aria-expanded", String(open)); };
+    tr.addEventListener("click", toggle);
+    tr.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle(); }});
+  });
+}
+document.querySelectorAll(".filters button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".filters button").forEach(x=>x.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true"); renderCases(b.dataset.f);
+}));
+renderCases("all");
+</script>
+</body>
+</html>

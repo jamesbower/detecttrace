@@ -1,0 +1,8 @@
+{
+  "name": "large failure output is capped at 60 lines with a truncation marker",
+  "stdin": { "tool_input": {} },
+  "env": { "DOTCLAUDE_AUTOTEST_FAKE_LINES": 70 },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["auto-test: failures", "FAIL line 70", "output truncated", "10 earlier lines hidden"],
+  "expect_stdout_not_contains": ["FAIL line 10"]
+}

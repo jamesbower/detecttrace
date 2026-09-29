@@ -1,0 +1,8 @@
+{
+  "name": "small failure output is emitted in full with no truncation marker",
+  "stdin": { "tool_input": {} },
+  "env": { "DOTCLAUDE_AUTOTEST_FAKE_LINES": 5 },
+  "expect_exit": 0,
+  "expect_stdout_contains": ["auto-test: failures", "FAIL line 1", "FAIL line 5"],
+  "expect_stdout_not_contains": ["output truncated"]
+}
