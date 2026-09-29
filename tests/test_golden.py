@@ -1,5 +1,7 @@
 """The check gives exactly the numbers in each golden file: the demo's and every fixture's.
 
+The demo also has a golden dashboard page.
+
 After an intended change, rewrite the golden files with
 `uv run python scripts/synthetic/generate.py --update-golden` and review the diff.
 """
@@ -24,6 +26,7 @@ DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 FIXTURE_ROOT = fixture_specs.FIXTURE_ROOT
 # Outside the package so it doesn't ship in every wheel; unlike fixture goldens it has no `keep`.
 DEMO_GOLDEN = FIXTURE_ROOT / "demo" / generate.GOLDEN_NAME
+DEMO_GOLDEN_HTML = FIXTURE_ROOT / "demo" / generate.GOLDEN_HTML_NAME
 FORMATS_DIR = FIXTURE_ROOT / "formats"
 NEEDS_ZSTD = pytest.mark.skipif(
     importlib.util.find_spec("zstandard") is None, reason="zstandard is not installed"
@@ -79,14 +82,37 @@ def test_demo_traces_carry_the_result_only_keys() -> None:
     assert [key for key in RESULT_ONLY_KEYS if f'\\"{key}\\"' not in text] == []
 
 
-def test_demo_command_writes_the_golden_results(tmp_path: Path, golden_text: str) -> None:
-    out = tmp_path / "d.json"
-    result = CliRunner().invoke(cli.app, ["demo", "--out", str(out), "--quiet"])
-    written = generate.to_golden_text(
-        generate.normalize_results(json.loads(out.read_text(encoding="utf-8")))
+@pytest.fixture(scope="module")
+def demo_command(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, Path]:
+    """The demo command's exit code, and the folder it wrote d.html and d.json into."""
+    folder = tmp_path_factory.mktemp("demo_command")
+    result = CliRunner().invoke(
+        cli.app,
+        ["demo", "--out", str(folder / "d.html"), "--json", str(folder / "d.json"), "--quiet"],
     )
+    return result.exit_code, folder
 
-    assert (result.exit_code, written) == (0, golden_text)
+
+def test_demo_command_with_both_outputs_exits_0(demo_command: tuple[int, Path]) -> None:
+    assert demo_command[0] == 0
+
+
+def test_demo_command_writes_the_golden_results(
+    demo_command: tuple[int, Path], golden_text: str
+) -> None:
+    text = (demo_command[1] / "d.json").read_text(encoding="utf-8")
+    written = generate.to_golden_text(generate.normalize_results(json.loads(text)))
+
+    assert _first_difference(golden_text, written) == ""
+
+
+def test_demo_command_writes_the_golden_dashboard(demo_command: tuple[int, Path]) -> None:
+    expected = DEMO_GOLDEN_HTML.read_text(encoding="utf-8")
+    text = (demo_command[1] / "d.html").read_text(encoding="utf-8")
+
+    assert (
+        _first_difference(expected, generate.normalize_dashboard(text), DEMO_GOLDEN_HTML.name) == ""
+    )
 
 
 def _fixture_param(folder: Path) -> object:
@@ -151,13 +177,13 @@ def test_first_difference_shows_only_the_first_hunk() -> None:
     assert "changed 30" not in _first_difference(expected, actual)
 
 
-def _first_difference(expected: str, actual: str) -> str:
+def _first_difference(expected: str, actual: str, name: str = generate.GOLDEN_NAME) -> str:
     """A unified diff cut after its first hunk, so a failure points at one place; "" if equal."""
     lines = list(
         difflib.unified_diff(
             expected.splitlines(keepends=True),
             actual.splitlines(keepends=True),
-            generate.GOLDEN_NAME,
+            name,
             "actual",
         )
     )
