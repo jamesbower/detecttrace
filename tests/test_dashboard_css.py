@@ -93,6 +93,7 @@ def test_grid_lines_use_the_rule_token() -> None:
         (".bar-track", "fill", "GrayText"),
         (".ci-point", "fill", "CanvasText"),
         (".series-all", "stroke", "CanvasText"),
+        (".mk.c-all", "fill", "CanvasText"),
         (".mk.is-few-point", "fill", "Canvas"),
     ],
 )

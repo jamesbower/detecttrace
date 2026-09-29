@@ -17,7 +17,7 @@
 {%- if m.shape == "circle" -%}
 <circle class="{{ cls }}" cx="{{ m.x|coord }}" cy="{{ m.y|coord }}" r="{{ m.r|coord }}"/>
 {%- elif m.shape == "square" -%}
-<rect class="{{ cls }}" x="{{ (m.x - m.r)|coord }}" y="{{ (m.y - m.r)|coord }}" width="{{ (2 * m.r)|coord }}" height="{{ (2 * m.r)|coord }}"/>
+<rect class="{{ cls }}" x="{{ m.left|coord }}" y="{{ m.top|coord }}" width="{{ m.side|coord }}" height="{{ m.side|coord }}"/>
 {%- else -%}
 <polygon class="{{ cls }}" points="{% for x, y in m.points %}{{ x|coord }},{{ y|coord }}{{ " " if not loop.last }}{% endfor %}"/>
 {%- endif -%}
@@ -39,7 +39,7 @@
 <td class="metric-cell{{ ' is-few' if is_few }}"><span class="val">{{ metric.value }}</span>
 {%- if metric.interval %}<span class="ci-text">{{ metric.interval }}</span>{% endif %}
 {%- if metric.note %}<span class="why">{{ metric.note }}</span>{% endif %}
-{%- if metric.strip %}<svg class="ci" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="ci-track" x="0" y="3" width="100" height="2"/><rect class="ci-range c-{{ style }}" x="{{ metric.strip.range_x|coord }}" y="1" width="{{ metric.strip.range_width|coord }}" height="6" rx="1"/><rect class="ci-point" x="{{ (metric.strip.point_x - 0.6)|coord }}" y="0" width="1.2" height="8"/></svg>{% endif %}
+{%- if metric.strip %}<svg class="ci" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="ci-track" x="0" y="3" width="100" height="2"/><rect class="ci-range c-{{ style }}" x="{{ metric.strip.range_x|coord }}" y="1" width="{{ metric.strip.range_width|coord }}" height="6" rx="1"/><rect class="ci-point" x="{{ metric.strip.point_left|coord }}" y="0" width="{{ metric.strip.point_width|coord }}" height="8"/></svg>{% endif %}
 {%- if is_few %}{{ few_note(metric.few_note ~ " " ~ metric.n_text) }}{% endif -%}
 </td>
 {%- endmacro -%}
@@ -51,21 +51,21 @@
 {% else %}
       <div class="chart-scroll" role="region" tabindex="0" aria-label="{{ metric.title }} chart for {{ cls.name }}, scrolls sideways"><svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-labelledby="{{ cls.anchor }}-t-{{ key }}" focusable="false">
 {%- for line in chart.grid -%}
-<line class="grid-line" x1="{{ frame.left|coord }}" y1="{{ line.y|coord }}" x2="{{ (chart.width - frame.right_margin)|coord }}" y2="{{ line.y|coord }}"/><text class="axis-text" x="{{ (frame.left - 8)|coord }}" y="{{ (line.y + 4)|coord }}" text-anchor="end">{{ line.label }}</text>
+<line class="grid-line" x1="{{ line.x_start|coord }}" y1="{{ line.y|coord }}" x2="{{ line.x_end|coord }}" y2="{{ line.y|coord }}"/><text class="axis-text" x="{{ line.label_x|coord }}" y="{{ line.label_y|coord }}" text-anchor="end">{{ line.label }}</text>
 {%- endfor -%}
 {%- for label in chart.x_labels -%}
-<text class="axis-text" x="{{ label.x|coord }}" y="{{ chart.height - 26 }}" text-anchor="middle">{{ label.week }}</text><text class="n-text" x="{{ label.x|coord }}" y="{{ chart.height - 10 }}" text-anchor="middle">{{ label.count_text }}</text>
+<text class="axis-text" x="{{ label.x|coord }}" y="{{ label.y_week|coord }}" text-anchor="middle">{{ label.week }}</text><text class="n-text" x="{{ label.x|coord }}" y="{{ label.y_count|coord }}" text-anchor="middle">{{ label.count_text }}</text>
 {%- endfor -%}
 {%- for mark in chart.version_markers -%}
-<line class="vmark" x1="{{ mark.x|coord }}" y1="24" x2="{{ mark.x|coord }}" y2="{{ (chart.height - frame.bottom_margin)|coord }}"/><text class="vmark-text" x="{{ (mark.x + 4)|coord }}" y="18">{{ mark.label }}</text>
+<line class="vmark" x1="{{ mark.x|coord }}" y1="{{ mark.y_top|coord }}" x2="{{ mark.x|coord }}" y2="{{ mark.y_bottom|coord }}"/><text class="vmark-text" x="{{ mark.label_x|coord }}" y="{{ mark.label_y|coord }}" text-anchor="{{ mark.anchor }}">{{ mark.label }}</text>
 {%- endfor -%}
 {%- for series in chart.series -%}
 {%- if series.style == "all" -%}
 {%- if series.path %}<path class="series-all" d="{{ series.path }}"/>{% endif -%}
 {%- else -%}
 {%- if series.path %}<path class="series c-{{ series.style }} d-{{ series.style }}" d="{{ series.path }}"/>{% endif -%}
-{%- for m in series.markers %}{{ marker(m, series.style) }}{% endfor -%}
 {%- endif -%}
+{%- for m in series.markers %}{{ marker(m, series.style) }}{% endfor -%}
 {%- endfor -%}
 </svg></div>
       <div class="visually-hidden"><table><caption>{{ cls.name }}: {{ what }} per week, {{ cls.trend.period_text }}</caption><thead><tr><th scope="col">Week</th>{% for line in metric.lines %}<th scope="col">{{ line.label }}</th>{% endfor %}</tr></thead><tbody>
@@ -129,7 +129,7 @@
     <thead><tr><th scope="col">Version</th><th scope="col" class="num">Cases</th><th scope="col">Evidence completeness</th><th scope="col">Verdict agreement</th><th scope="col">Cohen's kappa</th><th scope="col" class="num">Dangerous false closes</th></tr></thead>
     <tbody>
 {% for row in cls.rows %}
-    <tr{% set classes = (["all-row"] if row.is_all else []) + (["is-few"] if row.few_note else []) %}{% if classes %} class="{{ classes|join(' ') }}"{% endif %}><th scope="row">{% if row.is_all %}{{ row.label }}{% else %}{{ vkey(row.label, row.style) }}{% endif %}{% if row.few_note %}{{ few_note(row.few_note) }}{% endif %}</th><td class="num">{{ row.cases_text }}</td>{{ metric_cell(row.completeness, row.style, row.few_note) }}{{ metric_cell(row.agreement, row.style, row.few_note) }}{{ metric_cell(row.kappa, row.style, row.few_note) }}<td class="num">{% if row.is_dangerous %}<span class="dfc is-alarm">{{ warn_icon() }}{{ row.dangerous_text }}</span>{% else %}<span class="dfc is-zero">{{ row.dangerous_text }}</span>{% endif %}</td></tr>
+    <tr{% set classes = (["all-row"] if row.is_all else []) + (["is-few"] if row.few_note else []) %}{% if classes %} class="{{ classes|join(' ') }}"{% endif %}><th scope="row">{% if row.is_all %}{{ row.label }}{% else %}{{ vkey(row.label, row.style) }}{% endif %}{% if row.few_note %}{{ few_note(row.few_note) }}{% endif %}</th><td class="num">{{ row.cases_text }}</td>{{ metric_cell(row.completeness, row.style, row.few_note) }}{{ metric_cell(row.agreement, row.style, row.few_note) }}{{ metric_cell(row.kappa, row.style, row.few_note) }}<td class="num">{% if row.is_dangerous %}<span class="dfc is-alarm">{{ warn_icon() }}{{ row.dangerous_text }}</span>{% else %}<span class="dfc is-zero">{{ row.dangerous_text }}</span>{% endif %}{% if row.tp_without_agent_text %}<span class="tp-note">{{ warn_icon() }}<span>{{ row.tp_without_agent_text }}</span></span>{% endif %}</td></tr>
 {% endfor %}
     </tbody>
   </table>
@@ -193,7 +193,7 @@
 {%- for line in cls.trend.agreement.lines -%}
 <li>{{ swatch(line.style) }}{{ line.label }}</li>
 {%- endfor -%}
-<li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false"><line class="sw-vmark" x1="15" y1="0" x2="15" y2="12"/></svg>First week of a version</li><li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false">{{ marker(few_swatch, "none") }}</svg>Hollow marker: fewer than 10 cases</li></ul>
+<li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false"><line class="sw-vmark" x1="15" y1="0" x2="15" y2="12"/></svg>First week of a version</li><li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false">{{ marker(few_swatch, "none") }}</svg>{{ cls.trend.few_legend_text }}</li></ul>
   <div class="charts">
     {{ trend_figure(cls, cls.trend.completeness, charts.completeness, "comp", "evidence completeness") }}
     {{ trend_figure(cls, cls.trend.agreement, charts.agreement, "agree", "verdict agreement") }}
@@ -219,7 +219,7 @@
 {%- for row in cls.confusion.rows -%}
 <tr><th scope="row">{{ row.label }}</th>
 {%- for cell in row.cells -%}
-{%- if cell.is_dangerous and cell.count_text != "0" -%}
+{%- if cell.is_flagged -%}
 <td class="{{ cell.heat }} is-danger">{{ cell.count_text }}<span class="visually-hidden"> (dangerous cell)</span><span class="flag">{{ warn_icon() }}dangerous</span></td>
 {%- else -%}
 <td class="{{ cell.heat }}{{ ' is-danger' if cell.is_dangerous }}">{{ cell.count_text }}{% if cell.is_dangerous %}<span class="visually-hidden"> (dangerous cell)</span>{% endif %}</td>
@@ -237,7 +237,7 @@
 
 <section aria-labelledby="s-cases">
   <div class="sec-head"><span class="sec-num" aria-hidden="true">05</span><h2 id="s-cases">Cases</h2>
-  <p class="lede">Filters apply to all {{ view.cases.total_text }} cases. Open a row to see its tool calls and the checklist steps it did not satisfy. Tool calls are included for {{ view.cases.detail_count_text }} notable {{ "case" if view.cases.detail_count_text == "1" else "cases" }} (dashboard.max_detail_cases); tool results are never included.</p></div>
+  <p class="lede">Filters apply to all {{ view.cases.total_text }} cases. Open a row to see its tool calls and the checklist steps it did not satisfy. {{ view.cases.detail_sentence }}</p></div>
   <noscript><p>The case table needs JavaScript.</p></noscript>
   <p id="case-status" class="case-status">Loading the case table… If this message stays, the table script didn't run.</p>
   <div id="case-ui" hidden>
@@ -268,7 +268,7 @@
   <ul class="coverage" aria-label="Coverage">
 {% for line in view.coverage %}
 {% if line.is_low %}
-    <li class="is-low">{{ warn_icon() }}<span><strong>Warning:</strong> {{ line.text }}</span></li>
+    <li class="is-low">{{ warn_icon() }}<span><strong>Warning:</strong> {{ line.text }}{% if line.hint %} <span class="hint">{{ line.hint }}</span>{% endif %}</span></li>
 {% else %}
     <li>{{ line.text }}</li>
 {% endif %}

@@ -40,6 +40,7 @@ PAIRS = [
     ("--warn", "--bg", TEXT),
     ("--warn", "--bg-glow", TEXT),
     ("--warn", "--surface", TEXT),
+    ("--warn", "--surface-2", TEXT),
     ("--warn", "--surface-3", TEXT),
     ("--warn", "--banner-bg", TEXT),
     ("--warn", "--note-warn-bg", TEXT),

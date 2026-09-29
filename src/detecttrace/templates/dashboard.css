@@ -135,6 +135,10 @@ tbody th{font-weight:var(--fw-medium)}
 .dfc{display:inline-flex; align-items:center; gap:var(--sp-1); font-size:var(--fs-lg); font-weight:var(--fw-bold)}
 .dfc.is-alarm{color:var(--danger)}
 .dfc.is-zero{color:var(--muted); font-weight:var(--fw-regular)}
+/* A true positive the agent never judged is a safety gap, so it reads as a warning, not a footnote */
+.tp-note{display:flex; justify-content:flex-end; gap:var(--sp-1); margin-top:var(--sp-1); max-width:28ch; margin-left:auto; color:var(--warn); font-size:var(--fs-xs); font-weight:var(--fw-bold); text-align:right; white-space:normal; overflow-wrap:anywhere}
+.tp-note .icon{margin-top:2px}
+.tp-note > span{min-width:0}
 
 /* ---------- 4. Skipped steps ---------- */
 .skip-t{min-width:720px}
@@ -160,6 +164,7 @@ figcaption{font-size:var(--fs-sm); font-weight:var(--fw-bold); margin-bottom:var
 .series{fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
 .series-all{fill:none; stroke:var(--s-all-halo); stroke-width:6; stroke-linecap:round; stroke-linejoin:round}
 .mk{stroke-width:1.5}
+.mk.c-all{stroke:var(--s-all); fill:var(--s-all)}
 .mk.is-few-point{fill:var(--surface)}
 .sw-line{fill:none; stroke-width:2}
 .sw-all{stroke:var(--s-all-halo); stroke-width:6}
@@ -242,6 +247,7 @@ tr.detail-row > td{background:var(--surface-3); padding:0; border-top:0; white-s
 .coverage li > span{min-width:0}
 .coverage li.is-low .icon{color:var(--warn); width:18px; height:18px; margin-top:2px}
 .coverage strong{color:var(--warn)}
+.coverage .hint{display:block; margin-top:var(--sp-1)}
 .notes{list-style:none; margin:0; padding:0; display:grid; gap:var(--sp-3)}
 .note{display:grid; grid-template-columns:120px minmax(0,1fr); gap:var(--sp-2) var(--sp-4); padding:var(--sp-4); background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md)}
 .note > *{min-width:0}
@@ -288,6 +294,7 @@ footer{margin-top:var(--sp-7); padding-top:var(--sp-4); border-top:1px solid var
   .ci-track,.bar-track{fill:GrayText}
   .ci-point{fill:CanvasText}
   .series-all,.sw-all{stroke:CanvasText}
+  .mk.c-all{stroke:CanvasText; fill:CanvasText}
   .mk.is-few-point{fill:Canvas}
 }
 @media (prefers-reduced-motion:reduce){

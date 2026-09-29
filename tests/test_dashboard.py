@@ -535,3 +535,159 @@ def test_a_folder_is_not_a_dashboard(tmp_path: Path) -> None:
 def test_a_missing_file_raises_instead_of_answering(tmp_path: Path) -> None:
     with pytest.raises(OSError):
         is_dashboard_file(tmp_path / "missing.html")
+
+
+# Values the view prepares, rendered as they are
+
+
+def edited_demo() -> Any:
+    return json.loads(json.dumps(demo_results()))
+
+
+@cache
+def tp_without_agent_page() -> Node:
+    results = edited_demo()
+    version_entry_in(results, 0, "v1")["metrics"]["true_positives_without_agent_verdict"] = [
+        "case-x"
+    ]
+    results["classes"][0]["overall"]["true_positives_without_agent_verdict"] = ["case-x"]
+    return parse_html(render_dashboard(results))
+
+
+@cache
+def last_week_version_page() -> Node:
+    results = edited_demo()
+    version_entry_in(results, 0, "v2")["first_week"] = "2026-W37"
+    return parse_html(render_dashboard(results))
+
+
+@cache
+def one_week_page() -> Node:
+    results = edited_demo()
+    trend = results["classes"][0]["trend"]
+    results["classes"][0]["trend"] = [point for point in trend if point["week"] == "2026-W32"]
+    return parse_html(render_dashboard(results))
+
+
+@cache
+def dropped_resamples_page() -> Node:
+    results = edited_demo()
+    results["classes"][0]["overall"]["kappa"]["dropped_resamples"] = 87
+    return parse_html(render_dashboard(results))
+
+
+@cache
+def thousands_danger_page() -> Node:
+    results = edited_demo()
+    results["classes"][0]["overall"]["confusion"][0][1] = 1234
+    return parse_html(render_dashboard(results))
+
+
+def version_entry_in(results: Any, class_index: int, version: str) -> Any:
+    entries = results["classes"][class_index]["by_version"]
+    return next(entry for entry in entries if entry["version"] == version)
+
+
+def trend_card(page: Node, class_index: int) -> Node:
+    return page.find(has_tag("article", **{"aria-labelledby": f"class-{class_index}-t-h"}))
+
+
+def version_label(page: Node, label: str) -> Node:
+    return trend_card(page, 0).find(
+        lambda node: "vmark-text" in node.classes() and node.text() == label
+    )
+
+
+def notes_text(page: Node) -> str:
+    return " ".join(note.text() for note in page.find_all(lambda node: "note" in node.classes()))
+
+
+def test_true_positives_without_an_agent_verdict_show_next_to_the_dangerous_false_closes() -> None:
+    cell = version_rows(tp_without_agent_page(), 0)["v1"][-1]
+    assert cell.endswith("1 true positive with no agent verdict: case-x")
+
+
+def test_true_positives_without_an_agent_verdict_read_as_a_safety_note() -> None:
+    note = section(tp_without_agent_page(), "s-versions").find(
+        lambda node: "tp-note" in node.classes()
+    )
+    assert note.find_all(lambda node: "icon" in node.classes()) != []
+
+
+def test_true_positives_without_an_agent_verdict_get_a_data_note() -> None:
+    assert "1 analyst true positive in " in notes_text(tp_without_agent_page())
+
+
+def test_a_version_label_in_the_last_week_reads_leftwards() -> None:
+    assert version_label(last_week_version_page(), "v2").attrs["text-anchor"] == "end"
+
+
+def test_a_version_label_in_the_last_week_ends_before_its_rule() -> None:
+    label = version_label(last_week_version_page(), "v2")
+    rule = trend_card(last_week_version_page(), 0).find(
+        lambda node: "vmark" in node.classes() and node.attrs.get("x1") == "624.0"
+    )
+    assert float(label.attrs["x"] or "nan") < float(rule.attrs["x1"] or "nan")
+
+
+def test_a_version_label_in_the_first_half_reads_rightwards() -> None:
+    assert version_label(demo_page(), "v1").attrs["text-anchor"] == "start"
+
+
+def test_grid_labels_come_from_the_chart_geometry() -> None:
+    label = trend_card(demo_page(), 0).find(
+        lambda node: "axis-text" in node.classes() and node.text() == "100%"
+    )
+    assert (label.attrs["x"], label.attrs["y"]) == ("38.0", "34.0")
+
+
+def test_week_counts_sit_under_the_week_labels() -> None:
+    count = trend_card(demo_page(), 0).find(lambda node: "n-text" in node.classes())
+    assert count.attrs["y"] == "260.0"
+
+
+def test_a_square_marker_is_drawn_from_its_corner() -> None:
+    chart = trend_card(demo_page(), 0).find(lambda node: "chart" in node.classes())
+    square = chart.find(lambda node: node.tag == "rect" and "mk" in node.classes())
+    assert (square.attrs["width"], square.attrs["height"]) == ("8.4", "8.4")
+
+
+def test_a_lone_week_of_the_all_versions_line_gets_a_marker() -> None:
+    markers = trend_card(one_week_page(), 0).find_all(
+        lambda node: "mk" in node.classes() and "c-all" in node.classes()
+    )
+    assert markers != []
+
+
+def test_the_kappa_point_is_drawn_from_its_left_edge() -> None:
+    point = section(demo_page(), "s-versions").find(lambda node: "ci-point" in node.classes())
+    assert point.attrs["width"] == "1.2"
+
+
+def test_the_hollow_marker_legend_text_comes_from_the_view() -> None:
+    legend = trend_card(demo_page(), 0).find(has_tag("ul"))
+    assert legend.text().endswith("Hollow marker: fewer than 10 cases")
+
+
+def test_a_dangerous_cell_with_thousands_of_cases_is_flagged() -> None:
+    cell = section(thousands_danger_page(), "s-confusion").find(
+        lambda node: node.tag == "td" and node.text().startswith("1,234")
+    )
+    assert cell.find_all(lambda node: "flag" in node.classes()) != []
+
+
+def test_the_cases_section_names_how_many_cases_carry_tool_calls() -> None:
+    lede = section(demo_page(), "s-cases").find(lambda node: "lede" in node.classes())
+    assert lede.text().endswith(
+        "Tool calls are included for 112 notable cases (dashboard.max_detail_cases); "
+        "tool results are never included."
+    )
+
+
+def test_a_low_coverage_line_carries_its_fix_hint() -> None:
+    line = section(low_coverage_page(), "s-notes").find(lambda node: "is-low" in node.classes())
+    assert line.text().endswith("Check mapping.case_id in detecttrace.yaml.")
+
+
+def test_dropped_kappa_resamples_get_a_data_note() -> None:
+    assert "87 of 1,000 kappa resamples in " in notes_text(dropped_resamples_page())

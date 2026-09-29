@@ -18,16 +18,7 @@ from jinja2 import Environment, PackageLoader, StrictUndefined
 from markupsafe import Markup
 
 from detecttrace import __version__
-from detecttrace.charts import (
-    PLOT_BOTTOM_MARGIN,
-    PLOT_LEFT,
-    PLOT_RIGHT_MARGIN,
-    SHAPE_BY_STYLE,
-    Chart,
-    SeriesInput,
-    create_marker,
-    trend_chart,
-)
+from detecttrace.charts import SHAPE_BY_STYLE, Chart, SeriesInput, create_marker, trend_chart
 from detecttrace.dashboard_view import TrendMetricView, TrendView, build_view
 from detecttrace.files import MARKER_READ_BYTES, read_head, write_text_atomically
 
@@ -71,11 +62,6 @@ def render_dashboard(results: Mapping[str, object]) -> str:
     return template.render(
         view=view,
         trend_charts=[_to_trend_charts(class_view.trend) for class_view in view.classes],
-        frame={
-            "left": PLOT_LEFT,
-            "right_margin": PLOT_RIGHT_MARGIN,
-            "bottom_margin": PLOT_BOTTOM_MARGIN,
-        },
         swatches={
             style: create_marker(style, *_SWATCH_CENTER, radius=_SWATCH_RADIUS)
             for style in SHAPE_BY_STYLE
