@@ -1,0 +1,311 @@
+{#- The dashboard page. Autoescaped: every value is text. Only the stylesheet, the script and the
+    results block arrive as markup, and dashboard.py builds each of those itself. -#}
+{%- macro warn_icon() -%}
+<svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="ic-stroke" d="M8 1.8 15 14H1z"/><path class="ic-stroke" d="M8 6.2v3.6M8 11.8v.2"/></svg>
+{%- endmacro -%}
+{%- macro info_icon() -%}
+<svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle class="ic-stroke" cx="8" cy="8" r="6.5"/><path class="ic-stroke" d="M8 4.6v4.4M8 11.3v.2"/></svg>
+{%- endmacro -%}
+{%- macro invalid_icon() -%}
+<svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle class="ic-stroke" cx="8" cy="8" r="6.5"/><path class="ic-stroke" d="M5.5 5.5l5 5M10.5 5.5l-5 5"/></svg>
+{%- endmacro -%}
+{%- macro few_note(text) -%}
+<span class="few-note"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle class="ic-stroke" cx="8" cy="8" r="6.5" stroke-dasharray="2.2 2"/><circle class="ic-fill" cx="8" cy="8" r="1.6"/></svg>{{ text }}</span>
+{%- endmacro -%}
+{%- macro marker(m, style, extra="") -%}
+{%- set cls = "mk c-" ~ style ~ (" is-few-point" if m.is_few else "") ~ extra -%}
+{%- if m.shape == "circle" -%}
+<circle class="{{ cls }}" cx="{{ m.x|coord }}" cy="{{ m.y|coord }}" r="{{ m.r|coord }}"/>
+{%- elif m.shape == "square" -%}
+<rect class="{{ cls }}" x="{{ (m.x - m.r)|coord }}" y="{{ (m.y - m.r)|coord }}" width="{{ (2 * m.r)|coord }}" height="{{ (2 * m.r)|coord }}"/>
+{%- else -%}
+<polygon class="{{ cls }}" points="{% for x, y in m.points %}{{ x|coord }},{{ y|coord }}{{ " " if not loop.last }}{% endfor %}"/>
+{%- endif -%}
+{%- endmacro -%}
+{%- macro swatch(style) -%}
+<svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false">
+{%- if style == "all" -%}
+<line class="sw-all" x1="3" y1="6" x2="27" y2="6"/>
+{%- else -%}
+<line class="sw-line c-{{ style }} d-{{ style }}" x1="1" y1="6" x2="29" y2="6"/>{{ marker(swatches[style], style) }}
+{%- endif -%}
+</svg>
+{%- endmacro -%}
+{%- macro vkey(label, style) -%}
+<span class="vkey">{{ swatch(style) }}{{ label }}</span>
+{%- endmacro -%}
+{%- macro metric_cell(metric, style, row_is_few) -%}
+{%- set is_few = metric.few_note and not row_is_few -%}
+<td class="metric-cell{{ ' is-few' if is_few }}"><span class="val">{{ metric.value }}</span>
+{%- if metric.interval %}<span class="ci-text">{{ metric.interval }}</span>{% endif %}
+{%- if metric.note %}<span class="why">{{ metric.note }}</span>{% endif %}
+{%- if metric.strip %}<svg class="ci" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="ci-track" x="0" y="3" width="100" height="2"/><rect class="ci-range c-{{ style }}" x="{{ metric.strip.range_x|coord }}" y="1" width="{{ metric.strip.range_width|coord }}" height="6" rx="1"/><rect class="ci-point" x="{{ (metric.strip.point_x - 0.6)|coord }}" y="0" width="1.2" height="8"/></svg>{% endif %}
+{%- if is_few %}{{ few_note(metric.few_note ~ " " ~ metric.n_text) }}{% endif -%}
+</td>
+{%- endmacro -%}
+{%- macro trend_figure(cls, metric, chart, key, what) -%}
+    <figure>
+      <figcaption id="{{ cls.anchor }}-t-{{ key }}">{{ metric.title }} per week <span class="visually-hidden">for {{ cls.name }}.{{ " The same numbers are in the table that follows." if not metric.empty_text }}</span></figcaption>
+{% if metric.empty_text %}
+      <p class="empty-note">{{ metric.empty_text }}</p>
+{% else %}
+      <div class="chart-scroll" role="region" tabindex="0" aria-label="{{ metric.title }} chart for {{ cls.name }}, scrolls sideways"><svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-labelledby="{{ cls.anchor }}-t-{{ key }}" focusable="false">
+{%- for line in chart.grid -%}
+<line class="grid-line" x1="{{ frame.left|coord }}" y1="{{ line.y|coord }}" x2="{{ (chart.width - frame.right_margin)|coord }}" y2="{{ line.y|coord }}"/><text class="axis-text" x="{{ (frame.left - 8)|coord }}" y="{{ (line.y + 4)|coord }}" text-anchor="end">{{ line.label }}</text>
+{%- endfor -%}
+{%- for label in chart.x_labels -%}
+<text class="axis-text" x="{{ label.x|coord }}" y="{{ chart.height - 26 }}" text-anchor="middle">{{ label.week }}</text><text class="n-text" x="{{ label.x|coord }}" y="{{ chart.height - 10 }}" text-anchor="middle">{{ label.count_text }}</text>
+{%- endfor -%}
+{%- for mark in chart.version_markers -%}
+<line class="vmark" x1="{{ mark.x|coord }}" y1="24" x2="{{ mark.x|coord }}" y2="{{ (chart.height - frame.bottom_margin)|coord }}"/><text class="vmark-text" x="{{ (mark.x + 4)|coord }}" y="18">{{ mark.label }}</text>
+{%- endfor -%}
+{%- for series in chart.series -%}
+{%- if series.style == "all" -%}
+{%- if series.path %}<path class="series-all" d="{{ series.path }}"/>{% endif -%}
+{%- else -%}
+{%- if series.path %}<path class="series c-{{ series.style }} d-{{ series.style }}" d="{{ series.path }}"/>{% endif -%}
+{%- for m in series.markers %}{{ marker(m, series.style) }}{% endfor -%}
+{%- endif -%}
+{%- endfor -%}
+</svg></div>
+      <div class="visually-hidden"><table><caption>{{ cls.name }}: {{ what }} per week, {{ cls.trend.period_text }}</caption><thead><tr><th scope="col">Week</th>{% for line in metric.lines %}<th scope="col">{{ line.label }}</th>{% endfor %}</tr></thead><tbody>
+{%- for row in metric.table_rows -%}
+<tr><th scope="row">{{ row.week }}</th>{% for cell in row.cells %}<td>{{ cell }}</td>{% endfor %}</tr>
+{%- endfor -%}
+</tbody></table></div>
+{% endif %}
+    </figure>
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="generator" content="{{ generator }}">
+<title>DetectTrace POC dashboard</title>
+<style>{{ css }}</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the results</a>
+<div class="wrap">
+
+<header class="top" aria-labelledby="page-title">
+  <div>
+    <p class="eyebrow">Self-reported agent evaluation</p>
+    <h1 id="page-title">{{ view.header.title }} <span>POC</span></h1>
+    <p class="tagline">How your SOC agent compares with your analysts, per alert class and per prompt version.</p>
+{% if view.header.low_coverage_text %}
+    <p class="cov-alert"><a href="#s-notes">{{ warn_icon() }}<span>{{ view.header.low_coverage_text }}</span></a></p>
+{% endif %}
+  </div>
+  <dl class="meta">
+    <dt>Data source</dt><dd>{% for source in view.header.sources %}<span class="src mono">{{ source.name }}: {{ source.path }}</span>{% endfor %}</dd>
+    <dt>Cases</dt><dd>{{ view.header.cases_text }}</dd>
+    <dt>Period</dt><dd>{{ view.header.period_text }}</dd>
+    <dt>Versions found</dt><dd>{{ view.header.versions_text }}</dd>
+  </dl>
+</header>
+
+<aside class="banner" aria-label="About these results">
+  {{ info_icon() }}
+  <p><strong>{{ view.banner.title }}</strong> {{ view.banner.text }} <a href="{{ view.banner.link_url }}" rel="noopener noreferrer">{{ view.banner.link_text }}</a></p>
+</aside>
+
+<main id="main" tabindex="-1">
+
+<section aria-labelledby="s-versions">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">01</span><h2 id="s-versions">By alert class and version</h2>
+  <p class="lede">Evidence completeness, verdict agreement and kappa for each version, in the order each version first appeared, with n and 95% intervals. Wide intervals mean few cases.</p></div>
+  <div class="stack">
+{% for cls in view.classes %}
+<article class="card" aria-labelledby="{{ cls.anchor }}-v-h">
+  <h3 id="{{ cls.anchor }}-v-h">{{ cls.name }}</h3>
+  <p class="sub">{{ cls.cases_text }}{% if cls.versions_text %} · {{ cls.versions_text }}{% endif %}</p>
+  <div class="tbl-wrap" role="region" tabindex="0" aria-labelledby="{{ cls.anchor }}-v-cap">
+  <table class="vt">
+    <caption id="{{ cls.anchor }}-v-cap">{{ cls.name }}: metrics per version, in the order each version first appeared. Ranges are 95% intervals.</caption>
+    <thead><tr><th scope="col">Version</th><th scope="col" class="num">Cases</th><th scope="col">Evidence completeness</th><th scope="col">Verdict agreement</th><th scope="col">Cohen's kappa</th><th scope="col" class="num">Dangerous false closes</th></tr></thead>
+    <tbody>
+{% for row in cls.rows %}
+    <tr{% set classes = (["all-row"] if row.is_all else []) + (["is-few"] if row.few_note else []) %}{% if classes %} class="{{ classes|join(' ') }}"{% endif %}><th scope="row">{% if row.is_all %}{{ row.label }}{% else %}{{ vkey(row.label, row.style) }}{% endif %}{% if row.few_note %}{{ few_note(row.few_note) }}{% endif %}</th><td class="num">{{ row.cases_text }}</td>{{ metric_cell(row.completeness, row.style, row.few_note) }}{{ metric_cell(row.agreement, row.style, row.few_note) }}{{ metric_cell(row.kappa, row.style, row.few_note) }}<td class="num">{% if row.is_dangerous %}<span class="dfc is-alarm">{{ warn_icon() }}{{ row.dangerous_text }}</span>{% else %}<span class="dfc is-zero">{{ row.dangerous_text }}</span>{% endif %}</td></tr>
+{% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% if cls.pooled_note %}
+  <p class="card-note">{{ cls.pooled_note }}</p>
+{% endif %}
+</article>
+{% endfor %}
+  </div>
+</section>
+
+<section aria-labelledby="s-skipped">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">02</span><h2 id="s-skipped">Checklist steps the agent skipped</h2>
+  <p class="lede">Share of cases where a step your checklist requires was not satisfied: not called, called with the wrong arguments, or failed. Read across a row to compare versions.</p></div>
+  <div class="stack">
+{% for cls in view.classes %}
+<article class="card" aria-labelledby="{{ cls.anchor }}-s-h">
+  <h3 id="{{ cls.anchor }}-s-h">{{ cls.name }}</h3>
+{% if cls.skipped.empty_text %}
+  <p class="empty-note">{{ cls.skipped.empty_text }}</p>
+{% else %}
+  <p class="sub">{{ cls.skipped.steps_text }} · share of cases where the step was not satisfied</p>
+  <div class="tbl-wrap" role="region" tabindex="0" aria-labelledby="{{ cls.anchor }}-s-cap">
+  <table class="skip-t">
+    <caption id="{{ cls.anchor }}-s-cap">{{ cls.name }}: skipped-step rate per version, side by side.</caption>
+    <thead><tr><th scope="col">Checklist step</th>
+{%- for column in cls.skipped.columns -%}
+<th scope="col"{% if column.few_note %} class="is-few"{% endif %}>{{ vkey(column.label, column.style) }}<span class="of">{{ column.n_text }}</span>{% if column.few_note %}{{ few_note(column.few_note) }}{% endif %}</th>
+{%- endfor -%}
+</tr></thead>
+    <tbody>
+{%- for row in cls.skipped.rows -%}
+<tr><th scope="row"><code>{{ row.item }}</code></th>
+{%- for cell in row.cells -%}
+{%- set column = cls.skipped.columns[loop.index0] -%}
+{%- set is_few = cell.few_note and not column.few_note -%}
+<td{% if cell.few_note %} class="is-few"{% endif %}><span class="rate">{{ cell.rate_text }}</span><span class="of">{{ cell.count_text }}</span><svg class="bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect class="bar-track" x="0" y="0" width="100" height="6" rx="3"/><rect class="bar-fill c-{{ column.style }}" x="0" y="0" width="{{ cell.bar_width|coord }}" height="6" rx="3"/></svg>{% if is_few %}{{ few_note(cell.few_note) }}{% endif %}</td>
+{%- endfor -%}
+</tr>
+{%- endfor -%}
+</tbody>
+  </table>
+  </div>
+{% endif %}
+</article>
+{% endfor %}
+  </div>
+</section>
+
+<section aria-labelledby="s-trend">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">03</span><h2 id="s-trend">Weekly trend</h2>
+  <p class="lede">One line per version, with a point only in weeks where that version has cases, plus all versions together. A dashed rule marks the first week of each version. A version that appears again later is a rollback.</p></div>
+  <div class="stack">
+{% for cls in view.classes %}
+{% set charts = trend_charts[loop.index0] %}
+<article class="card" aria-labelledby="{{ cls.anchor }}-t-h">
+  <h3 id="{{ cls.anchor }}-t-h">{{ cls.name }}</h3>
+  <p class="sub">ISO weeks in UTC, {{ cls.trend.period_text }}. n under each week counts all versions.</p>
+  <ul class="legend" aria-label="Legend for {{ cls.name }}">
+{%- for line in cls.trend.agreement.lines -%}
+<li>{{ swatch(line.style) }}{{ line.label }}</li>
+{%- endfor -%}
+<li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false"><line class="sw-vmark" x1="15" y1="0" x2="15" y2="12"/></svg>First week of a version</li><li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false">{{ marker(few_swatch, "1") }}</svg>Hollow marker: fewer than 10 cases</li></ul>
+  <div class="charts">
+    {{ trend_figure(cls, cls.trend.completeness, charts.completeness, "comp", "evidence completeness") }}
+    {{ trend_figure(cls, cls.trend.agreement, charts.agreement, "agree", "verdict agreement") }}
+  </div>
+</article>
+{% endfor %}
+  </div>
+</section>
+
+<section aria-labelledby="s-confusion">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">04</span><h2 id="s-confusion">Agent verdict against analyst verdict</h2>
+  <p class="lede">All versions together. Outlined cells are where a dangerous false close would fall: the analyst found a true positive, and the agent closed it as a false positive or benign. Cells with any such case are also flagged.</p></div>
+  <div class="cm-grid">
+{% for cls in view.classes %}
+<article class="card" aria-labelledby="{{ cls.anchor }}-c-h">
+  <h3 id="{{ cls.anchor }}-c-h">{{ cls.name }}</h3>
+  <p class="sub">All versions · {{ cls.confusion.n_text }} · {{ cls.confusion.dangerous_text }}</p>
+  <div class="tbl-wrap" role="region" tabindex="0" aria-labelledby="{{ cls.anchor }}-c-cap">
+  <table class="cm">
+    <caption id="{{ cls.anchor }}-c-cap">Rows are the analyst verdict, columns the agent verdict.</caption>
+    <thead><tr><td></td>{% for label in cls.confusion.column_labels %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
+    <tbody>
+{%- for row in cls.confusion.rows -%}
+<tr><th scope="row">{{ row.label }}</th>
+{%- for cell in row.cells -%}
+{%- if cell.is_dangerous and cell.count_text != "0" -%}
+<td class="{{ cell.heat }} is-danger" aria-label="{{ cell.count_text }}, dangerous false close">{{ cell.count_text }}<span class="flag">{{ warn_icon() }}dangerous</span></td>
+{%- else -%}
+<td class="{{ cell.heat }}{{ ' is-danger' if cell.is_dangerous }}">{{ cell.count_text }}</td>
+{%- endif -%}
+{%- endfor -%}
+</tr>
+{%- endfor -%}
+</tbody>
+  </table>
+  </div>
+</article>
+{% endfor %}
+  </div>
+</section>
+
+<section aria-labelledby="s-cases">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">05</span><h2 id="s-cases">Cases</h2>
+  <p class="lede">Filters apply to all {{ view.cases.total_text }} cases. Open a row to see its tool calls and the checklist steps it did not satisfy. Tool calls are included for {{ view.cases.detail_count_text }} notable {{ "case" if view.cases.detail_count_text == "1" else "cases" }} (dashboard.max_detail_cases); tool results are never included.</p></div>
+  <noscript><p>The case table needs JavaScript.</p></noscript>
+  <div id="case-ui" hidden>
+    <div class="filters" id="case-filters" role="group" aria-label="Filter cases">
+      <button type="button" data-filter="all" aria-pressed="true">All cases</button>
+      <button type="button" data-filter="disagreements" aria-pressed="false">Disagreements</button>
+      <button type="button" data-filter="dangerous" aria-pressed="false">Dangerous false closes</button>
+{% for filter in view.cases.class_filters %}
+      <button type="button" data-filter="class:{{ filter.class_index }}" aria-pressed="false">Class: <code>{{ filter.label }}</code></button>
+{% endfor %}
+    </div>
+    <p class="count" id="case-count" aria-live="polite"></p>
+    <div class="tbl-wrap" role="region" tabindex="0" aria-labelledby="cases-cap">
+      <table class="cases">
+        <caption id="cases-cap">Cases, newest week first, then by case ID. Select a case ID to open its details.</caption>
+        <thead><tr><th scope="col">Case</th><th scope="col">Alert class</th><th scope="col">Week</th><th scope="col">Version</th><th scope="col">Analyst</th><th scope="col">Agent</th><th scope="col">Result</th><th scope="col" class="num">Checklist</th></tr></thead>
+        <tbody id="case-rows"></tbody>
+      </table>
+    </div>
+    <div class="more-row"><button type="button" class="more" id="case-more">Show 100 more</button></div>
+  </div>
+</section>
+
+<section aria-labelledby="s-notes">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">06</span><h2 id="s-notes">Data notes</h2>
+  <p class="lede">Input problems found while reading traces and verdicts, grouped, with how to fix them. Up to three examples each.</p></div>
+  <ul class="coverage" aria-label="Coverage">
+{% for line in view.coverage %}
+{% if line.is_low %}
+    <li class="is-low">{{ warn_icon() }}<span><strong>Warning:</strong> {{ line.text }}</span></li>
+{% else %}
+    <li>{{ line.text }}</li>
+{% endif %}
+{% endfor %}
+  </ul>
+{% if view.notes %}
+  <ol class="notes">
+{% for note in view.notes %}
+    <li class="note"><span class="sev {{ 'is-invalid' if note.severity == 'invalid_input' else 'is-warning' }}">{% if note.severity == "invalid_input" %}{{ invalid_icon() }}{% else %}{{ warn_icon() }}{% endif %}{{ note.severity_label }}</span><p class="note-msg"><strong>{{ note.count_text }}</strong> {{ note.message }}{% if note.hint %} <span class="hint">{{ note.hint }}</span>{% endif %}</p>
+{%- if note.examples -%}
+<ul class="examples" aria-label="Examples">
+{%- for example in note.examples -%}
+<li><code>{{ example.subject }}</code>{% if example.detail is not none %}: {{ example.detail }}{% endif %}</li>
+{%- endfor -%}
+{%- if note.more_text %}<li class="more-ex">{{ note.more_text }}</li>{% endif -%}
+</ul>
+{%- endif -%}
+</li>
+{% endfor %}
+  </ol>
+{% else %}
+  <p class="empty-note">No input problems were found.</p>
+{% endif %}
+</section>
+
+<section class="limits" aria-labelledby="s-limits">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">07</span><h2 id="s-limits">What this dashboard does not tell you</h2></div>
+  <dl>
+{% for limit in view.limits %}
+    <div><dt>{{ limit.term }}</dt><dd>{{ limit.text }}</dd></div>
+{% endfor %}
+  </dl>
+</section>
+
+</main>
+
+<footer>Written by {{ generator }}. Everything on this page was computed on your machine, and the page makes no network requests.</footer>
+</div>
+<script type="application/json" id="dt-results">{{ results_json }}</script>
+<script>{{ js }}</script>
+</body>
+</html>
