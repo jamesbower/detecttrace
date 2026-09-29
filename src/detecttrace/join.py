@@ -4,7 +4,6 @@ from collections import defaultdict
 
 from detecttrace.config import Config, normalize_label
 from detecttrace.model import (
-    UNKNOWN_VERSION,
     Case,
     Issue,
     IssueKind,
@@ -73,7 +72,7 @@ def _join_one(
     return Case(
         case_id=row.case_id,
         alert_class=row.alert_class,
-        prompt_version=trace_case.prompt_version or UNKNOWN_VERSION,
+        prompt_version=trace_case.prompt_version,
         analyst_verdict=analyst_verdict,
         agent_verdict=agent_verdict,
         start_ns=trace_case.start_ns,

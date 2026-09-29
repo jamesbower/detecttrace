@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from detecttrace.checklist import ArgRule, Checklist, ChecklistItem
 from detecttrace.config import normalize_label
-from detecttrace.model import UNKNOWN_VERSION, Case, ToolCall, Verdict
+from detecttrace.model import Case, ToolCall, Verdict
 
 _CLASSES = ("impossible_travel", "oauth_consent")
 _WEEK_COUNT = 6
@@ -53,7 +53,7 @@ def _make_case(rng: random.Random, index: int) -> Case:
         * 1_000_000_000
     )
     is_unversioned = rng.random() < 0.01
-    version = UNKNOWN_VERSION if is_unversioned else ("v1" if week < 2 else "v2")
+    version = None if is_unversioned else ("v1" if week < 2 else "v2")
     analyst = _pick_analyst(rng)
     agent = analyst if rng.random() < 0.85 else rng.choice(list(Verdict))
     if rng.random() < 0.01:

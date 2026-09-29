@@ -97,8 +97,14 @@ def test_alert_class_differing_only_in_case_and_spaces_is_not_a_conflict() -> No
     assert issues == []
 
 
-def test_missing_prompt_version_goes_to_unknown() -> None:
+def test_missing_prompt_version_stays_missing() -> None:
     cases, _ = join_cases([trace_case(prompt_version=None)], [row()], CONFIG)
+
+    assert cases[0].prompt_version is None
+
+
+def test_prompt_version_named_unknown_is_kept_as_a_version() -> None:
+    cases, _ = join_cases([trace_case(prompt_version="unknown")], [row()], CONFIG)
 
     assert cases[0].prompt_version == "unknown"
 
@@ -310,7 +316,7 @@ def test_end_to_end_from_files(tmp_path: Path) -> None:
         Case(
             case_id="DT-7",
             alert_class="impossible_travel",
-            prompt_version="unknown",
+            prompt_version=None,
             analyst_verdict=Verdict.TRUE_POSITIVE,
             agent_verdict=Verdict.BENIGN,
             start_ns=1_000,

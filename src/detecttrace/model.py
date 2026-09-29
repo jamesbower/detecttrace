@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-UNKNOWN_VERSION = "unknown"
-
 
 class InputFileError(Exception):
     """Input the run cannot use at all; the CLI exits 1."""
@@ -117,7 +115,7 @@ class VerdictRow:
 class Case:
     case_id: str
     alert_class: str  # CSV form
-    prompt_version: str  # UNKNOWN_VERSION when the trace has none
+    prompt_version: str | None  # None: the trace has no version
     analyst_verdict: Verdict | None  # None: unmapped or conflicting label
     agent_verdict: Verdict | None  # None: unmapped or missing label
     start_ns: int

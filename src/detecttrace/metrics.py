@@ -88,10 +88,17 @@ class SkipRate:
     rate: float
 
 
+class TrendScope(StrEnum):
+    ALL = "all"
+    VERSION = "version"
+    OTHER = "other"
+
+
 @dataclass(frozen=True, slots=True)
 class WeekPoint:
     week: str  # ISO week in UTC, e.g. "2026-W38"
-    version: str | None  # None: all versions
+    scope: TrendScope
+    version: str | None  # meaningful only for VERSION scope, where None means no version
     completeness: float | None
     completeness_n: int
     agreement: float | None
@@ -101,13 +108,14 @@ class WeekPoint:
 @dataclass(frozen=True, slots=True)
 class ClassReport:
     alert_class: str  # CSV form of the first case by case ID
-    versions: tuple[str, ...]  # ordered by first case start, then name
-    version_first_week: dict[str, str]
+    # None: no version. Ordered by first case start, then name, None as if it were "".
+    versions: tuple[str | None, ...]
+    version_first_week: dict[str | None, str]
     overall: SliceMetrics
-    by_version: dict[str, SliceMetrics]
+    by_version: dict[str | None, SliceMetrics]
     checklist_item_ids: tuple[str, ...]  # empty without a checklist
     skipped_overall: tuple[SkipRate, ...]
-    skipped_by_version: dict[str, tuple[SkipRate, ...]]
+    skipped_by_version: dict[str | None, tuple[SkipRate, ...]]
     trend: tuple[WeekPoint, ...]  # by week, then the all-versions point, then version order
 
 
@@ -206,13 +214,15 @@ def _build_class_report(
     cases: list[Case], checklist: Checklist | None, evidence: Mapping[str, CaseEvidence]
 ) -> ClassReport:
     item_count = len(checklist.items) if checklist is not None else None
-    cases_by_version: dict[str, list[Case]] = {}
-    first_start: dict[str, int] = {}
+    cases_by_version: dict[str | None, list[Case]] = {}
+    first_start: dict[str | None, int] = {}
     for case in cases:
         version = case.prompt_version
         cases_by_version.setdefault(version, []).append(case)
         first_start[version] = min(first_start.get(version, case.start_ns), case.start_ns)
-    versions = tuple(sorted(cases_by_version, key=lambda version: (first_start[version], version)))
+    versions = tuple(
+        sorted(cases_by_version, key=lambda version: (first_start[version], version or ""))
+    )
     item_ids = tuple(item.id for item in checklist.items) if checklist is not None else ()
     return ClassReport(
         alert_class=cases[0].alert_class,
@@ -254,15 +264,19 @@ def _skip_rates(
 
 def _trend(
     cases: list[Case],
-    versions: tuple[str, ...],
+    versions: tuple[str | None, ...],
     evidence: Mapping[str, CaseEvidence],
     item_count: int | None,
 ) -> tuple[WeekPoint, ...]:
-    completeness: dict[tuple[str, str | None], list[float]] = {}
-    agreement: dict[tuple[str, str | None], list[bool]] = {}
+    # A trend key is (week, scope, version); the version is None outside VERSION scope.
+    completeness: dict[tuple[str, TrendScope, str | None], list[float]] = {}
+    agreement: dict[tuple[str, TrendScope, str | None], list[bool]] = {}
     for case in cases:
         week = iso_week(case.start_ns)
-        keys = ((week, None), (week, case.prompt_version))
+        keys = (
+            (week, TrendScope.ALL, None),
+            (week, TrendScope.VERSION, case.prompt_version),
+        )
         for key in keys:
             completeness.setdefault(key, [])
             agreement.setdefault(key, [])
@@ -274,21 +288,29 @@ def _trend(
             is_agreed = case.analyst_verdict is case.agent_verdict
             for key in keys:
                 agreement[key].append(is_agreed)
-    weeks = sorted({week for week, _ in completeness})
-    order: tuple[str | None, ...] = (None, *versions)
+    weeks = sorted({week for week, _, _ in completeness})
+    order = (
+        (TrendScope.ALL, None),
+        *((TrendScope.VERSION, version) for version in versions),
+    )
     return tuple(
-        _week_point(week, version, completeness[week, version], agreement[week, version])
+        _week_point(week, scope, version, completeness[key], agreement[key])
         for week in weeks
-        for version in order
-        if (week, version) in completeness
+        for scope, version in order
+        if (key := (week, scope, version)) in completeness
     )
 
 
 def _week_point(
-    week: str, version: str | None, completeness: list[float], agreement: list[bool]
+    week: str,
+    scope: TrendScope,
+    version: str | None,
+    completeness: list[float],
+    agreement: list[bool],
 ) -> WeekPoint:
     return WeekPoint(
         week=week,
+        scope=scope,
         version=version,
         completeness=statistics.fmean(completeness) if completeness else None,
         completeness_n=len(completeness),

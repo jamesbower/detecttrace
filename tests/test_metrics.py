@@ -16,6 +16,7 @@ from detecttrace.metrics import (
     MetricsReport,
     SkipRate,
     SliceMetrics,
+    TrendScope,
     WeekPoint,
     compute_metrics,
     compute_slice,
@@ -34,6 +35,8 @@ FP = Verdict.FALSE_POSITIVE
 BENIGN = Verdict.BENIGN
 SATISFIED = ItemOutcome(ItemStatus.SATISFIED, None)
 NOT_CALLED = ItemOutcome(ItemStatus.MISSED, MissedReason.NOT_CALLED)
+ALL = TrendScope.ALL
+VERSION = TrendScope.VERSION
 
 VerdictCounts = Mapping[tuple[Verdict | None, Verdict | None], int]
 
@@ -54,7 +57,7 @@ def make_case(
     agent: Verdict | None,
     alert_class: str = "Phishing",
     *,
-    version: str = "v1",
+    version: str | None = "v1",
     start_ns: int = 0,
     calls: tuple[ToolCall, ...] = (),
 ) -> Case:
@@ -463,8 +466,8 @@ def issues_of(
     return [(issue.kind, issue.subject) for issue in compute_metrics(cases, checklists)[1]]
 
 
-def trend_keys(report: MetricsReport) -> list[tuple[str, str | None]]:
-    return [(point.week, point.version) for point in report.classes[0].trend]
+def trend_keys(report: MetricsReport) -> list[tuple[str, TrendScope, str | None]]:
+    return [(point.week, point.scope, point.version) for point in report.classes[0].trend]
 
 
 def class_names(report: MetricsReport) -> tuple[str, ...]:
@@ -480,7 +483,7 @@ def make_mixed_cases() -> list[Case]:
             generator.choice(verdicts),
             generator.choice(verdicts),
             generator.choice(("Phishing", "phishing ", "Malware", "Recon")),
-            version=generator.choice(("v1", "v2", "unknown")),
+            version=generator.choice(("v1", "v2", None)),
             start_ns=generator.choice((IN_W38, IN_W39, IN_W40)),
             calls=(
                 make_call("alpha", generator.choice(({"window": 48}, "{bad", {"window": "2d"}))),
@@ -544,16 +547,22 @@ def test_versions_are_ordered_by_first_case_start() -> None:
     cases = [
         make_case("a-1", TP, TP, version="v1", start_ns=IN_W39),
         make_case("a-2", TP, TP, version="v2", start_ns=IN_W38),
-        make_case("a-3", TP, TP, version="unknown", start_ns=IN_W40),
+        make_case("a-3", TP, TP, version=None, start_ns=IN_W40),
     ]
 
-    assert report_of(cases).classes[0].versions == ("v2", "v1", "unknown")
+    assert report_of(cases).classes[0].versions == ("v2", "v1", None)
 
 
 def test_versions_starting_together_are_ordered_by_name() -> None:
     cases = [make_case("a-1", TP, TP, version="b"), make_case("a-2", TP, TP, version="a")]
 
     assert report_of(cases).classes[0].versions == ("a", "b")
+
+
+def test_no_version_and_a_version_named_unknown_stay_separate() -> None:
+    cases = [make_case("a-1", TP, TP, version="unknown"), make_case("a-2", TP, TP, version=None)]
+
+    assert report_of(cases).classes[0].versions == (None, "unknown")
 
 
 def test_eight_or_more_versions_are_all_kept() -> None:
@@ -573,12 +582,12 @@ def test_ab_versions_have_points_in_the_same_weeks() -> None:
     ]
 
     assert trend_keys(report_of(cases)) == [
-        (W38, None),
-        (W38, "v1"),
-        (W38, "v2"),
-        (W39, None),
-        (W39, "v1"),
-        (W39, "v2"),
+        (W38, ALL, None),
+        (W38, VERSION, "v1"),
+        (W38, VERSION, "v2"),
+        (W39, ALL, None),
+        (W39, VERSION, "v1"),
+        (W39, VERSION, "v2"),
     ]
 
 
@@ -609,12 +618,12 @@ def test_rollback_version_has_points_in_both_periods() -> None:
     ]
 
     assert trend_keys(report_of(cases)) == [
-        (W38, None),
-        (W38, "v1"),
-        (W39, None),
-        (W39, "v2"),
-        (W40, None),
-        (W40, "v1"),
+        (W38, ALL, None),
+        (W38, VERSION, "v1"),
+        (W39, ALL, None),
+        (W39, VERSION, "v2"),
+        (W40, ALL, None),
+        (W40, VERSION, "v1"),
     ]
 
 
@@ -624,7 +633,9 @@ def test_trend_point_averages_completeness_and_agreement_of_the_week() -> None:
         make_case("a-2", TP, FP, start_ns=IN_W38, calls=(make_call("alpha"),)),
     ]
 
-    assert report_of(cases, TWO_ITEMS).classes[0].trend[0] == WeekPoint(W38, None, 0.75, 2, 0.5, 2)
+    assert report_of(cases, TWO_ITEMS).classes[0].trend[0] == WeekPoint(
+        W38, ALL, None, 0.75, 2, 0.5, 2
+    )
 
 
 def test_trend_version_point_averages_only_that_version() -> None:
@@ -640,7 +651,9 @@ def test_trend_version_point_averages_only_that_version() -> None:
         make_case("a-2", TP, FP, version="v2", start_ns=IN_W38, calls=(make_call("alpha"),)),
     ]
 
-    assert report_of(cases, TWO_ITEMS).classes[0].trend[2] == WeekPoint(W38, "v2", 0.5, 1, 0.0, 1)
+    assert report_of(cases, TWO_ITEMS).classes[0].trend[2] == WeekPoint(
+        W38, VERSION, "v2", 0.5, 1, 0.0, 1
+    )
 
 
 def test_trend_orders_versions_by_first_start_not_name() -> None:
@@ -649,7 +662,25 @@ def test_trend_orders_versions_by_first_start_not_name() -> None:
         make_case("a-2", TP, TP, version="v2", start_ns=at(2026, 9, 15, 11)),
     ]
 
-    assert trend_keys(report_of(cases)) == [(W38, None), (W38, "v2"), (W38, "v1")]
+    assert trend_keys(report_of(cases)) == [
+        (W38, ALL, None),
+        (W38, VERSION, "v2"),
+        (W38, VERSION, "v1"),
+    ]
+
+
+def test_all_versions_trend_point_has_all_scope_and_no_version() -> None:
+    cases = [make_case("a-1", TP, TP, version="v1", start_ns=IN_W38)]
+    point = report_of(cases).classes[0].trend[0]
+
+    assert (point.scope, point.version) == (ALL, None)
+
+
+def test_trend_point_for_cases_without_version_has_version_scope_and_no_version() -> None:
+    cases = [make_case("a-1", TP, TP, version=None, start_ns=IN_W38)]
+    point = report_of(cases).classes[0].trend[1]
+
+    assert (point.scope, point.version) == (VERSION, None)
 
 
 def test_trend_point_without_agreement_cases_has_no_agreement() -> None:
