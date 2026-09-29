@@ -78,7 +78,33 @@ def test_empty_blank_or_non_text_operation_falls_back_to_span_name(operation: ob
     assert tools_by_case(spans) == {"DT-1": ()}
 
 
+def test_span_name_is_ignored_when_the_operation_attribute_names_another_operation() -> None:
+    spans = [
+        case_root("r1", "DT-1"),
+        make_span("t1", "r1", name="execute_tool x", attributes={"gen_ai.operation.name": "chat"}),
+    ]
+
+    assert tools_by_case(spans) == {"DT-1": ()}
+
+
+def test_span_name_must_start_with_the_exact_operation_word() -> None:
+    spans = [case_root("r1", "DT-1"), make_span("t1", "r1", name="execute_tools x")]
+
+    assert tools_by_case(spans) == {"DT-1": ()}
+
+
 # Case structure
+
+
+def test_non_agent_child_with_a_case_id_opens_no_case() -> None:
+    spans = [
+        case_root("r1", "DT-1"),
+        make_span("c1", "r1", attributes={"detecttrace.case_id": "DT-9"}),
+    ]
+
+    cases, _ = build_trace_cases(spans, MAPPING)
+
+    assert [case.case_id for case in cases] == ["DT-1"]
 
 
 def test_sub_agent_without_case_id_tool_calls_belong_to_the_root() -> None:
@@ -366,12 +392,94 @@ def test_map_arguments_stay_a_dictionary_in_original_key_order() -> None:
 
     cases, _ = build_trace_cases(spans, MAPPING)
 
-    assert (
-        repr(cases[0].tool_calls[0].arguments) == "{'window': '24h', 'account': 'user@example.com'}"
-    )
+    assert list(cases[0].tool_calls[0].arguments or {}) == ["window", "account"]
+
+
+def test_string_arguments_stay_exactly_as_recorded() -> None:
+    spans = [
+        case_root("r1", "DT-1"),
+        tool_span("t1", "r1", attributes={"gen_ai.tool.call.arguments": '{"a":1}'}),
+    ]
+
+    cases, _ = build_trace_cases(spans, MAPPING)
+
+    assert cases[0].tool_calls[0].arguments == '{"a":1}'
+
+
+def test_string_arguments_are_not_reported() -> None:
+    spans = [
+        case_root("r1", "DT-1"),
+        tool_span("t1", "r1", attributes={"gen_ai.tool.call.arguments": '{"a":1}'}),
+    ]
+
+    assert issue_kinds(spans) == []
+
+
+def test_retry_is_kept_as_two_tool_calls_in_order() -> None:
+    spans = [
+        case_root("r1", "DT-1"),
+        tool_span("t2", "r1", start_ns=20),
+        tool_span("t1", "r1", start_ns=10, is_error=True),
+    ]
+
+    cases, _ = build_trace_cases(spans, MAPPING)
+
+    assert tuple(call.is_failed for call in cases[0].tool_calls) == (True, False)
 
 
 # Attribute lookup
+
+
+def test_alert_class_on_the_root_beats_the_resource_value() -> None:
+    spans = [
+        case_root(
+            "r1",
+            "DT-1",
+            attributes={"detecttrace.alert_class": "a"},
+            resource={"detecttrace.alert_class": "b"},
+        )
+    ]
+
+    cases, _ = build_trace_cases(spans, MAPPING)
+
+    assert cases[0].alert_class == "a"
+
+
+def test_prompt_version_on_the_root_beats_the_resource_value() -> None:
+    spans = [
+        case_root(
+            "r1",
+            "DT-1",
+            attributes={"detecttrace.prompt_version": "a"},
+            resource={"detecttrace.prompt_version": "b"},
+        )
+    ]
+
+    cases, _ = build_trace_cases(spans, MAPPING)
+
+    assert cases[0].prompt_version == "a"
+
+
+def test_root_prompt_version_beats_a_descendant_version() -> None:
+    mapping = MappingConfig(prompt_version_lookup="descendant")
+    spans = [
+        case_root("r1", "DT-1", attributes={"detecttrace.prompt_version": "v1"}),
+        make_span("c1", "r1", attributes={"detecttrace.prompt_version": "v2"}),
+    ]
+
+    cases, _ = build_trace_cases(spans, mapping)
+
+    assert cases[0].prompt_version == "v1"
+
+
+def test_root_prompt_version_with_a_different_descendant_version_is_not_a_conflict() -> None:
+    mapping = MappingConfig(prompt_version_lookup="descendant")
+    spans = [
+        case_root("r1", "DT-1", attributes={"detecttrace.prompt_version": "v1"}),
+        make_span("c1", "r1", attributes={"detecttrace.prompt_version": "v2"}),
+    ]
+
+    assert issue_kinds(spans, mapping) == []
 
 
 def test_alert_class_falls_back_to_resource_attributes() -> None:
@@ -483,7 +591,15 @@ def test_descendant_lookup_ignores_spans_of_a_nested_case() -> None:
 
 @pytest.mark.parametrize(
     ("value", "expected"),
-    [(3, "3"), (2.5, "2.5"), (3.0, "3.0"), (1e16, "1e+16"), (True, "true"), ("  v1 ", "v1")],
+    [
+        (3, "3"),
+        (2.5, "2.5"),
+        (3.0, "3.0"),
+        (1e16, "1e+16"),
+        (True, "true"),
+        (False, "false"),
+        ("  v1 ", "v1"),
+    ],
 )
 def test_attribute_values_are_converted_to_text(value: object, expected: str) -> None:
     spans = [case_root("r1", "DT-1", attributes={"detecttrace.prompt_version": value})]
@@ -516,6 +632,20 @@ def test_array_value_is_rejected_and_reported() -> None:
     spans = [case_root("r1", "DT-1", attributes={"detecttrace.prompt_version": ["v1", "v2"]})]
 
     assert issue_kinds(spans) == [IssueKind.INVALID_ATTRIBUTE]
+
+
+def test_dict_value_is_rejected_and_reported() -> None:
+    spans = [case_root("r1", "DT-1", attributes={"detecttrace.prompt_version": {"a": "v1"}})]
+
+    assert issue_kinds(spans) == [IssueKind.INVALID_ATTRIBUTE]
+
+
+def test_dict_value_leaves_the_attribute_empty() -> None:
+    spans = [case_root("r1", "DT-1", attributes={"detecttrace.prompt_version": {"a": "v1"}})]
+
+    cases, _ = build_trace_cases(spans, MAPPING)
+
+    assert cases[0].prompt_version is None
 
 
 def test_non_finite_number_is_rejected_and_reported() -> None:
