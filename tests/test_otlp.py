@@ -88,6 +88,26 @@ def test_decodes_attribute_value_types(tmp_path: Path, value: object, expected: 
     assert spans[0].attributes["k"] == expected
 
 
+def test_non_ascii_attribute_value_loads_unchanged(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    doc = otlp_document([otlp_span(S1, attributes={"city": "Zürich 東京"})])
+    path.write_text(_line(S2) + json.dumps(doc, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    spans, _ = load_spans(path)
+
+    assert spans[1].attributes == {"city": "Zürich 東京"}
+
+
+def test_non_ascii_span_name_loads_unchanged(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    doc = otlp_document([otlp_span(S1, name="invoke_agent Zürich 東京")])
+    path.write_text(_line(S2) + json.dumps(doc, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    spans, _ = load_spans(path)
+
+    assert spans[1].name == "invoke_agent Zürich 東京"
+
+
 def test_decodes_kvlist_value_as_dict(tmp_path: Path) -> None:
     span = otlp_span(S1)
     span["attributes"] = [

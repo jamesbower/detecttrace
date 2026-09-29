@@ -127,6 +127,53 @@ def test_missing_agent_verdict_is_reported() -> None:
     assert [i.kind for i in issues] == [IssueKind.MISSING_AGENT_VERDICT]
 
 
+def test_unmapped_agent_label_keeps_the_case_without_an_agent_verdict() -> None:
+    cases, _ = join_cases([trace_case(agent_label="maybe")], [row()], CONFIG)
+
+    assert cases[0].agent_verdict is None
+
+
+def test_missing_agent_label_keeps_the_case_without_an_agent_verdict() -> None:
+    cases, _ = join_cases([trace_case(agent_label=None)], [row()], CONFIG)
+
+    assert cases[0].agent_verdict is None
+
+
+def test_trace_without_alert_class_takes_the_csv_class() -> None:
+    cases, _ = join_cases([trace_case(alert_class=None)], [row(alert_class="Phishing")], CONFIG)
+
+    assert cases[0].alert_class == "Phishing"
+
+
+def test_trace_without_alert_class_is_not_a_conflict() -> None:
+    _, issues = join_cases([trace_case(alert_class=None)], [row(alert_class="Phishing")], CONFIG)
+
+    assert issues == []
+
+
+def test_different_unmapped_analyst_labels_conflict() -> None:
+    _, issues = join_cases(
+        [trace_case()], [row(label="Escalated"), row(label="Pending", line=3)], CONFIG
+    )
+
+    assert [i.kind for i in issues] == [
+        IssueKind.UNMAPPED_ANALYST_LABEL,
+        IssueKind.UNMAPPED_ANALYST_LABEL,
+        IssueKind.CONFLICTING_ANALYST_VERDICT,
+    ]
+
+
+def test_unmapped_labels_differing_only_in_case_and_spaces_are_duplicates() -> None:
+    _, issues = join_cases(
+        [trace_case()], [row(label="Escalated"), row(label=" escalated", line=3)], CONFIG
+    )
+
+    assert [i.kind for i in issues] == [
+        IssueKind.UNMAPPED_ANALYST_LABEL,
+        IssueKind.DUPLICATE_VERDICT,
+    ]
+
+
 def test_duplicate_rows_with_the_same_mapped_verdict_keep_it() -> None:
     config = Config(label_map={"TP": Verdict.TRUE_POSITIVE, "Malicious": Verdict.TRUE_POSITIVE})
 
