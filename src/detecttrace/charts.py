@@ -10,8 +10,13 @@ PLOT_RIGHT_MARGIN = 16.0
 PLOT_TOP = 30.0
 PLOT_BOTTOM_MARGIN = 50.0
 MARKER_RADIUS = 4.2
-# Below this many cases a point is drawn hollow, so a thin week never looks as solid as a full one.
-FEW_CASES = 10
+VERSION_LINE_TOP = 24.0
+VERSION_LABEL_Y = 18.0
+# Gaps between an axis and its text; the text sits just off the line it labels.
+LABEL_GAP = 4.0
+GRID_LABEL_GAP = 8.0
+WEEK_LABEL_OFFSET = 26.0
+COUNT_LABEL_OFFSET = 10.0
 
 # One shape per style key so versions differ by more than color.
 SHAPE_BY_STYLE = {
@@ -24,6 +29,9 @@ SHAPE_BY_STYLE = {
     "other": "hexagon",
     "none": "cross",
 }
+
+# The all-versions total is otherwise a bare line; its rare marker is a plain dot.
+ALL_SHAPE = "circle"
 
 # Polygon outlines as offsets in units of the marker radius.
 _POLYGONS: dict[str, tuple[tuple[float, float], ...]] = {
@@ -66,17 +74,23 @@ _POLYGONS: dict[str, tuple[tuple[float, float], ...]] = {
 
 @dataclass(frozen=True, slots=True)
 class SeriesInput:
-    """One line: a style key ("1".."6", "other", "none", or "all") and a value (0-1 or None) and case count per week."""
+    """One line: a style key ("1".."6", "other", "none", or "all"), and per week a value (0-1 or
+    None), a case count, and whether the week has few cases (drawn hollow)."""
 
     style: str
     values: Sequence[float | None]
     counts: Sequence[int]
+    few: Sequence[bool]
 
 
 @dataclass(frozen=True, slots=True)
 class GridLine:
     y: float
     label: str
+    x_start: float
+    x_end: float
+    label_x: float  # the label's right end
+    label_y: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,17 +98,27 @@ class XLabel:
     x: float
     week: str
     count_text: str
+    y_week: float
+    y_count: float
 
 
 @dataclass(frozen=True, slots=True)
 class VersionMarker:
+    """One line per week where versions first appear; the label names them all."""
+
     x: float
-    label: str
+    label: str  # "v2, v9"
+    y_top: float
+    y_bottom: float
+    label_x: float
+    label_y: float
+    anchor: str  # SVG text-anchor: "start" or "end", so the label stays inside the chart
 
 
 @dataclass(frozen=True, slots=True)
 class Marker:
-    """A circle or square is drawn from (x, y) and r (a square's side is 2r); other shapes carry their polygon points."""
+    """A circle is drawn from (x, y) and r, a square from (left, top) and side; other shapes
+    carry their polygon points."""
 
     shape: str
     x: float
@@ -102,6 +126,9 @@ class Marker:
     r: float
     points: tuple[tuple[float, float], ...]
     is_few: bool
+    left: float
+    top: float
+    side: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,7 +156,7 @@ def trend_chart(
     width: int = 640,
     height: int = 270,
 ) -> Chart:
-    """Lay out weekly series. Weeks are placed in label order; each series' values and counts follow the input week order."""
+    """Lay out weekly series. Weeks are placed in label order; each series' values, counts and few flags follow the input week order."""
     order = sorted(range(len(weeks)), key=lambda index: weeks[index])
     sorted_weeks = [weeks[index] for index in order]
     plot_right = width - PLOT_RIGHT_MARGIN
@@ -151,19 +178,32 @@ def trend_chart(
             x=to_x(position),
             week=_short_label(sorted_weeks[position]),
             count_text=f"n {all_counts[order[position]] if all_counts else 0:,}",
+            y_week=height - WEEK_LABEL_OFFSET,
+            y_count=height - COUNT_LABEL_OFFSET,
         )
         for position in range(len(sorted_weeks))
     )
+    labels_by_week: dict[str, list[str]] = {}
+    for label, week in version_first_weeks.items():
+        if week in x_by_week:
+            labels_by_week.setdefault(week, []).append(label)
+    middle = (PLOT_LEFT + plot_right) / 2
     version_markers = tuple(
-        VersionMarker(x=x_by_week[week], label=label)
-        for label, week in version_first_weeks.items()
-        if week in x_by_week
+        _create_version_marker(x_by_week[week], ", ".join(labels), plot_bottom, middle)
+        for week, labels in sorted(labels_by_week.items())
     )
     return Chart(
         width=width,
         height=height,
         grid=tuple(
-            GridLine(y=to_y(fraction), label=f"{round(fraction * 100)}%")
+            GridLine(
+                y=to_y(fraction),
+                label=f"{round(fraction * 100)}%",
+                x_start=PLOT_LEFT,
+                x_end=plot_right,
+                label_x=PLOT_LEFT - GRID_LABEL_GAP,
+                label_y=_round(to_y(fraction) + LABEL_GAP),
+            )
             for fraction in GRID_FRACTIONS
         ),
         x_labels=x_labels,
@@ -172,10 +212,25 @@ def trend_chart(
     )
 
 
+def _create_version_marker(
+    x: float, label: str, plot_bottom: float, middle: float
+) -> VersionMarker:
+    # Past the middle a label reads leftwards, so a version in the last week stays in the chart.
+    is_right_half = x > middle
+    return VersionMarker(
+        x=x,
+        label=label,
+        y_top=VERSION_LINE_TOP,
+        y_bottom=plot_bottom,
+        label_x=_round(x - LABEL_GAP if is_right_half else x + LABEL_GAP),
+        label_y=VERSION_LABEL_Y,
+        anchor="end" if is_right_half else "start",
+    )
+
+
 def _lay_out_series(item: SeriesInput, order: Sequence[int], to_x, to_y) -> ChartSeries:
-    segments: list[list[tuple[float, float]]] = []
-    markers: list[Marker] = []
-    current: list[tuple[float, float]] = []
+    segments: list[list[tuple[float, float, bool]]] = []
+    current: list[tuple[float, float, bool]] = []
     for position, index in enumerate(order):
         value = item.values[index]
         if value is None:
@@ -184,15 +239,28 @@ def _lay_out_series(item: SeriesInput, order: Sequence[int], to_x, to_y) -> Char
                 segments.append(current)
             current = []
             continue
-        point = (to_x(position), to_y(value))
-        current.append(point)
-        if item.style != "all":
-            markers.append(create_marker(item.style, *point, is_few=item.counts[index] < FEW_CASES))
+        current.append((to_x(position), to_y(value), item.few[index]))
     if current:
         segments.append(current)
+    if item.style == "all":
+        # The total is drawn as a bare line, so a week with no neighbour needs a marker to show.
+        markers = [
+            create_marker(item.style, x, y, is_few=is_few)
+            for segment in segments
+            if len(segment) == 1
+            for x, y, is_few in segment
+        ]
+    else:
+        markers = [
+            create_marker(item.style, x, y, is_few=is_few)
+            for segment in segments
+            for x, y, is_few in segment
+        ]
     # A lone point has no line to draw; its marker stands for it.
     path = " ".join(
-        "M" + " L".join(f"{x} {y}" for x, y in segment) for segment in segments if len(segment) > 1
+        "M" + " L".join(f"{x} {y}" for x, y, _ in segment)
+        for segment in segments
+        if len(segment) > 1
     )
     return ChartSeries(style=item.style, path=path, markers=tuple(markers))
 
@@ -201,7 +269,7 @@ def create_marker(
     style: str, x: float, y: float, *, is_few: bool = False, radius: float = MARKER_RADIUS
 ) -> Marker:
     """The marker for a style key centred on (x, y); legends use it with a smaller radius."""
-    shape = SHAPE_BY_STYLE[style]
+    shape = ALL_SHAPE if style == "all" else SHAPE_BY_STYLE[style]
     offsets = _POLYGONS.get(shape, ())
     return Marker(
         shape=shape,
@@ -210,6 +278,9 @@ def create_marker(
         r=radius,
         points=tuple((_round(x + dx * radius), _round(y + dy * radius)) for dx, dy in offsets),
         is_few=is_few,
+        left=_round(x - radius),
+        top=_round(y - radius),
+        side=_round(2 * radius),
     )
 
 

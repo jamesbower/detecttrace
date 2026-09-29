@@ -13,6 +13,7 @@ from detecttrace.summary import (
     has_invalid_input,
     is_low_coverage,
     summarize_issues,
+    to_message_without_count,
     to_terminal_text,
     to_visible_text,
 )
@@ -158,6 +159,24 @@ def test_unmapped_labels_give_one_line_per_label() -> None:
 def test_unmapped_label_message_counts_what_it_is_about() -> None:
     lines = summarize_issues(unmapped("Escalated", 12) + unmapped("Pending", 3))
     assert lines[0].message == "12 verdicts use the label 'Escalated', which has no mapping."
+
+
+def test_a_line_keeps_its_message_without_the_count() -> None:
+    lines = summarize_issues(unmapped("Escalated", 1234))
+    assert (
+        lines[0].message_without_count
+        == "verdicts use the label 'Escalated', which has no mapping."
+    )
+
+
+def test_message_without_count_removes_a_count_with_thousands_separators() -> None:
+    message = "1,037 cases have no agent verdict on their trace."
+    assert to_message_without_count(message, 1037) == "cases have no agent verdict on their trace."
+
+
+def test_message_without_count_matches_the_line_field() -> None:
+    [line] = summarize_issues(unmapped("Escalated", 1234))
+    assert to_message_without_count(line.message, line.count) == line.message_without_count
 
 
 def test_unmapped_label_hint_names_the_setting_to_change() -> None:
@@ -537,3 +556,51 @@ def test_coverage_hint_uses_the_config_name() -> None:
 def test_coverage_hint_escapes_the_config_name() -> None:
     [verdicts, _] = coverage_lines(JoinCoverage(1, 3, 1, 1), config_name="a\x1b.yaml")
     assert verdicts.hint == "Check mapping.case_id in a\\x1b.yaml."
+
+
+def test_the_low_coverage_sentence_leaves_out_the_terminal_prefix() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(412, 1030, 412, 412))
+    assert verdicts.sentence == (
+        "412 of 1,030 verdicts matched a trace (40%). Less than half matched, so the results may "
+        "be misleading."
+    )
+
+
+def test_the_terminal_warning_is_the_sentence_with_a_prefix() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(412, 1030, 412, 412))
+    assert verdicts.message == f"WARNING: {verdicts.sentence}"
+
+
+def test_the_raw_coverage_hint_keeps_the_config_name() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(1, 3, 1, 1), config_name="a\x1b.yaml")
+    assert verdicts.raw_hint == "Check mapping.case_id in a\x1b.yaml."
+
+
+def test_coverage_without_a_warning_has_no_raw_hint() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(515, 1030, 515, 515))
+    assert verdicts.raw_hint is None
+
+
+def test_the_coverage_share_text_names_the_side() -> None:
+    [_, traces] = coverage_lines(JoinCoverage(10, 10, 44, 100))
+    assert traces.share_text == "44% of traces matched a verdict"
+
+
+def test_coverage_with_nothing_read_has_no_share_text() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(0, 0, 0, 5))
+    assert verdicts.share_text is None
+
+
+def test_a_tiny_coverage_share_never_reads_zero() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(1, 300, 1, 1))
+    assert verdicts.sentence.startswith("1 of 300 verdicts matched a trace (<1%).")
+
+
+def test_no_match_reads_zero() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(0, 300, 1, 1))
+    assert verdicts.sentence.startswith("0 of 300 verdicts matched a trace (0%).")
+
+
+def test_a_share_just_below_all_is_floored() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(299, 300, 1, 1))
+    assert verdicts.sentence == "299 of 300 verdicts matched a trace (99%)."

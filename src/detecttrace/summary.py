@@ -262,6 +262,7 @@ class SummaryLine:
     kind: IssueKind
     count: int
     message: str  # the sentence with the count, without the fix hint, with the raw key
+    message_without_count: str  # the same sentence after its leading count
     terminal_message: str  # the same sentence, with the key made safe for a terminal
     hint: str  # the fix hint, with the raw configuration file name
     terminal_hint: str  # the same hint, with the file name made safe for a terminal
@@ -273,6 +274,9 @@ class CoverageLine:
     message: str  # ready for the terminal
     hint: str | None  # ready for the terminal; set only when coverage is low
     is_low: bool
+    sentence: str  # the message without the terminal's "WARNING: " prefix
+    raw_hint: str | None  # the hint with the raw configuration file name
+    share_text: str | None  # "44% of traces matched a verdict"; None when nothing was read
 
 
 @dataclass(slots=True)
@@ -321,6 +325,7 @@ def summarize_issues(
             kind=kind,
             count=group.count,
             message=_render_message(kind, key, group.count),
+            message_without_count=_render_phrase(kind, key, group.count),
             terminal_message=_render_message(kind, to_terminal_text(key), group.count),
             hint=_render_hint(kind, key, config_name),
             terminal_hint=_render_hint(kind, to_terminal_text(key), terminal_config_name),
@@ -328,6 +333,11 @@ def summarize_issues(
         )
         for (kind, key), group in ordered
     ]
+
+
+def to_message_without_count(message: str, count: int) -> str:
+    """The sentence of a summary line's `message` after its leading count."""
+    return message.removeprefix(_to_count_prefix(count))
 
 
 def to_terminal_text(text: str, limit: int | None = TERMINAL_TEXT_LIMIT) -> str:
@@ -404,10 +414,18 @@ def _to_group_key(issue: Issue) -> str:
 
 
 def _render_message(kind: IssueKind, key: str, count: int) -> str:
+    return _to_count_prefix(count) + _render_phrase(kind, key, count)
+
+
+def _render_phrase(kind: IssueKind, key: str, count: int) -> str:
     singular, plural, _ = _TEMPLATES[kind]
     phrase = singular if count == 1 else plural
     # format() never re-reads substituted values, so braces in a label are safe.
-    return f"{count:,} {phrase}.".format(key=key)
+    return f"{phrase}.".format(key=key)
+
+
+def _to_count_prefix(count: int) -> str:
+    return f"{count:,} "
 
 
 def _render_hint(kind: IssueKind, key: str, config_name: str) -> str:
@@ -436,15 +454,27 @@ def _coverage_line(
 ) -> CoverageLine:
     noun = nouns[0] if total == 1 else nouns[1]
     if total == 0:
-        return CoverageLine(
-            f"0 of 0 {noun} matched {other_side}: no {noun} were read.", None, False
-        )
-    # Floored so a side just under half never shows as 50% next to the warning.
-    sentence = f"{matched:,} of {total:,} {noun} matched {other_side} ({matched * 100 // total}%)."
+        sentence = f"0 of 0 {noun} matched {other_side}: no {noun} were read."
+        return CoverageLine(sentence, None, False, sentence, None, None)
+    share = _to_share_text(matched, total)
+    sentence = f"{matched:,} of {total:,} {noun} matched {other_side} ({share})."
+    share_text = f"{share} of {noun} matched {other_side}"
     if not is_low_coverage(matched, total):
-        return CoverageLine(sentence, None, False)
+        return CoverageLine(sentence, None, False, sentence, None, share_text)
+    sentence += " Less than half matched, so the results may be misleading."
+    hint = "Check mapping.case_id in {config}."
     return CoverageLine(
-        f"WARNING: {sentence} Less than half matched, so the results may be misleading.",
-        f"Check mapping.case_id in {to_terminal_text(config_name)}.",
+        f"WARNING: {sentence}",
+        hint.format(config=to_terminal_text(config_name)),
         True,
+        sentence,
+        hint.format(config=config_name),
+        share_text,
     )
+
+
+def _to_share_text(matched: int, total: int) -> str:
+    # Floored so a side just under half never shows as 50% next to the warning, and a few
+    # matches never read as none.
+    percent = matched * 100 // total
+    return "<1%" if percent == 0 and matched > 0 else f"{percent}%"
