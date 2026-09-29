@@ -158,3 +158,67 @@ def tool_span(
         },
         **fields,
     )
+
+
+RUN_VERDICTS = "case_id,alert_class,verdict\nDT-1,impossible_travel,TP\nDT-2,impossible_travel,FP\nDT-3,impossible_travel,Benign\n"
+RUN_CHECKLIST = "alert_class: impossible_travel\nitems:\n  - {id: signins, tool: get_signin_logs}\n"
+RUN_CONFIG = """\
+traces: {path: traces}
+verdicts: {path: verdicts.csv}
+checklists: checklists
+output: dashboard.html
+label_map: {TP: true_positive, FP: false_positive, Benign: benign}
+"""
+
+
+def run_trace(number: int, case_id: str) -> dict[str, Any]:
+    """One OTLP document holding a case root with one tool call, in its own trace."""
+    trace_id = f"{number:032x}"
+    root = span_hex(number * 2)
+    return otlp_document(
+        [
+            otlp_span(
+                root,
+                trace_id=trace_id,
+                name="invoke_agent triage",
+                attributes={
+                    "gen_ai.operation.name": "invoke_agent",
+                    "detecttrace.case_id": case_id,
+                    "detecttrace.alert_class": "impossible_travel",
+                    "detecttrace.verdict": "Benign",
+                    "detecttrace.prompt_version": "v1",
+                },
+            ),
+            otlp_span(
+                span_hex(number * 2 + 1),
+                root,
+                trace_id=trace_id,
+                name="execute_tool get_signin_logs",
+                attributes={
+                    "gen_ai.operation.name": "execute_tool",
+                    "gen_ai.tool.name": "get_signin_logs",
+                },
+            ),
+        ]
+    )
+
+
+def write_run_folder(
+    folder: Path,
+    *,
+    case_ids: tuple[str, ...] = ("DT-1", "DT-2", "DT-3"),
+    verdicts: str = RUN_VERDICTS,
+    config: str = RUN_CONFIG,
+) -> Path:
+    """Write traces, verdicts, a checklist and detecttrace.yaml; return the configuration path."""
+    (folder / "traces").mkdir(parents=True)
+    write_jsonl(
+        folder / "traces" / "batch.jsonl",
+        [run_trace(number, case_id) for number, case_id in enumerate(case_ids, start=1)],
+    )
+    (folder / "verdicts.csv").write_text(verdicts, encoding="utf-8")
+    (folder / "checklists").mkdir()
+    (folder / "checklists" / "impossible_travel.yaml").write_text(RUN_CHECKLIST, encoding="utf-8")
+    config_path = folder / "detecttrace.yaml"
+    config_path.write_text(config, encoding="utf-8")
+    return config_path

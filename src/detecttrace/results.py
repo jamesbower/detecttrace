@@ -43,7 +43,7 @@ def build_results(
     checklists: Mapping[str, Checklist],
     summary_lines: Sequence[SummaryLine],
     coverage: JoinCoverage,
-    source: Mapping[str, str],
+    source: Mapping[str, str | None],
     max_detail_cases: int,
 ) -> dict[str, object]:
     """Build the JSON-ready results object. Every container is a list or a str-keyed dict.
