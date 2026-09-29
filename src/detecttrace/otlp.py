@@ -3,7 +3,7 @@
 import gzip
 import io
 import json
-import math
+import os
 import re
 import zlib
 from collections.abc import Callable, Iterator
@@ -19,6 +19,10 @@ _TRACE_ID = re.compile(r"[0-9a-f]{32}")
 _SPAN_ID = re.compile(r"[0-9a-f]{16}")
 _HEX = re.compile(r"[0-9a-f]*")
 _BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
+_INT_TEXT = re.compile(r"-?[0-9]+")
+_UINT64_LIMIT = 2**64
+# BadGzipFile covers a broken member header, including trailing bytes after the last member.
+_COMPRESSION_ERRORS = (EOFError, zlib.error, gzip.BadGzipFile)
 
 # OTLP JSON is untyped input: Any is the honest type until fields are validated in _to_span.
 Json = Any
@@ -37,13 +41,13 @@ def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
         raise FileNotFoundError(
             f"Trace path not found: {path}. Check traces.path in detecttrace.yaml."
         )
-    trace_files = _list_trace_files(path)
+    issues: list[Issue] = []
+    trace_files = _list_trace_files(path, issues)
     if not trace_files:
         raise FileNotFoundError(
             f"No trace files found under {path}. Check traces.path in detecttrace.yaml."
         )
     spans: list[Span] = []
-    issues: list[Issue] = []
     seen: dict[tuple[str, str], Span] = {}
     for file_path, subject in trace_files:
         for document, line_number in _read_documents(file_path, subject, issues):
@@ -63,15 +67,23 @@ def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
     return spans, issues
 
 
-def _list_trace_files(path: Path) -> list[tuple[Path, str]]:
+def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]:
     """Return (file, subject) pairs; the subject is the POSIX path relative to `path`."""
     if path.is_file():
         return [(path, path.name)]
+
+    def report(error: OSError) -> None:
+        subject = Path(error.filename).relative_to(path).as_posix()
+        issues.append(Issue(IssueKind.INVALID_FILE, subject, _describe_os_error(error)))
+
     files: list[tuple[Path, str]] = []
-    for file_path in path.rglob("*"):
-        relative = file_path.relative_to(path)
-        if file_path.is_file() and not any(part.startswith(".") for part in relative.parts):
-            files.append((file_path, relative.as_posix()))
+    # os.walk, not Path.rglob: rglob on 3.11 silently skips folders it cannot list.
+    for folder, folder_names, file_names in os.walk(path, onerror=report):
+        folder_names[:] = [name for name in folder_names if not name.startswith(".")]
+        for name in file_names:
+            file_path = Path(folder, name)
+            if not name.startswith(".") and file_path.is_file():
+                files.append((file_path, file_path.relative_to(path).as_posix()))
     # POSIX form so Windows and Linux read files, and so pick duplicate winners, in the same order.
     return sorted(files, key=lambda item: item[1])
 
@@ -86,22 +98,25 @@ def _read_documents(
             issues.append(Issue(IssueKind.EMPTY_FILE, subject))
         elif first_line in (b"{", b"["):
             yield from _read_one_document(file_path, subject, issues)
+        elif _may_open_document(first_line) and (document := _load_document(file_path)) is not None:
+            yield document, None
         else:
             yield from _read_json_lines(file_path, subject, issues)
-    except EOFError:
-        issues.append(
-            Issue(
-                IssueKind.TRUNCATED_FILE,
-                subject,
-                "compressed file ends early; earlier data was read",
-            )
-        )
-    except zlib.error:
-        issues.append(
-            Issue(IssueKind.INVALID_FILE, subject, "corrupt compressed data; earlier data was read")
-        )
+    except _COMPRESSION_ERRORS as error:
+        issues.append(_compression_issue(error, subject))
     except OSError as error:
-        issues.append(Issue(IssueKind.INVALID_FILE, subject, str(error)))
+        issues.append(Issue(IssueKind.INVALID_FILE, subject, _describe_os_error(error)))
+
+
+def _describe_os_error(error: OSError) -> str:
+    # str(error) embeds the absolute path, which must not reach the dashboard.
+    return error.strerror or type(error).__name__
+
+
+def _compression_issue(error: Exception, subject: str, suffix: str = "") -> Issue:
+    if isinstance(error, EOFError):
+        return Issue(IssueKind.TRUNCATED_FILE, subject, "compressed file ends early" + suffix)
+    return Issue(IssueKind.INVALID_FILE, subject, "corrupt compressed data" + suffix)
 
 
 def _first_content_line(file_path: Path) -> bytes | None:
@@ -114,37 +129,52 @@ def _first_content_line(file_path: Path) -> bytes | None:
     return None
 
 
+def _may_open_document(first_line: bytes) -> bool:
+    # A pretty-printed document can open with `{ "resourceSpans": [`; a JSON line parses alone.
+    return first_line.startswith((b"{", b"[")) and _parse_json_line(first_line) is None
+
+
 def _read_one_document(
     file_path: Path, subject: str, issues: list[Issue]
 ) -> Iterator[tuple[Json, None]]:
-    # NOTE: a one-document file is loaded whole; streaming one huge document is not
-    # supported. JSON lines is the format for large inputs.
+    document = _load_document(file_path)
+    if document is None:
+        issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
+        return
+    yield document, None
+
+
+def _load_document(file_path: Path) -> Json | None:
+    # NOTE: a one-document file is read whole; JSON lines is the format for large inputs.
     with _open_binary(file_path) as handle:
         try:
             # json.load on bytes detects UTF-8 with or without a BOM.
-            document = json.load(handle)
+            return json.load(handle)
         except (ValueError, RecursionError):
-            issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
-            return
-    yield document, None
+            return None
 
 
 def _read_json_lines(
     file_path: Path, subject: str, issues: list[Issue]
 ) -> Iterator[tuple[Json, int]]:
     with _open_binary(file_path) as handle:
-        for line_number, line in enumerate(handle, start=1):
-            if line_number == 1:
-                line = line.removeprefix(_BOM)
-            if not line.strip():
-                continue
-            document = _parse_json_line(line)
-            if document is None:
-                # Only the last line of a file can lack its newline: a writer is still busy.
-                kind = IssueKind.INVALID_LINE if line.endswith(b"\n") else IssueKind.TRUNCATED_LINE
-                issues.append(Issue(kind, subject, f"line {line_number}"))
-                continue
-            yield document, line_number
+        try:
+            for line_number, line in enumerate(handle, start=1):
+                if line_number == 1:
+                    line = line.removeprefix(_BOM)
+                if not line.strip():
+                    continue
+                document = _parse_json_line(line)
+                if document is None:
+                    # Only the last line of a file can lack its newline: a writer is still busy.
+                    kind = (
+                        IssueKind.INVALID_LINE if line.endswith(b"\n") else IssueKind.TRUNCATED_LINE
+                    )
+                    issues.append(Issue(kind, subject, f"line {line_number}"))
+                    continue
+                yield document, line_number
+        except _COMPRESSION_ERRORS as error:
+            issues.append(_compression_issue(error, subject, "; earlier lines were read"))
 
 
 def _open_binary(file_path: Path) -> io.BufferedIOBase:
@@ -195,9 +225,12 @@ def _parse_resource_spans(resource_spans: Json, where: str, report: Report) -> I
         return
     for scope_index, scope_spans in enumerate(scope_spans_list):
         scope_where = f"{where}.scopeSpans[{scope_index}]"
-        raw_spans = (scope_spans.get("spans") or []) if isinstance(scope_spans, dict) else None
+        if not isinstance(scope_spans, dict):
+            report(IssueKind.INVALID_FILE, f"{scope_where} is not an object")
+            continue
+        raw_spans = scope_spans.get("spans") or []
         if not isinstance(raw_spans, list):
-            report(IssueKind.INVALID_FILE, f"{scope_where} is not an object with a spans list")
+            report(IssueKind.INVALID_FILE, f"{scope_where}.spans is not a list")
             continue
         for span_index, raw in enumerate(raw_spans):
             span_where = f"{scope_where}.spans[{span_index}]"
@@ -234,7 +267,7 @@ def _to_span(
         trace_id=trace_id,
         span_id=span_id,
         parent_span_id=parent_span_id,
-        name=str(raw.get("name") or ""),
+        name=_to_name(raw.get("name"), where, report),
         start_ns=start_ns,
         end_ns=end_ns,
         is_error=status.get("code") in _STATUS_ERROR,
@@ -255,15 +288,21 @@ def _to_id(value: Json, pattern: re.Pattern[str], label: str, length: int) -> st
     raise ValueError(reason)
 
 
+def _to_name(value: Json, where: str, report: Report) -> str:
+    if value is None or isinstance(value, str):
+        return value or ""
+    report(IssueKind.INVALID_ATTRIBUTE, f"{where}: name is not a string")
+    return ""
+
+
 def _to_nanos(value: Json, label: str) -> int:
-    # OTLP times are unsigned 64-bit integers: at most 20 ASCII digits.
+    # OTLP JSON times are unsigned 64-bit integers, written as digit strings or JSON integers.
+    # The length check keeps int() off absurdly long digit strings.
     if isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 20:
-        return int(value)
-    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        value = int(value)
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value < _UINT64_LIMIT:
         return value
-    if isinstance(value, float) and math.isfinite(value) and value.is_integer() and value >= 0:
-        return int(value)
-    raise ValueError(f"{label} must be a whole, non-negative number of nanoseconds")
+    raise ValueError(f"{label} must be an unsigned 64-bit integer of nanoseconds")
 
 
 def _decode_attributes(items: Json, where: str, report: Report) -> dict[str, object]:
@@ -309,15 +348,11 @@ def _decode_value(value: Json) -> object:
     if "boolValue" in value:
         return _require(value["boolValue"], bool, "boolValue")
     if "intValue" in value:
-        # OTLP JSON encodes 64-bit integers as strings; int() raises ValueError on bad text.
-        raw = value["intValue"]
-        if isinstance(raw, int) and not isinstance(raw, bool):
-            return raw
-        return int(_require(raw, str, "intValue"))
+        return _to_int(value["intValue"])
     if "doubleValue" in value:
         raw = value["doubleValue"]
         if isinstance(raw, int | float) and not isinstance(raw, bool):
-            return float(raw)
+            return _to_float(raw)
         # Strings cover the JSON encodings "NaN", "Infinity" and "-Infinity".
         return float(_require(raw, str, "doubleValue"))
     if "arrayValue" in value:
@@ -327,6 +362,23 @@ def _decode_value(value: Json) -> object:
     if "bytesValue" in value:
         return _require(value["bytesValue"], str, "bytesValue")
     return None
+
+
+def _to_int(raw: Json) -> int:
+    # OTLP JSON encodes 64-bit integers as strings. int() alone would also accept
+    # spaces, underscores, "+" and non-ASCII digits.
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        return raw
+    if not _INT_TEXT.fullmatch(_require(raw, str, "intValue")):
+        raise ValueError("intValue is not an integer")
+    return int(raw)
+
+
+def _to_float(raw: int | float) -> float:
+    try:
+        return float(raw)
+    except OverflowError:
+        raise ValueError("doubleValue is out of range") from None
 
 
 def _values(container: Json, name: str) -> list[Json]:

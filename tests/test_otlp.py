@@ -1,5 +1,8 @@
 import gzip
 import json
+import os
+import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -18,6 +21,10 @@ from detecttrace.otlp import load_spans
 S1 = span_hex(1)
 S2 = span_hex(2)
 BOM = "﻿"
+needs_permissions = pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="needs POSIX permissions that the current user cannot bypass",
+)
 
 
 def _line(span_id: str) -> str:
@@ -143,6 +150,16 @@ def test_reads_single_pretty_printed_document(tmp_path: Path) -> None:
     assert [s.span_id for s in spans] == [S1, S2]
 
 
+def test_reads_document_whose_first_line_opens_resource_spans(tmp_path: Path) -> None:
+    text = json.dumps(otlp_document([otlp_span(S1)]), indent=2)
+    path = tmp_path / "trace.json"
+    path.write_text('{ "resourceSpans": [' + text.split('"resourceSpans": [', 1)[1])
+
+    spans, _ = load_spans(path)
+
+    assert [s.span_id for s in spans] == [S1]
+
+
 @pytest.mark.parametrize("indent", [None, 2])
 def test_reads_file_starting_with_bom(tmp_path: Path, indent: int | None) -> None:
     path = tmp_path / "t.json"
@@ -215,6 +232,37 @@ def test_files_in_hidden_folders_are_skipped(tmp_path: Path) -> None:
     spans, _ = load_spans(tmp_path)
 
     assert [s.span_id for s in spans] == [S2]
+
+
+@pytest.fixture
+def unreadable_folder(tmp_path: Path) -> Iterator[Path]:
+    folder = tmp_path / "sub"
+    folder.mkdir()
+    write_jsonl(folder / "t.jsonl", [otlp_document([otlp_span(S1)])])
+    folder.chmod(0)
+    yield folder
+    folder.chmod(0o700)
+
+
+@needs_permissions
+def test_unreadable_subfolder_is_reported(tmp_path: Path, unreadable_folder: Path) -> None:
+    write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S2)])])
+
+    _, issues = load_spans(tmp_path)
+
+    assert [(i.kind, i.subject, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "sub", "Permission denied")
+    ]
+
+
+@needs_permissions
+def test_unreadable_file_detail_has_no_path(tmp_path: Path) -> None:
+    path = write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S1)])])
+    path.chmod(0)
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [(IssueKind.INVALID_FILE, "Permission denied")]
 
 
 def test_issue_subject_is_posix_path_relative_to_folder(tmp_path: Path) -> None:
@@ -327,6 +375,15 @@ def test_invalid_first_line_keeps_later_lines(tmp_path: Path) -> None:
     assert [s.span_id for s in spans] == [S1, S2]
 
 
+def test_invalid_first_line_opening_an_object_keeps_later_lines(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text('{"resourceSpans": [\n' + _line(S1) + _line(S2))
+
+    spans, _ = load_spans(path)
+
+    assert [s.span_id for s in spans] == [S1, S2]
+
+
 def test_line_that_is_not_utf8_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
     path.write_bytes(_line(S1).encode() + b"\xe9\n" + _line(S2).encode())
@@ -371,7 +428,62 @@ def test_truncated_gzip_file_is_reported(tmp_path: Path) -> None:
     _, issues = load_spans(path)
 
     assert [(i.kind, i.detail) for i in issues] == [
-        (IssueKind.TRUNCATED_FILE, "compressed file ends early; earlier data was read")
+        (IssueKind.TRUNCATED_FILE, "compressed file ends early")
+    ]
+
+
+def test_truncated_gzip_after_first_line_says_earlier_lines_were_read(tmp_path: Path) -> None:
+    # Two gzip members: the first line is intact, the second member is cut short.
+    path = tmp_path / "t.jsonl.gz"
+    path.write_bytes(gzip.compress(_line(S1).encode()) + gzip.compress(_line(S2).encode())[:-12])
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.TRUNCATED_FILE, "compressed file ends early; earlier lines were read")
+    ]
+
+
+def test_truncated_gzip_document_is_reported(tmp_path: Path) -> None:
+    text = json.dumps(otlp_document([otlp_span(S1), otlp_span(S2)]), indent=2)
+    path = tmp_path / "t.json.gz"
+    path.write_bytes(gzip.compress(text.encode())[:-12])
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.TRUNCATED_FILE, "compressed file ends early")
+    ]
+
+
+def test_corrupt_gzip_header_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.gz"
+    path.write_bytes(b"\x1f\x8b\x09" + b"\x00" * 20)
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "corrupt compressed data")
+    ]
+
+
+def test_gzip_with_trailing_garbage_keeps_earlier_lines(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.gz"
+    path.write_bytes(gzip.compress((_line(S1) + _line(S2)).encode()) + b"garbage")
+
+    spans, _ = load_spans(path)
+
+    assert [s.span_id for s in spans] == [S1, S2]
+
+
+def test_gzip_with_trailing_garbage_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.gz"
+    path.write_bytes(gzip.compress((_line(S1) + _line(S2)).encode()) + b"garbage")
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "corrupt compressed data; earlier lines were read")
     ]
 
 
@@ -389,7 +501,7 @@ def test_corrupt_gzip_data_is_reported(tmp_path: Path) -> None:
     _, issues = load_spans(path)
 
     assert [(i.kind, i.detail) for i in issues] == [
-        (IssueKind.INVALID_FILE, "corrupt compressed data; earlier data was read")
+        (IssueKind.INVALID_FILE, "corrupt compressed data; earlier lines were read")
     ]
 
 
@@ -435,7 +547,17 @@ def _attribute_line(value: object) -> str:
         (_span_line(attributes={"k": 1}), IssueKind.INVALID_ATTRIBUTE),
         (_span_line(attributes=[{"key": [1], "value": {}}]), IssueKind.INVALID_ATTRIBUTE),
         (_attribute_line({"intValue": "x"}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"intValue": " 12 "}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"intValue": "1_000"}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"intValue": "+5"}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"intValue": "\u0663"}), IssueKind.INVALID_ATTRIBUTE),
         (_attribute_line({"doubleValue": "x"}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"doubleValue": 10**400}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"stringValue": 1}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"boolValue": "true"}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"bytesValue": 1}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"kvlistValue": [1]}), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"kvlistValue": {"values": [1]}}), IssueKind.INVALID_ATTRIBUTE),
         (_attribute_line({"arrayValue": [1]}), IssueKind.INVALID_ATTRIBUTE),
         (_attribute_line("s"), IssueKind.INVALID_ATTRIBUTE),
         (_span_line(status="ERR"), IssueKind.INVALID_SPAN),
@@ -453,7 +575,17 @@ def _attribute_line(value: object) -> str:
         "attributes_object",
         "attribute_key",
         "int_value",
+        "int_value_spaces",
+        "int_value_underscore",
+        "int_value_plus",
+        "int_value_non_ascii_digit",
         "double_value",
+        "double_value_huge_integer",
+        "string_value_type",
+        "bool_value_type",
+        "bytes_value_type",
+        "kvlist_value_not_object",
+        "kvlist_value_item",
         "array_value",
         "value_not_object",
         "status",
@@ -476,6 +608,63 @@ def test_malformed_entry_detail_names_it(tmp_path: Path) -> None:
     _, issues = load_spans(path)
 
     assert [i.detail for i in issues] == ["line 1: resourceSpans[1] is not an object"]
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        (
+            '{"resourceSpans": [{"scopeSpans": [1]}]}',
+            "line 1: resourceSpans[0].scopeSpans[0] is not an object",
+        ),
+        (
+            '{"resourceSpans": [{"scopeSpans": [{"spans": {"a": 1}}]}]}',
+            "line 1: resourceSpans[0].scopeSpans[0].spans is not a list",
+        ),
+    ],
+    ids=["scope_spans_item", "spans_object"],
+)
+def test_malformed_scope_spans_detail_names_problem(
+    tmp_path: Path, line: str, expected: str
+) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(line + "\n")
+
+    _, issues = load_spans(path)
+
+    assert [i.detail for i in issues] == [expected]
+
+
+def test_negative_int_value_text_is_decoded(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_attribute_line({"intValue": "-12"}) + "\n")
+
+    spans, _ = load_spans(path)
+
+    assert spans[0].attributes["k"] == -12
+
+
+def test_non_string_name_becomes_empty(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_span_line(name=5) + "\n")
+
+    spans, _ = load_spans(path)
+
+    assert [s.name for s in spans] == [""]
+
+
+def test_non_string_name_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_span_line(name=5) + "\n")
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (
+            IssueKind.INVALID_ATTRIBUTE,
+            "line 1: resourceSpans[0].scopeSpans[0].spans[0]: name is not a string",
+        )
+    ]
 
 
 def test_malformed_attribute_is_skipped_and_span_kept(tmp_path: Path) -> None:
@@ -543,14 +732,24 @@ def test_invalid_span_detail_names_line_number(tmp_path: Path) -> None:
     assert issues[0].detail.startswith("line 2: ")
 
 
-@pytest.mark.parametrize("start", [True, 1.5, "1.5", "abc", -1, None])
+@pytest.mark.parametrize("start", [True, 1.5, 1000.0, "1.5", "abc", -1, None, 2**64, str(2**64)])
 def test_invalid_start_time_is_reported(tmp_path: Path, start: object) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_span_line(startTimeUnixNano=start) + "\n")
+    path.write_text(_span_line(startTimeUnixNano=start, endTimeUnixNano=start) + "\n")
 
     _, issues = load_spans(path)
 
     assert [i.kind for i in issues] == [IssueKind.INVALID_SPAN]
+
+
+def test_largest_unsigned_64_bit_time_is_accepted(tmp_path: Path) -> None:
+    largest = str(2**64 - 1)
+    path = tmp_path / "t.jsonl"
+    path.write_text(_span_line(startTimeUnixNano=largest, endTimeUnixNano=largest) + "\n")
+
+    spans, _ = load_spans(path)
+
+    assert [s.end_ns for s in spans] == [2**64 - 1]
 
 
 def test_end_before_start_is_reported(tmp_path: Path) -> None:
