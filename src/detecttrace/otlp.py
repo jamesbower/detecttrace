@@ -55,9 +55,11 @@ def load_spans(path: Path) -> tuple[list[Span], list[Issue]]:
                 key = (span.trace_id, span.span_id)
                 first = seen.get(key)
                 if first is not None:
+                    # repr() fallback: a NaN attribute never equals itself, even in an identical copy.
+                    is_same = span == first or repr(span) == repr(first)
                     kind = (
                         IssueKind.DUPLICATE_SPAN
-                        if span == first
+                        if is_same
                         else IssueKind.CONFLICTING_DUPLICATE_SPAN
                     )
                     issues.append(Issue(kind, subject, f"{span.trace_id}/{span.span_id}"))
@@ -73,17 +75,41 @@ def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]
         return [(path, path.name)]
 
     def report(error: OSError) -> None:
-        subject = Path(error.filename).relative_to(path).as_posix()
+        folder = Path(error.filename)
+        if folder == path:
+            # An issue for "." would only be followed by a misleading "No trace files found".
+            raise PermissionError(
+                f"Trace folder {path} cannot be read: {_describe_os_error(error)}. "
+                "Check its permissions."
+            )
+        subject = folder.relative_to(path).as_posix()
         issues.append(Issue(IssueKind.INVALID_FILE, subject, _describe_os_error(error)))
 
     files: list[tuple[Path, str]] = []
     # os.walk, not Path.rglob: rglob on 3.11 silently skips folders it cannot list.
     for folder, folder_names, file_names in os.walk(path, onerror=report):
-        folder_names[:] = [name for name in folder_names if not name.startswith(".")]
-        for name in file_names:
+        # Sorted so issues come out in the same order on every platform and file system.
+        folder_names[:] = sorted(name for name in folder_names if not name.startswith("."))
+        for name in sorted(file_names):
+            if name.startswith("."):
+                continue
             file_path = Path(folder, name)
-            if not name.startswith(".") and file_path.is_file():
-                files.append((file_path, file_path.relative_to(path).as_posix()))
+            subject = file_path.relative_to(path).as_posix()
+            try:
+                # On 3.11 is_file() swallows only a few errors; EACCES from a folder that is
+                # listable but not enterable escapes, and ELOOP hides a symlink loop.
+                if file_path.is_file():
+                    files.append((file_path, subject))
+                elif file_path.is_symlink():
+                    issues.append(
+                        Issue(
+                            IssueKind.INVALID_FILE,
+                            subject,
+                            "symbolic link target is missing or loops",
+                        )
+                    )
+            except OSError as error:
+                issues.append(Issue(IssueKind.INVALID_FILE, subject, _describe_os_error(error)))
     # POSIX form so Windows and Linux read files, and so pick duplicate winners, in the same order.
     return sorted(files, key=lambda item: item[1])
 
@@ -361,6 +387,9 @@ def _decode_value(value: Json) -> object:
         return dict(_decode_key_value(i) for i in _values(value["kvlistValue"], "kvlistValue"))
     if "bytesValue" in value:
         return _require(value["bytesValue"], str, "bytesValue")
+    if value:
+        # A mistyped key such as "stringvalue" would otherwise decode to None unnoticed.
+        raise ValueError(f"unknown value type: {', '.join(sorted(value))}")
     return None
 
 

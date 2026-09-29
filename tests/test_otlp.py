@@ -255,6 +255,75 @@ def test_unreadable_subfolder_is_reported(tmp_path: Path, unreadable_folder: Pat
     ]
 
 
+@pytest.fixture
+def unenterable_folder(tmp_path: Path) -> Iterator[Path]:
+    folder = tmp_path / "sub"
+    folder.mkdir()
+    write_jsonl(folder / "t.jsonl", [otlp_document([otlp_span(S1)])])
+    # Listable but not enterable: the listing works, but checking each file fails.
+    folder.chmod(0o444)
+    yield folder
+    folder.chmod(0o700)
+
+
+@needs_permissions
+def test_file_in_unenterable_subfolder_is_reported(
+    tmp_path: Path, unenterable_folder: Path
+) -> None:
+    write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S2)])])
+
+    _, issues = load_spans(tmp_path)
+
+    assert [(i.kind, i.subject, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "sub/t.jsonl", "Permission denied")
+    ]
+
+
+@pytest.fixture
+def unreadable_root(tmp_path: Path) -> Iterator[Path]:
+    folder = tmp_path / "traces"
+    folder.mkdir()
+    write_jsonl(folder / "t.jsonl", [otlp_document([otlp_span(S1)])])
+    folder.chmod(0)
+    yield folder
+    folder.chmod(0o700)
+
+
+@needs_permissions
+def test_unreadable_root_folder_raises_permission_error(unreadable_root: Path) -> None:
+    with pytest.raises(PermissionError, match=r"cannot be read: Permission denied"):
+        load_spans(unreadable_root)
+
+
+needs_symlinks = pytest.mark.skipif(
+    sys.platform == "win32", reason="creating symbolic links needs extra rights on Windows"
+)
+
+
+@needs_symlinks
+def test_dangling_symlink_is_reported(tmp_path: Path) -> None:
+    write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S1)])])
+    (tmp_path / "gone.jsonl").symlink_to(tmp_path / "missing.jsonl")
+
+    _, issues = load_spans(tmp_path)
+
+    assert [(i.kind, i.subject, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "gone.jsonl", "symbolic link target is missing or loops")
+    ]
+
+
+@needs_symlinks
+def test_symlink_loop_is_reported(tmp_path: Path) -> None:
+    write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S1)])])
+    (tmp_path / "loop.jsonl").symlink_to(tmp_path / "loop.jsonl")
+
+    _, issues = load_spans(tmp_path)
+
+    assert [(i.kind, i.subject, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "loop.jsonl", "symbolic link target is missing or loops")
+    ]
+
+
 @needs_permissions
 def test_unreadable_file_detail_has_no_path(tmp_path: Path) -> None:
     path = write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S1)])])
@@ -286,6 +355,19 @@ def test_issue_subject_for_single_file_is_its_name(tmp_path: Path) -> None:
 def test_identical_duplicate_span_is_reported_as_duplicate(tmp_path: Path) -> None:
     write_jsonl(tmp_path / "a.jsonl", [otlp_document([otlp_span(S1)])])
     write_jsonl(tmp_path / "b.jsonl", [otlp_document([otlp_span(S1)])])
+
+    _, issues = load_spans(tmp_path)
+
+    assert [i.kind for i in issues] == [IssueKind.DUPLICATE_SPAN]
+
+
+def test_identical_duplicate_span_with_nan_attribute_is_reported_as_duplicate(
+    tmp_path: Path,
+) -> None:
+    # NaN never equals itself, so plain equality would call these copies conflicting.
+    line = _attribute_line({"doubleValue": "NaN"}) + "\n"
+    (tmp_path / "a.jsonl").write_text(line)
+    (tmp_path / "b.jsonl").write_text(line)
 
     _, issues = load_spans(tmp_path)
 
@@ -560,6 +642,7 @@ def _attribute_line(value: object) -> str:
         (_attribute_line({"kvlistValue": {"values": [1]}}), IssueKind.INVALID_ATTRIBUTE),
         (_attribute_line({"arrayValue": [1]}), IssueKind.INVALID_ATTRIBUTE),
         (_attribute_line("s"), IssueKind.INVALID_ATTRIBUTE),
+        (_attribute_line({"stringvalue": "DT-1"}), IssueKind.INVALID_ATTRIBUTE),
         (_span_line(status="ERR"), IssueKind.INVALID_SPAN),
         (_span_line(startTimeUnixNano="1000").replace('"1000"', "1e400"), IssueKind.INVALID_SPAN),
     ],
@@ -588,6 +671,7 @@ def _attribute_line(value: object) -> str:
         "kvlist_value_item",
         "array_value",
         "value_not_object",
+        "unknown_value_type",
         "status",
         "start_overflow",
     ],
@@ -633,6 +717,15 @@ def test_malformed_scope_spans_detail_names_problem(
     _, issues = load_spans(path)
 
     assert [i.detail for i in issues] == [expected]
+
+
+def test_unknown_value_type_detail_names_keys(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_attribute_line({"stringvalue": "DT-1"}) + "\n")
+
+    _, issues = load_spans(path)
+
+    assert issues[0].detail.endswith("attributes[0]: unknown value type: stringvalue")
 
 
 def test_negative_int_value_text_is_decoded(tmp_path: Path) -> None:
