@@ -24,9 +24,6 @@ per case, the positions of those items in its class checklist.
 """
 
 import json
-import os
-import stat
-import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -34,6 +31,7 @@ from detecttrace import __version__
 from detecttrace.checklist import Checklist
 from detecttrace.config import normalize_label
 from detecttrace.evidence import CaseEvidence, ItemOutcome, ItemStatus, MissedReason
+from detecttrace.files import MARKER_READ_BYTES, read_head, write_text_atomically
 from detecttrace.metrics import (
     VERDICT_ORDER,
     ClassReport,
@@ -51,19 +49,7 @@ SCHEMA_VERSION = 1
 MAX_ARGUMENT_CHARS = 200
 UNKNOWN_VERDICT_CODE = -1
 GENERATED_BY_PREFIX = "detecttrace"
-# generated_by is the second key this module writes, so the head of the file is enough.
-MARKER_READ_BYTES = 64 * 1024
 _JSON_WHITESPACE = " \t\n\r"
-
-
-def _read_umask() -> int:
-    # The only way to read the umask is to set it; done once at import, not per write.
-    umask = os.umask(0)
-    os.umask(umask)
-    return umask
-
-
-_UMASK = _read_umask()
 
 _VERDICT_CODE = {verdict: code for code, verdict in enumerate(VERDICT_ORDER)}
 _CLOSED_AS_NOT_THREAT = (Verdict.FALSE_POSITIVE, Verdict.BENIGN)
@@ -125,34 +111,16 @@ def write_results_json(results: Mapping[str, object], path: Path) -> None:
     write_text_atomically(text + "\n", path)
 
 
-def write_text_atomically(text: str, path: Path) -> None:
-    """Write `text` as UTF-8 to a temporary file beside `path`, then move it into place.
-
-    A reader never sees a half-written file, and a failed write leaves `path` as it was.
-    """
-    handle, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as file:
-            file.write(text)
-        # mkstemp creates the file owner-only; give it the mode a plain open() would.
-        os.chmod(temp_name, 0o666 & ~_UMASK)
-        os.replace(temp_name, path)
-    except BaseException:
-        Path(temp_name).unlink(missing_ok=True)
-        raise
-
-
 def is_results_file(path: Path) -> bool:
     """Whether `path` is a regular file whose top-level `generated_by` names detecttrace.
 
-    Reads at most the first 64 KiB, so a large or hostile file costs little to check. A path
-    that can't be read raises OSError: "can't tell" must not look like "not ours".
+    Reads at most the first 64 KiB, so a large or hostile file costs little to check; the
+    generated_by key this module writes second is well inside that. A path that can't be read
+    raises OSError: "can't tell" must not look like "not ours".
     """
-    # stat() before open(), so a named pipe never blocks the run.
-    if not stat.S_ISREG(path.stat().st_mode):
+    head = read_head(path, MARKER_READ_BYTES)
+    if head is None:
         return False
-    with path.open("rb") as file:
-        head = file.read(MARKER_READ_BYTES)
     generated_by = _read_generated_by(head.decode("utf-8", errors="replace"))
     return generated_by is not None and generated_by.startswith(GENERATED_BY_PREFIX)
 

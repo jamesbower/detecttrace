@@ -15,8 +15,8 @@ from detecttrace.dashboard import is_dashboard_file
 EXTRA_VERDICTS = "DT-7,impossible_travel,TP\nDT-8,impossible_travel,FP\nDT-9,impossible_travel,FP\nDT-10,impossible_travel,FP\n"
 DEMO_DATA = Path(cli.__file__).parent / cli.DEMO_FOLDER
 INTERNAL_ERROR = "detecttrace: internal error (RuntimeError). Please report it.\n"
-# The smallest page detecttrace takes as its own: the generator marker near the top.
-EARLIER_PAGE = '<!DOCTYPE html>\n<meta name="generator" content="detecttrace 0.0.1">\n'
+# The smallest page detecttrace takes as its own: the doctype, then the generator marker in the head.
+EARLIER_PAGE = '<!DOCTYPE html>\n<head><meta name="generator" content="detecttrace 0.0.1"></head>\n'
 
 
 def _invoke(*args: str, env: dict[str, str] | None = None) -> Result:

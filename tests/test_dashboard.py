@@ -425,6 +425,15 @@ def test_write_dashboard_gives_the_mode_a_plain_open_would(tmp_path: Path) -> No
     assert path.stat().st_mode & 0o777 == 0o666 & ~umask
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes")
+def test_write_dashboard_keeps_the_mode_of_the_file_it_replaces(tmp_path: Path) -> None:
+    path = tmp_path / "dashboard.html"
+    path.write_text("old", encoding="utf-8")
+    path.chmod(0o640)
+    write_dashboard("new", path)
+    assert path.stat().st_mode & 0o777 == 0o640
+
+
 def test_write_dashboard_replaces_an_earlier_page(tmp_path: Path) -> None:
     path = tmp_path / "dashboard.html"
     write_dashboard("old", path)
@@ -443,12 +452,40 @@ def test_our_page_is_recognized(tmp_path: Path) -> None:
     assert is_dashboard_file(path)
 
 
+def test_the_smallest_page_with_our_marker_is_recognized(tmp_path: Path) -> None:
+    path = tmp_path / "page.html"
+    path.write_text(
+        '<!DOCTYPE html><head><meta name="generator" content="detecttrace 0.0.1"></head>',
+        encoding="utf-8",
+    )
+    assert is_dashboard_file(path)
+
+
 @pytest.mark.parametrize(
     "text",
     [
         "<!DOCTYPE html><html><head><title>Mine</title></head></html>",
         '<meta name="generator" content="Hugo 0.120">',
         "",
+        '<!DOCTYPE html><head><meta name="generator" content="detecttrace-like thing"></head>',
+        '<!DOCTYPE html><head><meta name="generator" content="detecttrace "></head>',
+        '<html><head><meta name="generator" content="detecttrace 0.0.1"></head>',
+        ' <!DOCTYPE html><head><meta name="generator" content="detecttrace 0.0.1"></head>',
+        '<!DOCTYPE html><head></head><meta name="generator" content="detecttrace 0.0.1">',
+        '<!DOCTYPE html><head><meta name="generator" content="detecttrace 0.0.1">',
+        '<!DOCTYPE html><head><!-- <meta name="generator" content="Hugo"> --></head>',
+    ],
+    ids=[
+        "no-marker",
+        "other-generator",
+        "empty",
+        "look-alike-name",
+        "no-version",
+        "no-doctype",
+        "doctype-not-first",
+        "marker-after-head",
+        "head-never-ends",
+        "other-marker-in-comment",
     ],
 )
 def test_a_foreign_file_is_not_recognized(tmp_path: Path, text: str) -> None:
@@ -466,7 +503,10 @@ def test_our_results_json_is_not_a_dashboard(tmp_path: Path) -> None:
 def test_a_marker_past_the_first_64_kib_is_not_recognized(tmp_path: Path) -> None:
     path = tmp_path / "page.html"
     path.write_text(
-        " " * 64 * 1024 + '<meta name="generator" content="detecttrace 1">', encoding="utf-8"
+        "<!DOCTYPE html><head>"
+        + " " * 64 * 1024
+        + '<meta name="generator" content="detecttrace 1"></head>',
+        encoding="utf-8",
     )
     assert not is_dashboard_file(path)
 

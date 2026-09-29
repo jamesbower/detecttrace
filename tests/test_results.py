@@ -662,6 +662,17 @@ def test_the_file_gets_the_mode_a_plain_open_would_give(tmp_path: Path):
     assert (tmp_path / "out.json").stat().st_mode == plain.stat().st_mode
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
+def test_replacing_a_file_keeps_its_mode(tmp_path: Path):
+    path = tmp_path / "out.json"
+    path.write_text("{}", encoding="utf-8")
+    path.chmod(0o600)
+
+    write_results_json(results_for(MIXED), path)
+
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
 def test_a_nan_raises_value_error(tmp_path: Path):
     results = results_for(MIXED)
     results["totals"]["cases"] = math.nan

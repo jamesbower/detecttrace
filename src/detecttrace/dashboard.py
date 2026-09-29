@@ -8,7 +8,7 @@ that the case-table script reads. Every other value is rendered by an autoescapi
 import base64
 import hashlib
 import json
-import stat
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.resources import files
@@ -29,10 +29,15 @@ from detecttrace.charts import (
     trend_chart,
 )
 from detecttrace.dashboard_view import TrendMetricView, TrendView, build_view
-from detecttrace.results import MARKER_READ_BYTES, write_text_atomically
+from detecttrace.files import MARKER_READ_BYTES, read_head, write_text_atomically
 
 GENERATOR_PREFIX = "detecttrace"
-_MARKER = b'<meta name="generator" content="' + GENERATOR_PREFIX.encode()
+_DOCTYPE = b"<!DOCTYPE html>"
+_HEAD_END = b"</head>"
+# The prefix, one space, then a version; "detecttrace-like" or a bare prefix is someone else's.
+_MARKER = re.compile(
+    rb'<meta name="generator" content="' + re.escape(GENERATOR_PREFIX.encode()) + rb' [^"]+">'
+)
 _TEMPLATE_NAME = "dashboard.html.j2"
 # Standard JSON leaves these as they are. Inside <script>, "</script>" or "<!--" in any string
 # would end or change the block, and U+2028/U+2029 end a line in older JavaScript parsers.
@@ -93,17 +98,16 @@ def write_dashboard(html: str, path: Path) -> None:
 
 
 def is_dashboard_file(path: Path) -> bool:
-    """Whether `path` is a regular file carrying this tool's generator marker near its top.
+    """Whether `path` is a regular file that starts with the doctype and carries this tool's
+    generator marker before `</head>`, all within its first 64 KiB.
 
-    Reads at most the first 64 KiB. A path that can't be read raises OSError: "can't tell"
-    must not look like "not ours".
+    A path that can't be read raises OSError: "can't tell" must not look like "not ours".
     """
-    # stat() before open(), so a named pipe never blocks the run.
-    if not stat.S_ISREG(path.stat().st_mode):
+    head = read_head(path, MARKER_READ_BYTES)
+    if head is None or not head.startswith(_DOCTYPE):
         return False
-    with path.open("rb") as file:
-        head = file.read(MARKER_READ_BYTES)
-    return _MARKER in head
+    head_end = head.find(_HEAD_END)
+    return head_end != -1 and _MARKER.search(head, 0, head_end) is not None
 
 
 def to_script_json(results: Mapping[str, object]) -> str:
