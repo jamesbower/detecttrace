@@ -335,12 +335,12 @@ def to_terminal_text(text: str, limit: int | None = TERMINAL_TEXT_LIMIT) -> str:
 
     Unicode category C covers terminal escapes (ESC, OSC 52 clipboard writes), line breaks
     that could fake output lines, and bidirectional overrides that reorder what is shown.
+    The line and paragraph separators (Zl, Zp) also break lines in terminals and viewers.
+    The case table's script applies the same rule, so both must change together.
     """
     # Escapes only lengthen the text, so one character past the limit is enough to read.
     head = text if limit is None else text[: limit + 1]
-    pieces = [
-        _to_escape(char) if unicodedata.category(char).startswith("C") else char for char in head
-    ]
+    pieces = [_to_escape(char) if _is_hidden(unicodedata.category(char)) else char for char in head]
     escaped = "".join(pieces)
     if limit is None or len(escaped) <= limit:
         return escaped
@@ -412,6 +412,10 @@ def _render_message(kind: IssueKind, key: str, count: int) -> str:
 
 def _render_hint(kind: IssueKind, key: str, config_name: str) -> str:
     return _TEMPLATES[kind][2].format(key=key, config=config_name)
+
+
+def _is_hidden(category: str) -> bool:
+    return category.startswith("C") or category in ("Zl", "Zp")
 
 
 def _to_escape(char: str) -> str:

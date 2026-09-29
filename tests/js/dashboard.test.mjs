@@ -169,3 +169,63 @@ test("a __proto__ case ID with detail finds its own detail", () => {
   const detail = { case_id: "__proto__", calls: [], outcomes: [] };
   assert.equal(table.findDetail(table.indexDetails([detail]), "__proto__"), detail);
 });
+
+test("visible text keeps plain text", () => {
+  assert.equal(table.toVisibleText("Café 'x' {y}"), "Café 'x' {y}");
+});
+
+test("visible text escapes an escape character as \\xNN", () => {
+  assert.equal(table.toVisibleText("a\x1b[2Kb"), "a\\x1b[2Kb");
+});
+
+test("visible text escapes line breaks", () => {
+  assert.equal(table.toVisibleText("a\r\nb"), "a\\x0d\\x0ab");
+});
+
+test("visible text escapes a bidi override as \\uNNNN", () => {
+  assert.equal(table.toVisibleText("a‮b"), "a\\u202eb");
+});
+
+test("visible text escapes the line and paragraph separators", () => {
+  assert.equal(table.toVisibleText("  "), "\\u2028\\u2029");
+});
+
+test("visible text escapes an astral format character as \\UNNNNNNNN", () => {
+  assert.equal(table.toVisibleText("\u{e0001}"), "\\U000e0001");
+});
+
+test("visible text keeps an emoji's surrogate pair whole", () => {
+  assert.equal(table.toVisibleText("a\u{1f600}b"), "a\u{1f600}b");
+});
+
+test("visible text escapes a lone surrogate", () => {
+  assert.equal(table.toVisibleText("\ud800"), "\\ud800");
+});
+
+test("a row shows its case ID through visible text", () => {
+  const row = { ...syntheticRows[0], caseId: "A‮1-TSAC" };
+  assert.equal(table.rowTexts(row)[0], "A\\u202e1-TSAC");
+});
+
+test("a row shows its alert class through visible text", () => {
+  const row = { ...syntheticRows[0], alertClass: "phish\x1b[2K" };
+  assert.equal(table.rowTexts(row)[1], "phish\\x1b[2K");
+});
+
+test("a version shows through visible text", () => {
+  assert.equal(table.versionLabel("v1 v2"), "v1\\u2028v2");
+});
+
+test("an unrecognised verdict shows through visible text", () => {
+  assert.equal(table.verdictLabel("tp​"), "tp\\u200b");
+});
+
+test("outcome items from the columns show through visible text", () => {
+  const row = { ...syntheticRows[0], checklist: ["head‮ers", "sandbox", "url_rep", "mailbox"] };
+  assert.equal(table.toOutcomes(row, null)[0].item, "head\\u202eers");
+});
+
+test("a failing rule from detail shows through visible text", () => {
+  const detail = { outcomes: [{ item: "headers", status: "missed", reason: "wrong_arguments", failed_rule: "eq‮" }] };
+  assert.equal(table.toOutcomes(syntheticRows[0], detail)[0].why, "wrong arguments: eq\\u202e");
+});

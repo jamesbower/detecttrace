@@ -10,6 +10,18 @@
     ["benign", "Benign"]
   ]);
 
+  // Same rule as to_visible_text in summary.py, so a bidi override or line break cannot make
+  // one case ID read as another. The u flag matches code points: surrogate pairs stay whole.
+  function toVisibleText(text) {
+    return text.replace(/[\p{C}\p{Zl}\p{Zp}]/gu, function (char) {
+      var code = char.codePointAt(0);
+      var hex = code.toString(16);
+      if (code < 0x100) return "\\x" + hex.padStart(2, "0");
+      if (code < 0x10000) return "\\u" + hex.padStart(4, "0");
+      return "\\U" + hex.padStart(8, "0");
+    });
+  }
+
   function decodeRows(caseRows) {
     var strings = caseRows.strings;
     var columns = caseRows.columns;
@@ -84,11 +96,17 @@
   }
 
   function versionLabel(version) {
-    return version === null ? "(no version)" : version;
+    return version === null ? "(no version)" : toVisibleText(version);
   }
 
   function verdictLabel(verdict) {
-    return verdict === null ? "(no verdict)" : VERDICT_LABELS.get(verdict) || verdict;
+    return verdict === null ? "(no verdict)" : VERDICT_LABELS.get(verdict) || toVisibleText(verdict);
+  }
+
+  // The text cells, in column order.
+  function rowTexts(row) {
+    return [toVisibleText(row.caseId), toVisibleText(row.alertClass), toVisibleText(row.week),
+      versionLabel(row.version), verdictLabel(row.analyst), verdictLabel(row.agent)];
   }
 
   function checklistLabel(row) {
@@ -116,7 +134,7 @@
       return detail.outcomes
         .filter(function (outcome) { return outcome.status !== "satisfied"; })
         .map(function (outcome) {
-          return { item: outcome.item, status: outcome.status, why: describeOutcome(outcome.status, outcome.reason, outcome.failed_rule) };
+          return { item: toVisibleText(outcome.item), status: outcome.status, why: describeOutcome(outcome.status, outcome.reason, outcome.failed_rule) };
         });
     }
     if (row.checklist === null) return [];
@@ -126,14 +144,14 @@
     row.failed.forEach(function (pos) { found.push([pos, "failed", null]); });
     found.sort(function (a, b) { return a[0] - b[0]; });
     return found.map(function (entry) {
-      return { item: row.checklist[entry[0]], status: entry[1], why: describeOutcome(entry[1], entry[2], null) };
+      return { item: toVisibleText(row.checklist[entry[0]]), status: entry[1], why: describeOutcome(entry[1], entry[2], null) };
     });
   }
 
   function describeOutcome(status, reason, failedRule) {
     if (status === "failed") return "the tool call failed";
     if (reason === "not_called") return "not called";
-    return failedRule ? "wrong arguments: " + failedRule : "wrong arguments";
+    return failedRule ? "wrong arguments: " + toVisibleText(failedRule) : "wrong arguments";
   }
 
   function startTable(results) {
@@ -178,19 +196,20 @@
 
     function appendRow(row) {
       var tr = el("tr", "case-row");
+      var texts = rowTexts(row);
       var idCell = el("td");
-      var toggle = el("button", "row-toggle", row.caseId);
+      var toggle = el("button", "row-toggle", texts[0]);
       toggle.setAttribute("type", "button");
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-controls", "case-detail-" + row.index);
       toggle.addEventListener("click", function () { toggleDetail(tr, toggle, row); });
       idCell.appendChild(toggle);
       tr.appendChild(idCell);
-      tr.appendChild(el("td", "mono", row.alertClass));
-      tr.appendChild(el("td", "mono", row.week));
-      tr.appendChild(el("td", "", versionLabel(row.version)));
-      tr.appendChild(el("td", "", verdictLabel(row.analyst)));
-      tr.appendChild(el("td", "", verdictLabel(row.agent)));
+      tr.appendChild(el("td", "mono", texts[1]));
+      tr.appendChild(el("td", "mono", texts[2]));
+      tr.appendChild(el("td", "", texts[3]));
+      tr.appendChild(el("td", "", texts[4]));
+      tr.appendChild(el("td", "", texts[5]));
       var resultCell = el("td");
       resultCell.appendChild(resultPill(row));
       tr.appendChild(resultCell);
@@ -242,8 +261,8 @@
         var li = el("li");
         li.appendChild(el("span", "status " + (isFailed ? "is-failed" : "is-ok"), isFailed ? "✕ Failed" : "✓ Success"));
         var main = el("span", "call-main");
-        main.appendChild(el("span", "call-tool", call.tool));
-        main.appendChild(el("span", "call-args", call.arguments === null ? "(no arguments)" : call.arguments));
+        main.appendChild(el("span", "call-tool", toVisibleText(call.tool)));
+        main.appendChild(el("span", "call-args", call.arguments === null ? "(no arguments)" : toVisibleText(call.arguments)));
         li.appendChild(main);
         li.appendChild(el("span", "call-dur", formatDuration(call.duration_ms)));
         list.appendChild(li);
@@ -295,6 +314,8 @@
     module.exports = {
       PAGE_SIZE: PAGE_SIZE,
       DETAIL_MISSING: DETAIL_MISSING,
+      toVisibleText: toVisibleText,
+      rowTexts: rowTexts,
       decodeRows: decodeRows,
       orderRows: orderRows,
       isDisagreement: isDisagreement,

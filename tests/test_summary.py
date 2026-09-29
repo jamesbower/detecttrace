@@ -374,6 +374,22 @@ def test_visible_text_never_shortens() -> None:
     assert to_visible_text("x" * 100) == "x" * 100
 
 
+def test_terminal_text_escapes_the_line_and_paragraph_separators() -> None:
+    assert to_terminal_text("a\u2028b\u2029c") == "a\\u2028b\\u2029c"
+
+
+def test_visible_text_escapes_the_line_and_paragraph_separators() -> None:
+    assert to_visible_text("a\u2028b\u2029c") == "a\\u2028b\\u2029c"
+
+
+def test_visible_text_escapes_a_zero_width_space() -> None:
+    assert to_visible_text("a\u200bb") == "a\\u200bb"
+
+
+def test_visible_text_keeps_an_emoji() -> None:
+    assert to_visible_text("a\U0001f600b") == "a\U0001f600b"
+
+
 # Ordering
 
 
