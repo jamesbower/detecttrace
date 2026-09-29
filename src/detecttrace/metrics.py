@@ -1,13 +1,21 @@
-"""Verdict agreement, Cohen's kappa, and evidence completeness for groups of cases."""
+"""Verdict agreement, Cohen's kappa, evidence completeness, skipped steps and weekly trends."""
 
 import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Literal
 
-from detecttrace.evidence import CaseEvidence
-from detecttrace.model import Case, Verdict
+from detecttrace.checklist import Checklist
+from detecttrace.config import normalize_label
+from detecttrace.evidence import (
+    CaseEvidence,
+    ItemStatus,
+    evaluate_case,
+    find_rule_type_mismatches,
+)
+from detecttrace.model import Case, Issue, IssueKind, Verdict
 from detecttrace.stats import (
     Interval,
     cohens_kappa,
@@ -25,6 +33,7 @@ T_INTERVAL_MIN_CASES = 30
 _VERDICT_INDEX = {verdict: index for index, verdict in enumerate(VERDICT_ORDER)}
 _SIZE = len(VERDICT_ORDER)
 _CLOSED_AS_NOT_THREAT = (Verdict.FALSE_POSITIVE, Verdict.BENIGN)
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class KappaNote(StrEnum):
@@ -71,6 +80,92 @@ class SliceMetrics:
     completeness: Completeness | None
 
 
+@dataclass(frozen=True, slots=True)
+class SkipRate:
+    item_id: str
+    skipped: int  # failed or missed
+    n: int
+    rate: float
+
+
+@dataclass(frozen=True, slots=True)
+class WeekPoint:
+    week: str  # ISO week in UTC, e.g. "2026-W38"
+    version: str | None  # None: all versions
+    completeness: float | None
+    completeness_n: int
+    agreement: float | None
+    agreement_n: int
+
+
+@dataclass(frozen=True, slots=True)
+class ClassReport:
+    alert_class: str  # CSV form of the first case by case ID
+    versions: tuple[str, ...]  # ordered by first case start, then name
+    version_first_week: dict[str, str]
+    overall: SliceMetrics
+    by_version: dict[str, SliceMetrics]
+    checklist_item_ids: tuple[str, ...]  # empty without a checklist
+    skipped_overall: tuple[SkipRate, ...]
+    skipped_by_version: dict[str, tuple[SkipRate, ...]]
+    trend: tuple[WeekPoint, ...]  # by week, then the all-versions point, then version order
+
+
+@dataclass(frozen=True, slots=True)
+class MetricsReport:
+    classes: tuple[ClassReport, ...]  # sorted by normalized class
+    evidence: dict[str, CaseEvidence]  # by case ID; cases of classes with a checklist
+
+
+def iso_week(start_ns: int) -> str:
+    """The ISO 8601 week, in UTC, that a timestamp in Unix nanoseconds falls in: "2026-W38"."""
+    moment = _EPOCH + timedelta(microseconds=start_ns // 1_000)
+    year, week, _ = moment.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def compute_metrics(
+    cases: Sequence[Case], checklists: Mapping[str, Checklist]
+) -> tuple[MetricsReport, list[Issue]]:
+    """Build one report per alert class. `checklists` is keyed by the normalized alert class.
+
+    Issues come in this order: evidence issues (classes in normalized order, cases in case-ID
+    order), rule type mismatches (as `find_rule_type_mismatches` orders them), unknown checklist
+    tools (class key order, then item order), then unused checklists (class key order).
+    """
+    ordered = sorted(cases, key=lambda case: case.case_id)
+    groups: dict[str, list[Case]] = {}
+    for case in ordered:
+        groups.setdefault(normalize_label(case.alert_class), []).append(case)
+    issues: list[Issue] = []
+    evidence: dict[str, CaseEvidence] = {}
+    classes: list[ClassReport] = []
+    for key in sorted(groups):
+        group = groups[key]
+        checklist = checklists.get(key)
+        if checklist is not None:
+            # Evaluated once here and reused by every slice, skip rate and trend point.
+            for case in group:
+                evidence[case.case_id] = evaluate_case(case, checklist, issues)
+        classes.append(_build_class_report(group, checklist, evidence))
+    issues.extend(find_rule_type_mismatches(ordered, checklists))
+    called_tools = {call.tool_name for case in ordered for call in case.tool_calls}
+    for key in sorted(checklists):
+        checklist = checklists[key]
+        for item in checklist.items:
+            if item.tool not in called_tools:
+                subject = f"{checklist.alert_class}/{item.id}"
+                detail = f"no case calls tool '{item.tool}'"
+                issues.append(Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, subject, detail))
+    for key in sorted(checklists):
+        if key not in groups:
+            subject = checklists[key].alert_class
+            issues.append(
+                Issue(IssueKind.UNUSED_CHECKLIST, subject, "no case has this alert class")
+            )
+    return MetricsReport(tuple(classes), evidence), issues
+
+
 def compute_slice(
     cases: Sequence[Case], evidence: Mapping[str, CaseEvidence], item_count: int | None
 ) -> SliceMetrics:
@@ -104,6 +199,101 @@ def compute_slice(
         dangerous_false_closes=tuple(sorted(dangerous)),
         true_positives_without_agent_verdict=tuple(sorted(without_agent)),
         completeness=_completeness(cases, evidence, item_count),
+    )
+
+
+def _build_class_report(
+    cases: list[Case], checklist: Checklist | None, evidence: Mapping[str, CaseEvidence]
+) -> ClassReport:
+    item_count = len(checklist.items) if checklist is not None else None
+    cases_by_version: dict[str, list[Case]] = {}
+    first_start: dict[str, int] = {}
+    for case in cases:
+        version = case.prompt_version
+        cases_by_version.setdefault(version, []).append(case)
+        first_start[version] = min(first_start.get(version, case.start_ns), case.start_ns)
+    versions = tuple(sorted(cases_by_version, key=lambda version: (first_start[version], version)))
+    item_ids = tuple(item.id for item in checklist.items) if checklist is not None else ()
+    return ClassReport(
+        alert_class=cases[0].alert_class,
+        versions=versions,
+        version_first_week={version: iso_week(first_start[version]) for version in versions},
+        overall=compute_slice(cases, evidence, item_count),
+        by_version={
+            version: compute_slice(cases_by_version[version], evidence, item_count)
+            for version in versions
+        },
+        checklist_item_ids=item_ids,
+        skipped_overall=_skip_rates(cases, evidence, item_ids),
+        skipped_by_version={
+            version: _skip_rates(cases_by_version[version], evidence, item_ids)
+            for version in versions
+        }
+        if item_ids
+        else {},
+        trend=_trend(cases, versions, evidence, item_count),
+    )
+
+
+def _skip_rates(
+    cases: list[Case], evidence: Mapping[str, CaseEvidence], item_ids: tuple[str, ...]
+) -> tuple[SkipRate, ...]:
+    if not item_ids:
+        return ()
+    skipped = [0] * len(item_ids)
+    for case in cases:
+        for index, outcome in enumerate(evidence[case.case_id].outcomes):
+            if outcome.status is not ItemStatus.SATISFIED:
+                skipped[index] += 1
+    n = len(cases)
+    return tuple(
+        SkipRate(item_id, count, n, count / n)
+        for item_id, count in zip(item_ids, skipped, strict=True)
+    )
+
+
+def _trend(
+    cases: list[Case],
+    versions: tuple[str, ...],
+    evidence: Mapping[str, CaseEvidence],
+    item_count: int | None,
+) -> tuple[WeekPoint, ...]:
+    completeness: dict[tuple[str, str | None], list[float]] = {}
+    agreement: dict[tuple[str, str | None], list[bool]] = {}
+    for case in cases:
+        week = iso_week(case.start_ns)
+        keys = ((week, None), (week, case.prompt_version))
+        for key in keys:
+            completeness.setdefault(key, [])
+            agreement.setdefault(key, [])
+        if item_count is not None:
+            value = evidence[case.case_id].satisfied_count / item_count
+            for key in keys:
+                completeness[key].append(value)
+        if case.analyst_verdict is not None and case.agent_verdict is not None:
+            is_agreed = case.analyst_verdict is case.agent_verdict
+            for key in keys:
+                agreement[key].append(is_agreed)
+    weeks = sorted({week for week, _ in completeness})
+    order: tuple[str | None, ...] = (None, *versions)
+    return tuple(
+        _week_point(week, version, completeness[week, version], agreement[week, version])
+        for week in weeks
+        for version in order
+        if (week, version) in completeness
+    )
+
+
+def _week_point(
+    week: str, version: str | None, completeness: list[float], agreement: list[bool]
+) -> WeekPoint:
+    return WeekPoint(
+        week=week,
+        version=version,
+        completeness=statistics.fmean(completeness) if completeness else None,
+        completeness_n=len(completeness),
+        agreement=sum(agreement) / len(agreement) if agreement else None,
+        agreement_n=len(agreement),
     )
 
 
