@@ -149,7 +149,7 @@ def compute_metrics(
     Issues come in this order: evidence issues (classes in normalized order, cases in case-ID
     order), rule type mismatches and then missing tool arguments (each in class key order, then
     item order), unknown checklist tools (the same order), then unused checklists (class key
-    order).
+    order). With no cases, the last two are left out.
     """
     ordered = sorted(cases, key=lambda case: case.case_id)
     groups: dict[str, list[Case]] = {}
@@ -168,6 +168,10 @@ def compute_metrics(
         classes.append(_build_class_report(group, checklist, evidence))
     issues.extend(find_rule_type_mismatches(ordered, checklists))
     issues.extend(find_missing_tool_arguments(ordered, checklists))
+    # With no case at all, every checklist looks unused and every tool unknown; the real
+    # problem is reported elsewhere, and these warnings would only point the wrong way.
+    if not ordered:
+        return MetricsReport(tuple(classes), evidence), issues
     called_tools = {call.tool_name for case in ordered for call in case.tool_calls}
     for key in sorted(checklists):
         checklist = checklists[key]

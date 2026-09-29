@@ -3,6 +3,9 @@
 Dicts keyed by a version are never serialized, because `json.dumps` turns a None key into
 "null" and a real version named "null" would collide with it. Per-version data is a list of
 records with a `version` field instead; the pooled group sits under its own `other` key.
+Likewise a trend point's `scope` says whether it covers all versions, one version or the
+pooled group; its `version` is null for the first and last, so `version: null` alone never
+means "all versions" (with scope `version` it means "no version").
 """
 
 import json
@@ -267,7 +270,7 @@ def _build_case_rows(
     }
     checklist_rows = [
         {
-            "class": to_index(class_names[key]),
+            "class_index": to_index(class_names[key]),
             "items": [to_index(item.id) for item in checklists[key].items],
         }
         for key in sorted(class_names)
@@ -277,7 +280,7 @@ def _build_case_rows(
         name: []
         for name in (
             "case_id",
-            "class",
+            "class_index",
             "week",
             "version",
             "analyst",
@@ -291,7 +294,7 @@ def _build_case_rows(
         evidence = report.evidence.get(case.case_id)
         outcomes = evidence.outcomes if evidence is not None else ()
         columns["case_id"].append(case.case_id)
-        columns["class"].append(to_index(class_names[normalize_label(case.alert_class)]))
+        columns["class_index"].append(to_index(class_names[normalize_label(case.alert_class)]))
         columns["week"].append(to_index(iso_week(case.start_ns)))
         # None stays null rather than an index, so "no version" never meets a version's text.
         version = case.prompt_version
@@ -353,7 +356,8 @@ def _to_call_data(call: ToolCall) -> dict[str, object]:
     return {
         "tool": call.tool_name,
         "status": "failed" if call.is_failed else "success",
-        "duration_ms": (call.end_ns - call.start_ns) / 1_000_000,
+        # Clamped because a span can end before it starts when clocks are skewed.
+        "duration_ms": max(call.end_ns - call.start_ns, 0) / 1_000_000,
         "arguments": _to_argument_text(call.arguments),
     }
 

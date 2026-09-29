@@ -208,6 +208,33 @@ def test_checklists_are_read_before_the_traces(tmp_path: Path) -> None:
     assert "impossible_travel.yaml" in result.stderr
 
 
+HEADER_ONLY = "case_id,alert_class,verdict\n"
+
+
+def test_a_verdict_file_without_rows_exits_1(tmp_path: Path) -> None:
+    result = _check(write_run_folder(tmp_path, verdicts=HEADER_ONLY))
+
+    assert result.exit_code == 1
+
+
+def test_a_verdict_file_without_rows_says_so(tmp_path: Path) -> None:
+    result = _check(write_run_folder(tmp_path, verdicts=HEADER_ONLY))
+
+    assert "Error: The verdict file has no rows. Nothing was written.\n" in result.stderr
+
+
+def test_a_verdict_file_without_rows_gives_no_mapping_hint(tmp_path: Path) -> None:
+    result = _check(write_run_folder(tmp_path, verdicts=HEADER_ONLY))
+
+    assert "mapping" not in result.stderr
+
+
+def test_a_verdict_file_with_only_unreadable_rows_prints_the_summary(tmp_path: Path) -> None:
+    result = _check(write_run_folder(tmp_path, verdicts=HEADER_ONLY + ",,\n"))
+
+    assert "1 verdict row could not be read and was skipped." in result.stderr
+
+
 def test_no_joined_case_exits_1(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path, case_ids=("DT-7", "DT-8"))
 

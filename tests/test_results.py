@@ -284,7 +284,7 @@ def test_case_rows_list_case_ids_in_order():
 def test_case_row_class_indexes_resolve_to_the_class_names():
     rows = results_for(MIXED)["case_rows"]
 
-    assert [rows["strings"][index] for index in rows["columns"]["class"]] == [
+    assert [rows["strings"][index] for index in rows["columns"]["class_index"]] == [
         "impossible_travel",
         "impossible_travel",
         "impossible_travel",
@@ -335,7 +335,10 @@ def test_case_rows_name_the_item_ids_of_each_class_checklist():
     rows = results_for(MIXED)["case_rows"]
 
     assert [
-        (rows["strings"][entry["class"]], [rows["strings"][index] for index in entry["items"]])
+        (
+            rows["strings"][entry["class_index"]],
+            [rows["strings"][index] for index in entry["items"]],
+        )
         for entry in rows["checklists"]
     ] == [("impossible_travel", ["signins", "mfa", "user"])]
 
@@ -360,6 +363,15 @@ def test_detail_puts_failed_calls_before_missed_steps():
     cases = [
         case("DT-1", calls=(call("get_signin_logs"),), day=5),
         case("DT-2", calls=(*ALL_STEPS, call("lookup_user", is_failed=True))),
+    ]
+
+    assert [entry["case_id"] for entry in results_for(cases)["case_detail"]] == ["DT-2", "DT-1"]
+
+
+def test_detail_puts_a_disagreement_before_a_newer_case_with_only_a_failed_call():
+    cases = [
+        case("DT-1", calls=(*ALL_STEPS, call("lookup_user", is_failed=True)), day=5),
+        case("DT-2", analyst=FP, agent=BENIGN, day=1),
     ]
 
     assert [entry["case_id"] for entry in results_for(cases)["case_detail"]] == ["DT-2", "DT-1"]
@@ -399,6 +411,25 @@ def test_detail_lists_each_call_with_status_duration_and_arguments():
         },
         {"tool": "lookup_user", "status": "failed", "duration_ms": 2.5, "arguments": None},
     ]
+
+
+def test_a_call_that_ends_before_it_starts_has_a_zero_duration():
+    cases = [case("DT-1", analyst=TP, agent=FP, calls=(call(start_ns=5_000_000, end_ns=0),))]
+
+    assert results_for(cases)["case_detail"][0]["calls"][0]["duration_ms"] == 0
+
+
+def arguments_shown(text: str) -> str:
+    cases = [case("DT-1", analyst=TP, agent=FP, calls=(call(arguments=text),))]
+    return results_for(cases)["case_detail"][0]["calls"][0]["arguments"]
+
+
+def test_arguments_of_exactly_200_characters_are_kept_whole():
+    assert arguments_shown("x" * 200) == "x" * 200
+
+
+def test_arguments_of_201_characters_are_cut_to_199_and_an_ellipsis():
+    assert arguments_shown("x" * 201) == "x" * 199 + "…"
 
 
 LONG_ARGUMENTS = [case("DT-1", analyst=TP, agent=FP, calls=(call(arguments="x" * 10_000),))]

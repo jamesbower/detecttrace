@@ -335,12 +335,21 @@ def to_terminal_text(text: str, limit: int | None = TERMINAL_TEXT_LIMIT) -> str:
     """
     # Escapes only lengthen the text, so one character past the limit is enough to read.
     head = text if limit is None else text[: limit + 1]
-    escaped = "".join(
+    pieces = [
         _to_escape(char) if unicodedata.category(char).startswith("C") else char for char in head
-    )
+    ]
+    escaped = "".join(pieces)
     if limit is None or len(escaped) <= limit:
         return escaped
-    return escaped[: limit - 1] + "…"
+    # Cut between pieces, so a half escape such as "\x1" never reads as a different character.
+    kept: list[str] = []
+    length = 0
+    for piece in pieces:
+        length += len(piece)
+        if length > limit - 1:
+            break
+        kept.append(piece)
+    return "".join(kept) + "…"
 
 
 def has_invalid_input(issues: Sequence[Issue]) -> bool:

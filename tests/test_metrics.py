@@ -852,6 +852,10 @@ def test_issues_follow_evidence_mismatch_arguments_unknown_tool_unused_order() -
     ]
 
 
+def test_without_cases_checklists_give_no_issues() -> None:
+    assert issues_of([], TWO_ITEMS) == []
+
+
 def test_shuffled_input_gives_identical_report_and_issues() -> None:
     cases = make_mixed_cases()
     shuffled = list(cases)

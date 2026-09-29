@@ -320,7 +320,11 @@ def test_terminal_text_marks_a_shortened_text_with_an_ellipsis() -> None:
 
 
 def test_terminal_text_counts_escapes_toward_the_limit() -> None:
-    assert len(to_terminal_text("\x1b" * 30)) == 60
+    assert to_terminal_text("\x1b" * 30) == "\\x1b" * 14 + "…"
+
+
+def test_terminal_text_never_cuts_an_escape_in_half() -> None:
+    assert to_terminal_text("x" * 57 + "\x1b" + "y" * 10) == "x" * 57 + "…"
 
 
 def test_terminal_text_keeps_text_at_the_limit_whole() -> None:

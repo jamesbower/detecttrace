@@ -18,7 +18,7 @@ import typer
 from typer.core import TyperGroup
 
 from detecttrace import __version__
-from detecttrace.model import InputFileError
+from detecttrace.model import InputFileError, IssueKind
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
 from detecttrace.runconfig import RunConfig, load_run_config
@@ -163,6 +163,12 @@ def _run(
         _echo_error(problem)
         return 1
     run = run_check(config, config_path)
+    if run.coverage.verdicts_total == 0 and not any(
+        issue.kind is IssueKind.INVALID_VERDICT_ROW for issue in run.issues
+    ):
+        # Otherwise the summary blames the case ID mapping for traces that had nothing to match.
+        _echo_error(f"The verdict file has no rows. {NOTHING_WRITTEN}")
+        return 1
     if run.case_count == 0:
         _echo_error(
             f"No case could be scored: no trace matched a verdict. {NOTHING_WRITTEN} "
