@@ -174,6 +174,38 @@ def test_invalid_checklist_exits_1(tmp_path: Path) -> None:
     assert result.exit_code == 1
 
 
+def test_a_checklist_folder_without_checklist_files_exits_1(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "checklists" / "impossible_travel.yaml").unlink()
+
+    result = _check(config_path)
+
+    assert result.exit_code == 1
+
+
+def test_a_checklist_folder_without_checklist_files_says_what_is_missing(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "checklists" / "impossible_travel.yaml").unlink()
+
+    result = _check(config_path)
+
+    assert (
+        f"No checklist files (*.yaml, *.yml) found under {tmp_path / 'checklists'}. "
+        "Check checklists in detecttrace.yaml." in result.stderr
+    )
+
+
+def test_checklists_are_read_before_the_traces(tmp_path: Path) -> None:
+    config_path = write_run_folder(
+        tmp_path, config=RUN_CONFIG.replace("{path: traces}", "{path: gone}")
+    )
+    (tmp_path / "checklists" / "impossible_travel.yaml").write_text("items: [", encoding="utf-8")
+
+    result = _check(config_path)
+
+    assert "impossible_travel.yaml" in result.stderr
+
+
 def test_no_joined_case_exits_1(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path, case_ids=("DT-7", "DT-8"))
 

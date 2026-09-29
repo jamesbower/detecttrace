@@ -50,6 +50,7 @@ class IssueKind(StrEnum):
     UNREADABLE_DURATION = "unreadable_duration"
     UNREADABLE_KQL_TIMESPAN = "unreadable_kql_timespan"
     RULE_TYPE_MISMATCH = "rule_type_mismatch"
+    MISSING_TOOL_ARGUMENTS = "missing_tool_arguments"
     UNKNOWN_CHECKLIST_TOOL = "unknown_checklist_tool"
     UNUSED_CHECKLIST = "unused_checklist"
     CONSOLE_EXPORTER_OUTPUT = "console_exporter_output"

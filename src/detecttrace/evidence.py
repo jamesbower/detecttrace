@@ -143,6 +143,51 @@ def find_rule_type_mismatches(
     return issues
 
 
+def find_missing_tool_arguments(
+    cases: Sequence[Case], checklists: Mapping[str, Checklist]
+) -> list[Issue]:
+    """Warn once per checklist item with argument rules whose tool is called in cases of its
+    class, but never with arguments.
+
+    That pattern points at a wrong arguments mapping rather than at the agent, which would
+    otherwise show only as every such item missed. One issue per item, not per call, so tools
+    that really take no arguments stay quiet.
+
+    `checklists` is keyed by the normalized alert class. Issues follow class-key order, then item order.
+    """
+    watched = {
+        (key, item.tool)
+        for key, checklist in checklists.items()
+        for item in checklist.items
+        if item.args
+    }
+    call_counts: dict[tuple[str, str], int] = {}
+    with_arguments: set[tuple[str, str]] = set()
+    for case in cases:
+        key = normalize_label(case.alert_class)
+        for call in case.tool_calls:
+            pair = (key, call.tool_name)
+            if pair in watched:
+                call_counts[pair] = call_counts.get(pair, 0) + 1
+                if call.arguments is not None:
+                    with_arguments.add(pair)
+    issues: list[Issue] = []
+    for key in sorted(checklists):
+        checklist = checklists[key]
+        for item in checklist.items:
+            count = call_counts.get((key, item.tool), 0)
+            if item.args and count and (key, item.tool) not in with_arguments:
+                noun = "call" if count == 1 else "calls"
+                issues.append(
+                    Issue(
+                        IssueKind.MISSING_TOOL_ARGUMENTS,
+                        f"{checklist.alert_class}/{item.id}",
+                        f"{count:,} {noun} to '{item.tool}', none with arguments",
+                    )
+                )
+    return issues
+
+
 @dataclass(slots=True)
 class _CaseState:
     """What the items of one case share, so a call read by several items is handled once."""

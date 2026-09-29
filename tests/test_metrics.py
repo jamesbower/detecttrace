@@ -413,6 +413,7 @@ W40 = "2026-W40"
 UNREADABLE = IssueKind.UNREADABLE_ARGUMENTS
 MISMATCH = IssueKind.RULE_TYPE_MISMATCH
 UNKNOWN_TOOL = IssueKind.UNKNOWN_CHECKLIST_TOOL
+NO_ARGUMENTS = IssueKind.MISSING_TOOL_ARGUMENTS
 UNUSED = IssueKind.UNUSED_CHECKLIST
 
 
@@ -828,21 +829,24 @@ def test_rule_type_mismatch_is_reported_once_per_item() -> None:
     assert issues_of(cases, checklists) == [(MISMATCH, "Phishing/a")]
 
 
-def test_issues_follow_evidence_mismatch_unknown_tool_unused_order() -> None:
+def test_issues_follow_evidence_mismatch_arguments_unknown_tool_unused_order() -> None:
     checklists = {
         "phishing": make_checklist(
-            make_item("a", "alpha", {"window": {"min_duration": "24h"}}), make_item("b", "ghost")
+            make_item("a", "alpha", {"window": {"min_duration": "24h"}}),
+            make_item("b", "ghost"),
+            make_item("c", "gamma", {"window": {"exists": True}}),
         ),
         "malware": make_checklist(make_item("a", "alpha"), alert_class="Malware"),
     }
     cases = [
         make_case("a-1", TP, TP, calls=(make_call("alpha", {"window": 48}),)),
-        make_case("a-2", TP, TP, calls=(make_call("alpha", "{bad"),)),
+        make_case("a-2", TP, TP, calls=(make_call("alpha", "{bad"), make_call("gamma"))),
     ]
 
     assert issues_of(cases, checklists) == [
         (UNREADABLE, "a-2"),
         (MISMATCH, "Phishing/a"),
+        (NO_ARGUMENTS, "Phishing/c"),
         (UNKNOWN_TOOL, "Phishing/b"),
         (UNUSED, "Malware"),
     ]

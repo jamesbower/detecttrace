@@ -11,6 +11,7 @@ from detecttrace.evidence import (
     ItemStatus,
     MissedReason,
     evaluate_case,
+    find_missing_tool_arguments,
     find_rule_type_mismatches,
     json_equal,
 )
@@ -818,6 +819,89 @@ def test_mismatches_follow_class_then_item_order():
         make_case(make_call({"hours": "x"}), case_id="case-2"),
     ]
     issues = find_rule_type_mismatches(cases, checklists)
+    assert [issue.subject for issue in issues] == [
+        "impossible_travel/b",
+        "impossible_travel/a",
+        "phishing/p",
+    ]
+
+
+# find_missing_tool_arguments
+
+RANGE_RULE = {"range": {"min_duration": "24h"}}
+
+
+def test_item_with_rules_whose_calls_all_lack_arguments_is_reported():
+    checklists = {"impossible_travel": make_checklist(make_item(RANGE_RULE))}
+    cases = [make_case(make_call()), make_case(make_call(), case_id="case-2")]
+    issues = find_missing_tool_arguments(cases, checklists)
+    assert issues == [
+        Issue(
+            IssueKind.MISSING_TOOL_ARGUMENTS,
+            "impossible_travel/signin_history",
+            "2 calls to 'get_signin_logs', none with arguments",
+        )
+    ]
+
+
+def test_one_call_with_arguments_is_enough_to_stay_quiet():
+    checklists = {"impossible_travel": make_checklist(make_item(RANGE_RULE))}
+    cases = [make_case(make_call()), make_case(make_call({"range": "1d"}), case_id="case-2")]
+    assert find_missing_tool_arguments(cases, checklists) == []
+
+
+def test_unreadable_arguments_still_count_as_carried():
+    checklists = {"impossible_travel": make_checklist(make_item(RANGE_RULE))}
+    assert find_missing_tool_arguments([make_case(make_call("{not json"))], checklists) == []
+
+
+def test_item_without_rules_is_not_reported_for_calls_without_arguments():
+    checklists = {"impossible_travel": make_checklist(make_item())}
+    assert find_missing_tool_arguments([make_case(make_call())], checklists) == []
+
+
+def test_item_whose_tool_is_never_called_is_not_reported():
+    checklists = {"impossible_travel": make_checklist(make_item(RANGE_RULE))}
+    cases = [make_case(make_call(tool="check_mfa_status"))]
+    assert find_missing_tool_arguments(cases, checklists) == []
+
+
+def test_calls_in_cases_of_another_class_do_not_count():
+    checklists = {"impossible_travel": make_checklist(make_item(RANGE_RULE))}
+    cases = [make_case(make_call(), alert_class="Phishing")]
+    assert find_missing_tool_arguments(cases, checklists) == []
+
+
+def test_arguments_in_another_class_do_not_hide_the_problem():
+    checklists = {"impossible_travel": make_checklist(make_item(RANGE_RULE))}
+    cases = [
+        make_case(make_call()),
+        make_case(make_call({"range": "1d"}), case_id="case-2", alert_class="Phishing"),
+    ]
+    issues = find_missing_tool_arguments(cases, checklists)
+    assert [issue.subject for issue in issues] == ["impossible_travel/signin_history"]
+
+
+def test_a_single_call_is_counted_in_the_singular():
+    checklists = {"impossible_travel": make_checklist(make_item(RANGE_RULE))}
+    issues = find_missing_tool_arguments([make_case(make_call())], checklists)
+    assert [issue.detail for issue in issues] == [
+        "1 call to 'get_signin_logs', none with arguments"
+    ]
+
+
+def test_missing_arguments_follow_class_then_item_order():
+    checklists = {
+        "phishing": make_checklist(make_item(RANGE_RULE, item_id="p"), alert_class="phishing"),
+        "impossible_travel": make_checklist(
+            make_item(RANGE_RULE, item_id="b"), make_item(RANGE_RULE, item_id="a")
+        ),
+    }
+    cases = [
+        make_case(make_call(), alert_class="Phishing"),
+        make_case(make_call(), case_id="case-2"),
+    ]
+    issues = find_missing_tool_arguments(cases, checklists)
     assert [issue.subject for issue in issues] == [
         "impossible_travel/b",
         "impossible_travel/a",

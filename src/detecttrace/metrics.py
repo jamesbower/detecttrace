@@ -13,6 +13,7 @@ from detecttrace.evidence import (
     CaseEvidence,
     ItemStatus,
     evaluate_case,
+    find_missing_tool_arguments,
     find_rule_type_mismatches,
 )
 from detecttrace.model import Case, Issue, IssueKind, Verdict
@@ -146,8 +147,9 @@ def compute_metrics(
     """Build one report per alert class. `checklists` is keyed by the normalized alert class.
 
     Issues come in this order: evidence issues (classes in normalized order, cases in case-ID
-    order), rule type mismatches (as `find_rule_type_mismatches` orders them), unknown checklist
-    tools (class key order, then item order), then unused checklists (class key order).
+    order), rule type mismatches and then missing tool arguments (each in class key order, then
+    item order), unknown checklist tools (the same order), then unused checklists (class key
+    order).
     """
     ordered = sorted(cases, key=lambda case: case.case_id)
     groups: dict[str, list[Case]] = {}
@@ -165,6 +167,7 @@ def compute_metrics(
                 evidence[case.case_id] = evaluate_case(case, checklist, issues)
         classes.append(_build_class_report(group, checklist, evidence))
     issues.extend(find_rule_type_mismatches(ordered, checklists))
+    issues.extend(find_missing_tool_arguments(ordered, checklists))
     called_tools = {call.tool_name for case in ordered for call in case.tool_calls}
     for key in sorted(checklists):
         checklist = checklists[key]

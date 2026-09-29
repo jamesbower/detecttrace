@@ -48,6 +48,7 @@ SEVERITY: Mapping[IssueKind, Severity] = {
     IssueKind.UNREADABLE_DURATION: _I,
     IssueKind.UNREADABLE_KQL_TIMESPAN: _I,
     IssueKind.RULE_TYPE_MISMATCH: _W,
+    IssueKind.MISSING_TOOL_ARGUMENTS: _W,
     IssueKind.UNKNOWN_CHECKLIST_TOOL: _W,
     IssueKind.UNUSED_CHECKLIST: _W,
     IssueKind.CONSOLE_EXPORTER_OUTPUT: _I,
@@ -208,6 +209,11 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "rule in checklist item '{key}' expects a different type than the tool arguments hold",
         "rules in checklist item '{key}' expect a different type than the tool arguments hold",
         "Change the rule's expected type, or fix how the agent sends that argument.",
+    ),
+    IssueKind.MISSING_TOOL_ARGUMENTS: (
+        "checklist item has argument rules, but no call to its tool carries arguments",
+        "checklist items have argument rules, but no call to their tools carries arguments",
+        "Check mapping.tool_arguments in {config}.",
     ),
     IssueKind.UNKNOWN_CHECKLIST_TOOL: (
         "checklist item requires the tool '{key}', which no case calls",

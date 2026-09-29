@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from detecttrace.cases import build_trace_cases
-from detecttrace.checklist import load_checklists
+from detecttrace.checklist import ChecklistFileError, load_checklists
 from detecttrace.join import join_cases
 from detecttrace.metrics import MetricsReport, compute_metrics
 from detecttrace.model import Issue
@@ -34,6 +34,12 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
     """
     # Checklists are small and read first, so a typo in one fails before a long trace read.
     checklists = {} if config.checklists is None else load_checklists(config.checklists)
+    if config.checklists is not None and not checklists:
+        # Otherwise a wrong folder would score every class as having no checklist, silently.
+        raise ChecklistFileError(
+            f"No checklist files (*.yaml, *.yml) found under {config.checklists}. "
+            f"Check checklists in {config_path.name}."
+        )
     spans, issues = load_spans(config.traces.path)
     trace_cases, case_issues = build_trace_cases(spans, config.mapping)
     issues.extend(case_issues)

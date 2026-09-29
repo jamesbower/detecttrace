@@ -3,6 +3,7 @@
 import gzip
 import ipaddress
 import re
+import shutil
 import time
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import generate
 import pytest
 
 from detecttrace.metrics import SliceMetrics
+from detecttrace.model import IssueKind
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.runconfig import load_run_config
 
@@ -159,6 +161,26 @@ def test_impossible_travel_v1_has_no_dangerous_false_closes(demo_run: RunResult)
 
 def test_demo_run_reports_no_issues(demo_run: RunResult) -> None:
     assert demo_run.issues == []
+
+
+def test_a_wrong_tool_arguments_mapping_warns_once_per_item_with_rules(tmp_path: Path) -> None:
+    folder = shutil.copytree(DEMO_DIR, tmp_path / "demo")
+    config_path = folder / "detecttrace.yaml"
+    with config_path.open("a", encoding="utf-8") as file:
+        file.write("mapping: {tool_arguments: tool.parameters}\n")
+
+    run = run_check(load_run_config(config_path), config_path)
+
+    assert [
+        issue.subject for issue in run.issues if issue.kind is IssueKind.MISSING_TOOL_ARGUMENTS
+    ] == [
+        "impossible_travel/signin_history",
+        "impossible_travel/signin_query",
+        "impossible_travel/location_history",
+        "oauth_consent/grant_window",
+        "oauth_consent/audit_query",
+        "oauth_consent/consent_history",
+    ]
 
 
 def test_every_ip_address_is_in_a_documentation_range(generated_text: str) -> None:
