@@ -37,6 +37,7 @@ SATISFIED = ItemOutcome(ItemStatus.SATISFIED, None)
 NOT_CALLED = ItemOutcome(ItemStatus.MISSED, MissedReason.NOT_CALLED)
 ALL = TrendScope.ALL
 VERSION = TrendScope.VERSION
+OTHER = TrendScope.OTHER
 
 VerdictCounts = Mapping[tuple[Verdict | None, Verdict | None], int]
 
@@ -821,3 +822,204 @@ def test_shuffled_input_gives_identical_report_and_issues() -> None:
     random.Random(1).shuffle(shuffled)
 
     assert compute_metrics(shuffled, MIXED_CHECKLISTS) == compute_metrics(cases, MIXED_CHECKLISTS)
+
+
+# The other version group
+
+# A group is (version, case count, first start). Case IDs are "<version>-<index>", verdicts and
+# tool calls follow the index, so pooled slices have varied verdicts and completeness.
+VersionGroup = tuple[str | None, int, int]
+PATTERN_VERDICTS = (TP, FP, BENIGN)
+
+
+def make_version_cases(*groups: VersionGroup) -> list[Case]:
+    return [
+        make_case(
+            f"{version}-{index:03d}",
+            PATTERN_VERDICTS[index % 3],
+            PATTERN_VERDICTS[index % 2],
+            version=version,
+            start_ns=start_ns,
+            calls=(make_call("alpha"), make_call("beta"))
+            if index % 2 == 0
+            else (make_call("alpha"),),
+        )
+        for version, count, start_ns in groups
+        for index in range(count)
+    ]
+
+
+def other_trend_keys(report: MetricsReport) -> list[tuple[str, TrendScope, str | None]]:
+    return [key for key in trend_keys(report) if key[1] is OTHER]
+
+
+SIX_VERSIONS: tuple[VersionGroup, ...] = (
+    ("v0", 10, 0),
+    ("v1", 9, 10),
+    ("v2", 8, 20),
+    ("v3", 7, 30),
+    ("v4", 6, 40),
+    ("v5", 5, 50),
+)
+POOLED_VERSIONS: tuple[VersionGroup, ...] = (("v6", 4, 60), ("v7", 3, 70))
+# Counts 10 down to 3, first starts in the reverse order, so rank and display order differ.
+EIGHT_REVERSED: tuple[VersionGroup, ...] = tuple(
+    (f"v{index}", 10 - index, 7 - index) for index in range(8)
+)
+
+
+def test_six_versions_have_no_other_group() -> None:
+    entry = report_of(make_version_cases(*SIX_VERSIONS)).classes[0]
+
+    assert entry.other is None
+
+
+def test_six_versions_are_all_shown() -> None:
+    entry = report_of(make_version_cases(*SIX_VERSIONS)).classes[0]
+
+    assert entry.shown_versions == ("v0", "v1", "v2", "v3", "v4", "v5")
+
+
+def test_six_versions_pool_nothing() -> None:
+    entry = report_of(make_version_cases(*SIX_VERSIONS)).classes[0]
+
+    assert entry.other_versions == ()
+
+
+def test_top_six_by_count_are_shown_in_first_start_order() -> None:
+    entry = report_of(make_version_cases(*EIGHT_REVERSED)).classes[0]
+
+    assert entry.shown_versions == ("v5", "v4", "v3", "v2", "v1", "v0")
+
+
+def test_versions_beyond_top_six_are_pooled_in_first_start_order() -> None:
+    entry = report_of(make_version_cases(*EIGHT_REVERSED)).classes[0]
+
+    assert entry.other_versions == ("v7", "v6")
+
+
+def test_pooled_versions_keep_their_own_version_metrics() -> None:
+    entry = report_of(make_version_cases(*EIGHT_REVERSED)).classes[0]
+
+    assert entry.by_version["v7"].case_count == 3
+
+
+def test_tie_at_the_cut_goes_to_the_earlier_first_start() -> None:
+    cases = make_version_cases(
+        *(("a", 5, 0), ("b", 5, 1), ("c", 5, 2), ("d", 5, 3), ("e", 5, 4)),
+        ("late", 2, 20),
+        ("early", 2, 10),
+    )
+
+    assert report_of(cases).classes[0].other_versions == ("late",)
+
+
+def test_tie_at_the_cut_with_the_same_start_goes_to_the_name() -> None:
+    cases = make_version_cases(
+        *(("a", 5, 0), ("b", 5, 1), ("c", 5, 2), ("d", 5, 3), ("e", 5, 4)),
+        ("y", 2, 10),
+        ("x", 2, 10),
+    )
+
+    assert report_of(cases).classes[0].other_versions == ("y",)
+
+
+def test_no_version_is_shown_without_taking_one_of_the_six_places() -> None:
+    cases = make_version_cases(*SIX_VERSIONS, ("v6", 4, 60), (None, 20, 25))
+
+    assert report_of(cases).classes[0].shown_versions == (
+        "v0",
+        "v1",
+        "v2",
+        None,
+        "v3",
+        "v4",
+        "v5",
+    )
+
+
+def test_no_version_does_not_count_toward_the_six() -> None:
+    cases = make_version_cases(*SIX_VERSIONS, ("v6", 4, 60), (None, 20, 25))
+
+    assert report_of(cases).classes[0].other_versions == ("v6",)
+
+
+def test_no_version_with_the_fewest_cases_is_never_pooled() -> None:
+    cases = make_version_cases(*SIX_VERSIONS, *POOLED_VERSIONS, (None, 1, 80))
+
+    assert report_of(cases).classes[0].shown_versions[-1] is None
+
+
+def test_no_version_alongside_six_real_versions_gives_no_other_group() -> None:
+    cases = make_version_cases(*SIX_VERSIONS, (None, 1, 80))
+
+    assert report_of(cases).classes[0].other is None
+
+
+def test_real_version_named_other_is_shown_as_a_normal_version() -> None:
+    cases = make_version_cases(("other", 20, 0), *SIX_VERSIONS[1:], *POOLED_VERSIONS)
+
+    assert report_of(cases).classes[0].shown_versions == ("other", "v1", "v2", "v3", "v4", "v5")
+
+
+def test_real_version_named_other_stays_separate_from_the_pooled_group() -> None:
+    cases = make_version_cases(("other", 20, 0), *SIX_VERSIONS[1:], *POOLED_VERSIONS)
+    entry = report_of(cases).classes[0]
+
+    assert entry.other is not None and (
+        entry.by_version["other"].case_count,
+        entry.other.case_count,
+    ) == (20, 7)
+
+
+def test_other_slice_is_the_slice_of_the_pooled_cases() -> None:
+    pooled = make_version_cases(*POOLED_VERSIONS)
+    report = report_of(make_version_cases(*SIX_VERSIONS) + pooled, TWO_ITEMS)
+
+    assert report.classes[0].other == compute_slice(pooled, report.evidence, 2)
+
+
+def test_trend_has_one_other_point_per_week_with_an_other_version_case() -> None:
+    cases = make_version_cases(
+        *SIX_VERSIONS, ("v6", 4, IN_W39), ("v7", 1, IN_W39), ("v8", 1, IN_W40)
+    )
+
+    assert other_trend_keys(report_of(cases)) == [(W39, OTHER, None), (W40, OTHER, None)]
+
+
+def test_trend_shows_other_after_the_shown_versions_instead_of_pooled_versions() -> None:
+    cases = make_version_cases(*EIGHT_REVERSED)
+
+    assert trend_keys(report_of(cases)) == [
+        ("1970-W01", ALL, None),
+        ("1970-W01", VERSION, "v5"),
+        ("1970-W01", VERSION, "v4"),
+        ("1970-W01", VERSION, "v3"),
+        ("1970-W01", VERSION, "v2"),
+        ("1970-W01", VERSION, "v1"),
+        ("1970-W01", VERSION, "v0"),
+        ("1970-W01", OTHER, None),
+    ]
+
+
+def test_other_trend_point_averages_the_pooled_cases_of_the_week() -> None:
+    cases = make_version_cases(*SIX_VERSIONS, *POOLED_VERSIONS)
+
+    assert report_of(cases, TWO_ITEMS).classes[0].trend[-1] == WeekPoint(
+        "1970-W01", OTHER, None, 11 / 14, 7, 4 / 7, 7
+    )
+
+
+def test_skipped_steps_for_other_pool_the_counts() -> None:
+    cases = make_version_cases(*SIX_VERSIONS, *POOLED_VERSIONS)
+
+    assert report_of(cases, TWO_ITEMS).classes[0].skipped_other == (
+        SkipRate("a", 0, 7, 0.0),
+        SkipRate("b", 3, 7, 3 / 7),
+    )
+
+
+def test_skipped_steps_for_other_are_empty_without_an_other_group() -> None:
+    entry = report_of(make_version_cases(*SIX_VERSIONS), TWO_ITEMS).classes[0]
+
+    assert entry.skipped_other == ()

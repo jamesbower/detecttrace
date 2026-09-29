@@ -29,6 +29,7 @@ from detecttrace.stats import (
 VERDICT_ORDER = (Verdict.TRUE_POSITIVE, Verdict.FALSE_POSITIVE, Verdict.BENIGN)
 ANALYTIC_KAPPA_MIN_CASES = 100
 T_INTERVAL_MIN_CASES = 30
+MAX_SHOWN_VERSIONS = 6
 
 _VERDICT_INDEX = {verdict: index for index, verdict in enumerate(VERDICT_ORDER)}
 _SIZE = len(VERDICT_ORDER)
@@ -110,13 +111,20 @@ class ClassReport:
     alert_class: str  # CSV form of the first case by case ID
     # None: no version. Ordered by first case start, then name, None as if it were "".
     versions: tuple[str | None, ...]
+    # The top real versions by case count, plus None when it has cases, in `versions` order.
+    # None never takes one of the places: pooling it would mix "no version" with real ones.
+    shown_versions: tuple[str | None, ...]
+    other_versions: tuple[str, ...]  # the pooled rest, in `versions` order
     version_first_week: dict[str | None, str]
     overall: SliceMetrics
-    by_version: dict[str | None, SliceMetrics]
+    by_version: dict[str | None, SliceMetrics]  # every version, shown or pooled
+    other: SliceMetrics | None  # the pooled cases; None when nothing is pooled
     checklist_item_ids: tuple[str, ...]  # empty without a checklist
     skipped_overall: tuple[SkipRate, ...]
     skipped_by_version: dict[str | None, tuple[SkipRate, ...]]
-    trend: tuple[WeekPoint, ...]  # by week, then the all-versions point, then version order
+    skipped_other: tuple[SkipRate, ...]
+    # By week, then the all-versions point, the shown versions in order, then the pooled point.
+    trend: tuple[WeekPoint, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,16 +231,27 @@ def _build_class_report(
     versions = tuple(
         sorted(cases_by_version, key=lambda version: (first_start[version], version or ""))
     )
+    real_versions = [version for version in versions if version is not None]
+    ranked = sorted(
+        real_versions,
+        key=lambda version: (-len(cases_by_version[version]), first_start[version], version),
+    )
+    pooled = set(ranked[MAX_SHOWN_VERSIONS:]) if len(ranked) > MAX_SHOWN_VERSIONS else set()
+    other_cases = [case for case in cases if case.prompt_version in pooled]
     item_ids = tuple(item.id for item in checklist.items) if checklist is not None else ()
+    shown_versions = tuple(version for version in versions if version not in pooled)
     return ClassReport(
         alert_class=cases[0].alert_class,
         versions=versions,
+        shown_versions=shown_versions,
+        other_versions=tuple(version for version in real_versions if version in pooled),
         version_first_week={version: iso_week(first_start[version]) for version in versions},
         overall=compute_slice(cases, evidence, item_count),
         by_version={
             version: compute_slice(cases_by_version[version], evidence, item_count)
             for version in versions
         },
+        other=compute_slice(other_cases, evidence, item_count) if other_cases else None,
         checklist_item_ids=item_ids,
         skipped_overall=_skip_rates(cases, evidence, item_ids),
         skipped_by_version={
@@ -241,7 +260,8 @@ def _build_class_report(
         }
         if item_ids
         else {},
-        trend=_trend(cases, versions, evidence, item_count),
+        skipped_other=_skip_rates(other_cases, evidence, item_ids) if other_cases else (),
+        trend=_trend(cases, shown_versions, pooled, evidence, item_count),
     )
 
 
@@ -264,7 +284,8 @@ def _skip_rates(
 
 def _trend(
     cases: list[Case],
-    versions: tuple[str | None, ...],
+    shown_versions: tuple[str | None, ...],
+    pooled: set[str],
     evidence: Mapping[str, CaseEvidence],
     item_count: int | None,
 ) -> tuple[WeekPoint, ...]:
@@ -273,10 +294,12 @@ def _trend(
     agreement: dict[tuple[str, TrendScope, str | None], list[bool]] = {}
     for case in cases:
         week = iso_week(case.start_ns)
-        keys = (
-            (week, TrendScope.ALL, None),
-            (week, TrendScope.VERSION, case.prompt_version),
+        version_key = (
+            (week, TrendScope.OTHER, None)
+            if case.prompt_version in pooled
+            else (week, TrendScope.VERSION, case.prompt_version)
         )
+        keys = ((week, TrendScope.ALL, None), version_key)
         for key in keys:
             completeness.setdefault(key, [])
             agreement.setdefault(key, [])
@@ -291,7 +314,8 @@ def _trend(
     weeks = sorted({week for week, _, _ in completeness})
     order = (
         (TrendScope.ALL, None),
-        *((TrendScope.VERSION, version) for version in versions),
+        *((TrendScope.VERSION, version) for version in shown_versions),
+        (TrendScope.OTHER, None),
     )
     return tuple(
         _week_point(week, scope, version, completeness[key], agreement[key])
