@@ -1,8 +1,11 @@
-"""Seeded in-memory cases for the metrics stage's performance gate."""
+"""Seeded data for the performance gates: in-memory cases, and a full dataset on disk."""
 
 import json
 import random
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import generate
 
 from detecttrace.checklist import ArgRule, Checklist, ChecklistItem
 from detecttrace.config import normalize_label
@@ -35,6 +38,46 @@ _ITEMS = (
 SCALE_CHECKLISTS: dict[str, Checklist] = {
     normalize_label(name): Checklist(alert_class=name, items=_ITEMS) for name in _CLASSES
 }
+
+
+# Repeats of existing tools, so a case makes 6-12 calls like a busy triage agent, not the
+# demo's 5-7; the checklists stay the demo's.
+_EXTRA_TOOLS = {
+    "impossible_travel": ("query_sentinel", "get_signin_logs", "get_ip_reputation"),
+    "oauth_consent": (
+        "get_user_profile",
+        "query_sentinel",
+        "get_consent_events",
+        "get_oauth_grants",
+    ),
+}
+
+
+def write_scale_dataset(folder: Path, count: int = 50_000) -> Path:
+    """Write about `count` demo-like cases as gzip Collector files; return the config path."""
+    demo = generate.load_scenario("demo")
+    cases_per_week = -(-count // (len(demo.classes) * demo.weeks))
+    scenario = demo.model_copy(
+        update={
+            "classes": tuple(
+                spec.model_copy(
+                    update={
+                        "cases_per_week": cases_per_week,
+                        "tools": spec.tools + _EXTRA_TOOLS[spec.name],
+                    }
+                )
+                for spec in demo.classes
+            ),
+            # 50 cases per line keeps every line far below the reader's per-line cap.
+            "traces": generate.TraceLayout(files=8, cases_per_batch=50),
+            "noise": demo.noise.model_copy(update={"failure": 0.1}),
+        }
+    )
+    cases = generate.make_cases(scenario)
+    generate.write_traces(scenario, cases, folder / "traces")
+    generate.write_verdicts(cases, folder / "verdicts.csv")
+    generate.write_checklists(scenario, folder / "checklists")
+    return generate.write_text(folder / "detecttrace.yaml", generate.to_yaml(scenario.config))
 
 
 def make_scale_cases(count: int = 50_000, seed: int = 7) -> list[Case]:
