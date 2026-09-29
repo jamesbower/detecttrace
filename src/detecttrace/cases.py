@@ -15,36 +15,37 @@ def build_trace_cases(
 ) -> tuple[list[TraceCase], list[Issue]]:
     """Group spans into cases. One case per case ID; duplicate roots are resolved and reported."""
     issues: list[Issue] = []
-    reported_resource_values: set[tuple[str, str]] = set()
     by_trace: dict[str, list[Span]] = defaultdict(list)
     for span in spans:
         by_trace[span.trace_id].append(span)
-    candidates: list[TraceCase] = []
+    candidates: list[_OpenCase] = []
     for trace_id in sorted(by_trace):
-        candidates.extend(
-            _build_trace(by_trace[trace_id], mapping, issues, reported_resource_values)
-        )
-    return _pick_latest_roots(candidates, issues), issues
+        candidates.extend(_walk_trace(by_trace[trace_id], mapping, issues))
+    # Closing only the kept roots keeps a dropped duplicate's issues out of the report.
+    reported_resource_values: set[tuple[str, str]] = set()
+    cases = [
+        _close_case(case, mapping, issues, reported_resource_values)
+        for case in _pick_latest_roots(candidates, issues)
+    ]
+    return cases, issues
 
 
-@dataclass
+@dataclass(slots=True)
 class _OpenCase:
     root: Span
     case_id: str
     tool_calls: list[ToolCall] = field(default_factory=list)
     descendants: list[Span] = field(default_factory=list)
+    orphan_count: int = 0  # orphan tool spans in the root's trace
 
 
 def _span_order(span: Span) -> tuple[int, str]:
     return (span.start_ns, span.span_id)
 
 
-def _build_trace(
-    trace_spans: list[Span],
-    mapping: MappingConfig,
-    issues: list[Issue],
-    reported_resource_values: set[tuple[str, str]],
-) -> list[TraceCase]:
+def _walk_trace(
+    trace_spans: list[Span], mapping: MappingConfig, issues: list[Issue]
+) -> list[_OpenCase]:
     by_id = {span.span_id: span for span in trace_spans}
     children: dict[str, list[Span]] = defaultdict(list)
     parents: dict[str, Span] = {}
@@ -73,37 +74,24 @@ def _build_trace(
             )
             walk.run(start, is_broken_chain=True)
 
-    return [
-        _close_case(case, mapping, walk.orphan_count, issues, reported_resource_values)
-        for case in walk.open_cases
-    ]
+    for case in walk.open_cases:
+        case.orphan_count = walk.orphan_count
+    return walk.open_cases
 
 
+@dataclass(slots=True)
 class _TraceWalk:
     """Depth-first walk of one trace that opens cases and assigns tool calls to them."""
 
-    __slots__ = (
-        "children",
-        "is_collecting_descendants",
-        "issues",
-        "mapping",
-        "open_cases",
-        "orphan_count",
-        "visited",
-    )
-
-    def __init__(
-        self, children: dict[str, list[Span]], mapping: MappingConfig, issues: list[Issue]
-    ) -> None:
-        self.children = children
-        self.mapping = mapping
-        self.issues = issues
-        self.is_collecting_descendants = mapping.prompt_version_lookup == "descendant"
-        self.open_cases: list[_OpenCase] = []
-        self.orphan_count = 0
-        self.visited: set[str] = set()
+    children: dict[str, list[Span]]
+    mapping: MappingConfig
+    issues: list[Issue]
+    open_cases: list[_OpenCase] = field(default_factory=list)
+    orphan_count: int = 0
+    visited: set[str] = field(default_factory=set)
 
     def run(self, top: Span, is_broken_chain: bool) -> None:
+        is_collecting_descendants = self.mapping.prompt_version_lookup == "descendant"
         # Entries: (span, case it belongs to, case IDs open on its path).
         stack: list[tuple[Span, _OpenCase | None, tuple[str, ...]]] = [(top, None, ())]
         while stack:
@@ -117,7 +105,7 @@ class _TraceWalk:
                 current, path_case_ids = self._visit_agent(span, current, path_case_ids)
             elif kind == "tool":
                 self._visit_tool(span, current, is_broken_chain)
-            if self.is_collecting_descendants and current is not None and span is not current.root:
+            if is_collecting_descendants and current is not None and span is not current.root:
                 current.descendants.append(span)
             for child in sorted(self.children.get(span.span_id, ()), key=_span_order, reverse=True):
                 stack.append((child, current, path_case_ids))
@@ -126,6 +114,7 @@ class _TraceWalk:
         self, span: Span, current: _OpenCase | None, path_case_ids: tuple[str, ...]
     ) -> tuple[_OpenCase | None, tuple[str, ...]]:
         subject = f"{span.trace_id}/{span.span_id}"
+        # _to_text returns None for missing and invalid alike; only invalid adds an issue.
         issue_count = len(self.issues)
         case_id = _to_text(
             span.attributes.get(self.mapping.case_id), subject, self.mapping.case_id, self.issues
@@ -177,7 +166,7 @@ def _find_cycle_start(span: Span, parents: dict[str, Span]) -> Span:
 
 def _classify(span: Span, operation: OperationConfig) -> Literal["agent", "tool"] | None:
     value = span.attributes.get(operation.attribute)
-    if not isinstance(value, str) or not value:
+    if not isinstance(value, str) or not value.strip():
         if not operation.span_name_fallback:
             return None
         value = span.name.split(" ", 1)[0]
@@ -233,7 +222,6 @@ def _to_tool_call(span: Span, operation: OperationConfig, issues: list[Issue]) -
 def _close_case(
     case: _OpenCase,
     mapping: MappingConfig,
-    orphan_count: int,
     issues: list[Issue],
     reported_resource_values: set[tuple[str, str]],
 ) -> TraceCase:
@@ -244,13 +232,13 @@ def _close_case(
     )
     if prompt_version is None and mapping.prompt_version_lookup == "descendant":
         prompt_version = _read_descendant_version(case, mapping.prompt_version, issues)
-    is_incomplete = orphan_count > 0
+    is_incomplete = case.orphan_count > 0
     if is_incomplete:
         issues.append(
             Issue(
                 IssueKind.INCOMPLETE_TRACE,
                 subject,
-                f"{root.trace_id}: {orphan_count} orphan tool span(s)",
+                f"{root.trace_id}: {case.orphan_count} orphan tool span(s)",
             )
         )
     return TraceCase(
@@ -287,7 +275,10 @@ def _read_root_or_resource(
     # Every span of a process shares its resource, so a bad value is reported once, not per case.
     if found and (key, repr(raw)) not in reported_resource_values:
         reported_resource_values.add((key, repr(raw)))
-        issues.extend(found)
+        issues.extend(
+            Issue(issue.kind, issue.subject, f"{issue.detail}; first seen in trace {root.trace_id}")
+            for issue in found
+        )
     return value
 
 
@@ -329,23 +320,25 @@ def _to_text(value: object, subject: str, key: str, issues: list[Issue]) -> str 
     return text.strip() or None
 
 
-def _pick_latest_roots(candidates: list[TraceCase], issues: list[Issue]) -> list[TraceCase]:
+def _pick_latest_roots(candidates: list[_OpenCase], issues: list[Issue]) -> list[_OpenCase]:
     """Keep one root per case ID: latest start, then latest end, highest trace ID, highest span ID."""
-    by_case: dict[str, list[TraceCase]] = defaultdict(list)
+    by_case: dict[str, list[_OpenCase]] = defaultdict(list)
     for candidate in candidates:
         by_case[candidate.case_id].append(candidate)
-    chosen: list[TraceCase] = []
+    chosen: list[_OpenCase] = []
     for case_id in sorted(by_case):
         group = by_case[case_id]
-        latest = max(group, key=lambda c: (c.start_ns, c.end_ns, c.trace_id, c.root_span_id))
+        latest = max(
+            group, key=lambda c: (c.root.start_ns, c.root.end_ns, c.root.trace_id, c.root.span_id)
+        )
         for other in group:
             if other is not latest:
                 issues.append(
                     Issue(
                         IssueKind.DUPLICATE_ROOT,
                         case_id,
-                        f"kept {latest.trace_id}/{latest.root_span_id}, "
-                        f"ignored {other.trace_id}/{other.root_span_id}",
+                        f"kept {latest.root.trace_id}/{latest.root.span_id}, "
+                        f"ignored {other.root.trace_id}/{other.root.span_id}",
                     )
                 )
         chosen.append(latest)

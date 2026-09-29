@@ -65,8 +65,8 @@ def test_custom_operation_attribute_and_values() -> None:
     assert tools_by_case(spans, mapping) == {"DT-1": ("x",)}
 
 
-@pytest.mark.parametrize("operation", ["", 5])
-def test_empty_or_non_text_operation_falls_back_to_span_name(operation: object) -> None:
+@pytest.mark.parametrize("operation", ["", "  ", 5])
+def test_empty_blank_or_non_text_operation_falls_back_to_span_name(operation: object) -> None:
     spans = [
         make_span(
             "r1",
@@ -108,6 +108,12 @@ def test_nested_span_with_the_same_case_id_uses_the_outermost_root() -> None:
     cases, _ = build_trace_cases(spans, MAPPING)
 
     assert [c.root_span_id for c in cases] == ["r1"]
+
+
+def test_nested_span_with_the_same_case_id_is_not_reported() -> None:
+    spans = [case_root("r1", "DT-1"), case_root("r2", "DT-1", "r1")]
+
+    assert issue_kinds(spans) == []
 
 
 def test_several_roots_in_one_trace_are_separate_cases() -> None:
@@ -209,7 +215,7 @@ def test_root_in_a_two_span_parent_cycle_keeps_its_tool_call() -> None:
     assert tools_by_case(spans) == {"DT-1": ("check_mfa_status",)}
 
 
-def test_tool_that_sorts_before_a_cycle_member_still_belongs_to_the_case() -> None:
+def test_tool_visited_before_its_cycle_members_is_walked_from_the_cycle_start() -> None:
     spans = [
         case_root("r1", "DT-1", "r2"),
         agent_span("r2", "r1"),
@@ -225,6 +231,13 @@ def test_parent_cycle_is_reported_once_as_a_broken_parent_chain() -> None:
     _, issues = build_trace_cases(spans, MAPPING)
 
     assert issues == [Issue(IssueKind.BROKEN_PARENT_CHAIN, f"{TRACE_ID}/r1", "parent cycle")]
+
+
+def test_case_free_tool_span_that_is_its_own_parent_is_a_cycle_and_a_broken_chain() -> None:
+    assert issue_kinds([tool_span("t1", "t1")]) == [
+        IssueKind.BROKEN_PARENT_CHAIN,
+        IssueKind.BROKEN_PARENT_CHAIN,
+    ]
 
 
 def test_tool_span_outside_any_root_is_an_orphan() -> None:
@@ -511,11 +524,17 @@ def test_non_finite_number_is_rejected_and_reported() -> None:
     assert issue_kinds(spans) == [IssueKind.INVALID_ATTRIBUTE]
 
 
-def test_invalid_resource_value_is_reported_once_for_all_cases() -> None:
+# Duplicate roots
+
+TRACE_A = "0000000000000000000000000000000a"
+TRACE_B = "0000000000000000000000000000000b"
+
+
+def test_invalid_resource_value_is_reported_once_across_traces() -> None:
     resource = {"detecttrace.prompt_version": ["v1", "v2"]}
     spans = [
-        case_root("r1", "DT-1", resource=resource),
-        case_root("r2", "DT-2", resource=resource),
+        case_root("r1", "DT-1", trace_id=TRACE_A, resource=resource),
+        case_root("r2", "DT-2", trace_id=TRACE_B, resource=resource),
     ]
 
     _, issues = build_trace_cases(spans, MAPPING)
@@ -524,15 +543,10 @@ def test_invalid_resource_value_is_reported_once_for_all_cases() -> None:
         Issue(
             IssueKind.INVALID_ATTRIBUTE,
             "resource",
-            "detecttrace.prompt_version is a list, not a single value",
+            "detecttrace.prompt_version is a list, not a single value; "
+            f"first seen in trace {TRACE_A}",
         )
     ]
-
-
-# Duplicate roots
-
-TRACE_A = "0000000000000000000000000000000a"
-TRACE_B = "0000000000000000000000000000000b"
 
 
 def kept_root(spans: list[Span]) -> list[tuple[str, str]]:
@@ -577,3 +591,35 @@ def test_duplicate_roots_are_reported() -> None:
     spans = [case_root("r1", "DT-1", trace_id=TRACE_A), case_root("r2", "DT-1", trace_id=TRACE_B)]
 
     assert issue_kinds(spans) == [IssueKind.DUPLICATE_ROOT]
+
+
+def test_duplicate_root_detail_names_the_kept_and_ignored_roots() -> None:
+    spans = [case_root("r1", "DT-1", trace_id=TRACE_A), case_root("r2", "DT-1", trace_id=TRACE_B)]
+
+    _, issues = build_trace_cases(spans, MAPPING)
+
+    assert issues == [
+        Issue(IssueKind.DUPLICATE_ROOT, "DT-1", f"kept {TRACE_B}/r2, ignored {TRACE_A}/r1")
+    ]
+
+
+def test_orphans_in_the_trace_of_an_ignored_root_do_not_mark_the_kept_case_incomplete() -> None:
+    spans = [
+        case_root("r1", "DT-1", trace_id=TRACE_A),
+        tool_span("t1", None, trace_id=TRACE_A),
+        case_root("r2", "DT-1", trace_id=TRACE_B, start_ns=100),
+    ]
+
+    assert issue_kinds(spans) == [IssueKind.ORPHAN_TOOL_SPAN, IssueKind.DUPLICATE_ROOT]
+
+
+def test_version_conflict_under_an_ignored_root_is_not_reported() -> None:
+    mapping = MappingConfig(prompt_version_lookup="descendant")
+    spans = [
+        case_root("r1", "DT-1", trace_id=TRACE_A),
+        make_span("c1", "r1", trace_id=TRACE_A, attributes={"detecttrace.prompt_version": "v1"}),
+        make_span("c2", "r1", trace_id=TRACE_A, attributes={"detecttrace.prompt_version": "v2"}),
+        case_root("r2", "DT-1", trace_id=TRACE_B, start_ns=100),
+    ]
+
+    assert issue_kinds(spans, mapping) == [IssueKind.DUPLICATE_ROOT]
