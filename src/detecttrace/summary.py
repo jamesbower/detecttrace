@@ -1,0 +1,373 @@
+"""The end-of-run terminal summary: issue severities, grouped issue lines, and join coverage."""
+
+import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from enum import StrEnum
+
+from detecttrace import conventions
+from detecttrace.model import Issue, IssueKind
+
+
+class Severity(StrEnum):
+    INVALID_INPUT = "invalid_input"
+    WARNING = "warning"
+
+
+_I = Severity.INVALID_INPUT
+_W = Severity.WARNING
+
+SEVERITY: Mapping[IssueKind, Severity] = {
+    IssueKind.EMPTY_FILE: _I,
+    IssueKind.TRUNCATED_LINE: _I,
+    IssueKind.TRUNCATED_FILE: _I,
+    IssueKind.INVALID_LINE: _I,
+    IssueKind.INVALID_FILE: _I,
+    IssueKind.INVALID_SPAN: _I,
+    IssueKind.DUPLICATE_SPAN: _W,
+    IssueKind.CONFLICTING_DUPLICATE_SPAN: _I,
+    IssueKind.INVALID_ATTRIBUTE: _I,
+    IssueKind.MISSING_TOOL_NAME: _I,
+    IssueKind.AGENT_WITHOUT_CASE_ID: _I,
+    IssueKind.ORPHAN_TOOL_SPAN: _I,
+    IssueKind.BROKEN_PARENT_CHAIN: _I,
+    IssueKind.NESTED_CASE: _W,
+    IssueKind.INCOMPLETE_TRACE: _W,
+    IssueKind.VERSION_CONFLICT: _I,
+    IssueKind.DUPLICATE_ROOT: _W,
+    IssueKind.INVALID_VERDICT_ROW: _I,
+    IssueKind.DUPLICATE_VERDICT: _W,
+    IssueKind.CONFLICTING_ANALYST_VERDICT: _I,
+    IssueKind.ROOT_WITHOUT_VERDICT: _W,
+    IssueKind.VERDICT_WITHOUT_ROOT: _W,
+    IssueKind.ALERT_CLASS_CONFLICT: _I,
+    IssueKind.UNMAPPED_ANALYST_LABEL: _I,
+    IssueKind.UNMAPPED_AGENT_LABEL: _I,
+    IssueKind.MISSING_AGENT_VERDICT: _I,
+    IssueKind.UNREADABLE_ARGUMENTS: _I,
+    IssueKind.UNREADABLE_DURATION: _I,
+    IssueKind.UNREADABLE_KQL_TIMESPAN: _I,
+    IssueKind.RULE_TYPE_MISMATCH: _W,
+    IssueKind.UNKNOWN_CHECKLIST_TOOL: _W,
+    IssueKind.UNUSED_CHECKLIST: _W,
+    IssueKind.CONSOLE_EXPORTER_OUTPUT: _I,
+    IssueKind.UNSUPPORTED_COMPRESSION: _I,
+}
+
+_AGENT = conventions.INVOKE_AGENT
+
+# kind: (after a count of 1, after any other count, fix hint).
+# Placeholders: {key} is the group key (label, tool, or checklist item); {config} the file name.
+_TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
+    IssueKind.EMPTY_FILE: (
+        "trace file is empty",
+        "trace files are empty",
+        "Check that the exporter writes to the trace folder, or remove empty files.",
+    ),
+    IssueKind.TRUNCATED_LINE: (
+        "trace file ends with a cut-off line, which was skipped",
+        "trace files end with a cut-off line, which was skipped",
+        "This is normal while a file is still being written; run again once it is complete.",
+    ),
+    IssueKind.TRUNCATED_FILE: (
+        "compressed trace file ends early",
+        "compressed trace files end early",
+        "Copy or compress the file again once the exporter has finished.",
+    ),
+    IssueKind.INVALID_LINE: (
+        "trace line is not valid JSON and was skipped",
+        "trace lines are not valid JSON and were skipped",
+        "Each line must hold one OTLP JSON export request; check the exporter's output format.",
+    ),
+    IssueKind.INVALID_FILE: (
+        "trace file or folder could not be read",
+        "trace files or folders could not be read",
+        "Check the file permissions and that each file holds OTLP JSON.",
+    ),
+    IssueKind.INVALID_SPAN: (
+        "span is malformed and was skipped",
+        "spans are malformed and were skipped",
+        "Each span needs a valid traceId, spanId, and start and end times.",
+    ),
+    IssueKind.DUPLICATE_SPAN: (
+        "span appears more than once with the same content; the copy was ignored",
+        "spans appear more than once with the same content; the copies were ignored",
+        "Check that the same traces are not exported to more than one file.",
+    ),
+    IssueKind.CONFLICTING_DUPLICATE_SPAN: (
+        "span ID is reused with different content; the first copy was kept",
+        "span IDs are reused with different content; the first copies were kept",
+        "Check that the exporter writes each span once and that span IDs are unique.",
+    ),
+    IssueKind.INVALID_ATTRIBUTE: (
+        "attribute has a value that could not be used",
+        "attributes have values that could not be used",
+        "Check the attribute types against the attribute specification in the README.",
+    ),
+    IssueKind.MISSING_TOOL_NAME: (
+        "tool span has no tool name, so it satisfies no checklist item",
+        "tool spans have no tool name, so they satisfy no checklist item",
+        f"Set {conventions.TOOL_NAME} on every tool span.",
+    ),
+    IssueKind.AGENT_WITHOUT_CASE_ID: (
+        f"{_AGENT} span has no case ID and was not scored",
+        f"{_AGENT} spans have no case ID and were not scored",
+        "Set the case ID attribute (mapping.case_id in {config}) on every " + _AGENT + " span.",
+    ),
+    IssueKind.ORPHAN_TOOL_SPAN: (
+        "tool span is not inside any case",
+        "tool spans are not inside any case",
+        f"Check that tool spans are descendants of an {_AGENT} span with a case ID.",
+    ),
+    IssueKind.BROKEN_PARENT_CHAIN: (
+        "span has a parent chain that is broken or loops",
+        "spans have a parent chain that is broken or loops",
+        "Check that parent span IDs point to spans exported in the same trace.",
+    ),
+    IssueKind.NESTED_CASE: (
+        "case starts inside another case and is treated as a sub-agent",
+        "cases start inside another case and are treated as sub-agents",
+        "Set the case ID only on the top-level " + _AGENT + " span of each case.",
+    ),
+    IssueKind.INCOMPLETE_TRACE: (
+        "case has tool spans that could not be attached to it",
+        "cases have tool spans that could not be attached to them",
+        "Check that the trace files hold every span of each trace.",
+    ),
+    IssueKind.VERSION_CONFLICT: (
+        "case has more than one prompt version, so it has no version",
+        "cases have more than one prompt version, so they have no version",
+        "Set one prompt version (mapping.prompt_version in {config}) per case.",
+    ),
+    IssueKind.DUPLICATE_ROOT: (
+        "case ID appears on more than one agent span; the latest was kept",
+        "case IDs appear on more than one agent span; the latest was kept",
+        "Check that each case is exported once.",
+    ),
+    IssueKind.INVALID_VERDICT_ROW: (
+        "verdict row could not be read and was skipped",
+        "verdict rows could not be read and were skipped",
+        "Each row needs case_id, alert_class, and verdict; quote values that contain commas.",
+    ),
+    IssueKind.DUPLICATE_VERDICT: (
+        "case has repeated verdict rows that agree",
+        "cases have repeated verdict rows that agree",
+        "Remove the repeated rows from the verdict file.",
+    ),
+    IssueKind.CONFLICTING_ANALYST_VERDICT: (
+        "case has verdict rows that disagree, so it has no analyst verdict",
+        "cases have verdict rows that disagree, so they have no analyst verdict",
+        "Keep one verdict row per case in the verdict file.",
+    ),
+    IssueKind.ROOT_WITHOUT_VERDICT: (
+        "trace has no verdict row",
+        "traces have no verdict row",
+        "Add verdicts for these cases, or check mapping.case_id in {config}.",
+    ),
+    IssueKind.VERDICT_WITHOUT_ROOT: (
+        "verdict has no matching trace",
+        "verdicts have no matching trace",
+        "Check mapping.case_id in {config} and that the traces cover the same cases.",
+    ),
+    IssueKind.ALERT_CLASS_CONFLICT: (
+        "case has conflicting alert classes; the verdict file's value was used",
+        "cases have conflicting alert classes; the verdict file's values were used",
+        "Make the alert class agree between the traces and the verdict file.",
+    ),
+    IssueKind.UNMAPPED_ANALYST_LABEL: (
+        "verdict uses the label '{key}', which has no mapping",
+        "verdicts use the label '{key}', which has no mapping",
+        "Add it to label_map in {config}.",
+    ),
+    IssueKind.UNMAPPED_AGENT_LABEL: (
+        "case has the agent verdict '{key}', which has no mapping",
+        "cases have the agent verdict '{key}', which has no mapping",
+        "Add it to agent_label_map or label_map in {config}.",
+    ),
+    IssueKind.MISSING_AGENT_VERDICT: (
+        "case has no agent verdict on its trace",
+        "cases have no agent verdict on their trace",
+        "Set the verdict attribute (mapping.verdict in {config}) on the " + _AGENT + " span.",
+    ),
+    IssueKind.UNREADABLE_ARGUMENTS: (
+        "tool call has arguments that could not be read",
+        "tool calls have arguments that could not be read",
+        "Send tool arguments as a JSON object so checklist rules can check them.",
+    ),
+    IssueKind.UNREADABLE_DURATION: (
+        "tool argument has a duration or timestamp that could not be read",
+        "tool arguments have a duration or timestamp that could not be read",
+        "Use ISO 8601 durations and timestamps in arguments that checklist rules check.",
+    ),
+    IssueKind.UNREADABLE_KQL_TIMESPAN: (
+        "tool argument has a KQL lookback that could not be read",
+        "tool arguments have a KQL lookback that could not be read",
+        "Write lookbacks as ago(<number><unit>), for example ago(7d).",
+    ),
+    IssueKind.RULE_TYPE_MISMATCH: (
+        "rule in checklist item '{key}' expects a different type than the tool arguments hold",
+        "rules in checklist item '{key}' expect a different type than the tool arguments hold",
+        "Change the rule's expected type, or fix how the agent sends that argument.",
+    ),
+    IssueKind.UNKNOWN_CHECKLIST_TOOL: (
+        "checklist item requires the tool '{key}', which no case calls",
+        "checklist items require the tool '{key}', which no case calls",
+        "Check the tool name's spelling in the checklist.",
+    ),
+    IssueKind.UNUSED_CHECKLIST: (
+        "checklist is for an alert class that no case has",
+        "checklists are for alert classes that no case has",
+        "Check the alert class name in the checklist against the verdict file.",
+    ),
+    IssueKind.CONSOLE_EXPORTER_OUTPUT: (
+        "trace file holds console exporter output, not OTLP JSON",
+        "trace files hold console exporter output, not OTLP JSON",
+        "Write traces with the Collector file exporter, or with FileSpanExporter "
+        "(pip install detecttrace[otel]).",
+    ),
+    IssueKind.UNSUPPORTED_COMPRESSION: (
+        "trace file is zstd-compressed and was skipped",
+        "trace files are zstd-compressed and were skipped",
+        "Install detecttrace[zstd] to read zstd-compressed files.",
+    ),
+}
+
+# NOTE: the metrics stage puts the tool only in the detail, as "no case calls tool 'NAME'".
+_UNKNOWN_TOOL = re.compile(r"tool '(.*)'")
+_MAX_EXAMPLES = 3
+_MAX_EXAMPLE_LENGTH = 60
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryLine:
+    severity: Severity
+    kind: IssueKind
+    count: int
+    message: str  # the full sentence with count and fix hint
+    examples: tuple[str, ...]  # up to 3 subjects
+
+
+@dataclass(slots=True)
+class _Group:
+    count: int = 0
+    examples: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class JoinCoverage:
+    verdicts_matched: int
+    verdicts_total: int
+    traces_matched: int
+    traces_total: int
+
+
+def summarize_issues(
+    issues: Sequence[Issue], config_name: str = "detecttrace.yaml"
+) -> list[SummaryLine]:
+    """Group issues by kind and key into one line each: invalid input first, then by count."""
+    groups: dict[tuple[IssueKind, str], _Group] = {}
+    for issue in issues:
+        group_key = (issue.kind, _to_group_key(issue))
+        group = groups.get(group_key)
+        if group is None:
+            group = groups[group_key] = _Group()
+        group.count += 1
+        if len(group.examples) < _MAX_EXAMPLES and issue.subject not in group.examples:
+            group.examples.append(issue.subject)
+    ordered = sorted(
+        groups.items(),
+        key=lambda item: (
+            SEVERITY[item[0][0]] is not Severity.INVALID_INPUT,
+            -item[1].count,
+            item[0][0].value,
+            item[0][1],
+        ),
+    )
+    return [
+        SummaryLine(
+            severity=SEVERITY[kind],
+            kind=kind,
+            count=group.count,
+            message=_render(kind, key, group.count, config_name),
+            examples=tuple(_shorten(subject) for subject in group.examples),
+        )
+        for (kind, key), group in ordered
+    ]
+
+
+def has_invalid_input(issues: Sequence[Issue]) -> bool:
+    return any(SEVERITY[issue.kind] is Severity.INVALID_INPUT for issue in issues)
+
+
+def coverage_lines(
+    coverage: JoinCoverage, config_name: str = "detecttrace.yaml"
+) -> list[SummaryLine]:
+    """Two lines, verdicts then traces; a wrong case ID mapping shows up here, not as an error."""
+    return [
+        _coverage_line(
+            coverage.verdicts_matched,
+            coverage.verdicts_total,
+            ("verdict", "verdicts"),
+            "a trace",
+            IssueKind.VERDICT_WITHOUT_ROOT,
+            config_name,
+        ),
+        _coverage_line(
+            coverage.traces_matched,
+            coverage.traces_total,
+            ("trace", "traces"),
+            "a verdict",
+            IssueKind.ROOT_WITHOUT_VERDICT,
+            config_name,
+        ),
+    ]
+
+
+def _to_group_key(issue: Issue) -> str:
+    if issue.kind in (IssueKind.UNMAPPED_ANALYST_LABEL, IssueKind.UNMAPPED_AGENT_LABEL):
+        return issue.detail
+    if issue.kind is IssueKind.UNKNOWN_CHECKLIST_TOOL:
+        match = _UNKNOWN_TOOL.search(issue.detail)
+        return match.group(1) if match else issue.detail
+    if issue.kind is IssueKind.RULE_TYPE_MISMATCH:
+        return issue.subject
+    return ""
+
+
+def _render(kind: IssueKind, key: str, count: int, config_name: str) -> str:
+    singular, plural, hint = _TEMPLATES[kind]
+    phrase = singular if count == 1 else plural
+    # format() never re-reads substituted values, so braces in a label are safe.
+    return f"{count:,} {phrase}. {hint}".format(key=key, config=config_name)
+
+
+def _shorten(subject: str) -> str:
+    if len(subject) <= _MAX_EXAMPLE_LENGTH:
+        return subject
+    return subject[: _MAX_EXAMPLE_LENGTH - 1] + "…"
+
+
+def _coverage_line(
+    matched: int,
+    total: int,
+    nouns: tuple[str, str],
+    other_side: str,
+    kind: IssueKind,
+    config_name: str,
+) -> SummaryLine:
+    noun = nouns[0] if total == 1 else nouns[1]
+    if total == 0:
+        message = f"0 of 0 {noun} matched {other_side}: no {noun} were read."
+    else:
+        # Floored so a side just under half never shows as 50% next to the warning.
+        sentence = (
+            f"{matched:,} of {total:,} {noun} matched {other_side} ({matched * 100 // total}%)."
+        )
+        if matched * 2 < total:
+            message = (
+                f"WARNING: {sentence} Less than half matched, so the results may be misleading; "
+                f"check mapping.case_id in {config_name}."
+            )
+        else:
+            message = sentence
+    return SummaryLine(Severity.WARNING, kind, matched, message, ())

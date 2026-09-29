@@ -1,0 +1,331 @@
+import time
+
+import pytest
+
+from detecttrace.model import Issue, IssueKind
+from detecttrace.summary import (
+    SEVERITY,
+    JoinCoverage,
+    Severity,
+    SummaryLine,
+    coverage_lines,
+    has_invalid_input,
+    summarize_issues,
+)
+
+INVALID_INPUT_KINDS = [
+    IssueKind.EMPTY_FILE,
+    IssueKind.TRUNCATED_LINE,
+    IssueKind.TRUNCATED_FILE,
+    IssueKind.INVALID_LINE,
+    IssueKind.INVALID_FILE,
+    IssueKind.INVALID_SPAN,
+    IssueKind.CONFLICTING_DUPLICATE_SPAN,
+    IssueKind.INVALID_ATTRIBUTE,
+    IssueKind.MISSING_TOOL_NAME,
+    IssueKind.AGENT_WITHOUT_CASE_ID,
+    IssueKind.ORPHAN_TOOL_SPAN,
+    IssueKind.BROKEN_PARENT_CHAIN,
+    IssueKind.VERSION_CONFLICT,
+    IssueKind.INVALID_VERDICT_ROW,
+    IssueKind.CONFLICTING_ANALYST_VERDICT,
+    IssueKind.ALERT_CLASS_CONFLICT,
+    IssueKind.UNMAPPED_ANALYST_LABEL,
+    IssueKind.UNMAPPED_AGENT_LABEL,
+    IssueKind.MISSING_AGENT_VERDICT,
+    IssueKind.UNREADABLE_ARGUMENTS,
+    IssueKind.UNREADABLE_DURATION,
+    IssueKind.UNREADABLE_KQL_TIMESPAN,
+    IssueKind.CONSOLE_EXPORTER_OUTPUT,
+    IssueKind.UNSUPPORTED_COMPRESSION,
+]
+WARNING_KINDS = [
+    IssueKind.DUPLICATE_SPAN,
+    IssueKind.NESTED_CASE,
+    IssueKind.INCOMPLETE_TRACE,
+    IssueKind.DUPLICATE_ROOT,
+    IssueKind.DUPLICATE_VERDICT,
+    IssueKind.ROOT_WITHOUT_VERDICT,
+    IssueKind.VERDICT_WITHOUT_ROOT,
+    IssueKind.RULE_TYPE_MISMATCH,
+    IssueKind.UNKNOWN_CHECKLIST_TOOL,
+    IssueKind.UNUSED_CHECKLIST,
+]
+
+
+def unmapped(label: str, count: int) -> list[Issue]:
+    return [
+        Issue(IssueKind.UNMAPPED_ANALYST_LABEL, f"DT-{label}-{index}", label)
+        for index in range(count)
+    ]
+
+
+def only_line(issues: list[Issue]) -> SummaryLine:
+    [line] = summarize_issues(issues)
+    return line
+
+
+# Severity table
+
+
+def test_every_issue_kind_has_a_severity() -> None:
+    assert set(SEVERITY) == set(IssueKind)
+
+
+@pytest.mark.parametrize("kind", INVALID_INPUT_KINDS)
+def test_invalid_input_kinds_have_invalid_input_severity(kind: IssueKind) -> None:
+    assert SEVERITY[kind] is Severity.INVALID_INPUT
+
+
+@pytest.mark.parametrize("kind", WARNING_KINDS)
+def test_warning_kinds_have_warning_severity(kind: IssueKind) -> None:
+    assert SEVERITY[kind] is Severity.WARNING
+
+
+def test_table_lists_every_kind_once() -> None:
+    assert sorted(INVALID_INPUT_KINDS + WARNING_KINDS) == sorted(IssueKind)
+
+
+# Messages
+
+
+@pytest.mark.parametrize("kind", list(IssueKind))
+def test_every_kind_renders_without_placeholders(kind: IssueKind) -> None:
+    detail = "no case calls tool 'lookup_ip'"
+    # Same subject and detail so every kind, whatever its grouping key, gives one plural line.
+    issues = [Issue(kind, "a.jsonl", detail), Issue(kind, "a.jsonl", detail)]
+    assert "{" not in only_line(issues).message
+
+
+@pytest.mark.parametrize("kind", list(IssueKind))
+def test_every_kind_renders_a_full_sentence_with_a_fix_hint(kind: IssueKind) -> None:
+    message = only_line([Issue(kind, "a.jsonl", "x")]).message
+    # Count sentence, then at least one hint sentence.
+    assert (message[0], message[-1], message.count(". ") >= 1) == ("1", ".", True)
+
+
+@pytest.mark.parametrize("kind", list(IssueKind))
+def test_messages_do_not_reference_private_documents(kind: IssueKind) -> None:
+    message = only_line([Issue(kind, "a.jsonl", "x")]).message
+    assert ("PRD" in message, "§" in message) == (False, False)
+
+
+def test_unmapped_labels_give_one_line_per_label() -> None:
+    lines = summarize_issues(unmapped("Escalated", 12) + unmapped("Pending", 3))
+    assert len(lines) == 2
+
+
+def test_unmapped_label_message_counts_what_it_is_about() -> None:
+    lines = summarize_issues(unmapped("Escalated", 12) + unmapped("Pending", 3))
+    assert lines[0].message == (
+        "12 verdicts use the label 'Escalated', which has no mapping. "
+        "Add it to label_map in detecttrace.yaml."
+    )
+
+
+def test_config_name_is_used_when_given() -> None:
+    [line] = summarize_issues(unmapped("Escalated", 1), config_name="prod.yaml")
+    assert line.message.endswith("Add it to label_map in prod.yaml.")
+
+
+def test_singular_count_uses_singular_noun_and_verb() -> None:
+    assert only_line(unmapped("Escalated", 1)).message.startswith("1 verdict uses the label")
+
+
+def test_plural_count_uses_plural_noun_and_verb() -> None:
+    assert only_line(unmapped("Escalated", 2)).message.startswith("2 verdicts use the label")
+
+
+def test_count_has_thousands_separators() -> None:
+    issues = [Issue(IssueKind.VERDICT_WITHOUT_ROOT, f"DT-{index}") for index in range(1234)]
+    assert only_line(issues).message.startswith("1,234 ")
+
+
+# Grouping keys
+
+
+def test_unmapped_agent_labels_group_by_label() -> None:
+    issues = [
+        Issue(IssueKind.UNMAPPED_AGENT_LABEL, "DT-1", "escalate"),
+        Issue(IssueKind.UNMAPPED_AGENT_LABEL, "DT-2", "unsure"),
+        Issue(IssueKind.UNMAPPED_AGENT_LABEL, "DT-3", "escalate"),
+    ]
+    assert [line.count for line in summarize_issues(issues)] == [2, 1]
+
+
+def test_unknown_tools_group_by_tool() -> None:
+    issues = [
+        Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, "travel/mfa", "no case calls tool 'check_mfa'"),
+        Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, "oauth/mfa", "no case calls tool 'check_mfa'"),
+        Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, "travel/ip", "no case calls tool 'lookup_ip'"),
+    ]
+    assert [line.count for line in summarize_issues(issues)] == [2, 1]
+
+
+def test_unknown_tool_message_names_the_tool() -> None:
+    issue = Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, "travel/mfa", "no case calls tool 'check_mfa'")
+    assert "'check_mfa'" in only_line([issue]).message
+
+
+def test_rule_mismatches_group_by_item() -> None:
+    issues = [
+        Issue(IssueKind.RULE_TYPE_MISMATCH, "travel/mfa", "expected a number"),
+        Issue(IssueKind.RULE_TYPE_MISMATCH, "travel/ip", "expected a string"),
+    ]
+    assert len(summarize_issues(issues)) == 2
+
+
+def test_other_kinds_group_by_kind_alone() -> None:
+    issues = [
+        Issue(IssueKind.INVALID_LINE, "a.jsonl", "line 3"),
+        Issue(IssueKind.INVALID_LINE, "b.jsonl", "line 9"),
+    ]
+    assert only_line(issues).count == 2
+
+
+# Examples
+
+
+def test_examples_are_the_first_three_subjects_in_input_order() -> None:
+    issues = [Issue(IssueKind.VERDICT_WITHOUT_ROOT, f"DT-{index}") for index in (5, 1, 9, 2)]
+    assert only_line(issues).examples == ("DT-5", "DT-1", "DT-9")
+
+
+def test_examples_skip_repeated_subjects() -> None:
+    issues = [
+        Issue(IssueKind.INVALID_LINE, "a.jsonl", "line 3"),
+        Issue(IssueKind.INVALID_LINE, "a.jsonl", "line 4"),
+        Issue(IssueKind.INVALID_LINE, "b.jsonl", "line 1"),
+    ]
+    assert only_line(issues).examples == ("a.jsonl", "b.jsonl")
+
+
+def test_long_example_subjects_are_shortened_to_60_characters() -> None:
+    issue = Issue(IssueKind.EMPTY_FILE, "traces/" + "x" * 100 + ".jsonl")
+    assert len(only_line([issue]).examples[0]) == 60
+
+
+def test_short_example_subjects_are_kept_whole() -> None:
+    issue = Issue(IssueKind.EMPTY_FILE, "traces/a.jsonl")
+    assert only_line([issue]).examples == ("traces/a.jsonl",)
+
+
+# Ordering
+
+
+def test_lines_order_invalid_input_first_then_count_then_kind() -> None:
+    issues = [
+        Issue(IssueKind.VERDICT_WITHOUT_ROOT, "DT-1"),
+        Issue(IssueKind.VERDICT_WITHOUT_ROOT, "DT-2"),
+        Issue(IssueKind.VERDICT_WITHOUT_ROOT, "DT-3"),
+        Issue(IssueKind.ROOT_WITHOUT_VERDICT, "DT-4"),
+        Issue(IssueKind.ROOT_WITHOUT_VERDICT, "DT-5"),
+        Issue(IssueKind.DUPLICATE_VERDICT, "DT-6"),
+        Issue(IssueKind.DUPLICATE_ROOT, "DT-7"),
+        Issue(IssueKind.EMPTY_FILE, "a.jsonl"),
+        Issue(IssueKind.INVALID_FILE, "b.jsonl"),
+        Issue(IssueKind.INVALID_FILE, "c.jsonl"),
+    ]
+    assert [line.kind for line in summarize_issues(issues)] == [
+        IssueKind.INVALID_FILE,
+        IssueKind.EMPTY_FILE,
+        IssueKind.VERDICT_WITHOUT_ROOT,
+        IssueKind.ROOT_WITHOUT_VERDICT,
+        IssueKind.DUPLICATE_ROOT,
+        IssueKind.DUPLICATE_VERDICT,
+    ]
+
+
+def test_lines_carry_the_kind_severity() -> None:
+    lines = summarize_issues([Issue(IssueKind.EMPTY_FILE, "a"), Issue(IssueKind.NESTED_CASE, "b")])
+    assert [line.severity for line in lines] == [Severity.INVALID_INPUT, Severity.WARNING]
+
+
+def test_same_count_same_kind_orders_by_key() -> None:
+    lines = summarize_issues(unmapped("Pending", 1) + unmapped("Escalated", 1))
+    assert "'Escalated'" in lines[0].message
+
+
+def test_no_issues_give_no_lines() -> None:
+    assert summarize_issues([]) == []
+
+
+def test_100000_issues_summarize_quickly() -> None:
+    kinds = list(IssueKind)
+    issues = [
+        Issue(kinds[index % len(kinds)], f"DT-{index}", f"label-{index % 50}")
+        for index in range(100_000)
+    ]
+    started = time.perf_counter()
+    summarize_issues(issues)
+    elapsed = time.perf_counter() - started
+    print(f"summarized 100,000 issues in {elapsed:.3f} s")
+    assert elapsed < 5
+
+
+# has_invalid_input
+
+
+def test_has_invalid_input_is_false_with_warnings_only() -> None:
+    issues = [Issue(IssueKind.DUPLICATE_SPAN, "a"), Issue(IssueKind.UNUSED_CHECKLIST, "b")]
+    assert has_invalid_input(issues) is False
+
+
+def test_has_invalid_input_is_true_with_one_invalid_issue() -> None:
+    issues = [Issue(IssueKind.DUPLICATE_SPAN, "a"), Issue(IssueKind.INVALID_SPAN, "b")]
+    assert has_invalid_input(issues) is True
+
+
+def test_has_invalid_input_is_false_without_issues() -> None:
+    assert has_invalid_input([]) is False
+
+
+# Join coverage
+
+
+def test_low_verdict_coverage_shows_a_warning() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(412, 1030, 412, 412))
+    assert verdicts.message == (
+        "WARNING: 412 of 1,030 verdicts matched a trace (40%). Less than half matched, so the "
+        "results may be misleading; check mapping.case_id in detecttrace.yaml."
+    )
+
+
+def test_low_trace_coverage_shows_a_warning() -> None:
+    [_, traces] = coverage_lines(JoinCoverage(10, 10, 10, 30))
+    assert traces.message.startswith("WARNING: 10 of 30 traces matched a verdict (33%).")
+
+
+def test_coverage_at_exactly_half_has_no_warning() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(515, 1030, 515, 515))
+    assert verdicts.message == "515 of 1,030 verdicts matched a trace (50%)."
+
+
+def test_full_coverage_line() -> None:
+    [_, traces] = coverage_lines(JoinCoverage(3, 3, 1, 1))
+    assert traces.message == "1 of 1 trace matched a verdict (100%)."
+
+
+def test_coverage_just_below_half_is_not_rounded_up() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(999, 2000, 1, 1))
+    assert verdicts.message.startswith("WARNING: 999 of 2,000 verdicts matched a trace (49%).")
+
+
+def test_zero_verdicts_give_a_clear_line() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(0, 0, 0, 5))
+    assert verdicts.message == "0 of 0 verdicts matched a trace: no verdicts were read."
+
+
+def test_zero_traces_give_a_clear_line() -> None:
+    [_, traces] = coverage_lines(JoinCoverage(0, 5, 0, 0))
+    assert traces.message == "0 of 0 traces matched a verdict: no traces were read."
+
+
+def test_coverage_lines_are_warnings() -> None:
+    lines = coverage_lines(JoinCoverage(1, 1, 1, 1))
+    assert [line.severity for line in lines] == [Severity.WARNING, Severity.WARNING]
+
+
+def test_coverage_hint_uses_the_config_name() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(1, 3, 1, 1), config_name="prod.yaml")
+    assert verdicts.message.endswith("check mapping.case_id in prod.yaml.")
