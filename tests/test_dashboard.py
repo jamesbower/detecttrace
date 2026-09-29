@@ -209,6 +209,23 @@ def test_the_hollow_marker_legend_uses_the_neutral_style() -> None:
     assert marker.classes() == ["mk", "c-none", "is-few-point"]
 
 
+@cache
+def low_coverage_page() -> Node:
+    results = json.loads(json.dumps(demo_results()))
+    results["totals"]["coverage"].update(verdicts_matched=1, verdicts_low=True)
+    return parse_html(render_dashboard(results))
+
+
+def test_the_low_coverage_alert_links_to_the_data_notes() -> None:
+    link = low_coverage_page().find(lambda node: "cov-alert" in node.classes()).find(has_tag("a"))
+    assert link.attrs["href"] == "#s-notes"
+
+
+def test_the_low_coverage_alert_target_exists() -> None:
+    targets = low_coverage_page().find_all(lambda node: node.attrs.get("id") == "s-notes")
+    assert [node.tag for node in targets] == ["h2"]
+
+
 def test_the_generator_marker_names_this_version() -> None:
     meta = demo_page().find(has_tag("meta", name="generator"))
     assert meta.attrs["content"] == f"detecttrace {__version__}"

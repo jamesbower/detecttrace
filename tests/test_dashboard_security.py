@@ -35,8 +35,10 @@ PAYLOADS = [
     '" onmouseover="x',
     f"a{LINE_SEPARATOR}b{PARAGRAPH_SEPARATOR}c",
     f"a{ESCAPE}[31m{RIGHT_TO_LEFT_OVERRIDE}b{BELL}",
+    # Entity text must stay literal: decoded once too often, it would become a real tag.
+    "&lt;script&gt;alert(1)&lt;/script&gt;",
 ]
-PAYLOAD_IDS = ["script", "img", "attribute", "separators", "control_and_bidi"]
+PAYLOAD_IDS = ["script", "img", "attribute", "separators", "control_and_bidi", "entity"]
 PLANTED_RESULT = "PLANTED_TOOL_RESULT_7f3a"
 CONFIG = """\
 traces: {path: traces}

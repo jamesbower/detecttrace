@@ -816,6 +816,24 @@ def test_force_never_replaces_a_folder(tmp_path: Path) -> None:
     assert result.exit_code == 1
 
 
+def test_force_on_a_folder_says_it_never_replaces_one(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.html").mkdir()
+
+    result = _check(config_path, "--force")
+
+    assert "--force never replaces a folder" in result.stderr
+
+
+def test_force_on_a_folder_stops_before_the_run(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.html").mkdir()
+
+    result = _check(config_path, "--force")
+
+    assert result.stdout == ""
+
+
 def test_force_replaces_a_broken_link(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
     (tmp_path / "dashboard.html").symlink_to(tmp_path / "gone.html")
