@@ -49,4 +49,5 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.9",
     "types-pyyaml>=6.0.12.20260906",
+    "zstandard>=0.22",
 ]
