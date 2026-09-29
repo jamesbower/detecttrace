@@ -132,7 +132,7 @@ test("a case without a satisfied count shows a dash for its checklist", () => {
 test("outcomes from detail carry the failing rule", () => {
   const row = findRow(demoRows, "DT-IT-0073");
   assert.deepEqual(table.toOutcomes(row, table.findDetail(demoDetails, "DT-IT-0073")), [
-    { item: "signin_history", status: "missed", why: "wrong arguments: range: min_duration" },
+    { item: "signin_history", status: "missed", why: "wrong arguments (range: min_duration)" },
     { item: "mfa_check", status: "missed", why: "not called" },
   ]);
 });
@@ -148,7 +148,7 @@ test("outcomes from the columns give the reason without the rule", () => {
 test("outcomes from the columns follow checklist order across reasons", () => {
   assert.deepEqual(table.toOutcomes(syntheticRows[0], null), [
     { item: "headers", status: "missed", why: "wrong arguments" },
-    { item: "sandbox", status: "failed", why: "the tool call failed" },
+    { item: "sandbox", status: "failed", why: "every call returned an error" },
     { item: "mailbox", status: "missed", why: "not called" },
   ]);
 });
@@ -227,5 +227,225 @@ test("outcome items from the columns show through visible text", () => {
 
 test("a failing rule from detail shows through visible text", () => {
   const detail = { outcomes: [{ item: "headers", status: "missed", reason: "wrong_arguments", failed_rule: "eq‮" }] };
-  assert.equal(table.toOutcomes(syntheticRows[0], detail)[0].why, "wrong arguments: eq\\u202e");
+  assert.equal(table.toOutcomes(syntheticRows[0], detail)[0].why, "wrong arguments (eq\\u202e)");
+});
+
+test("a page holds 100 rows", () => {
+  assert.equal(table.PAGE_SIZE, 100);
+});
+
+test("a duration just under a second rounds up to seconds", () => {
+  assert.equal(table.formatDuration(999.7), "1.0 s");
+});
+
+test("a duration that rounds below a second stays in milliseconds", () => {
+  assert.equal(table.formatDuration(999.4), "999 ms");
+});
+
+// The detail model: what an opened row shows, before any DOM is built.
+
+const failedCallDetail = {
+  case_id: "A",
+  calls: [
+    { tool: "sandbox", arguments: null, status: "error", duration_ms: 5 },
+    { tool: "headers", arguments: "{}", status: "success", duration_ms: 12 },
+  ],
+  outcomes: [],
+};
+
+test("a case without detail says how to include it", () => {
+  assert.equal(
+    table.toDetailModel(syntheticRows[2], null).callsNote,
+    "Details not included. Raise dashboard.max_detail_cases.",
+  );
+});
+
+test("a case without detail lists no calls", () => {
+  assert.equal(table.toDetailModel(syntheticRows[2], null).calls, null);
+});
+
+test("a failed call is labeled as failed", () => {
+  assert.equal(table.toDetailModel(syntheticRows[0], failedCallDetail).calls[0].statusLabel, "✕ Failed");
+});
+
+test("a successful call is labeled as a success", () => {
+  assert.equal(table.toDetailModel(syntheticRows[0], failedCallDetail).calls[1].statusLabel, "✓ Success");
+});
+
+test("a call without arguments says so", () => {
+  assert.equal(table.toDetailModel(syntheticRows[0], failedCallDetail).calls[0].args, "(no arguments)");
+});
+
+test("a detail case with no calls says so", () => {
+  assert.equal(table.toDetailModel(syntheticRows[0], { ...failedCallDetail, calls: [] }).callsNote, "No tool calls.");
+});
+
+test("a failed step is labeled as failed", () => {
+  assert.equal(table.toDetailModel(syntheticRows[0], null).steps[1].label, "Failed");
+});
+
+test("a missed step is labeled as missed", () => {
+  assert.equal(table.toDetailModel(syntheticRows[0], null).steps[0].label, "Missed");
+});
+
+test("a case whose class has no checklist says so", () => {
+  const row = { ...syntheticRows[0], checklist: null };
+  assert.equal(table.toDetailModel(row, null).stepsNote, "This alert class has no checklist.");
+});
+
+test("a case with every step satisfied says so", () => {
+  assert.equal(table.toDetailModel(syntheticRows[1], null).stepsNote, "None. Every checklist step was satisfied.");
+});
+
+// The status line shown when the table can't start.
+
+test("the startup message gives the reason", () => {
+  assert.equal(table.startupMessage(new Error("bad data")), "The case table could not be built: bad data.");
+});
+
+test("the startup message accepts a thrown non-error", () => {
+  assert.equal(table.startupMessage("boom"), "The case table could not be built: boom.");
+});
+
+test("the startup message shows control characters as escapes", () => {
+  assert.equal(table.startupMessage(new Error("a‮b")), "The case table could not be built: a\\u202eb.");
+});
+
+test("the startup message shortens a long reason", () => {
+  assert.equal(
+    table.startupMessage(new Error("x".repeat(500))),
+    "The case table could not be built: " + "x".repeat(119) + "….",
+  );
+});
+
+// Wiring: the whole script against a minimal fake DOM.
+
+const scriptSource = readFileSync(new URL("../../src/detecttrace/templates/dashboard.js", import.meta.url), "utf8");
+const demoText = JSON.stringify(demo);
+
+class FakeElement {
+  constructor(tag) {
+    this.tagName = tag;
+    this.children = [];
+    this.parent = null;
+    this.attributes = new Map();
+    this.listeners = new Map();
+    this.ownText = "";
+    this.hidden = false;
+  }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
+  appendChild(child) { child.parent = this; this.children.push(child); return child; }
+  replaceChildren() { this.children = []; }
+  after(node) {
+    node.parent = this.parent;
+    this.parent.children.splice(this.parent.children.indexOf(this) + 1, 0, node);
+  }
+  addEventListener(type, listener) { this.listeners.set(type, listener); }
+  click() { this.listeners.get("click")(); }
+  focus() {}
+  get textContent() { return this.ownText + this.children.map((child) => child.textContent).join(""); }
+  set textContent(text) { this.children = []; this.ownText = String(text); }
+  *walk() {
+    yield this;
+    for (const child of this.children) yield* child.walk();
+  }
+}
+
+class FakeDocument {
+  constructor() { this.root = new FakeElement("body"); }
+  createElement(tag) { return new FakeElement(tag); }
+  getElementById(id) { return this.root.walk().find((node) => node.getAttribute("id") === id) ?? null; }
+  querySelectorAll() { return this.getElementById("case-filters").children; }
+}
+
+function createPage(resultsText) {
+  const doc = new FakeDocument();
+  const add = (parent, tag, id) => {
+    const node = parent.appendChild(new FakeElement(tag));
+    if (id) node.setAttribute("id", id);
+    return node;
+  };
+  add(doc.root, "p", "case-status").textContent = "Loading the case table…";
+  const ui = add(doc.root, "div", "case-ui");
+  ui.hidden = true;
+  const filters = add(ui, "div", "case-filters");
+  add(filters, "button").setAttribute("data-filter", "all");
+  add(filters, "button").setAttribute("data-filter", "dangerous");
+  add(ui, "p", "case-count");
+  add(ui, "tbody", "case-rows");
+  add(ui, "button", "case-more");
+  add(doc.root, "script", "dt-results").textContent = resultsText;
+  return doc;
+}
+
+function runScript(doc) {
+  new Function("document", scriptSource)(doc);
+  return doc;
+}
+
+function firstToggle(doc) {
+  return doc.getElementById("case-rows").children[0].children[0].children[0];
+}
+
+test("a table that can't start says why in the status line", () => {
+  const doc = runScript(createPage("{not json"));
+  assert.match(doc.getElementById("case-status").textContent, /^The case table could not be built: .+\.$/);
+});
+
+test("a table that can't start stays hidden", () => {
+  const doc = runScript(createPage("{not json"));
+  assert.equal(doc.getElementById("case-ui").hidden, true);
+});
+
+test("a table that starts clears the status line", () => {
+  const doc = runScript(createPage(demoText));
+  assert.equal(doc.getElementById("case-status").textContent, "");
+});
+
+test("a table that starts hides the status line", () => {
+  const doc = runScript(createPage(demoText));
+  assert.equal(doc.getElementById("case-status").hidden, true);
+});
+
+test("the count line is filled before the table is shown", () => {
+  const doc = createPage(demoText);
+  const ui = doc.getElementById("case-ui");
+  let countWhenShown = null;
+  Object.defineProperty(ui, "hidden", {
+    set(value) { if (value === false) countWhenShown = doc.getElementById("case-count").textContent; },
+  });
+  runScript(doc);
+  assert.equal(countWhenShown, "Showing 100 of 201 matching cases.");
+});
+
+test("a closed row controls nothing until its detail exists", () => {
+  const doc = runScript(createPage(demoText));
+  assert.equal(firstToggle(doc).getAttribute("aria-controls"), null);
+});
+
+test("an opened row controls its detail row", () => {
+  const doc = runScript(createPage(demoText));
+  firstToggle(doc).click();
+  assert.equal(
+    firstToggle(doc).getAttribute("aria-controls"),
+    doc.getElementById("case-rows").children[1].getAttribute("id"),
+  );
+});
+
+test("an opened row's headings sit one level under the section card", () => {
+  const doc = runScript(createPage(demoText));
+  firstToggle(doc).click();
+  const detailRow = doc.getElementById("case-rows").children[1];
+  assert.deepEqual(
+    detailRow.walk().filter((node) => /^h\d$/.test(node.tagName)).map((node) => node.tagName).toArray(),
+    ["h3", "h3"],
+  );
+});
+
+test("an error while re-rendering says why in the status line", () => {
+  const doc = runScript(createPage(demoText));
+  doc.getElementById("case-rows").replaceChildren = () => { throw new Error("no room"); };
+  doc.getElementById("case-filters").children[1].click();
+  assert.equal(doc.getElementById("case-status").textContent, "The case table could not be built: no room.");
 });

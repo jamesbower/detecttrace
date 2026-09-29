@@ -214,15 +214,15 @@
   <div class="tbl-wrap" role="region" tabindex="0" aria-labelledby="{{ cls.anchor }}-c-cap">
   <table class="cm">
     <caption id="{{ cls.anchor }}-c-cap">Rows are the analyst verdict, columns the agent verdict.</caption>
-    <thead><tr><td></td>{% for label in cls.confusion.column_labels %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
+    <thead><tr><th scope="col"><span class="visually-hidden">Analyst verdict by agent verdict</span></th>{% for label in cls.confusion.column_labels %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
     <tbody>
 {%- for row in cls.confusion.rows -%}
 <tr><th scope="row">{{ row.label }}</th>
 {%- for cell in row.cells -%}
 {%- if cell.is_dangerous and cell.count_text != "0" -%}
-<td class="{{ cell.heat }} is-danger" aria-label="{{ cell.count_text }}, dangerous false close">{{ cell.count_text }}<span class="flag">{{ warn_icon() }}dangerous</span></td>
+<td class="{{ cell.heat }} is-danger">{{ cell.count_text }}<span class="visually-hidden"> (dangerous cell)</span><span class="flag">{{ warn_icon() }}dangerous</span></td>
 {%- else -%}
-<td class="{{ cell.heat }}{{ ' is-danger' if cell.is_dangerous }}">{{ cell.count_text }}</td>
+<td class="{{ cell.heat }}{{ ' is-danger' if cell.is_dangerous }}">{{ cell.count_text }}{% if cell.is_dangerous %}<span class="visually-hidden"> (dangerous cell)</span>{% endif %}</td>
 {%- endif -%}
 {%- endfor -%}
 </tr>
@@ -239,6 +239,7 @@
   <div class="sec-head"><span class="sec-num" aria-hidden="true">05</span><h2 id="s-cases">Cases</h2>
   <p class="lede">Filters apply to all {{ view.cases.total_text }} cases. Open a row to see its tool calls and the checklist steps it did not satisfy. Tool calls are included for {{ view.cases.detail_count_text }} notable {{ "case" if view.cases.detail_count_text == "1" else "cases" }} (dashboard.max_detail_cases); tool results are never included.</p></div>
   <noscript><p>The case table needs JavaScript.</p></noscript>
+  <p id="case-status" class="case-status">Loading the case table… If this message stays, the table script didn't run.</p>
   <div id="case-ui" hidden>
     <div class="filters" id="case-filters" role="group" aria-label="Filter cases">
       <button type="button" data-filter="all" aria-pressed="true">All cases</button>
@@ -249,9 +250,10 @@
 {% endfor %}
     </div>
     <p class="count" id="case-count" aria-live="polite"></p>
+    <p class="cases-hint">Select a case ID to open its details.</p>
     <div class="tbl-wrap" role="region" tabindex="0" aria-labelledby="cases-cap">
       <table class="cases">
-        <caption id="cases-cap">Cases, newest week first, then by case ID. Select a case ID to open its details.</caption>
+        <caption id="cases-cap">Cases, newest week first, then by case ID.</caption>
         <thead><tr><th scope="col">Case</th><th scope="col">Alert class</th><th scope="col">Week</th><th scope="col">Version</th><th scope="col">Analyst</th><th scope="col">Agent</th><th scope="col">Result</th><th scope="col" class="num">Checklist</th></tr></thead>
         <tbody id="case-rows"></tbody>
       </table>

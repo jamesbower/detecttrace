@@ -4,6 +4,7 @@
   var PAGE_SIZE = 100;
   var COLUMN_COUNT = 8;
   var DETAIL_MISSING = "Details not included. Raise dashboard.max_detail_cases.";
+  var MAX_REASON_CHARS = 120;
   var VERDICT_LABELS = new Map([
     ["true_positive", "True positive"],
     ["false_positive", "False positive"],
@@ -113,8 +114,10 @@
     return row.satisfied === null || row.checklist === null ? "—" : row.satisfied + " of " + row.checklist.length;
   }
 
+  // Rounded before the unit is chosen, so 999.7 ms reads "1.0 s", not "1000 ms".
   function formatDuration(ms) {
-    return ms < 1000 ? Math.round(ms) + " ms" : (ms / 1000).toFixed(1) + " s";
+    var rounded = Math.round(ms);
+    return rounded < 1000 ? rounded + " ms" : (ms / 1000).toFixed(1) + " s";
   }
 
   // Map, not a plain object: a case ID such as "__proto__" must not reach the prototype.
@@ -149,12 +152,45 @@
   }
 
   function describeOutcome(status, reason, failedRule) {
-    if (status === "failed") return "the tool call failed";
+    if (status === "failed") return "every call returned an error";
     if (reason === "not_called") return "not called";
-    return failedRule ? "wrong arguments: " + toVisibleText(failedRule) : "wrong arguments";
+    return failedRule ? "wrong arguments (" + toVisibleText(failedRule) + ")" : "wrong arguments";
   }
 
-  function startTable(results) {
+  // What an opened row shows. A note replaces a list that is missing or empty.
+  function toDetailModel(row, detail) {
+    var steps = row.checklist === null ? [] : toOutcomes(row, detail).map(function (outcome) {
+      return { item: outcome.item, status: outcome.status, why: outcome.why, label: outcome.status === "failed" ? "Failed" : "Missed" };
+    });
+    var callsNote = null;
+    if (!detail) callsNote = DETAIL_MISSING;
+    else if (detail.calls.length === 0) callsNote = "No tool calls.";
+    var stepsNote = null;
+    if (row.checklist === null) stepsNote = "This alert class has no checklist.";
+    else if (steps.length === 0) stepsNote = "None. Every checklist step was satisfied.";
+    return { calls: detail ? detail.calls.map(toCallModel) : null, callsNote: callsNote, steps: steps, stepsNote: stepsNote };
+  }
+
+  function toCallModel(call) {
+    var isFailed = call.status !== "success";
+    return {
+      isFailed: isFailed,
+      statusLabel: isFailed ? "✕ Failed" : "✓ Success",
+      tool: toVisibleText(call.tool),
+      args: call.arguments === null ? "(no arguments)" : toVisibleText(call.arguments),
+      duration: formatDuration(call.duration_ms)
+    };
+  }
+
+  // Code points, not UTF-16 units, so shortening never splits a surrogate pair.
+  function startupMessage(error) {
+    var hasMessage = error !== null && typeof error === "object" && typeof error.message === "string";
+    var chars = Array.from(toVisibleText(String(hasMessage ? error.message : error)));
+    var reason = chars.length > MAX_REASON_CHARS ? chars.slice(0, MAX_REASON_CHARS - 1).join("") + "…" : chars.join("");
+    return "The case table could not be built: " + reason + ".";
+  }
+
+  function startTable(results, reportError) {
     var rows = orderRows(decodeRows(results.case_rows));
     var details = indexDetails(results.case_detail);
     var tbody = document.getElementById("case-rows");
@@ -163,6 +199,17 @@
     var filterButtons = Array.prototype.slice.call(document.querySelectorAll("#case-filters button"));
     var matching = [];
     var shown = 0;
+
+    // A failure in a click handler would otherwise leave a half-drawn table and no message.
+    function guarded(handler) {
+      return function () {
+        try {
+          handler();
+        } catch (error) {
+          reportError(error);
+        }
+      };
+    }
 
     function el(tag, className, text) {
       var node = document.createElement(tag);
@@ -201,8 +248,7 @@
       var toggle = el("button", "row-toggle", texts[0]);
       toggle.setAttribute("type", "button");
       toggle.setAttribute("aria-expanded", "false");
-      toggle.setAttribute("aria-controls", "case-detail-" + row.index);
-      toggle.addEventListener("click", function () { toggleDetail(tr, toggle, row); });
+      toggle.addEventListener("click", guarded(function () { toggleDetail(tr, toggle, row); }));
       idCell.appendChild(toggle);
       tr.appendChild(idCell);
       tr.appendChild(el("td", "mono", texts[1]));
@@ -232,6 +278,8 @@
         detailRow = buildDetailRow(row);
         tr.after(detailRow);
       }
+      // Set only now: aria-controls must name an element that exists.
+      toggle.setAttribute("aria-controls", "case-detail-" + row.index);
       detailRow.hidden = isOpen;
       toggle.setAttribute("aria-expanded", String(!isOpen));
     }
@@ -242,53 +290,53 @@
       var td = el("td");
       td.setAttribute("colspan", String(COLUMN_COUNT));
       var body = el("div", "detail-body");
-      var detail = findDetail(details, row.caseId);
-      var callsBlock = el("div");
-      callsBlock.appendChild(el("h4", "", "Tool calls, in order"));
-      callsBlock.appendChild(detail ? buildCalls(detail.calls) : el("p", "no-detail", DETAIL_MISSING));
-      body.appendChild(callsBlock);
-      body.appendChild(buildSteps(row, detail));
+      var model = toDetailModel(row, findDetail(details, row.caseId));
+      body.appendChild(buildCalls(model));
+      body.appendChild(buildSteps(model));
       td.appendChild(body);
       tr.appendChild(td);
       return tr;
     }
 
-    function buildCalls(calls) {
-      if (calls.length === 0) return el("p", "", "No tool calls.");
-      var list = el("ol", "calls");
-      calls.forEach(function (call) {
-        var isFailed = call.status !== "success";
-        var li = el("li");
-        li.appendChild(el("span", "status " + (isFailed ? "is-failed" : "is-ok"), isFailed ? "✕ Failed" : "✓ Success"));
-        var main = el("span", "call-main");
-        main.appendChild(el("span", "call-tool", toVisibleText(call.tool)));
-        main.appendChild(el("span", "call-args", call.arguments === null ? "(no arguments)" : toVisibleText(call.arguments)));
-        li.appendChild(main);
-        li.appendChild(el("span", "call-dur", formatDuration(call.duration_ms)));
-        list.appendChild(li);
-      });
-      return list;
-    }
-
-    function buildSteps(row, detail) {
+    function buildCalls(model) {
       var block = el("div");
-      block.appendChild(el("h4", "", "Checklist steps not satisfied"));
-      if (row.checklist === null) {
-        block.appendChild(el("p", "", "This alert class has no checklist."));
+      block.appendChild(el("h3", "", "Tool calls, in order"));
+      if (model.calls === null) {
+        block.appendChild(el("p", "no-detail", model.callsNote));
         return block;
       }
-      var outcomes = toOutcomes(row, detail);
-      if (outcomes.length === 0) {
-        block.appendChild(el("p", "", "None. Every checklist step was satisfied."));
+      if (model.callsNote !== null) {
+        block.appendChild(el("p", "", model.callsNote));
+        return block;
+      }
+      var list = el("ol", "calls");
+      model.calls.forEach(function (call) {
+        var li = el("li");
+        li.appendChild(el("span", "status " + (call.isFailed ? "is-failed" : "is-ok"), call.statusLabel));
+        var main = el("span", "call-main");
+        main.appendChild(el("span", "call-tool", call.tool));
+        main.appendChild(el("span", "call-args", call.args));
+        li.appendChild(main);
+        li.appendChild(el("span", "call-dur", call.duration));
+        list.appendChild(li);
+      });
+      block.appendChild(list);
+      return block;
+    }
+
+    function buildSteps(model) {
+      var block = el("div");
+      block.appendChild(el("h3", "", "Checklist steps not satisfied"));
+      if (model.stepsNote !== null) {
+        block.appendChild(el("p", "", model.stepsNote));
         return block;
       }
       var list = el("ul", "steps");
-      outcomes.forEach(function (outcome) {
-        var isFailed = outcome.status === "failed";
+      model.steps.forEach(function (step) {
         var li = el("li");
-        li.appendChild(el("span", "step-kind " + (isFailed ? "is-failed" : "is-missed"), isFailed ? "Failed" : "Missed"));
-        li.appendChild(el("code", "", outcome.item));
-        li.appendChild(el("span", "step-why", outcome.why));
+        li.appendChild(el("span", "step-kind " + (step.status === "failed" ? "is-failed" : "is-missed"), step.label));
+        li.appendChild(el("code", "", step.item));
+        li.appendChild(el("span", "step-why", step.why));
         list.appendChild(li);
       });
       block.appendChild(list);
@@ -296,18 +344,30 @@
     }
 
     filterButtons.forEach(function (button) {
-      button.addEventListener("click", function () {
+      button.addEventListener("click", guarded(function () {
         filterButtons.forEach(function (other) { other.setAttribute("aria-pressed", String(other === button)); });
         applyFilter(button.getAttribute("data-filter"));
-      });
+      }));
     });
-    moreButton.addEventListener("click", function () { showMore(true); });
-    document.getElementById("case-ui").hidden = false;
+    moreButton.addEventListener("click", guarded(function () { showMore(true); }));
+    // Filled while hidden, so the live count line announces only later filter changes.
     applyFilter("all");
+    document.getElementById("case-ui").hidden = false;
   }
 
   if (typeof document !== "undefined") {
-    startTable(JSON.parse(document.getElementById("dt-results").textContent));
+    var status = document.getElementById("case-status");
+    var reportError = function (error) {
+      status.textContent = startupMessage(error);
+      status.hidden = false;
+    };
+    try {
+      startTable(JSON.parse(document.getElementById("dt-results").textContent), reportError);
+      status.textContent = "";
+      status.hidden = true;
+    } catch (error) {
+      reportError(error);
+    }
   }
 
   if (typeof module !== "undefined" && module.exports) {
@@ -330,7 +390,9 @@
       formatDuration: formatDuration,
       indexDetails: indexDetails,
       findDetail: findDetail,
-      toOutcomes: toOutcomes
+      toOutcomes: toOutcomes,
+      toDetailModel: toDetailModel,
+      startupMessage: startupMessage
     };
   }
 })();

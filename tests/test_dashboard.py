@@ -167,6 +167,23 @@ def test_the_case_table_explains_it_needs_javascript() -> None:
     assert note.text() == "The case table needs JavaScript."
 
 
+def test_the_case_table_shows_a_status_line_until_the_script_runs() -> None:
+    status = section(demo_page(), "s-cases").find(has_tag("p", id="case-status"))
+    assert status.text() == (
+        "Loading the case table… If this message stays, the table script didn't run."
+    )
+
+
+def test_the_case_table_caption_is_short() -> None:
+    caption = demo_page().find(has_tag("caption", id="cases-cap"))
+    assert caption.text() == "Cases, newest week first, then by case ID."
+
+
+def test_the_case_table_explains_how_to_open_a_case() -> None:
+    hint = section(demo_page(), "s-cases").find(lambda node: "cases-hint" in node.classes())
+    assert hint.text() == "Select a case ID to open its details."
+
+
 def test_the_case_table_starts_hidden_until_the_script_runs() -> None:
     assert "hidden" in demo_page().find(has_tag("div", id="case-ui")).attrs
 
@@ -216,16 +233,30 @@ def test_the_confusion_matrix_names_the_dangerous_false_closes(
 
 def test_a_dangerous_cell_with_cases_is_outlined_and_flagged() -> None:
     cell = section(demo_page(), "s-confusion").find(
-        lambda node: node.tag == "td" and node.attrs.get("aria-label") == "3, dangerous false close"
+        lambda node: node.tag == "td" and node.text().startswith("3 ")
     )
-    assert (cell.classes(), cell.text()) == (["h-off-1", "is-danger"], "3dangerous")
+    assert (cell.classes(), cell.text()) == (
+        ["h-off-1", "is-danger"],
+        "3 (dangerous cell)dangerous",
+    )
 
 
 def test_a_dangerous_cell_without_cases_is_outlined_but_not_flagged() -> None:
     table = section(demo_page(), "s-confusion").find(has_tag("table"))
     first_row = table.find(has_tag("tbody")).find(has_tag("tr"))
     cell = first_row.find_all(has_tag("td"))[1]
-    assert (cell.classes(), cell.text()) == (["h-0", "is-danger"], "0")
+    assert (cell.classes(), cell.text()) == (["h-0", "is-danger"], "0 (dangerous cell)")
+
+
+def test_no_confusion_cell_replaces_its_content_with_a_label() -> None:
+    cells = section(demo_page(), "s-confusion").find_all(has_tag("td"))
+    assert [cell.text() for cell in cells if "aria-label" in cell.attrs] == []
+
+
+def test_the_confusion_matrix_corner_names_both_axes() -> None:
+    header_row = section(demo_page(), "s-confusion").find(has_tag("thead")).find(has_tag("tr"))
+    corner = next(node for node in header_row.children if isinstance(node, Node))
+    assert (corner.tag, corner.text()) == ("th", "Analyst verdict by agent verdict")
 
 
 def test_the_cases_section_counts_every_case() -> None:

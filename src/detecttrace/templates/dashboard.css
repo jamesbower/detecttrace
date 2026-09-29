@@ -195,6 +195,8 @@ figcaption{font-size:var(--fs-sm); font-weight:var(--fw-bold); margin-bottom:var
 .filters button[aria-pressed="true"]::before{content:"✓ "; color:var(--link)}
 .filters code{font-size:var(--fs-xs)}
 .count{margin:0 0 var(--sp-3); font-size:var(--fs-sm); color:var(--muted)}
+.case-status{margin:0 0 var(--sp-3); font-size:var(--fs-sm); color:var(--muted)}
+.cases-hint{margin:0 0 var(--sp-2); font-size:var(--fs-sm); color:var(--muted)}
 .cases{min-width:820px}
 .cases td,.cases th{vertical-align:middle; white-space:nowrap}
 .cases tbody tr.case-row:hover td{background:var(--row-hover)}
@@ -211,7 +213,7 @@ figcaption{font-size:var(--fs-sm); font-weight:var(--fw-bold); margin-bottom:var
 tr.detail-row > td{background:var(--surface-3); padding:0; border-top:0; white-space:normal}
 .detail-body{position:sticky; left:0; max-width:calc(100vw - 2 * var(--gutter) - 2px); padding:var(--sp-3) var(--sp-4) var(--sp-5); display:grid; gap:var(--sp-4)}
 .detail-body > *,.calls li > *,.steps li > *{min-width:0}
-.detail-body h4{margin:0 0 var(--sp-2); font-size:var(--fs-xs); letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+.detail-body h3{margin:0 0 var(--sp-2); font-size:var(--fs-xs); letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
 .detail-body p{margin:0}
 .calls{list-style:none; margin:0; padding:0; display:grid; gap:var(--sp-2)}
 .calls li{display:grid; grid-template-columns:88px minmax(0,1fr) 64px; gap:var(--sp-1) var(--sp-3); align-items:baseline; padding:var(--sp-2) 0; border-top:1px solid var(--line)}
