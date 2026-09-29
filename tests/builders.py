@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from detecttrace.model import Span
+
 TRACE_ID = "0af7651916cd43dd8448eb211c80319c"
 
 
@@ -72,3 +74,87 @@ def write_jsonl(path: Path, documents: list[dict[str, Any]]) -> Path:
 def write_gzip_jsonl(path: Path, documents: list[dict[str, Any]]) -> Path:
     path.write_bytes(gzip.compress("".join(json.dumps(d) + "\n" for d in documents).encode()))
     return path
+
+
+def make_span(
+    span_id: str,
+    parent: str | None = None,
+    *,
+    name: str = "span",
+    trace_id: str = TRACE_ID,
+    start_ns: int = 0,
+    end_ns: int = 100,
+    is_error: bool = False,
+    attributes: dict[str, object] | None = None,
+    resource: dict[str, object] | None = None,
+) -> Span:
+    return Span(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent,
+        name=name,
+        start_ns=start_ns,
+        end_ns=end_ns,
+        is_error=is_error,
+        attributes=attributes or {},
+        resource_attributes=resource or {},
+    )
+
+
+# **fields passes make_span keywords through (trace_id, start_ns, end_ns, is_error, resource).
+def agent_span(
+    span_id: str,
+    parent: str | None = None,
+    *,
+    attributes: dict[str, object] | None = None,
+    **fields: Any,
+) -> Span:
+    return make_span(
+        span_id,
+        parent,
+        name="invoke_agent triage",
+        attributes={"gen_ai.operation.name": "invoke_agent", **(attributes or {})},
+        **fields,
+    )
+
+
+def case_root(
+    span_id: str,
+    case_id: object,
+    parent: str | None = None,
+    *,
+    verdict: object = "benign",
+    attributes: dict[str, object] | None = None,
+    **fields: Any,
+) -> Span:
+    return agent_span(
+        span_id,
+        parent,
+        attributes={
+            "detecttrace.case_id": case_id,
+            "detecttrace.verdict": verdict,
+            **(attributes or {}),
+        },
+        **fields,
+    )
+
+
+def tool_span(
+    span_id: str,
+    parent: str | None,
+    tool: str = "get_signin_logs",
+    *,
+    attributes: dict[str, object] | None = None,
+    **fields: Any,
+) -> Span:
+    return make_span(
+        span_id,
+        parent,
+        name=f"execute_tool {tool}",
+        attributes={
+            "gen_ai.operation.name": "execute_tool",
+            "gen_ai.tool.name": tool,
+            **(attributes or {}),
+        },
+        **fields,
+    )
