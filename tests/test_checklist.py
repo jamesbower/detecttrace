@@ -114,6 +114,12 @@ def test_skips_files_that_are_not_yaml(tmp_path: Path) -> None:
     assert list(load_checklists(tmp_path)) == ["phishing"]
 
 
+@pytest.mark.parametrize("name", ["phish.YAML", "phish.Yml"])
+def test_reads_yaml_suffixes_in_any_case(tmp_path: Path, name: str) -> None:
+    _write(tmp_path, name, "alert_class: phishing\nitems:\n  - {id: a, tool: t}\n")
+    assert list(load_checklists(tmp_path)) == ["phishing"]
+
+
 def test_empty_folder_means_no_checklists(tmp_path: Path) -> None:
     assert load_checklists(tmp_path) == {}
 
@@ -481,6 +487,10 @@ def test_kql_min_ago_loads(tmp_path: Path) -> None:
         ("{ min: '24' }", "min: must be a number"),
         ("{ min: 48, max: 24 }", r"'min' \(48\) is greater than 'max' \(24\)"),
         ("{ max: .nan }", "max: must be a number, not NaN"),
+        ("{ min: .inf }", "min: must be a finite number"),
+        ("{ max: -.inf }", "max: must be a finite number"),
+        ("{ in: [] }", "in: is empty, so no value can match"),
+        ("{ min_duration: 24h, start: $.s, end: e }", "start: .*use 's', not '\\$\\.s'"),
         ("{ exists: 'yes' }", "exists: Input should be a valid boolean"),
         ("{ exists: 1 }", "exists: Input should be a valid boolean"),
         ("{ in: a }", "in: Input should be a valid list"),
@@ -508,6 +518,7 @@ def test_invalid_rule_raises(tmp_path: Path, rule: str, reason: str) -> None:
         ("'a]'", r"path 'a\]' is not valid"),
         ("'a[-1]'", r"path 'a\[-1\]' is not valid"),
         ("1", "Input should be a valid string"),
+        ("$.query", r"use 'query', not '\$\.query'"),
     ],
 )
 def test_bad_path_key_raises(tmp_path: Path, key: str, reason: str) -> None:
@@ -539,6 +550,20 @@ def test_parse_path_reads_valid_paths(text: str, expected: tuple[str | int, ...]
 )
 def test_parse_path_rejects_invalid_paths(text: str) -> None:
     with pytest.raises(ValueError, match="path"):
+        parse_path(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "hint"),
+    [
+        ("$.query", r"use 'query', not '\$\.query'"),
+        ("$.a.b", r"use 'a\.b', not '\$\.a\.b'"),
+        ("$.a[0]", r"use 'a\[0\]', not '\$\.a\[0\]'"),
+        ("$[0]", r"'\$' stands alone for the top level"),
+    ],
+)
+def test_parse_path_rejects_dollar_followed_by_more_parts(text: str, hint: str) -> None:
+    with pytest.raises(ValueError, match=hint):
         parse_path(text)
 
 

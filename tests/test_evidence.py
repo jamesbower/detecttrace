@@ -457,6 +457,52 @@ def test_unreadable_lookback_in_a_later_call_is_reported_after_an_earlier_call_p
     assert [issue.kind for issue in issues] == [IssueKind.UNREADABLE_KQL_TIMESPAN]
 
 
+# Issue caps per call
+
+
+FOUR_KQL_ITEMS = [
+    make_item({"query": {"kql_min_ago": "24h"}}, item_id="a"),
+    make_item({"query": {"kql_min_ago": "1h"}}, item_id="b"),
+    make_item({"query": {"kql_min_ago": "7d"}}, item_id="c"),
+    make_item({"query": {"kql_min_ago": "30m"}}, item_id="d"),
+]
+
+
+def test_unreadable_lookbacks_are_capped_per_call_across_items():
+    query = " ".join(f"ago({n}day)" for n in range(10))
+    assert len(reported(FOUR_KQL_ITEMS, make_call({"query": query}))) == 5
+
+
+def test_an_unreadable_lookback_read_by_several_items_is_reported_once():
+    assert len(reported(FOUR_KQL_ITEMS, make_call({"query": "ago(1day)"}))) == 1
+
+
+def test_repeated_unreadable_duration_on_one_span_is_reported_once_per_case():
+    items = [
+        make_item({"range": {"min_duration": "24h"}}, item_id="a"),
+        make_item({"range": {"min_duration": "1h"}}, item_id="b"),
+    ]
+    calls = (make_call({"range": "soon"}),) * 10_000
+    assert len(reported(items, *calls)) == 1
+
+
+def test_unreadable_durations_are_capped_at_five_per_call():
+    rules = {key: {"min_duration": "24h"} for key in "abcdef"}
+    arguments = {key: f"soon-{key}" for key in "abcdef"}
+    assert len(reported_kinds(rules, arguments)) == 5
+
+
+def test_issue_cap_is_counted_separately_per_kind():
+    rules = {"range": {"min_duration": "24h"}, "query": {"kql_min_ago": "24h"}}
+    query = " ".join(f"ago({n}day)" for n in range(10))
+    assert len(reported_kinds(rules, {"range": "soon", "query": query})) == 6
+
+
+def test_the_same_unreadable_duration_in_two_calls_is_reported_for_each_call():
+    calls = (make_call({"range": "soon"}), make_call({"range": "soon"}, span_id="00f0000000000002"))
+    assert len(reported([make_item({"range": {"min_duration": "24h"}})], *calls)) == 2
+
+
 # Unreadable arguments
 
 
@@ -501,6 +547,27 @@ def test_arguments_with_a_non_finite_constant_do_not_satisfy_an_item():
     assert outcomes([make_item({"x": {"exists": True}})], make_call('{"x": NaN}')) == (
         WRONG_ARGUMENTS,
     )
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [{"x": float("nan")}, {"x": {"y": [1, float("nan")]}}, {"x": [float("-inf")]}],
+)
+def test_map_arguments_with_a_non_finite_number_are_unreadable(arguments):
+    call = ToolCall(SPAN, TOOL, arguments, 0, 100, False)
+    assert reported([make_item({"z": {"exists": False}})], call) == [
+        Issue(
+            IssueKind.UNREADABLE_ARGUMENTS,
+            "case-1",
+            f"call {SPAN}: arguments for tool '{TOOL}' contain NaN or Infinity, "
+            "which is not valid JSON",
+        )
+    ]
+
+
+def test_map_arguments_with_nan_do_not_satisfy_an_item():
+    call = ToolCall(SPAN, TOOL, {"x": float("nan")}, 0, 100, False)
+    assert outcomes([make_item({"z": {"exists": False}})], call) == (WRONG_ARGUMENTS,)
 
 
 def test_item_without_args_does_not_read_arguments():
@@ -627,10 +694,90 @@ def test_no_mismatch_for_an_absent_path():
     assert find_rule_type_mismatches([make_case(make_call({}))], checklists) == []
 
 
-def test_no_mismatch_for_min_duration_with_start_and_end():
-    checklists = {"impossible_travel": make_checklist(make_item(WINDOW_RULE))}
-    cases = [make_case(make_call({"start": 1, "end": 2}))]
-    assert find_rule_type_mismatches(cases, checklists) == []
+def test_mismatch_for_an_epoch_number_start_suggests_timestamps():
+    details = mismatch_details(WINDOW_RULE, make_case(make_call({"start": 1, "end": 2})))
+    assert details == [
+        "'start' (start): the value is a number; this rule reads ISO 8601 timestamps; "
+        "first seen in case case-1"
+    ]
+
+
+def test_epoch_number_start_and_end_fail_as_wrong_arguments():
+    items = [make_item(WINDOW_RULE)]
+    assert outcomes(items, make_call({"start": 1, "end": 2})) == (WRONG_ARGUMENTS,)
+
+
+def test_mismatch_for_a_non_string_end_names_the_path_under_the_key():
+    rules = {"window": {"min_duration": "24h", "start": "from", "end": "to"}}
+    arguments = {"window": {"from": "2026-09-01T00:00:00Z", "to": True}}
+    assert mismatch_details(rules, make_case(make_call(arguments))) == [
+        "'window.to' (end): the value is a boolean; this rule reads ISO 8601 timestamps; "
+        "first seen in case case-1"
+    ]
+
+
+def test_no_mismatch_for_string_start_and_end():
+    arguments = {"start": "2026-09-01T00:00:00Z", "end": "2026-09-01T01:00:00Z"}
+    assert mismatch_details(WINDOW_RULE, make_case(make_call(arguments))) == []
+
+
+def test_mismatch_for_matches_on_a_number_suggests_text():
+    details = mismatch_details({"q": {"matches": "24"}}, make_case(make_call({"q": 24})))
+    assert details == [
+        "'q' (matches): the value is a number; this rule reads text; first seen in case case-1"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("rule", "value", "detail"),
+    [
+        (
+            {"equals": 24},
+            "24",
+            "'hours' (equals): the value is text; quote the expected value in the checklist",
+        ),
+        (
+            {"in": [24, 48.5]},
+            "-4.5e1",
+            "'hours' (in): the value is text; quote the expected values in the checklist",
+        ),
+        (
+            {"equals": "24"},
+            24,
+            "'hours' (equals): the value is a number; unquote the expected value in the checklist",
+        ),
+        (
+            {"in": ["24", "48"]},
+            24.0,
+            "'hours' (in): the value is a number; unquote the expected values in the checklist",
+        ),
+    ],
+    ids=[
+        "equals-number-on-text",
+        "in-numbers-on-text",
+        "equals-text-on-number",
+        "in-text-on-number",
+    ],
+)
+def test_mismatch_for_equals_and_in_across_number_and_text(rule, value, detail):
+    details = mismatch_details({"hours": rule}, make_case(make_call({"hours": value})))
+    assert details == [f"{detail}; first seen in case case-1"]
+
+
+@pytest.mark.parametrize(
+    ("rule", "value"),
+    [
+        ({"equals": 24}, "all"),
+        ({"equals": 24}, True),
+        ({"in": [24, "24"]}, "24"),
+        ({"in": [24, "24"]}, 24),
+        ({"equals": "a"}, "b"),
+        ({"equals": None}, 1),
+    ],
+    ids=["non-numeric-text", "boolean", "mixed-on-text", "mixed-on-number", "text", "null"],
+)
+def test_no_mismatch_for_equals_and_in_when_types_could_match(rule, value):
+    assert mismatch_details({"hours": rule}, make_case(make_call({"hours": value}))) == []
 
 
 def test_no_mismatch_from_cases_of_another_class():

@@ -52,6 +52,17 @@ def parse_path(text: str) -> tuple[str | int, ...]:
             f"path '{_shorten(text)}' is not valid; use '$' or dot notation with list indexes, like a.b[0]"
         )
     first = text[: match.start(1)]
+    if first == "$":
+        # `$.query` would look up a key named "$" and never match; paths are already relative
+        # to the top level.
+        if text.startswith("$."):
+            raise ValueError(
+                f"path '{_shorten(text)}' is not valid; use '{_shorten(text[2:])}', "
+                f"not '{_shorten(text)}'"
+            )
+        raise ValueError(
+            f"path '{_shorten(text)}' is not valid; '$' stands alone for the top level"
+        )
     parts: list[str | int] = [first]
     for key, index in _PATH_PART.findall(match[1]):
         parts.append(int(index) if index else key)
@@ -78,6 +89,13 @@ class ArgRule(BaseModel):
         # Arguments are compared strictly, and NaN never equals anything, so the rule could never pass.
         if _contains_nan(value):
             raise ValueError("NaN never matches any argument value; remove it")
+        return value
+
+    @field_validator("in_")
+    @classmethod
+    def _check_not_empty(cls, value: list[JsonValue] | None) -> list[JsonValue] | None:
+        if value == []:
+            raise ValueError("is empty, so no value can match; list the allowed values")
         return value
 
     @field_validator("matches")
@@ -109,6 +127,9 @@ class ArgRule(BaseModel):
             raise ValueError("must be a number")
         if math.isnan(value):
             raise ValueError("must be a number, not NaN")
+        # An infinite bound either passes every number or none, so it is always a typo.
+        if math.isinf(value):
+            raise ValueError("must be a finite number")
         return value
 
     @field_validator("start", "end")
@@ -189,7 +210,7 @@ class Checklist(BaseModel):
 def load_checklists(path: Path) -> dict[str, Checklist]:
     """Load every checklist at `path` (a file or a folder), keyed by the normalized alert class.
 
-    A folder is read recursively in POSIX relative-path order; only *.yaml and *.yml
+    A folder is read recursively in POSIX relative-path order; only *.yaml and *.yml (any case)
     files count, and hidden files and folders are skipped. An empty folder gives {}.
     Any unusable file raises ChecklistFileError naming the file and the problem.
     """
@@ -231,7 +252,7 @@ def _list_checklist_files(path: Path) -> list[tuple[Path, str]]:
     for folder, folder_names, file_names in os.walk(path, onerror=report):
         folder_names[:] = sorted(name for name in folder_names if not name.startswith("."))
         for name in file_names:
-            if name.startswith(".") or not name.endswith(_YAML_SUFFIXES):
+            if name.startswith(".") or not name.lower().endswith(_YAML_SUFFIXES):
                 continue
             file_path = Path(folder, name)
             files.append((file_path, file_path.relative_to(path).as_posix()))

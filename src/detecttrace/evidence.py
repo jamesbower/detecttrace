@@ -1,11 +1,12 @@
 """Decide, for each case, which checklist items its tool calls satisfied."""
 
 import json
+import math
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
-from enum import StrEnum
+from enum import Enum, StrEnum
 from functools import cache
 from typing import NoReturn, TypeGuard
 
@@ -21,8 +22,10 @@ _MISSING = object()
 # Arguments that could not be parsed. Distinct from _MISSING, because a call with no arguments
 # can still pass `exists: false`, while an unreadable call passes nothing.
 _UNREADABLE = object()
-# A query that repeats one bad lookback thousands of times should cost a few issues, not thousands.
-_MAX_KQL_REPORTS_PER_CALL = 5
+# A call read by many items, or a query with thousands of bad lookbacks, should cost a few
+# issues, not thousands.
+_MAX_REPORTS_PER_CALL = 5
+_NUMERIC_TEXT = re.compile(r"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?")
 
 
 class ItemStatus(StrEnum):
@@ -80,12 +83,9 @@ def evaluate_case(case: Case, checklist: Checklist, issues: list[Issue]) -> Case
     calls_by_tool: dict[str, list[ToolCall]] = {}
     for call in case.tool_calls:
         calls_by_tool.setdefault(call.tool_name, []).append(call)
-    arguments_by_span: dict[str, object] = {}
+    state = _CaseState(case.case_id, issues)
     outcomes = tuple(
-        _evaluate_item(
-            case.case_id, item, calls_by_tool.get(item.tool, []), arguments_by_span, issues
-        )
-        for item in checklist.items
+        _evaluate_item(item, calls_by_tool.get(item.tool, []), state) for item in checklist.items
     )
     return CaseEvidence(case.case_id, outcomes)
 
@@ -93,8 +93,12 @@ def evaluate_case(case: Case, checklist: Checklist, issues: list[Issue]) -> Case
 def find_rule_type_mismatches(
     cases: Sequence[Case], checklists: Mapping[str, Checklist]
 ) -> list[Issue]:
-    """Warn once per checklist item whose min, max, min_duration or kql_min_ago rule meets a value
-    of a type it can't read, naming the first case where that happened.
+    """Warn once per checklist item with a rule that meets a value of a type it can never pass on,
+    naming the first case where that happened.
+
+    Covered: min and max on a non-number; min_duration, kql_min_ago and matches on a non-string;
+    a non-string start or end timestamp; equals or in expecting only numbers on text that looks
+    like a number, or expecting only text on a number.
 
     `checklists` is keyed by the normalized alert class. Issues follow class-key order, then item order.
     """
@@ -139,26 +143,40 @@ def find_rule_type_mismatches(
     return issues
 
 
+@dataclass(slots=True)
+class _CaseState:
+    """What the items of one case share, so a call read by several items is handled once."""
+
+    case_id: str
+    issues: list[Issue]
+    arguments_by_span: dict[str, object] = field(default_factory=dict)
+    reported: set[tuple[str, IssueKind, str]] = field(default_factory=set)
+    report_counts: dict[tuple[str, IssueKind], int] = field(default_factory=dict)
+
+    def report(self, kind: IssueKind, item_id: str, span_id: str, text: str) -> bool:
+        """Append an issue unless the call already has it; False once the call's cap is full."""
+        if (span_id, kind, text) in self.reported:
+            return True
+        count = self.report_counts.get((span_id, kind), 0)
+        if count >= _MAX_REPORTS_PER_CALL:
+            return False
+        self.reported.add((span_id, kind, text))
+        self.report_counts[(span_id, kind)] = count + 1
+        self.issues.append(Issue(kind, self.case_id, f"{item_id}: call {span_id}: {text}"))
+        return count + 1 < _MAX_REPORTS_PER_CALL
+
+
 @dataclass(frozen=True, slots=True)
 class _Where:
-    case_id: str
+    state: _CaseState
     item_id: str
     span_id: str
-    issues: list[Issue]
 
-    def report(self, kind: IssueKind, text: str) -> None:
-        self.issues.append(
-            Issue(kind, self.case_id, f"{self.item_id}: call {self.span_id}: {text}")
-        )
+    def report(self, kind: IssueKind, text: str) -> bool:
+        return self.state.report(kind, self.item_id, self.span_id, text)
 
 
-def _evaluate_item(
-    case_id: str,
-    item: ChecklistItem,
-    calls: list[ToolCall],
-    arguments_by_span: dict[str, object],
-    issues: list[Issue],
-) -> ItemOutcome:
+def _evaluate_item(item: ChecklistItem, calls: list[ToolCall], state: _CaseState) -> ItemOutcome:
     if not calls:
         return ItemOutcome(ItemStatus.MISSED, MissedReason.NOT_CALLED)
     is_satisfied = False
@@ -168,7 +186,7 @@ def _evaluate_item(
             has_failed_call = True
         # Every successful call is checked, not just up to the first pass, so reports don't
         # depend on call order.
-        elif _call_passes(case_id, item, call, arguments_by_span, issues):
+        elif _call_passes(item, call, state):
             is_satisfied = True
     if is_satisfied:
         return ItemOutcome(ItemStatus.SATISFIED, None)
@@ -177,30 +195,24 @@ def _evaluate_item(
     return ItemOutcome(ItemStatus.MISSED, MissedReason.WRONG_ARGUMENTS)
 
 
-def _call_passes(
-    case_id: str,
-    item: ChecklistItem,
-    call: ToolCall,
-    arguments_by_span: dict[str, object],
-    issues: list[Issue],
-) -> bool:
+def _call_passes(item: ChecklistItem, call: ToolCall, state: _CaseState) -> bool:
     if not item.args:
         return True
-    if call.span_id not in arguments_by_span:
+    if call.span_id not in state.arguments_by_span:
         arguments, problem = _parse_arguments(call.arguments)
         if problem:
-            issues.append(
+            state.issues.append(
                 Issue(
                     IssueKind.UNREADABLE_ARGUMENTS,
-                    case_id,
+                    state.case_id,
                     f"call {call.span_id}: arguments for tool '{call.tool_name}' {problem}",
                 )
             )
-        arguments_by_span[call.span_id] = arguments
-    root = arguments_by_span[call.span_id]
+        state.arguments_by_span[call.span_id] = arguments
+    root = state.arguments_by_span[call.span_id]
     if root is _UNREADABLE:
         return False
-    where = _Where(case_id, item.id, call.span_id, issues)
+    where = _Where(state, item.id, call.span_id)
     # A list, not a generator: every rule runs so each unreadable value is reported.
     results = [
         _rule_passes(_resolve(root, _path(key)), rule, where) for key, rule in item.args.items()
@@ -213,6 +225,13 @@ def _parse_arguments(arguments: str | dict[str, object] | None) -> tuple[object,
     if arguments is None:
         return _MISSING, ""
     if not isinstance(arguments, str):
+        # A map from the trace can hold a NaN or infinite double, which a JSON string cannot.
+        try:
+            has_non_finite = _has_non_finite(arguments)
+        except RecursionError:
+            return _UNREADABLE, "are nested too deeply to read"
+        if has_non_finite:
+            return _UNREADABLE, "contain NaN or Infinity, which is not valid JSON"
         return arguments, ""
     try:
         return _DECODER.decode(arguments), ""
@@ -223,6 +242,16 @@ def _parse_arguments(arguments: str | dict[str, object] | None) -> tuple[object,
     # ValueError also covers integers longer than Python's int-string conversion limit.
     except ValueError:
         return _UNREADABLE, "are not valid JSON"
+
+
+def _has_non_finite(value: object) -> bool:
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if isinstance(value, dict):
+        return any(_has_non_finite(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_non_finite(item) for item in value)
+    return False
 
 
 class _NonFiniteNumberError(Exception):
@@ -280,6 +309,7 @@ def _duration_passes(value: object, rule: ArgRule, threshold: timedelta, where: 
     if rule.start is not None and rule.end is not None:
         start = _resolve(value, _path(rule.start))
         end = _resolve(value, _path(rule.end))
+        # Non-strings fail without a report here; find_rule_type_mismatches warns once per item.
         if not isinstance(start, str) or not isinstance(end, str):
             return False
         duration = timestamp_difference(start, end)
@@ -304,20 +334,29 @@ def _kql_passes(value: object, threshold: timedelta, where: _Where) -> bool:
     if not isinstance(value, str):
         return False
     readable, unreadable = kql_lookbacks(value)
-    for text in sorted(set(unreadable))[:_MAX_KQL_REPORTS_PER_CALL]:
-        where.report(
+    for text in sorted(set(unreadable)):
+        if not where.report(
             IssueKind.UNREADABLE_KQL_TIMESPAN,
             f"lookback {_shorten(f'ago({text})')} could not be read",
-        )
+        ):
+            break
     return any(lookback >= threshold for lookback in readable)
+
+
+class _Reads(Enum):
+    NUMBER = "number"  # min and max
+    TEXT = "text"  # min_duration, kql_min_ago and matches
+    TIMESTAMP = "timestamp"  # start and end
+    LIKE_NUMBERS = "like_numbers"  # equals or in, expecting only numbers
+    LIKE_TEXT = "like_text"  # equals or in, expecting only text
 
 
 @dataclass(frozen=True, slots=True)
 class _TypeCheck:
-    key: str
+    shown: str
     path: tuple[str | int, ...]
     rule_name: str
-    wants_number: bool  # min and max read numbers; min_duration and kql_min_ago read text
+    reads: _Reads
 
 
 def _type_checks(item: ChecklistItem) -> list[_TypeCheck]:
@@ -326,29 +365,68 @@ def _type_checks(item: ChecklistItem) -> list[_TypeCheck]:
         path = _path(key)
         if rule.min is not None or rule.max is not None:
             names = [name for name in ("min", "max") if getattr(rule, name) is not None]
-            checks.append(_TypeCheck(key, path, " and ".join(names), wants_number=True))
-        # With start and end, min_duration reads two timestamps, not the value at the path.
-        if rule.min_duration is not None and rule.start is None:
-            checks.append(_TypeCheck(key, path, "min_duration", wants_number=False))
+            checks.append(_TypeCheck(key, path, " and ".join(names), _Reads.NUMBER))
+        if rule.min_duration is not None:
+            if rule.start is not None and rule.end is not None:
+                # With start and end, min_duration reads two timestamps, not the value at the path.
+                for name, sub in (("start", rule.start), ("end", rule.end)):
+                    shown = sub if key == "$" else f"{key}.{sub}"
+                    checks.append(_TypeCheck(shown, path + _path(sub), name, _Reads.TIMESTAMP))
+            else:
+                checks.append(_TypeCheck(key, path, "min_duration", _Reads.TEXT))
         if rule.kql_min_ago is not None:
-            checks.append(_TypeCheck(key, path, "kql_min_ago", wants_number=False))
+            checks.append(_TypeCheck(key, path, "kql_min_ago", _Reads.TEXT))
+        if rule.matches is not None:
+            checks.append(_TypeCheck(key, path, "matches", _Reads.TEXT))
+        if "equals" in rule.model_fields_set:
+            checks.extend(_expected_value_checks(key, path, "equals", [rule.equals]))
+        if rule.in_:
+            checks.extend(_expected_value_checks(key, path, "in", rule.in_))
     return checks
+
+
+def _expected_value_checks(
+    key: str, path: tuple[str | int, ...], rule_name: str, expected: Sequence[object]
+) -> list[_TypeCheck]:
+    if all(_is_number(option) for option in expected):
+        return [_TypeCheck(key, path, rule_name, _Reads.LIKE_NUMBERS)]
+    if all(isinstance(option, str) for option in expected):
+        return [_TypeCheck(key, path, rule_name, _Reads.LIKE_TEXT)]
+    return []
 
 
 def _find_mismatch(root: object, checks: list[_TypeCheck]) -> str:
     for check in checks:
         value = _resolve(root, check.path)
-        fits = _is_number(value) if check.wants_number else isinstance(value, str)
-        if value is _MISSING or fits:
+        if value is _MISSING:
             continue
-        if check.wants_number and isinstance(value, str):
-            advice = "use min_duration or equals"
-        elif check.rule_name == "min_duration" and _is_number(value):
-            advice = "use min"
-        else:
-            advice = "this rule can't read it"
-        return f"'{check.key}' ({check.rule_name}): the value is {_describe(value)}; {advice}"
+        advice = _advice(check, value)
+        if advice:
+            return f"'{check.shown}' ({check.rule_name}): the value is {_describe(value)}; {advice}"
     return ""
+
+
+def _advice(check: _TypeCheck, value: object) -> str:
+    """Say how to fix a rule that can never pass on `value`, or "" when it can."""
+    noun = "value" if check.rule_name == "equals" else "values"
+    if check.reads is _Reads.LIKE_NUMBERS:
+        is_numeric_text = isinstance(value, str) and _NUMERIC_TEXT.fullmatch(value) is not None
+        return f"quote the expected {noun} in the checklist" if is_numeric_text else ""
+    if check.reads is _Reads.LIKE_TEXT:
+        return f"unquote the expected {noun} in the checklist" if _is_number(value) else ""
+    if check.reads is _Reads.NUMBER:
+        if _is_number(value):
+            return ""
+        return "use min_duration or equals" if isinstance(value, str) else "this rule can't read it"
+    if isinstance(value, str):
+        return ""
+    if check.reads is _Reads.TIMESTAMP:
+        return "this rule reads ISO 8601 timestamps"
+    if check.rule_name == "matches":
+        return "this rule reads text"
+    if check.rule_name == "min_duration" and _is_number(value):
+        return "use min"
+    return "this rule can't read it"
 
 
 def _describe(value: object) -> str:
