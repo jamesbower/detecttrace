@@ -367,6 +367,63 @@ def test_non_text_tool_name_is_reported() -> None:
     assert issue_kinds(spans) == [IssueKind.INVALID_ATTRIBUTE]
 
 
+def test_custom_tool_name_attribute_is_read() -> None:
+    mapping = MappingConfig(tool_name="tool.name")
+    spans = [
+        case_root("r1", "DT-1"),
+        make_span(
+            "t1",
+            "r1",
+            name="lookup",
+            attributes={"gen_ai.operation.name": "execute_tool", "tool.name": "get_audit_logs"},
+        ),
+    ]
+
+    assert tools_by_case(spans, mapping) == {"DT-1": ("get_audit_logs",)}
+
+
+def test_non_text_custom_tool_name_is_reported_under_its_attribute() -> None:
+    mapping = MappingConfig(tool_name="tool.name")
+    spans = [case_root("r1", "DT-1"), tool_span("t1", "r1", attributes={"tool.name": 5})]
+
+    _, issues = build_trace_cases(spans, mapping)
+
+    assert [issue.detail for issue in issues] == ["tool.name is a int"]
+
+
+def test_custom_tool_arguments_attribute_is_read() -> None:
+    mapping = MappingConfig(tool_arguments="tool.parameters")
+    spans = [
+        case_root("r1", "DT-1"),
+        tool_span("t1", "r1", attributes={"tool.parameters": '{"a":1}'}),
+    ]
+
+    cases, _ = build_trace_cases(spans, mapping)
+
+    assert cases[0].tool_calls[0].arguments == '{"a":1}'
+
+
+def test_default_arguments_attribute_is_ignored_when_another_is_mapped() -> None:
+    mapping = MappingConfig(tool_arguments="tool.parameters")
+    spans = [
+        case_root("r1", "DT-1"),
+        tool_span("t1", "r1", attributes={"gen_ai.tool.call.arguments": '{"a":1}'}),
+    ]
+
+    cases, _ = build_trace_cases(spans, mapping)
+
+    assert cases[0].tool_calls[0].arguments is None
+
+
+def test_default_tool_attributes_are_the_genai_names() -> None:
+    mapping = MappingConfig()
+
+    assert (mapping.tool_name, mapping.tool_arguments) == (
+        "gen_ai.tool.name",
+        "gen_ai.tool.call.arguments",
+    )
+
+
 def test_span_name_without_the_operation_prefix_is_not_a_tool_name() -> None:
     mapping = MappingConfig(
         operation=OperationConfig(

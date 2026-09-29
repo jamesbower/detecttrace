@@ -137,6 +137,18 @@ def test_prompt_version_lookup_is_read(tmp_path: Path) -> None:
     assert config.mapping == MappingConfig(prompt_version_lookup="descendant")
 
 
+def test_tool_attributes_are_read(tmp_path: Path) -> None:
+    config = _load(
+        tmp_path, MINIMAL + "mapping: {tool_name: tool.name, tool_arguments: tool.parameters}\n"
+    )
+    assert config.mapping == MappingConfig(tool_name="tool.name", tool_arguments="tool.parameters")
+
+
+def test_non_text_tool_name_is_rejected(tmp_path: Path) -> None:
+    message = _load_error(tmp_path, MINIMAL + "mapping: {tool_name: 5}\n")
+    assert "mapping.tool_name: Input should be a valid string" in message
+
+
 def test_max_detail_cases_is_read(tmp_path: Path) -> None:
     config = _load(tmp_path, MINIMAL + "dashboard: {max_detail_cases: 50}\n")
     assert config.dashboard.max_detail_cases == 50

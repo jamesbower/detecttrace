@@ -146,7 +146,7 @@ class _TraceWalk:
 
     def _visit_tool(self, span: Span, current: _OpenCase | None, is_broken_chain: bool) -> None:
         if current is not None:
-            current.tool_calls.append(_to_tool_call(span, self.mapping.operation, self.issues))
+            current.tool_calls.append(_to_tool_call(span, self.mapping, self.issues))
             return
         self.orphan_count += 1
         kind = IssueKind.BROKEN_PARENT_CHAIN if is_broken_chain else IssueKind.ORPHAN_TOOL_SPAN
@@ -177,9 +177,9 @@ def _classify(span: Span, operation: OperationConfig) -> Literal["agent", "tool"
     return None
 
 
-def _to_tool_call(span: Span, operation: OperationConfig, issues: list[Issue]) -> ToolCall:
+def _to_tool_call(span: Span, mapping: MappingConfig, issues: list[Issue]) -> ToolCall:
     subject = f"{span.trace_id}/{span.span_id}"
-    raw_name = span.attributes.get(conventions.TOOL_NAME)
+    raw_name = span.attributes.get(mapping.tool_name)
     tool_name = ""
     if isinstance(raw_name, str):
         tool_name = raw_name.strip()
@@ -188,16 +188,16 @@ def _to_tool_call(span: Span, operation: OperationConfig, issues: list[Issue]) -
             Issue(
                 IssueKind.INVALID_ATTRIBUTE,
                 subject,
-                f"{conventions.TOOL_NAME} is a {type(raw_name).__name__}",
+                f"{mapping.tool_name} is a {type(raw_name).__name__}",
             )
         )
     if not tool_name:
         prefix, _, suffix = span.name.partition(" ")
-        if prefix == operation.tool_value:
+        if prefix == mapping.operation.tool_value:
             tool_name = suffix.strip()
     if not tool_name:
         issues.append(Issue(IssueKind.MISSING_TOOL_NAME, subject))
-    raw_arguments = span.attributes.get(conventions.TOOL_CALL_ARGUMENTS)
+    raw_arguments = span.attributes.get(mapping.tool_arguments)
     arguments: str | dict[str, object] | None = None
     if isinstance(raw_arguments, str | dict):
         arguments = raw_arguments
@@ -206,7 +206,7 @@ def _to_tool_call(span: Span, operation: OperationConfig, issues: list[Issue]) -
             Issue(
                 IssueKind.INVALID_ATTRIBUTE,
                 subject,
-                f"{conventions.TOOL_CALL_ARGUMENTS} is a {type(raw_arguments).__name__}",
+                f"{mapping.tool_arguments} is a {type(raw_arguments).__name__}",
             )
         )
     return ToolCall(

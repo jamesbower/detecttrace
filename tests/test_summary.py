@@ -143,6 +143,13 @@ def test_config_name_is_used_when_given() -> None:
     assert line.message.endswith("Add it to label_map in prod.yaml.")
 
 
+def test_missing_tool_name_points_at_the_mapping() -> None:
+    [line] = summarize_issues([Issue(IssueKind.MISSING_TOOL_NAME, "t/1")], config_name="prod.yaml")
+    assert line.message.endswith(
+        "Set the tool name attribute (mapping.tool_name in prod.yaml) on every tool span."
+    )
+
+
 def test_singular_count_uses_singular_noun_and_verb() -> None:
     assert only_line(unmapped("Escalated", 1)).message.startswith("1 verdict uses the label")
 

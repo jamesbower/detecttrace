@@ -107,7 +107,7 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
     IssueKind.MISSING_TOOL_NAME: (
         "tool span has no tool name, so it satisfies no checklist item",
         "tool spans have no tool name, so they satisfy no checklist item",
-        f"Set {conventions.TOOL_NAME} on every tool span.",
+        "Set the tool name attribute (mapping.tool_name in {config}) on every tool span.",
     ),
     IssueKind.AGENT_WITHOUT_CASE_ID: (
         f"{_AGENT} span has no case ID and was not scored",
