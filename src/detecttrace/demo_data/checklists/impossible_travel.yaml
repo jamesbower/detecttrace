@@ -1,0 +1,19 @@
+# Generic example checklist for the demo, not a curated playbook.
+alert_class: impossible_travel
+items:
+- id: signin_history
+  tool: get_signin_logs
+  args:
+    range: {min_duration: 24h}
+- id: signin_query
+  tool: query_sentinel
+  args:
+    query: {kql_min_ago: 24h}
+- id: mfa_check
+  tool: check_mfa_status
+- id: ip_reputation
+  tool: get_ip_reputation
+- id: location_history
+  tool: get_user_locations
+  args:
+    lookback_days: {min: 30}

@@ -1,0 +1,146 @@
+# The bundled demo dataset behind `detecttrace demo`.
+# Regenerate with `uv run python scripts/synthetic/generate.py` and review the diff.
+#
+# Story: two alert classes over six ISO weeks. Prompt v1 runs in weeks 1-2, v2 from week 3.
+# On impossible travel, v2 often skips check_mfa_status and narrows the sign-in lookback,
+# so evidence completeness drops and a few threats are closed as benign.
+# OAuth consent does not change: it is the control.
+
+seed: 20260803
+first_monday: "2026-08-03"
+weeks: 6
+output_dir: src/detecttrace/demo_data
+
+agent:
+  name: soc-triage-agent
+  service_version: 2.3.1
+  model: example-model-large
+
+versions:
+  - name: v1
+    first_week: 1
+  - name: v2
+    first_week: 3
+
+traces:
+  files: 3
+  cases_per_batch: 6
+
+# Probabilities applied to every tool call of every case.
+noise:
+  skip: 0.03
+  narrow: 0.04
+  failure: 0.03
+  retry: 0.6
+
+# Chance the agent's verdict matches the analyst's, when no behavior below intervenes.
+agent_accuracy:
+  threat: 0.97
+  non_threat: 0.9
+
+classes:
+  - name: impossible_travel
+    case_prefix: DT-IT
+    cases_per_week: 17
+    true_positive_rate: 0.15
+    false_positive_share: 0.4
+    tools:
+      - get_user_profile
+      - get_signin_logs
+      - query_sentinel
+      - check_mfa_status
+      - get_ip_reputation
+      - get_user_locations
+  - name: oauth_consent
+    case_prefix: DT-OC
+    cases_per_week: 16
+    true_positive_rate: 0.15
+    false_positive_share: 0.4
+    tools:
+      - get_user_profile
+      - get_oauth_grants
+      - get_app_permissions
+      - query_sentinel
+      - get_consent_events
+
+behaviors:
+  - class: impossible_travel
+    version: v2
+    tool: check_mfa_status
+    skip: 0.6
+    # A threat whose MFA status was never checked is often closed as benign.
+    missed_threat_close: 0.6
+  - class: impossible_travel
+    version: v2
+    tool: get_signin_logs
+    narrow: 0.35
+
+# The first case of this class in this week delegates these tools to a sub-agent.
+sub_agent:
+  class: impossible_travel
+  week: 4
+  name: ip-enrichment-agent
+  tools:
+    - get_ip_reputation
+    - get_user_locations
+
+# Team labels in the verdict CSV; the first label is the common one.
+analyst_labels:
+  true_positive: [TP, Malicious]
+  false_positive: [FP]
+  benign: [Closed - Benign]
+agent_labels:
+  true_positive: TP
+  false_positive: FP
+  benign: Benign
+
+config:
+  traces:
+    path: traces/
+    format: otlp_jsonl
+  verdicts:
+    path: verdicts.csv
+  label_map:
+    TP: true_positive
+    Malicious: true_positive
+    FP: false_positive
+    Benign: benign
+    Closed - Benign: benign
+  checklists: checklists/
+  output: detecttrace-demo.html
+
+checklists:
+  - alert_class: impossible_travel
+    items:
+      - id: signin_history
+        tool: get_signin_logs
+        args:
+          range: { min_duration: 24h }
+      - id: signin_query
+        tool: query_sentinel
+        args:
+          query: { kql_min_ago: 24h }
+      - id: mfa_check
+        tool: check_mfa_status
+      - id: ip_reputation
+        tool: get_ip_reputation
+      - id: location_history
+        tool: get_user_locations
+        args:
+          lookback_days: { min: 30 }
+  - alert_class: oauth_consent
+    items:
+      - id: grant_window
+        tool: get_oauth_grants
+        args:
+          window: { min_duration: 24h, start: start, end: end }
+      - id: app_permissions
+        tool: get_app_permissions
+      - id: audit_query
+        tool: query_sentinel
+        args:
+          query: { kql_min_ago: 3d }
+      - id: consent_history
+        tool: get_consent_events
+        args:
+          lookback_days: { min: 30 }

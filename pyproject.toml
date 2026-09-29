@@ -34,11 +34,12 @@ ignore = ["E501"]  # ruff format owns line length; long messages stay on one lin
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
-include = ["src", "tests"]
-extraPaths = ["tests"]
+include = ["src", "tests", "scripts"]
+extraPaths = ["tests", "scripts/synthetic"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["scripts/synthetic"]
 addopts = "-m 'not benchmark'"
 markers = ["benchmark: performance gates; run with `uv run pytest -m benchmark`"]
 
