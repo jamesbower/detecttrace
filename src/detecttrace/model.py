@@ -54,6 +54,8 @@ class IssueKind(StrEnum):
     RULE_TYPE_MISMATCH = "rule_type_mismatch"
     UNKNOWN_CHECKLIST_TOOL = "unknown_checklist_tool"
     UNUSED_CHECKLIST = "unused_checklist"
+    CONSOLE_EXPORTER_OUTPUT = "console_exporter_output"
+    UNSUPPORTED_COMPRESSION = "unsupported_compression"
 
 
 @dataclass(frozen=True, slots=True)
