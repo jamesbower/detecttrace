@@ -193,7 +193,7 @@
 {%- for line in cls.trend.agreement.lines -%}
 <li>{{ swatch(line.style) }}{{ line.label }}</li>
 {%- endfor -%}
-<li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false"><line class="sw-vmark" x1="15" y1="0" x2="15" y2="12"/></svg>First week of a version</li><li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false">{{ marker(few_swatch, "1") }}</svg>Hollow marker: fewer than 10 cases</li></ul>
+<li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false"><line class="sw-vmark" x1="15" y1="0" x2="15" y2="12"/></svg>First week of a version</li><li><svg class="swatch" viewBox="0 0 30 12" aria-hidden="true" focusable="false">{{ marker(few_swatch, "none") }}</svg>Hollow marker: fewer than 10 cases</li></ul>
   <div class="charts">
     {{ trend_figure(cls, cls.trend.completeness, charts.completeness, "comp", "evidence completeness") }}
     {{ trend_figure(cls, cls.trend.agreement, charts.agreement, "agree", "verdict agreement") }}

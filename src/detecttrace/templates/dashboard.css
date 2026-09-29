@@ -12,11 +12,13 @@
   --danger:#ef7b7b; --ok:#7cc3a3; --warn:#e3b56a; --focus:#b9d4ff; --link:#8fb4e3;
   --banner-bg:#231f19; --banner-line:#5a4a2e; --banner-text:#e0d6c3;
   --pill-bad-bg:#3a2122; --pill-agree-bg:#1d3129; --pill-disagree-bg:#302a1f; --pill-disagree-fg:#e8c992;
-  --note-warn-bg:#2a2319; --note-invalid-bg:#2b1d20;
+  --note-warn-bg:#2a2319;
 
   /* Version series: color is one of three cues (dash pattern and marker shape are the others) */
   --s1:#7fa7d9; --s2:#e0a458; --s3:#6cc4b8; --s4:#c3a2e6; --s5:#d2cd86; --s6:#e893b6;
   --s-other:#aab4c0; --s-none:#d0d7df; --s-all:#dce3ea;
+  /* All-versions halo, pre-mixed so it keeps 3:1 on --surface without opacity */
+  --s-all-halo:#666e79;
 
   /* Heat cells, pre-mixed over --surface so text contrast is known */
   --heat-0:#1e2632;
@@ -98,7 +100,7 @@ main > section{margin-top:var(--sp-8); scroll-margin-top:var(--sp-4)}
 .card-note{margin:var(--sp-3) 0 0; font-size:var(--fs-sm); color:var(--muted); max-width:80ch}
 
 /* Tables */
-.tbl-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface-3)}
+.tbl-wrap{overflow-x:auto; container-type:inline-size; border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface-3)}
 table{border-collapse:collapse; width:100%}
 caption{caption-side:top; text-align:left; padding:var(--sp-3) var(--sp-3) var(--sp-2); font-size:var(--fs-sm); color:var(--muted)}
 th,td{text-align:left; padding:var(--sp-2) var(--sp-3); border-top:1px solid var(--line); font-size:var(--fs-sm); vertical-align:top}
@@ -150,17 +152,17 @@ figure{margin:0; min-width:0}
 figcaption{font-size:var(--fs-sm); font-weight:var(--fw-bold); margin-bottom:var(--sp-2)}
 .chart-scroll{overflow-x:auto; border-radius:var(--r-md)}
 .chart{display:block; width:100%; min-width:520px; height:auto}
-.grid-line{stroke:var(--line); stroke-width:1}
-.axis-text{fill:var(--muted); font-size:11px; font-family:var(--font-body)}
-.n-text{fill:var(--muted); font-size:10px; font-family:var(--font-body)}
+.grid-line{stroke:var(--faint); stroke-width:1}
+.axis-text{fill:var(--muted); font-size:13px; font-family:var(--font-body)}
+.n-text{fill:var(--muted); font-size:12px; font-family:var(--font-body)}
 .vmark{stroke:var(--muted); stroke-width:1; stroke-dasharray:3 3}
-.vmark-text{fill:var(--text); font-size:11px; font-weight:700; font-family:var(--font-body)}
+.vmark-text{fill:var(--text); font-size:13px; font-weight:700; font-family:var(--font-body)}
 .series{fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
-.series-all{fill:none; stroke:var(--s-all); stroke-width:6; opacity:.16; stroke-linecap:round; stroke-linejoin:round}
+.series-all{fill:none; stroke:var(--s-all-halo); stroke-width:6; stroke-linecap:round; stroke-linejoin:round}
 .mk{stroke-width:1.5}
 .mk.is-few-point{fill:var(--surface)}
 .sw-line{fill:none; stroke-width:2}
-.sw-all{stroke:var(--s-all); stroke-width:6; opacity:.25}
+.sw-all{stroke:var(--s-all-halo); stroke-width:6}
 .sw-vmark{stroke:var(--muted); stroke-width:1; stroke-dasharray:3 3}
 /* Series identity: color, dash, marker (marker shape is set in markup) */
 .c-1{stroke:var(--s1); fill:var(--s1)} .c-2{stroke:var(--s2); fill:var(--s2)} .c-3{stroke:var(--s3); fill:var(--s3)}
@@ -200,6 +202,7 @@ figcaption{font-size:var(--fs-sm); font-weight:var(--fw-bold); margin-bottom:var
 .cases{min-width:820px}
 .cases td,.cases th{vertical-align:middle; white-space:nowrap}
 .cases tbody tr.case-row:hover td{background:var(--row-hover)}
+.cases td.mono{white-space:normal; overflow-wrap:anywhere; min-width:12ch}
 /* anywhere drops min-content to one character; 16ch stops the table squeezing typical IDs */
 .row-toggle{font:inherit; font-family:var(--font-mono); font-size:var(--fs-sm); color:var(--text); background:none; border:0; min-height:44px; padding:0 var(--sp-2) 0 0; display:inline-flex; align-items:center; gap:var(--sp-2); cursor:pointer; text-align:left; white-space:normal; overflow-wrap:anywhere; min-width:16ch}
 .row-toggle::before{flex:none}
@@ -211,7 +214,7 @@ figcaption{font-size:var(--fs-sm); font-weight:var(--fw-bold); margin-bottom:var
 .pill.disagree{background:var(--pill-disagree-bg); color:var(--pill-disagree-fg)}
 .pill.unknown{background:var(--surface-2); color:var(--muted)}
 tr.detail-row > td{background:var(--surface-3); padding:0; border-top:0; white-space:normal}
-.detail-body{position:sticky; left:0; max-width:calc(100vw - 2 * var(--gutter) - 2px); padding:var(--sp-3) var(--sp-4) var(--sp-5); display:grid; gap:var(--sp-4)}
+.detail-body{position:sticky; left:0; max-width:100cqi; padding:var(--sp-3) var(--sp-4) var(--sp-5); display:grid; gap:var(--sp-4)}
 .detail-body > *,.calls li > *,.steps li > *{min-width:0}
 .detail-body h3{margin:0 0 var(--sp-2); font-size:var(--fs-xs); letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
 .detail-body p{margin:0}
@@ -278,6 +281,14 @@ footer{margin-top:var(--sp-7); padding-top:var(--sp-4); border-top:1px solid var
   .examples{grid-column:1}
   .calls li{grid-template-columns:minmax(0,1fr) auto}
   .calls .call-main{grid-column:1 / -1; grid-row:2}
+}
+@media (forced-colors:active){
+  .axis-text,.n-text,.vmark-text{fill:CanvasText}
+  .grid-line,.vmark,.sw-vmark{stroke:GrayText}
+  .ci-track,.bar-track{fill:GrayText}
+  .ci-point{fill:CanvasText}
+  .series-all,.sw-all{stroke:CanvasText}
+  .mk.is-few-point{fill:Canvas}
 }
 @media (prefers-reduced-motion:reduce){
   .filters button,.more,.row-toggle::before{transition:none}

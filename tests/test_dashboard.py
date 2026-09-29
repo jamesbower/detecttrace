@@ -201,6 +201,14 @@ def test_each_class_has_a_filter_by_its_index_in_the_strings_table() -> None:
     ]
 
 
+def test_the_hollow_marker_legend_uses_the_neutral_style() -> None:
+    item = demo_page().find(
+        lambda node: node.tag == "li" and node.text() == "Hollow marker: fewer than 10 cases"
+    )
+    marker = item.find(lambda node: "mk" in node.classes())
+    assert marker.classes() == ["mk", "c-none", "is-few-point"]
+
+
 def test_the_generator_marker_names_this_version() -> None:
     meta = demo_page().find(has_tag("meta", name="generator"))
     assert meta.attrs["content"] == f"detecttrace {__version__}"
