@@ -14,6 +14,7 @@ from detecttrace.summary import (
     is_low_coverage,
     summarize_issues,
     to_terminal_text,
+    to_visible_text,
 )
 
 INVALID_INPUT_KINDS = [
@@ -363,6 +364,14 @@ def test_terminal_text_keeps_text_at_the_limit_whole() -> None:
 
 def test_terminal_text_without_a_limit_keeps_everything() -> None:
     assert to_terminal_text("x" * 100, limit=None) == "x" * 100
+
+
+def test_visible_text_escapes_a_bidi_override() -> None:
+    assert to_visible_text("a\u202eb") == "a\\u202eb"
+
+
+def test_visible_text_never_shortens() -> None:
+    assert to_visible_text("x" * 100) == "x" * 100
 
 
 # Ordering

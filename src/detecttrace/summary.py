@@ -355,6 +355,14 @@ def to_terminal_text(text: str, limit: int | None = TERMINAL_TEXT_LIMIT) -> str:
     return "".join(kept) + "…"
 
 
+def to_visible_text(text: str) -> str:
+    """Escape control and format characters as `to_terminal_text` does, but never shorten.
+
+    For pages: autoescaping stops markup, not a bidirectional override reordering a label.
+    """
+    return to_terminal_text(text, limit=None)
+
+
 def has_invalid_input(issues: Sequence[Issue]) -> bool:
     return any(SEVERITY[issue.kind] is Severity.INVALID_INPUT for issue in issues)
 
