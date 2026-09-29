@@ -49,6 +49,8 @@ def test_results_carry_the_coverage(tmp_path: Path) -> None:
             "verdicts_total": 3,
             "traces_matched": 3,
             "traces_total": 4,
+            "verdicts_low": False,
+            "traces_low": False,
         },
     }
 

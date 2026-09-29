@@ -132,15 +132,6 @@ def test_one_unreadable_trace_file_is_reported(tmp_path: Path) -> None:
     assert "1 trace line is not valid JSON and was skipped." in result.stdout
 
 
-def test_summary_examples_are_indented_under_their_line(tmp_path: Path) -> None:
-    config_path = write_run_folder(tmp_path)
-    (tmp_path / "traces" / "bad.jsonl").write_text("not json\n", encoding="utf-8")
-
-    result = _check(config_path)
-
-    assert "\n    bad.jsonl\n" in result.stdout
-
-
 def test_missing_verdict_file_exits_1(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
     (tmp_path / "verdicts.csv").unlink()
@@ -465,3 +456,167 @@ def test_demo_protects_a_file_from_another_tool(tmp_path: Path) -> None:
     result = _invoke("demo", "--out", str(tmp_path / "mine.json"))
 
     assert result.exit_code == 1
+
+
+# Examples with details
+
+
+def test_an_example_shows_its_subject_and_detail(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "traces" / "bad.jsonl").write_text("not json\n", encoding="utf-8")
+
+    result = _check(config_path)
+
+    assert "\n    bad.jsonl: line 1\n" in result.stdout
+
+
+def test_an_example_detail_is_escaped(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "traces" / "bad.jsonl").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "traces" / "b\x1bd.jsonl").write_text("not json\n", encoding="utf-8")
+
+    result = _check(config_path)
+
+    assert "\n    b\\x1bd.jsonl: line 1\n" in result.stdout
+
+
+def test_an_example_for_a_label_shows_only_the_subject(tmp_path: Path) -> None:
+    result = _check_with_label(tmp_path, "Escalated")
+
+    assert "\n    DT-1\n" in result.stdout
+
+
+# --quiet with --strict
+
+
+def test_quiet_strict_with_invalid_input_prints_the_invalid_input_lines(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "traces" / "bad.jsonl").write_text("not json\n", encoding="utf-8")
+
+    result = _check(config_path, "--quiet", "--strict")
+
+    assert "1 trace line is not valid JSON and was skipped." in result.stderr
+
+
+def test_quiet_strict_with_invalid_input_leaves_out_warnings(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path, verdicts=RUN_VERDICTS + "DT-9,impossible_travel,FP\n")
+    (tmp_path / "traces" / "bad.jsonl").write_text("not json\n", encoding="utf-8")
+
+    result = _check(config_path, "--quiet", "--strict")
+
+    assert "verdict has no matching trace" not in result.stderr
+
+
+def test_quiet_strict_with_invalid_input_prints_nothing_to_stdout(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "traces" / "bad.jsonl").write_text("not json\n", encoding="utf-8")
+
+    result = _check(config_path, "--quiet", "--strict")
+
+    assert result.stdout == ""
+
+
+# Class lines
+
+
+def _eight_version_folder(tmp_path: Path, versions: tuple[str, ...]) -> Path:
+    case_ids = tuple(f"DT-{number}" for number in range(1, len(versions) + 1))
+    verdicts = "case_id,alert_class,verdict\n" + "".join(
+        f"{case_id},impossible_travel,TP\n" for case_id in case_ids
+    )
+    config_path = write_run_folder(tmp_path, case_ids=case_ids, verdicts=verdicts)
+    traces = tmp_path / "traces" / "batch.jsonl"
+    lines = traces.read_text(encoding="utf-8").splitlines(keepends=True)
+    traces.write_text(
+        "".join(
+            line.replace('"v1"', f'"{version}"')
+            for line, version in zip(lines, versions, strict=True)
+        ),
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def test_one_pooled_version_is_counted_in_the_singular(tmp_path: Path) -> None:
+    config_path = _eight_version_folder(tmp_path, ("v1", "v2", "v3", "v4", "v5", "v6", "v7"))
+
+    result = _check(config_path)
+
+    assert "v6, 1 other version\n" in result.stdout
+
+
+def test_several_pooled_versions_are_counted_in_the_plural(tmp_path: Path) -> None:
+    config_path = _eight_version_folder(tmp_path, ("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"))
+
+    result = _check(config_path)
+
+    assert "v6, 2 other versions\n" in result.stdout
+
+
+# Usage errors
+
+
+def test_an_unknown_option_exits_1() -> None:
+    assert _invoke("--bogus").exit_code == 1
+
+
+def test_an_unknown_command_option_exits_1(tmp_path: Path) -> None:
+    assert _invoke("check", "--bogus").exit_code == 1
+
+
+def test_an_unknown_command_exits_1() -> None:
+    assert _invoke("bogus").exit_code == 1
+
+
+def test_no_command_exits_1() -> None:
+    assert _invoke().exit_code == 1
+
+
+def test_an_unknown_option_names_the_option() -> None:
+    assert "No such option" in _invoke("--bogus").output
+
+
+def test_help_still_exits_0() -> None:
+    assert _invoke("--help").exit_code == 0
+
+
+# Nothing written
+
+
+def test_no_joined_case_says_nothing_was_written(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path, case_ids=("DT-7", "DT-8"))
+
+    result = _check(config_path)
+
+    assert "Nothing was written." in result.stderr
+
+
+def test_unusable_input_says_nothing_was_written(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "verdicts.csv").unlink()
+
+    result = _check(config_path)
+
+    assert "Nothing was written." in result.stderr
+
+
+def test_a_failed_write_says_nothing_was_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "write_results_json", _raise_permission_error)
+
+    result = _check(write_run_folder(tmp_path))
+
+    assert "Nothing was written." in result.stderr
+
+
+def test_a_failed_write_exits_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "write_results_json", _raise_permission_error)
+
+    result = _check(write_run_folder(tmp_path))
+
+    assert result.exit_code == 1
+
+
+def _raise_permission_error(*_args: object) -> None:
+    raise PermissionError(13, "Permission denied")

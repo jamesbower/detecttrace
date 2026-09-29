@@ -1,6 +1,5 @@
 """The end-of-run terminal summary: issue severities, grouped issue lines, and join coverage."""
 
-import re
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -233,10 +232,22 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
     ),
 }
 
-# NOTE: the metrics stage puts the tool only in the detail, as "no case calls tool 'NAME'".
-_UNKNOWN_TOOL = re.compile(r"tool '(.*)'")
+# Kinds whose Issue.detail is the grouping key itself, so repeating it per example adds nothing.
+_KEY_IN_DETAIL = frozenset(
+    {
+        IssueKind.UNMAPPED_ANALYST_LABEL,
+        IssueKind.UNMAPPED_AGENT_LABEL,
+        IssueKind.UNKNOWN_CHECKLIST_TOOL,
+    }
+)
 _MAX_EXAMPLES = 3
 TERMINAL_TEXT_LIMIT = 60
+
+
+@dataclass(frozen=True, slots=True)
+class IssueExample:
+    subject: str
+    detail: str | None  # None when the detail is the line's key or empty
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,13 +257,19 @@ class SummaryLine:
     count: int
     message: str  # the full sentence with count and fix hint, with the raw key
     terminal_message: str  # the same sentence, with the key made safe for a terminal
-    examples: tuple[str, ...]  # up to 3 subjects, raw
+    examples: tuple[IssueExample, ...]  # up to 3, one per subject, raw
+
+
+@dataclass(frozen=True, slots=True)
+class CoverageLine:
+    message: str  # ready for the terminal
+    is_low: bool
 
 
 @dataclass(slots=True)
 class _Group:
     count: int = 0
-    examples: list[str] = field(default_factory=list)
+    examples: list[IssueExample] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,8 +291,11 @@ def summarize_issues(
         if group is None:
             group = groups[group_key] = _Group()
         group.count += 1
-        if len(group.examples) < _MAX_EXAMPLES and issue.subject not in group.examples:
-            group.examples.append(issue.subject)
+        if len(group.examples) < _MAX_EXAMPLES and all(
+            example.subject != issue.subject for example in group.examples
+        ):
+            detail = None if issue.kind in _KEY_IN_DETAIL else issue.detail or None
+            group.examples.append(IssueExample(issue.subject, detail))
     ordered = sorted(
         groups.items(),
         key=lambda item: (
@@ -321,9 +341,14 @@ def has_invalid_input(issues: Sequence[Issue]) -> bool:
     return any(SEVERITY[issue.kind] is Severity.INVALID_INPUT for issue in issues)
 
 
+def is_low_coverage(matched: int, total: int) -> bool:
+    """Below half matched; with nothing read there is no share to call low."""
+    return matched * 2 < total
+
+
 def coverage_lines(
     coverage: JoinCoverage, config_name: str = "detecttrace.yaml"
-) -> list[SummaryLine]:
+) -> list[CoverageLine]:
     """Two lines, verdicts then traces; a wrong case ID mapping shows up here, not as an error."""
     return [
         _coverage_line(
@@ -331,7 +356,6 @@ def coverage_lines(
             coverage.verdicts_total,
             ("verdict", "verdicts"),
             "a trace",
-            IssueKind.VERDICT_WITHOUT_ROOT,
             config_name,
         ),
         _coverage_line(
@@ -339,18 +363,15 @@ def coverage_lines(
             coverage.traces_total,
             ("trace", "traces"),
             "a verdict",
-            IssueKind.ROOT_WITHOUT_VERDICT,
             config_name,
         ),
     ]
 
 
 def _to_group_key(issue: Issue) -> str:
-    if issue.kind in (IssueKind.UNMAPPED_ANALYST_LABEL, IssueKind.UNMAPPED_AGENT_LABEL):
+    if issue.kind in _KEY_IN_DETAIL:
         return issue.detail
-    if issue.kind is IssueKind.UNKNOWN_CHECKLIST_TOOL:
-        match = _UNKNOWN_TOOL.search(issue.detail)
-        return match.group(1) if match else issue.detail
+    # A mismatch's detail describes one call; its subject is the checklist item to group by.
     if issue.kind is IssueKind.RULE_TYPE_MISMATCH:
         return issue.subject
     return ""
@@ -377,9 +398,8 @@ def _coverage_line(
     total: int,
     nouns: tuple[str, str],
     other_side: str,
-    kind: IssueKind,
     config_name: str,
-) -> SummaryLine:
+) -> CoverageLine:
     noun = nouns[0] if total == 1 else nouns[1]
     if total == 0:
         message = f"0 of 0 {noun} matched {other_side}: no {noun} were read."
@@ -388,11 +408,11 @@ def _coverage_line(
         sentence = (
             f"{matched:,} of {total:,} {noun} matched {other_side} ({matched * 100 // total}%)."
         )
-        if matched * 2 < total:
+        if is_low_coverage(matched, total):
             message = (
                 f"WARNING: {sentence} Less than half matched, so the results may be misleading; "
                 f"check mapping.case_id in {to_terminal_text(config_name)}."
             )
         else:
             message = sentence
-    return SummaryLine(Severity.WARNING, kind, matched, message, message, ())
+    return CoverageLine(message, is_low_coverage(matched, total))

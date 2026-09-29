@@ -18,7 +18,7 @@ from detecttrace.metrics import compute_metrics
 from detecttrace.model import Case, IssueKind, ToolCall, Verdict
 from detecttrace.otlp import load_spans
 from detecttrace.results import build_results, is_results_file, write_results_json
-from detecttrace.summary import JoinCoverage, Severity, SummaryLine
+from detecttrace.summary import IssueExample, JoinCoverage, Severity, SummaryLine
 from detecttrace.verdicts import read_verdicts
 
 DAY_NS = 86_400 * 1_000_000_000
@@ -43,7 +43,7 @@ NOTE = SummaryLine(
     count=2,
     message="2 duplicate verdict rows. Keep one row per case.",
     terminal_message="2 duplicate verdict rows. Keep one row per case.",
-    examples=("DT-1", "DT-2"),
+    examples=(IssueExample("DT-1", "lines 2, 3"), IssueExample("DT-2", None)),
 )
 
 
@@ -156,6 +156,8 @@ def test_totals_count_cases_classes_period_versions_and_coverage():
             "verdicts_total": 4,
             "traces_matched": 3,
             "traces_total": 5,
+            "verdicts_low": False,
+            "traces_low": False,
         },
     }
 
@@ -171,7 +173,10 @@ def test_data_notes_carry_every_summary_line_field():
             "kind": "duplicate_verdict",
             "count": 2,
             "message": "2 duplicate verdict rows. Keep one row per case.",
-            "examples": ["DT-1", "DT-2"],
+            "examples": [
+                {"subject": "DT-1", "detail": "lines 2, 3"},
+                {"subject": "DT-2", "detail": None},
+            ],
         }
     ]
 
@@ -186,14 +191,21 @@ def test_a_class_lists_per_version_records_in_first_seen_order():
     assert [record["version"] for record in by_version] == ["v1", None, "v2"]
 
 
-def test_a_version_record_carries_its_first_week_metrics_and_skipped_steps():
-    record = results_for(MIXED)["classes"][0]["by_version"][2]
+def test_a_version_record_carries_its_first_week():
+    assert results_for(MIXED)["classes"][0]["by_version"][2]["first_week"] == "2026-W40"
 
-    assert (record["first_week"], record["metrics"]["case_count"], record["skipped"][0]) == (
-        "2026-W40",
-        1,
-        {"item_id": "signins", "skipped": 1, "n": 1, "rate": 1.0},
-    )
+
+def test_a_version_record_carries_its_metrics():
+    assert results_for(MIXED)["classes"][0]["by_version"][2]["metrics"]["case_count"] == 1
+
+
+def test_a_version_record_carries_its_skipped_steps():
+    assert results_for(MIXED)["classes"][0]["by_version"][2]["skipped"][0] == {
+        "item_id": "signins",
+        "skipped": 1,
+        "n": 1,
+        "rate": 1.0,
+    }
 
 
 def test_a_slice_keeps_the_dangerous_false_closes():
@@ -226,15 +238,18 @@ def test_case_rows_keep_a_version_named_null_apart_from_no_version(tmp_path: Pat
     ] == [None, "null"]
 
 
-def test_pooled_versions_sit_under_other_not_under_a_version_named_other():
-    cases = [
-        *(case(f"DT-{index}", version=f"v{index}", day=index) for index in range(1, 8)),
-        case("DT-9", version="other", day=9),
-    ]
+EIGHT_VERSIONS = [
+    *(case(f"DT-{index}", version=f"v{index}", day=index) for index in range(1, 8)),
+    case("DT-9", version="other", day=9),
+]
 
-    data = results_for(cases)["classes"][0]
 
-    assert (data["other"]["metrics"]["case_count"], data["other_versions"]) == (2, ["v7", "other"])
+def test_pooled_versions_sit_under_other():
+    assert results_for(EIGHT_VERSIONS)["classes"][0]["other"]["metrics"]["case_count"] == 2
+
+
+def test_a_version_named_other_is_listed_as_a_pooled_version():
+    assert results_for(EIGHT_VERSIONS)["classes"][0]["other_versions"] == ["v7", "other"]
 
 
 def test_other_is_null_when_nothing_is_pooled():
@@ -332,7 +347,9 @@ def test_detail_takes_dangerous_closes_then_the_newest_disagreement_up_to_the_ca
         *(case(f"DT-1{day}", analyst=FP, agent=BENIGN, day=day) for day in range(5)),
     ]
 
-    assert list(results_for(cases, max_detail_cases=3)["case_detail"]) == [
+    assert [
+        entry["case_id"] for entry in results_for(cases, max_detail_cases=3)["case_detail"]
+    ] == [
         "DT-02",
         "DT-01",
         "DT-14",
@@ -345,21 +362,21 @@ def test_detail_puts_failed_calls_before_missed_steps():
         case("DT-2", calls=(*ALL_STEPS, call("lookup_user", is_failed=True))),
     ]
 
-    assert list(results_for(cases)["case_detail"]) == ["DT-2", "DT-1"]
+    assert [entry["case_id"] for entry in results_for(cases)["case_detail"]] == ["DT-2", "DT-1"]
 
 
 def test_detail_breaks_start_time_ties_by_case_id():
     cases = [case("DT-2", analyst=TP, agent=FP), case("DT-1", analyst=TP, agent=FP)]
 
-    assert list(results_for(cases)["case_detail"]) == ["DT-1", "DT-2"]
+    assert [entry["case_id"] for entry in results_for(cases)["case_detail"]] == ["DT-1", "DT-2"]
 
 
 def test_detail_leaves_out_unremarkable_cases():
-    assert results_for([case("DT-1")])["case_detail"] == {}
+    assert results_for([case("DT-1")])["case_detail"] == []
 
 
 def test_detail_is_empty_when_the_cap_is_zero():
-    assert results_for(MIXED, max_detail_cases=0)["case_detail"] == {}
+    assert results_for(MIXED, max_detail_cases=0)["case_detail"] == []
 
 
 def test_detail_lists_each_call_with_status_duration_and_arguments():
@@ -373,7 +390,7 @@ def test_detail_lists_each_call_with_status_duration_and_arguments():
         )
     ]
 
-    assert results_for(cases)["case_detail"]["DT-1"] == [
+    assert results_for(cases)["case_detail"][0]["calls"] == [
         {
             "tool": "get_signin_logs",
             "status": "success",
@@ -384,18 +401,21 @@ def test_detail_lists_each_call_with_status_duration_and_arguments():
     ]
 
 
-def test_long_arguments_are_cut_to_200_characters_with_an_ellipsis():
-    cases = [case("DT-1", analyst=TP, agent=FP, calls=(call(arguments="x" * 10_000),))]
+LONG_ARGUMENTS = [case("DT-1", analyst=TP, agent=FP, calls=(call(arguments="x" * 10_000),))]
 
-    arguments = results_for(cases)["case_detail"]["DT-1"][0]["arguments"]
 
-    assert (len(arguments), arguments[-1]) == (200, "…")
+def test_long_arguments_are_cut_to_200_characters():
+    assert len(results_for(LONG_ARGUMENTS)["case_detail"][0]["calls"][0]["arguments"]) == 200
+
+
+def test_long_arguments_end_with_an_ellipsis():
+    assert results_for(LONG_ARGUMENTS)["case_detail"][0]["calls"][0]["arguments"].endswith("x…")
 
 
 def test_map_arguments_are_serialized_in_their_original_key_order():
     cases = [case("DT-1", analyst=TP, agent=FP, calls=(call(arguments={"z": 1, "a": [2]}),))]
 
-    assert results_for(cases)["case_detail"]["DT-1"][0]["arguments"] == '{"z": 1, "a": [2]}'
+    assert results_for(cases)["case_detail"][0]["calls"][0]["arguments"] == '{"z": 1, "a": [2]}'
 
 
 PLANTED_RESULT = "RESULT-9f2c-do-not-embed"
@@ -439,10 +459,11 @@ def test_the_call_with_a_planted_result_is_in_the_detail(tmp_path: Path):
     # Guards the test above: the call must reach the detail, or that check proves nothing.
     detail = json.loads(load_planted_result_json(tmp_path))["case_detail"]
 
-    assert detail["DT-7"][0]["arguments"] == '{"user":"a@example.com"}'
+    assert detail[0]["calls"][0]["arguments"] == '{"user":"a@example.com"}'
 
 
 def test_two_runs_write_byte_identical_files(tmp_path: Path):
+    # In one process only; the golden tests cover stability across processes and hash seeds.
     first = dumped(results_for(MIXED), tmp_path / "first.json")
 
     assert dumped(results_for(MIXED), tmp_path / "second.json") == first
@@ -453,6 +474,25 @@ def test_writing_replaces_an_existing_file(tmp_path: Path):
     path.write_text("old", encoding="utf-8")
 
     assert json.loads(dumped(results_for(MIXED), path))["schema_version"] == 1
+
+
+def test_coverage_below_half_is_flagged_low():
+    report, _ = compute_metrics(MIXED, CHECKLISTS)
+    low = JoinCoverage(verdicts_matched=1, verdicts_total=3, traces_matched=1, traces_total=1)
+
+    results: dict[str, Any] = build_results(report, MIXED, CHECKLISTS, [], low, SOURCE, 0)
+
+    assert results["totals"]["coverage"]["verdicts_low"] is True
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
+def test_the_file_gets_the_mode_a_plain_open_would_give(tmp_path: Path):
+    plain = tmp_path / "plain.json"
+    plain.write_text("{}", encoding="utf-8")
+
+    write_results_json(results_for(MIXED), tmp_path / "out.json")
+
+    assert (tmp_path / "out.json").stat().st_mode == plain.stat().st_mode
 
 
 def test_a_nan_raises_value_error(tmp_path: Path):

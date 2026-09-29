@@ -29,6 +29,7 @@ from detecttrace.stats import (
     mean_t_interval,
     wilson_interval,
 )
+from detecttrace.summary import summarize_issues
 
 TP = Verdict.TRUE_POSITIVE
 FP = Verdict.FALSE_POSITIVE
@@ -758,6 +759,37 @@ def test_checklist_tool_no_case_calls_is_reported_per_item() -> None:
     cases = [make_case("a-1", TP, TP, calls=(make_call("alpha"),))]
 
     assert issues_of(cases, checklists) == [(UNKNOWN_TOOL, "Phishing/b")]
+
+
+def test_unknown_tool_detail_is_the_bare_tool_name() -> None:
+    checklists = {"phishing": make_checklist(make_item("a", "ghost"))}
+    cases = [make_case("a-1", TP, TP)]
+
+    assert compute_metrics(cases, checklists)[1][0].detail == "ghost"
+
+
+def test_unknown_tool_reaches_the_summary_grouped_under_its_name() -> None:
+    checklists = {
+        "phishing": make_checklist(make_item("a", "ghost")),
+        "malware": make_checklist(make_item("b", "ghost"), alert_class="Malware"),
+    }
+    cases = [make_case("a-1", TP, TP), make_case("b-1", TP, TP, "Malware")]
+
+    [line] = summarize_issues(compute_metrics(cases, checklists)[1])
+
+    assert line.message == (
+        "2 checklist items require the tool 'ghost', which no case calls. "
+        "Check the tool name's spelling in the checklist."
+    )
+
+
+def test_unknown_tool_with_a_newline_in_its_name_keeps_the_whole_name() -> None:
+    checklists = {"phishing": make_checklist(make_item("a", "gho\nst"))}
+    cases = [make_case("a-1", TP, TP)]
+
+    [line] = summarize_issues(compute_metrics(cases, checklists)[1])
+
+    assert line.terminal_message.startswith("1 checklist item requires the tool 'gho\\x0ast'")
 
 
 def test_checklist_tool_called_in_another_class_is_known() -> None:

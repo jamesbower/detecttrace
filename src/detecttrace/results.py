@@ -27,7 +27,7 @@ from detecttrace.metrics import (
 )
 from detecttrace.model import Case, ToolCall, Verdict
 from detecttrace.stats import Interval
-from detecttrace.summary import JoinCoverage, SummaryLine
+from detecttrace.summary import JoinCoverage, SummaryLine, is_low_coverage
 
 SCHEMA_VERSION = 1
 MAX_ARGUMENT_CHARS = 200
@@ -36,6 +36,16 @@ GENERATED_BY_PREFIX = "detecttrace"
 # generated_by is the second key this module writes, so the head of the file is enough.
 _MARKER_READ_BYTES = 64 * 1024
 _JSON_WHITESPACE = " \t\n\r"
+
+
+def _read_umask() -> int:
+    # The only way to read the umask is to set it; done once at import, not per write.
+    umask = os.umask(0)
+    os.umask(umask)
+    return umask
+
+
+_UMASK = _read_umask()
 
 _VERDICT_CODE = {verdict: code for code, verdict in enumerate(VERDICT_ORDER)}
 _CLOSED_AS_NOT_THREAT = (Verdict.FALSE_POSITIVE, Verdict.BENIGN)
@@ -76,6 +86,8 @@ def build_results(
                 "verdicts_total": coverage.verdicts_total,
                 "traces_matched": coverage.traces_matched,
                 "traces_total": coverage.traces_total,
+                "verdicts_low": is_low_coverage(coverage.verdicts_matched, coverage.verdicts_total),
+                "traces_low": is_low_coverage(coverage.traces_matched, coverage.traces_total),
             },
         },
         "classes": [_to_class_data(class_report) for class_report in report.classes],
@@ -96,6 +108,8 @@ def write_results_json(results: Mapping[str, object], path: Path) -> None:
     try:
         with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as file:
             file.write(text + "\n")
+        # mkstemp creates the file owner-only; give it the mode a plain open() would.
+        os.chmod(temp_name, 0o666 & ~_UMASK)
         os.replace(temp_name, path)
     except BaseException:
         Path(temp_name).unlink(missing_ok=True)
@@ -235,7 +249,9 @@ def _to_note_data(line: SummaryLine) -> dict[str, object]:
         "kind": line.kind.value,
         "count": line.count,
         "message": line.message,
-        "examples": list(line.examples),
+        "examples": [
+            {"subject": example.subject, "detail": example.detail} for example in line.examples
+        ],
     }
 
 
@@ -306,17 +322,18 @@ def _to_verdict_code(verdict: Verdict | None) -> int:
 
 def _build_case_detail(
     cases: Sequence[Case], evidence: Mapping[str, CaseEvidence], max_detail_cases: int
-) -> dict[str, list[dict[str, object]]]:
+) -> list[dict[str, object]]:
     ranked: list[tuple[int, int, str, Case]] = []
     for case in cases:
         group = _to_detail_group(case, evidence.get(case.case_id))
         if group is not None:
             ranked.append((group, -case.start_ns, case.case_id, case))
     ranked.sort(key=lambda entry: entry[:3])
-    return {
-        case.case_id: [_to_call_data(call) for call in case.tool_calls]
+    # A list, not a dict keyed by case ID, so the priority order survives any JSON reader.
+    return [
+        {"case_id": case.case_id, "calls": [_to_call_data(call) for call in case.tool_calls]}
         for _, _, _, case in ranked[: max(max_detail_cases, 0)]
-    }
+    ]
 
 
 def _to_detail_group(case: Case, evidence: CaseEvidence | None) -> int | None:

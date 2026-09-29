@@ -60,6 +60,8 @@ class IssueKind(StrEnum):
 class Issue:
     kind: IssueKind
     subject: str  # the file, span, or case ID the issue is about
+    # For UNMAPPED_ANALYST_LABEL, UNMAPPED_AGENT_LABEL and UNKNOWN_CHECKLIST_TOOL this is the
+    # bare label or tool the summary groups by, never a sentence; for other kinds it describes.
     detail: str = ""
 
 

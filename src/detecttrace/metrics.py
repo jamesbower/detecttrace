@@ -171,8 +171,7 @@ def compute_metrics(
         for item in checklist.items:
             if item.tool not in called_tools:
                 subject = f"{checklist.alert_class}/{item.id}"
-                detail = f"no case calls tool '{item.tool}'"
-                issues.append(Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, subject, detail))
+                issues.append(Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, subject, item.tool))
     for key in sorted(checklists):
         if key not in groups:
             subject = checklists[key].alert_class
