@@ -10,10 +10,13 @@ from builders import RUN_CONFIG, RUN_VERDICTS, write_run_folder
 from typer.testing import CliRunner, Result
 
 from detecttrace import __version__, cli, pipeline
+from detecttrace.dashboard import is_dashboard_file
 
 EXTRA_VERDICTS = "DT-7,impossible_travel,TP\nDT-8,impossible_travel,FP\nDT-9,impossible_travel,FP\nDT-10,impossible_travel,FP\n"
 DEMO_DATA = Path(cli.__file__).parent / cli.DEMO_FOLDER
 INTERNAL_ERROR = "detecttrace: internal error (RuntimeError). Please report it.\n"
+# The smallest page detecttrace takes as its own: the generator marker near the top.
+EARLIER_PAGE = '<!DOCTYPE html>\n<meta name="generator" content="detecttrace 0.0.1">\n'
 
 
 def _invoke(*args: str, env: dict[str, str] | None = None) -> Result:
@@ -34,19 +37,39 @@ def test_check_on_a_valid_folder_exits_0(tmp_path: Path) -> None:
     assert result.exit_code == 0
 
 
-def test_check_writes_the_results_next_to_the_configured_output(tmp_path: Path) -> None:
+def test_check_writes_the_dashboard_at_the_configured_output(tmp_path: Path) -> None:
     _check(write_run_folder(tmp_path))
 
+    assert is_dashboard_file(tmp_path / "dashboard.html")
+
+
+def test_check_writes_no_json_without_the_json_option(tmp_path: Path) -> None:
+    _check(write_run_folder(tmp_path))
+
+    assert sorted(tmp_path.glob("*.json")) == []
+
+
+def test_check_writes_the_results_json_with_the_json_option(tmp_path: Path) -> None:
+    _check(write_run_folder(tmp_path), "--json", str(tmp_path / "results.json"))
+
     assert (
-        json.loads((tmp_path / "dashboard.json").read_text(encoding="utf-8"))["totals"]["cases"]
-        == 3
+        json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))["totals"]["cases"] == 3
     )
 
 
 def test_check_names_the_written_path(tmp_path: Path) -> None:
     result = _check(write_run_folder(tmp_path))
 
-    assert f"Results written to {tmp_path / 'dashboard.json'}." in result.stdout
+    assert f"Results written to {tmp_path / 'dashboard.html'}." in result.stdout
+
+
+def test_check_names_both_written_paths_with_the_json_option(tmp_path: Path) -> None:
+    result = _check(write_run_folder(tmp_path), "--json", str(tmp_path / "results.json"))
+
+    assert (
+        f"Results written to {tmp_path / 'dashboard.html'} and {tmp_path / 'results.json'}."
+        in result.stdout
+    )
 
 
 def test_check_prints_one_line_per_class(tmp_path: Path) -> None:
@@ -64,9 +87,9 @@ def test_check_ends_with_the_self_reported_note(tmp_path: Path) -> None:
 def test_check_writes_to_out_when_given(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path / "run")
 
-    _check(config_path, "--out", str(tmp_path / "custom.json"))
+    _check(config_path, "--out", str(tmp_path / "custom.html"))
 
-    assert (tmp_path / "custom.json").is_file()
+    assert is_dashboard_file(tmp_path / "custom.html")
 
 
 def test_check_reads_detecttrace_yaml_in_the_working_folder_by_default(
@@ -287,7 +310,7 @@ def test_no_joined_case_writes_nothing(tmp_path: Path) -> None:
 
     _check(config_path)
 
-    assert not (tmp_path / "dashboard.json").exists()
+    assert not (tmp_path / "dashboard.html").exists()
 
 
 def test_invalid_input_without_strict_exits_0(tmp_path: Path) -> None:
@@ -306,6 +329,24 @@ def test_invalid_input_with_strict_exits_1(tmp_path: Path) -> None:
     result = _check(config_path, "--strict")
 
     assert result.exit_code == 1
+
+
+def test_invalid_input_with_strict_still_writes_the_results_json(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "traces" / "bad.jsonl").write_text("not json\n", encoding="utf-8")
+
+    _check(config_path, "--strict", "--json", str(tmp_path / "results.json"))
+
+    assert (tmp_path / "results.json").is_file()
+
+
+def test_invalid_input_with_strict_still_writes_the_dashboard(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "traces" / "bad.jsonl").write_text("not json\n", encoding="utf-8")
+
+    _check(config_path, "--strict")
+
+    assert is_dashboard_file(tmp_path / "dashboard.html")
 
 
 def test_warnings_only_with_strict_exits_0(tmp_path: Path) -> None:
@@ -354,7 +395,7 @@ def test_quiet_success_prints_nothing(tmp_path: Path) -> None:
 def test_out_into_a_missing_folder_exits_1(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
 
-    result = _check(config_path, "--out", str(tmp_path / "missing" / "results.json"))
+    result = _check(config_path, "--out", str(tmp_path / "missing" / "results.html"))
 
     assert result.exit_code == 1
 
@@ -362,7 +403,7 @@ def test_out_into_a_missing_folder_exits_1(tmp_path: Path) -> None:
 def test_out_into_a_missing_folder_names_the_folder(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
 
-    result = _check(config_path, "--out", str(tmp_path / "missing" / "results.json"))
+    result = _check(config_path, "--out", str(tmp_path / "missing" / "results.html"))
 
     assert f"Output folder not found: {tmp_path / 'missing'}." in result.stderr
 
@@ -370,9 +411,39 @@ def test_out_into_a_missing_folder_names_the_folder(tmp_path: Path) -> None:
 def test_out_into_a_missing_folder_does_not_create_it(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
 
-    _check(config_path, "--out", str(tmp_path / "missing" / "results.json"))
+    _check(config_path, "--out", str(tmp_path / "missing" / "results.html"))
 
     assert not (tmp_path / "missing").exists()
+
+
+def test_json_into_a_missing_folder_exits_1_before_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pipeline, "compute_metrics", _raise_runtime_error)
+    config_path = write_run_folder(tmp_path)
+
+    result = _check(config_path, "--json", str(tmp_path / "missing" / "results.json"))
+
+    assert result.exit_code == 1
+
+
+def test_json_into_a_missing_folder_names_the_option(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+
+    result = _check(config_path, "--json", str(tmp_path / "missing" / "results.json"))
+
+    assert (
+        f"Output folder not found: {tmp_path / 'missing'}. Create it or choose another --json."
+        in result.stderr
+    )
+
+
+def test_the_same_path_for_both_outputs_exits_1(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+
+    result = _check(config_path, "--json", str(tmp_path / "dashboard.html"))
+
+    assert result.exit_code == 1
 
 
 def test_demo_writes_to_the_working_folder_by_default(
@@ -382,7 +453,7 @@ def test_demo_writes_to_the_working_folder_by_default(
 
     _invoke("demo", "--quiet")
 
-    assert (tmp_path / "detecttrace-demo.json").is_file()
+    assert is_dashboard_file(tmp_path / "detecttrace-demo.html")
 
 
 def test_demo_with_the_default_output_exits_0(
@@ -393,6 +464,28 @@ def test_demo_with_the_default_output_exits_0(
     result = _invoke("demo", "--quiet")
 
     assert result.exit_code == 0
+
+
+def test_a_second_demo_in_the_same_folder_exits_0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _invoke("demo", "--quiet")
+
+    result = _invoke("demo", "--quiet")
+
+    assert result.exit_code == 0
+
+
+def test_a_second_demo_in_the_same_folder_replaces_its_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "detecttrace-demo.html").write_text(EARLIER_PAGE, encoding="utf-8")
+
+    _invoke("demo", "--quiet")
+
+    assert (tmp_path / "detecttrace-demo.html").read_text(encoding="utf-8") != EARLIER_PAGE
 
 
 def test_demo_writes_nothing_into_the_package(
@@ -407,7 +500,7 @@ def test_demo_writes_nothing_into_the_package(
 
 
 def test_demo_with_out_and_quiet_prints_nothing(tmp_path: Path) -> None:
-    result = _invoke("demo", "--out", str(tmp_path / "demo.json"), "--quiet")
+    result = _invoke("demo", "--out", str(tmp_path / "demo.html"), "--quiet")
 
     assert result.stdout == ""
 
@@ -416,11 +509,10 @@ def test_config_caps_the_detail_cases(tmp_path: Path) -> None:
     config = RUN_CONFIG + "dashboard: {max_detail_cases: 1}\n"
     config_path = write_run_folder(tmp_path, config=config)
 
-    _check(config_path)
+    _check(config_path, "--json", str(tmp_path / "results.json"))
 
     assert (
-        len(json.loads((tmp_path / "dashboard.json").read_text(encoding="utf-8"))["case_detail"])
-        == 1
+        len(json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))["case_detail"]) == 1
     )
 
 
@@ -513,7 +605,7 @@ def test_a_class_name_with_an_escape_sequence_is_printed_escaped(tmp_path: Path)
 def test_an_output_path_with_an_escape_sequence_is_printed_escaped(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
 
-    result = _check(config_path, "--out", str(tmp_path / "gone\x1b[2K" / "out.json"))
+    result = _check(config_path, "--out", str(tmp_path / "gone\x1b[2K" / "out.html"))
 
     assert "gone\\x1b[2K" in result.stderr
 
@@ -540,48 +632,50 @@ def test_a_100_kb_class_name_is_shortened_on_the_terminal(tmp_path: Path) -> Non
 
 # Replacing an existing output file
 
-NOT_OURS = "{} exists and wasn't written by detecttrace; delete it or choose another path."
+NOT_OURS = (
+    "{} exists and wasn't written by detecttrace; delete it, choose another path, or use --force."
+)
 
 
 def test_out_naming_a_file_from_another_tool_exits_1(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+    (tmp_path / "mine.html").write_text("my data", encoding="utf-8")
 
-    result = _check(config_path, "--out", str(tmp_path / "mine.json"))
+    result = _check(config_path, "--out", str(tmp_path / "mine.html"))
 
     assert result.exit_code == 1
 
 
 def test_out_naming_a_file_from_another_tool_says_why(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+    (tmp_path / "mine.html").write_text("my data", encoding="utf-8")
 
-    result = _check(config_path, "--out", str(tmp_path / "mine.json"))
+    result = _check(config_path, "--out", str(tmp_path / "mine.html"))
 
-    assert NOT_OURS.format(tmp_path / "mine.json") in result.stderr
+    assert NOT_OURS.format(tmp_path / "mine.html") in result.stderr
 
 
 def test_out_naming_a_file_from_another_tool_leaves_it_alone(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+    (tmp_path / "mine.html").write_text("my data", encoding="utf-8")
 
-    _check(config_path, "--out", str(tmp_path / "mine.json"))
+    _check(config_path, "--out", str(tmp_path / "mine.html"))
 
-    assert (tmp_path / "mine.json").read_text(encoding="utf-8") == "my data"
+    assert (tmp_path / "mine.html").read_text(encoding="utf-8") == "my data"
 
 
 def test_the_configured_output_is_protected_too(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "dashboard.html").write_text("{}", encoding="utf-8")
 
     result = _check(config_path)
 
-    assert NOT_OURS.format(tmp_path / "dashboard.json") in result.stderr
+    assert NOT_OURS.format(tmp_path / "dashboard.html") in result.stderr
 
 
 def test_an_existing_folder_at_the_output_path_is_protected(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").mkdir()
+    (tmp_path / "dashboard.html").mkdir()
 
     result = _check(config_path)
 
@@ -590,16 +684,19 @@ def test_an_existing_folder_at_the_output_path_is_protected(tmp_path: Path) -> N
 
 def test_a_folder_at_the_output_path_is_named_as_a_folder(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").mkdir()
+    (tmp_path / "dashboard.html").mkdir()
 
     result = _check(config_path)
 
-    assert f"{tmp_path / 'dashboard.json'} is a folder; choose another path." in result.stderr
+    assert (
+        f"{tmp_path / 'dashboard.html'} is a folder; choose another path. "
+        "--force never replaces a folder." in result.stderr
+    )
 
 
 def test_a_broken_link_at_the_output_path_exits_1(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").symlink_to(tmp_path / "gone.json")
+    (tmp_path / "dashboard.html").symlink_to(tmp_path / "gone.html")
 
     result = _check(config_path)
 
@@ -608,23 +705,23 @@ def test_a_broken_link_at_the_output_path_exits_1(tmp_path: Path) -> None:
 
 def test_a_broken_link_at_the_output_path_is_named_as_one(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").symlink_to(tmp_path / "gone.json")
+    (tmp_path / "dashboard.html").symlink_to(tmp_path / "gone.html")
 
     result = _check(config_path)
 
     assert (
-        f"{tmp_path / 'dashboard.json'} is a broken link; delete it or choose another path."
-        in result.stderr
+        f"{tmp_path / 'dashboard.html'} is a broken link; delete it, choose another path, "
+        "or use --force." in result.stderr
     )
 
 
 def test_a_broken_link_at_the_output_path_is_left_in_place(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").symlink_to(tmp_path / "gone.json")
+    (tmp_path / "dashboard.html").symlink_to(tmp_path / "gone.html")
 
     _check(config_path)
 
-    assert (tmp_path / "dashboard.json").is_symlink()
+    assert (tmp_path / "dashboard.html").is_symlink()
 
 
 @pytest.mark.skipif(
@@ -632,13 +729,13 @@ def test_a_broken_link_at_the_output_path_is_left_in_place(tmp_path: Path) -> No
 )
 def test_an_unreadable_output_file_is_reported_as_unreadable(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").write_text("{}", encoding="utf-8")
-    (tmp_path / "dashboard.json").chmod(0)
+    (tmp_path / "dashboard.html").write_text("{}", encoding="utf-8")
+    (tmp_path / "dashboard.html").chmod(0)
 
     result = _check(config_path)
 
     assert (
-        f"Could not read {tmp_path / 'dashboard.json'} to check it before replacing it: "
+        f"Could not read {tmp_path / 'dashboard.html'} to check it before replacing it: "
         "Permission denied." in result.stderr
     )
 
@@ -647,7 +744,7 @@ def test_the_output_is_checked_again_just_before_writing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config_path = write_run_folder(tmp_path)
-    target = tmp_path / "dashboard.json"
+    target = tmp_path / "dashboard.html"
     real_run_check = cli.run_check
 
     def run_then_create_a_file(*args: Any) -> pipeline.RunResult:
@@ -667,7 +764,7 @@ def test_the_output_is_checked_before_the_run(
 ) -> None:
     monkeypatch.setattr(pipeline, "compute_metrics", _raise_runtime_error)
     config_path = write_run_folder(tmp_path)
-    (tmp_path / "dashboard.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "dashboard.html").write_text("{}", encoding="utf-8")
 
     result = _check(config_path)
 
@@ -683,10 +780,110 @@ def test_an_earlier_results_file_is_replaced(tmp_path: Path) -> None:
     assert result.exit_code == 0
 
 
-def test_demo_protects_a_file_from_another_tool(tmp_path: Path) -> None:
+def test_an_earlier_dashboard_is_replaced(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.html").write_text(EARLIER_PAGE, encoding="utf-8")
+
+    _check(config_path)
+
+    assert (tmp_path / "dashboard.html").read_text(encoding="utf-8") != EARLIER_PAGE
+
+
+def test_an_earlier_results_json_at_the_output_path_is_replaced(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    _check(config_path, "--json", str(tmp_path / "results.json"))
+
+    _check(config_path, "--out", str(tmp_path / "results.json"))
+
+    assert is_dashboard_file(tmp_path / "results.json")
+
+
+def test_force_replaces_a_file_from_another_tool(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.html").write_text("<html>my page</html>", encoding="utf-8")
+
+    _check(config_path, "--force")
+
+    assert is_dashboard_file(tmp_path / "dashboard.html")
+
+
+def test_force_never_replaces_a_folder(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.html").mkdir()
+
+    result = _check(config_path, "--force")
+
+    assert result.exit_code == 1
+
+
+def test_force_replaces_a_broken_link(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "dashboard.html").symlink_to(tmp_path / "gone.html")
+
+    _check(config_path, "--force")
+
+    assert is_dashboard_file(tmp_path / "dashboard.html")
+
+
+def test_json_naming_a_file_from_another_tool_exits_1(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
     (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
 
-    result = _invoke("demo", "--out", str(tmp_path / "mine.json"))
+    result = _check(config_path, "--json", str(tmp_path / "mine.json"))
+
+    assert result.exit_code == 1
+
+
+def test_json_naming_a_file_from_another_tool_says_why(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+
+    result = _check(config_path, "--json", str(tmp_path / "mine.json"))
+
+    assert NOT_OURS.format(tmp_path / "mine.json") in result.stderr
+
+
+def test_json_naming_a_file_from_another_tool_writes_no_dashboard(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+
+    _check(config_path, "--json", str(tmp_path / "mine.json"))
+
+    assert not (tmp_path / "dashboard.html").exists()
+
+
+def test_force_replaces_a_json_file_from_another_tool(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "mine.json").write_text("my data", encoding="utf-8")
+
+    _check(config_path, "--json", str(tmp_path / "mine.json"), "--force")
+
+    assert json.loads((tmp_path / "mine.json").read_text(encoding="utf-8"))["totals"]["cases"] == 3
+
+
+def test_the_json_output_is_checked_again_just_before_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = write_run_folder(tmp_path)
+    target = tmp_path / "results.json"
+    real_run_check = cli.run_check
+
+    def run_then_create_a_file(*args: Any) -> pipeline.RunResult:
+        result = real_run_check(*args)
+        target.write_text("my data", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(cli, "run_check", run_then_create_a_file)
+
+    _check(config_path, "--json", str(target))
+
+    assert not (tmp_path / "dashboard.html").exists()
+
+
+def test_demo_protects_a_file_from_another_tool(tmp_path: Path) -> None:
+    (tmp_path / "mine.html").write_text("my data", encoding="utf-8")
+
+    result = _invoke("demo", "--out", str(tmp_path / "mine.html"))
 
     assert result.exit_code == 1
 
@@ -844,7 +1041,7 @@ def test_unusable_input_says_nothing_was_written(tmp_path: Path) -> None:
 def test_a_failed_write_says_nothing_was_written(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(cli, "write_results_json", _raise_permission_error)
+    monkeypatch.setattr(cli, "write_dashboard", _raise_permission_error)
 
     result = _check(write_run_folder(tmp_path))
 
@@ -852,11 +1049,21 @@ def test_a_failed_write_says_nothing_was_written(
 
 
 def test_a_failed_write_exits_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "write_results_json", _raise_permission_error)
+    monkeypatch.setattr(cli, "write_dashboard", _raise_permission_error)
 
     result = _check(write_run_folder(tmp_path))
 
     assert result.exit_code == 1
+
+
+def test_a_failed_json_write_names_the_dashboard_that_was_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "write_results_json", _raise_permission_error)
+
+    result = _check(write_run_folder(tmp_path), "--json", str(tmp_path / "results.json"))
+
+    assert f"Only {tmp_path / 'dashboard.html'} was written." in result.stderr
 
 
 def _raise_permission_error(*_args: object) -> None:
