@@ -43,6 +43,7 @@ NOTE = SummaryLine(
     kind=IssueKind.DUPLICATE_VERDICT,
     count=2,
     message="2 duplicate verdict rows.",
+    message_without_count="duplicate verdict rows.",
     terminal_message="2 duplicate verdict rows.",
     hint="Keep one row per case.",
     terminal_hint="Keep one row per case.",

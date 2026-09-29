@@ -161,6 +161,6 @@ def _to_trend_charts(trend: TrendView) -> _TrendCharts:
 def _to_chart(trend: TrendView, metric: TrendMetricView) -> Chart:
     return trend_chart(
         trend.weeks,
-        [SeriesInput(line.style, line.values, line.counts) for line in metric.lines],
+        [SeriesInput(line.style, line.values, line.counts, line.few) for line in metric.lines],
         trend.version_first_weeks,
     )
