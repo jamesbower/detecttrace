@@ -189,9 +189,15 @@ def demo_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture(scope="module")
 def low_coverage_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """The demo with a low-coverage warning, so the header carries its link."""
+    """The demo with a low-coverage warning, so the header carries its link, and the other
+    safety notes (a true positive without an agent verdict, dropped kappa resamples) that the
+    demo data never produces, so axe checks them too."""
     results = copy.deepcopy(DEMO_RESULTS)
     results["totals"]["coverage"].update(verdicts_total=500, verdicts_low=True)
+    first_class = results["classes"][0]
+    first_class["overall"]["true_positives_without_agent_verdict"] = ["DT-IT-0001"]
+    first_class["by_version"][0]["metrics"]["true_positives_without_agent_verdict"] = ["DT-IT-0001"]
+    first_class["overall"]["kappa"]["dropped_resamples"] = 87
     path = tmp_path_factory.mktemp("browser") / "low_coverage.html"
     write_dashboard(render_dashboard(results), path)
     return path
@@ -279,9 +285,10 @@ def row_states(browser: Any, demo_path: Path) -> RowStates:
         page = visit.page
         page.click('#case-filters button[data-filter="dangerous"]')
         toggle = page.locator(".row-toggle").first
-        detail = page.locator(f"#{toggle.get_attribute('aria-controls')}")
         toggle.focus()
         page.keyboard.press("Enter")
+        # The toggle names its detail row only once that row exists, after the first open.
+        detail = page.locator(f"#{toggle.get_attribute('aria-controls')}")
         opened = (toggle.get_attribute("aria-expanded"), detail.is_hidden())
         tools = detail.locator(".call-tool").all_text_contents()
         page.keyboard.press("Enter")
