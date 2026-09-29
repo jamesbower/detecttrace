@@ -16,8 +16,11 @@ checklist items in checklist order, each as `item` (the item ID), `status` (`sat
 and `failed_rule` (for `wrong_arguments` only, else null). `failed_rule` is "<path>: <rule>" for
 the first rule the first successful call failed, or "arguments could not be read". It is raw
 checklist text, so a page must escape it. A case whose class has no checklist has no outcomes.
-Only detail cases carry outcomes, so their size is bounded by `max_detail_cases`; `case_rows`
-keeps just the indexes of missed and failed items.
+Only detail cases carry outcomes, so their size is bounded by `max_detail_cases`.
+
+Every case row still says why a step was missed, without the failing rule: the
+`case_rows.columns` lists `not_called_items`, `wrong_argument_items` and `failed_items` hold,
+per case, the positions of those items in its class checklist.
 """
 
 import json
@@ -30,7 +33,7 @@ from pathlib import Path
 from detecttrace import __version__
 from detecttrace.checklist import Checklist
 from detecttrace.config import normalize_label
-from detecttrace.evidence import CaseEvidence, ItemOutcome, ItemStatus
+from detecttrace.evidence import CaseEvidence, ItemOutcome, ItemStatus, MissedReason
 from detecttrace.metrics import (
     VERDICT_ORDER,
     ClassReport,
@@ -299,7 +302,8 @@ def _build_case_rows(
             "analyst",
             "agent",
             "satisfied",
-            "missed_items",
+            "not_called_items",
+            "wrong_argument_items",
             "failed_items",
         )
     }
@@ -315,8 +319,19 @@ def _build_case_rows(
         columns["analyst"].append(_to_verdict_code(case.analyst_verdict))
         columns["agent"].append(_to_verdict_code(case.agent_verdict))
         columns["satisfied"].append(None if evidence is None else evidence.satisfied_count)
-        columns["missed_items"].append(
-            [index for index, outcome in enumerate(outcomes) if outcome.status is ItemStatus.MISSED]
+        columns["not_called_items"].append(
+            [
+                index
+                for index, outcome in enumerate(outcomes)
+                if outcome.missed_reason is MissedReason.NOT_CALLED
+            ]
+        )
+        columns["wrong_argument_items"].append(
+            [
+                index
+                for index, outcome in enumerate(outcomes)
+                if outcome.missed_reason is MissedReason.WRONG_ARGUMENTS
+            ]
         )
         columns["failed_items"].append(
             [index for index, outcome in enumerate(outcomes) if outcome.status is ItemStatus.FAILED]

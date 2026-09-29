@@ -162,7 +162,8 @@ EVIDENCE_KEEP = (
     "case_rows.strings",
     "case_rows.columns.case_id",
     "case_rows.columns.satisfied",
-    "case_rows.columns.missed_items",
+    "case_rows.columns.not_called_items",
+    "case_rows.columns.wrong_argument_items",
     "case_rows.columns.failed_items",
 )
 TREND_KEEP = ("classes.trend.week", "classes.trend.scope", "classes.trend.version")

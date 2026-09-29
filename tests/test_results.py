@@ -327,8 +327,38 @@ def test_satisfied_counts_are_null_without_a_checklist():
     assert results_for(MIXED)["case_rows"]["columns"]["satisfied"] == [3, 1, 0, None]
 
 
-def test_missed_items_are_checklist_item_indexes():
-    assert results_for(MIXED)["case_rows"]["columns"]["missed_items"] == [[], [1, 2], [1, 2], []]
+def test_not_called_items_are_checklist_item_indexes():
+    columns = results_for(MIXED)["case_rows"]["columns"]
+    assert columns["not_called_items"] == [[], [1, 2], [1, 2], []]
+
+
+def test_wrong_argument_items_are_checklist_item_indexes():
+    wrong = (call("get_signin_logs", arguments={HOSTILE_KEY: "example-dev"}),)
+    right = (call("get_signin_logs", arguments={HOSTILE_KEY: "example-prod"}),)
+    cases = [case("DT-1", calls=wrong), case("DT-2", calls=right)]
+    columns = results_for(cases, checklists=TENANT_CHECKLISTS)["case_rows"]["columns"]
+    assert columns["wrong_argument_items"] == [[0], []]
+
+
+def test_a_not_called_item_is_not_a_wrong_argument_item():
+    cases = [case("DT-1", calls=())]
+    columns = results_for(cases, checklists=TENANT_CHECKLISTS)["case_rows"]["columns"]
+    assert columns["wrong_argument_items"] == [[]]
+
+
+def test_case_rows_columns_come_in_a_fixed_order():
+    assert list(results_for(MIXED)["case_rows"]["columns"]) == [
+        "case_id",
+        "class_index",
+        "week",
+        "version",
+        "analyst",
+        "agent",
+        "satisfied",
+        "not_called_items",
+        "wrong_argument_items",
+        "failed_items",
+    ]
 
 
 def test_failed_items_are_checklist_item_indexes():

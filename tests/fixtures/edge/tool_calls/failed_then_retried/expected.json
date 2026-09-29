@@ -4,7 +4,8 @@
   "case_rows.strings",
   "case_rows.columns.case_id",
   "case_rows.columns.satisfied",
-  "case_rows.columns.missed_items",
+  "case_rows.columns.not_called_items",
+  "case_rows.columns.wrong_argument_items",
   "case_rows.columns.failed_items",
   "case_detail"
  ],
@@ -31,7 +32,10 @@
     "satisfied": [
      1
     ],
-    "missed_items": [
+    "not_called_items": [
+     []
+    ],
+    "wrong_argument_items": [
      []
     ],
     "failed_items": [
