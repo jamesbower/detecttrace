@@ -121,12 +121,20 @@ def results(
     notes: Any = (),
     case_detail: Any = (),
     period: tuple[str | None, str | None] = ("2026-W10", "2026-W12"),
+    source: Any = UNSET,
 ) -> dict[str, object]:
     class_list = [class_data()] if classes is UNSET else classes
     return {
         "schema_version": schema_version,
         "generated_by": "detecttrace test",
-        "source": {"traces": "traces", "verdicts": "verdicts.csv", "checklists": None},
+        "source": {
+            "traces": "traces",
+            "verdicts": "verdicts.csv",
+            "checklists": None,
+            "config": "detecttrace.yaml",
+        }
+        if source is UNSET
+        else source,
         "totals": {
             "cases": cases,
             "classes": len(class_list),
@@ -463,8 +471,16 @@ def test_low_coverage_gets_a_warning_line() -> None:
     data = results(join=coverage(traces_matched=44))
     assert build_view(data).coverage[1].text == (
         "44 of 100 traces matched a verdict (44%). Less than half matched, so the results may "
-        "be misleading; check mapping.case_id in the configuration."
+        "be misleading; check mapping.case_id in detecttrace.yaml."
     )
+
+
+def test_low_coverage_without_a_configuration_name_names_the_configuration() -> None:
+    data = results(
+        join=coverage(traces_matched=44),
+        source={"traces": "traces", "verdicts": "verdicts.csv", "checklists": None},
+    )
+    assert build_view(data).coverage[1].text.endswith("check mapping.case_id in the configuration.")
 
 
 def unmapped_label_note() -> dict[str, object]:

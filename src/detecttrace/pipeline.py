@@ -73,6 +73,8 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
         "traces": _to_source(config.traces.path, folder),
         "verdicts": _to_source(config.verdicts.path, folder),
         "checklists": None if config.checklists is None else _to_source(config.checklists, folder),
+        # Only the name: fix hints on the page point at the file without revealing its folder.
+        "config": config_path.name,
     }
     results = build_results(
         report,

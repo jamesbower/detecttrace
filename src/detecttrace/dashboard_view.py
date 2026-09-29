@@ -311,7 +311,7 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
             _to_class_view(index, class_data, styles) for index, class_data in enumerate(classes)
         ),
         cases=_to_cases_view(data),
-        coverage=_to_coverage_views(totals["coverage"]),
+        coverage=_to_coverage_views(totals["coverage"], data["source"].get("config")),
         notes=tuple(_to_note_view(note) for note in data["data_notes"]),
         limits=tuple(LimitView(term, text) for term, text in LIMITS),
     )
@@ -749,13 +749,16 @@ def _to_cases_view(data: Any) -> CasesView:
     )
 
 
-def _to_coverage_views(coverage: Any) -> tuple[CoverageView, ...]:
+def _to_coverage_views(coverage: Any, config_name: str | None) -> tuple[CoverageView, ...]:
+    # Results written before the configuration's name was recorded still get a hint.
+    config_text = "the configuration" if config_name is None else to_visible_text(config_name)
     return (
         _to_coverage_view(
             coverage["verdicts_matched"],
             coverage["verdicts_total"],
             ("verdict", "verdicts"),
             "a trace",
+            config_text,
             is_low=coverage["verdicts_low"],
         ),
         _to_coverage_view(
@@ -763,13 +766,20 @@ def _to_coverage_views(coverage: Any) -> tuple[CoverageView, ...]:
             coverage["traces_total"],
             ("trace", "traces"),
             "a verdict",
+            config_text,
             is_low=coverage["traces_low"],
         ),
     )
 
 
 def _to_coverage_view(
-    matched: int, total: int, nouns: tuple[str, str], other_side: str, *, is_low: bool
+    matched: int,
+    total: int,
+    nouns: tuple[str, str],
+    other_side: str,
+    config_text: str,
+    *,
+    is_low: bool,
 ) -> CoverageView:
     noun = nouns[0] if total == 1 else nouns[1]
     if total == 0:
@@ -782,7 +792,7 @@ def _to_coverage_view(
         return CoverageView(sentence, False)
     return CoverageView(
         f"{sentence} Less than half matched, so the results may be misleading; "
-        "check mapping.case_id in the configuration.",
+        f"check mapping.case_id in {config_text}.",
         True,
     )
 

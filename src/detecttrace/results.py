@@ -82,7 +82,7 @@ def build_results(
     """Build the JSON-ready results object. Every container is a list or a str-keyed dict.
 
     `checklists` is keyed by the normalized alert class; `source` holds the input paths as the
-    configuration gives them. Tool results are never read: calls carry only their arguments.
+    configuration gives them, plus `config`, the configuration file's name. Tool results are never read: calls carry only their arguments.
     """
     ordered = sorted(cases, key=lambda case: case.case_id)
     weeks = sorted({iso_week(case.start_ns) for case in ordered})

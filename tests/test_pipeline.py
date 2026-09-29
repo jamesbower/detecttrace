@@ -72,6 +72,7 @@ def test_source_paths_are_relative_to_the_configuration_folder(tmp_path: Path) -
         "traces": "traces",
         "verdicts": "verdicts.csv",
         "checklists": "checklists",
+        "config": "detecttrace.yaml",
     }
 
 
@@ -88,6 +89,7 @@ def test_source_records_only_the_name_of_a_path_outside_the_configuration_folder
         "traces": "traces",
         "verdicts": "verdicts.csv",
         "checklists": "checklists",
+        "config": "detecttrace.yaml",
     }
 
 
@@ -106,6 +108,7 @@ def test_source_records_only_the_name_of_an_absolute_path_outside_the_folder(
         "traces": "traces",
         "verdicts": "verdicts.csv",
         "checklists": "checklists",
+        "config": "detecttrace.yaml",
     }
 
 
@@ -121,6 +124,7 @@ def test_source_records_an_absolute_path_inside_the_folder_relative_to_it(
         "traces": "traces",
         "verdicts": "verdicts.csv",
         "checklists": "checklists",
+        "config": "detecttrace.yaml",
     }
 
 
@@ -136,6 +140,7 @@ def test_source_records_a_path_that_leaves_and_reenters_the_folder_relative_to_i
         "traces": "traces",
         "verdicts": "verdicts.csv",
         "checklists": "checklists",
+        "config": "detecttrace.yaml",
     }
 
 
@@ -150,6 +155,7 @@ def test_source_has_no_checklists_when_none_are_configured(tmp_path: Path) -> No
         "traces": "traces",
         "verdicts": "verdicts.csv",
         "checklists": None,
+        "config": "detecttrace.yaml",
     }
 
 

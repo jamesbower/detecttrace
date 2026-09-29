@@ -4,7 +4,8 @@
  "source": {
   "traces": "traces",
   "verdicts": "verdicts.csv",
-  "checklists": "checklists"
+  "checklists": "checklists",
+  "config": "detecttrace.yaml"
  },
  "totals": {
   "cases": 201,
