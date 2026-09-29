@@ -1,0 +1,51 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.columns.case_id",
+  "case_detail"
+ ],
+ "results": {
+  "totals": {
+   "coverage": {
+    "verdicts_matched": 1,
+    "verdicts_total": 1,
+    "traces_matched": 1,
+    "traces_total": 1,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  },
+  "case_rows": {
+   "columns": {
+    "case_id": [
+     "C-1"
+    ]
+   }
+  },
+  "case_detail": [
+   {
+    "case_id": "C-1",
+    "calls": [
+     {
+      "tool": "get_signin_logs",
+      "status": "success",
+      "duration_ms": 500.0,
+      "arguments": null
+     }
+    ]
+   }
+  ]
+ },
+ "issues": [
+  {
+   "kind": "orphan_tool_span",
+   "subject": "00000000000000000000000000000001/0000000000000003",
+   "detail": ""
+  },
+  {
+   "kind": "incomplete_trace",
+   "subject": "C-1",
+   "detail": "00000000000000000000000000000001: 1 orphan tool span(s)"
+  }
+ ]
+}

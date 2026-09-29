@@ -1,0 +1,6 @@
+case_id,alert_class,verdict
+C-1,impossible_travel,TP
+C-2,impossible_travel,Benign
+C-3,impossible_travel,Benign
+C-4,impossible_travel,Benign
+C-5,impossible_travel,Benign

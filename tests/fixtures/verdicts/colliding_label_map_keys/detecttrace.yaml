@@ -1,0 +1,11 @@
+# Test fixture configuration. Paths are relative to this file.
+traces:
+  path: traces/
+verdicts:
+  path: verdicts.csv
+label_map:
+  TP: true_positive
+  FP: false_positive
+  Benign: benign
+  Closed - Benign: benign
+  closed  -  BENIGN: false_positive

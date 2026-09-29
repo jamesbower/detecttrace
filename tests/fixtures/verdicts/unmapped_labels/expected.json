@@ -1,0 +1,54 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.verdict_codes",
+  "case_rows.columns.case_id",
+  "case_rows.columns.analyst",
+  "case_rows.columns.agent"
+ ],
+ "results": {
+  "totals": {
+   "coverage": {
+    "verdicts_matched": 2,
+    "verdicts_total": 2,
+    "traces_matched": 2,
+    "traces_total": 2,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  },
+  "case_rows": {
+   "verdict_codes": [
+    "true_positive",
+    "false_positive",
+    "benign"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2"
+    ],
+    "analyst": [
+     -1,
+     1
+    ],
+    "agent": [
+     0,
+     -1
+    ]
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "unmapped_analyst_label",
+   "subject": "C-1",
+   "detail": "Escalated"
+  },
+  {
+   "kind": "unmapped_agent_label",
+   "subject": "C-2",
+   "detail": "Needs review"
+  }
+ ]
+}

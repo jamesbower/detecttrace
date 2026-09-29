@@ -1,0 +1,17 @@
+# Generic example checklist for the demo, not a curated playbook.
+alert_class: oauth_consent
+items:
+- id: grant_window
+  tool: get_oauth_grants
+  args:
+    window: {min_duration: 24h, start: start, end: end}
+- id: app_permissions
+  tool: get_app_permissions
+- id: audit_query
+  tool: query_sentinel
+  args:
+    query: {kql_min_ago: 3d}
+- id: consent_history
+  tool: get_consent_events
+  args:
+    lookback_days: {min: 30}

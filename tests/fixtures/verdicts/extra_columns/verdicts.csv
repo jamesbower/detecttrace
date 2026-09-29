@@ -1,0 +1,5 @@
+ticket,case_id,opened_at,alert_class,verdict,analyst,notes
+T-100,C-1,2026-08-04T09:00:00Z,impossible_travel,TP,analyst1,"Reset, then revoked"
+T-101,C-2,2026-08-04T09:05:00Z,impossible_travel,FP,analyst2,"VPN exit
+known"
+T-102,C-3,2026-08-04T09:10:00Z,impossible_travel,Benign,analyst1,

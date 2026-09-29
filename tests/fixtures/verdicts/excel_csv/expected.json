@@ -1,0 +1,49 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.verdict_codes",
+  "case_rows.columns.case_id",
+  "case_rows.columns.analyst",
+  "case_rows.columns.agent"
+ ],
+ "results": {
+  "totals": {
+   "coverage": {
+    "verdicts_matched": 4,
+    "verdicts_total": 4,
+    "traces_matched": 4,
+    "traces_total": 4,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  },
+  "case_rows": {
+   "verdict_codes": [
+    "true_positive",
+    "false_positive",
+    "benign"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2",
+     "C-3",
+     "C-4"
+    ],
+    "analyst": [
+     0,
+     1,
+     2,
+     2
+    ],
+    "agent": [
+     0,
+     1,
+     2,
+     2
+    ]
+   }
+  }
+ },
+ "issues": []
+}

@@ -1,0 +1,7 @@
+alert_class: impossible_travel
+items:
+- id: audit_query
+  tool: query_sentinel
+  args:
+    query:
+      kql_min_ago: 24h

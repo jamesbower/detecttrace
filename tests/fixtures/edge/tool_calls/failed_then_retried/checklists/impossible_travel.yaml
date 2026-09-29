@@ -1,0 +1,4 @@
+alert_class: impossible_travel
+items:
+- id: mfa_check
+  tool: check_mfa_status

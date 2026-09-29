@@ -1,0 +1,41 @@
+{
+ "keep": [
+  "classes.overall.case_count",
+  "classes.overall.confusion",
+  "classes.overall.kappa"
+ ],
+ "results": {
+  "classes": [
+   {
+    "overall": {
+     "case_count": 4,
+     "confusion": [
+      [
+       0,
+       0,
+       0
+      ],
+      [
+       0,
+       0,
+       0
+      ],
+      [
+       0,
+       0,
+       4
+      ]
+     ],
+     "kappa": {
+      "value": null,
+      "interval": null,
+      "method": null,
+      "note": "all_same_verdict",
+      "dropped_resamples": 0
+     }
+    }
+   }
+  ]
+ },
+ "issues": []
+}

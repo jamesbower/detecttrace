@@ -1,0 +1,55 @@
+{
+ "keep": [
+  "case_rows.checklists",
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.satisfied",
+  "case_rows.columns.missed_items",
+  "case_rows.columns.failed_items"
+ ],
+ "results": {
+  "case_rows": {
+   "checklists": [
+    {
+     "class": 0,
+     "items": [
+      1
+     ]
+    }
+   ],
+   "strings": [
+    "impossible_travel",
+    "signins",
+    "2026-W32",
+    "v1"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2"
+    ],
+    "satisfied": [
+     0,
+     1
+    ],
+    "missed_items": [
+     [
+      0
+     ],
+     []
+    ],
+    "failed_items": [
+     [],
+     []
+    ]
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "unreadable_duration",
+   "subject": "C-1",
+   "detail": "signins: call 0000000000000002: duration 'one day' could not be read"
+  }
+ ]
+}

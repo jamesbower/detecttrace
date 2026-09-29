@@ -1,0 +1,52 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.columns.case_id",
+  "case_detail"
+ ],
+ "results": {
+  "totals": {
+   "coverage": {
+    "verdicts_matched": 2,
+    "verdicts_total": 2,
+    "traces_matched": 2,
+    "traces_total": 2,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  },
+  "case_rows": {
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2"
+    ]
+   }
+  },
+  "case_detail": [
+   {
+    "case_id": "C-1",
+    "calls": [
+     {
+      "tool": "get_signin_logs",
+      "status": "success",
+      "duration_ms": 500.0,
+      "arguments": null
+     }
+    ]
+   },
+   {
+    "case_id": "C-2",
+    "calls": [
+     {
+      "tool": "check_mfa_status",
+      "status": "success",
+      "duration_ms": 500.0,
+      "arguments": null
+     }
+    ]
+   }
+  ]
+ },
+ "issues": []
+}

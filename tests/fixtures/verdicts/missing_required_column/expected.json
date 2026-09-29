@@ -1,0 +1,13 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.verdict_codes",
+  "case_rows.columns.case_id",
+  "case_rows.columns.analyst",
+  "case_rows.columns.agent"
+ ],
+ "error": {
+  "type": "VerdictFileError",
+  "message": "verdicts.csv is missing the column(s) verdict. Required columns: case_id, alert_class, verdict."
+ }
+}

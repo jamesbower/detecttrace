@@ -1,0 +1,63 @@
+# Test fixture: prompt v2 is rolled back to v1 after one week.
+# Written by `uv run python scripts/synthetic/generate.py` into tests/fixtures/edge/versions/rollback.
+
+seed: 20260804
+first_monday: "2026-08-03"
+weeks: 3
+
+agent:
+  name: soc-triage-agent
+  service_version: 2.3.1
+  model: example-model-large
+
+versions:
+  - name: v1
+    first_week: 1
+  - name: v2
+    first_week: 2
+  - name: v1
+    first_week: 3
+
+traces:
+  files: 1
+  cases_per_batch: 4
+
+noise:
+  skip: 0.0
+  narrow: 0.0
+  failure: 0.0
+  retry: 0.0
+
+agent_accuracy:
+  threat: 0.9
+  non_threat: 0.9
+
+classes:
+  - name: impossible_travel
+    case_prefix: RB
+    cases_per_week: 4
+    true_positive_rate: 0.3
+    false_positive_share: 0.5
+    tools:
+      - get_user_profile
+
+analyst_labels:
+  true_positive: [TP]
+  false_positive: [FP]
+  benign: [Benign]
+agent_labels:
+  true_positive: TP
+  false_positive: FP
+  benign: Benign
+
+config:
+  traces:
+    path: traces/
+  verdicts:
+    path: verdicts.csv
+  label_map:
+    TP: true_positive
+    FP: false_positive
+    Benign: benign
+
+checklists: []

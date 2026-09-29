@@ -1,0 +1,43 @@
+{
+ "keep": [
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.class",
+  "case_rows.columns.version",
+  "case_rows.columns.agent"
+ ],
+ "results": {
+  "case_rows": {
+   "strings": [
+    "impossible_travel",
+    "2026-W32",
+    "3",
+    "2.5",
+    "true"
+   ],
+   "columns": {
+    "case_id": [
+     "1001",
+     "C-2",
+     "C-3"
+    ],
+    "class": [
+     0,
+     0,
+     0
+    ],
+    "version": [
+     2,
+     3,
+     4
+    ],
+    "agent": [
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "issues": []
+}

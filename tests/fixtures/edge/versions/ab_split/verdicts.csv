@@ -1,0 +1,7 @@
+case_id,alert_class,verdict
+A-1,impossible_travel,TP
+B-1,impossible_travel,TP
+A-2,impossible_travel,TP
+B-2,impossible_travel,TP
+A-3,impossible_travel,TP
+B-3,impossible_travel,TP

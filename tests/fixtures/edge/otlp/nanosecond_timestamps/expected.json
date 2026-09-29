@@ -1,0 +1,56 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.columns.case_id",
+  "case_detail",
+  "case_rows.strings",
+  "case_rows.columns.week"
+ ],
+ "results": {
+  "totals": {
+   "coverage": {
+    "verdicts_matched": 1,
+    "verdicts_total": 1,
+    "traces_matched": 1,
+    "traces_total": 1,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  },
+  "case_rows": {
+   "columns": {
+    "case_id": [
+     "C-1"
+    ],
+    "week": [
+     1
+    ]
+   },
+   "strings": [
+    "impossible_travel",
+    "2026-W32",
+    "v1"
+   ]
+  },
+  "case_detail": [
+   {
+    "case_id": "C-1",
+    "calls": [
+     {
+      "tool": "get_signin_logs",
+      "status": "success",
+      "duration_ms": 500.000001,
+      "arguments": "{\"user\": \"user0001@example.com\"}"
+     },
+     {
+      "tool": "get_signin_logs",
+      "status": "success",
+      "duration_ms": 1.234567,
+      "arguments": "{\"user\": \"user0001@example.com\"}"
+     }
+    ]
+   }
+  ]
+ },
+ "issues": []
+}

@@ -1,0 +1,118 @@
+{
+ "keep": [
+  "totals.versions",
+  "classes.alert_class",
+  "classes.versions",
+  "classes.shown_versions",
+  "classes.other_versions",
+  "classes.by_version.version",
+  "classes.by_version.first_week",
+  "classes.by_version.metrics.case_count",
+  "classes.other.metrics.case_count"
+ ],
+ "results": {
+  "totals": {
+   "versions": [
+    "v1",
+    "v2",
+    "v3",
+    "v4",
+    "v5",
+    "v6",
+    "v7",
+    "v8"
+   ]
+  },
+  "classes": [
+   {
+    "alert_class": "impossible_travel",
+    "versions": [
+     "v1",
+     "v2",
+     "v3",
+     "v4",
+     "v5",
+     "v6",
+     "v7",
+     "v8"
+    ],
+    "shown_versions": [
+     "v1",
+     "v3",
+     "v4",
+     "v6",
+     "v7",
+     "v8"
+    ],
+    "other_versions": [
+     "v2",
+     "v5"
+    ],
+    "by_version": [
+     {
+      "version": "v1",
+      "first_week": "2026-W32",
+      "metrics": {
+       "case_count": 3
+      }
+     },
+     {
+      "version": "v2",
+      "first_week": "2026-W33",
+      "metrics": {
+       "case_count": 2
+      }
+     },
+     {
+      "version": "v3",
+      "first_week": "2026-W34",
+      "metrics": {
+       "case_count": 4
+      }
+     },
+     {
+      "version": "v4",
+      "first_week": "2026-W35",
+      "metrics": {
+       "case_count": 7
+      }
+     },
+     {
+      "version": "v5",
+      "first_week": "2026-W36",
+      "metrics": {
+       "case_count": 2
+      }
+     },
+     {
+      "version": "v6",
+      "first_week": "2026-W37",
+      "metrics": {
+       "case_count": 7
+      }
+     },
+     {
+      "version": "v7",
+      "first_week": "2026-W38",
+      "metrics": {
+       "case_count": 4
+      }
+     },
+     {
+      "version": "v8",
+      "first_week": "2026-W39",
+      "metrics": {
+       "case_count": 4
+      }
+     }
+    ],
+    "other": {
+     "metrics": {
+      "case_count": 4
+     }
+    }
+   }
+  ]
+ },
+ "issues": []
+}

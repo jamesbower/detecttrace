@@ -1,7 +1,8 @@
 """Generate synthetic DetectTrace datasets from scenario files (dev only, not packaged).
 
-    uv run python scripts/synthetic/generate.py [--scenario NAME] [--out DIR] [--update-golden]
+    uv run python scripts/synthetic/generate.py [--scenario NAME [--out DIR]] [--update-golden]
 
+Without `--scenario` it writes the demo dataset and every test fixture (fixture_specs.py).
 A scenario (scenarios/NAME.yaml) gives the classes, base rates, weeks, prompt versions and
 the behaviors to inject. The generator writes OTLP traces in the Collector file-exporter
 layout (gzip-compressed JSON lines, one resourceSpans batch per line, rotated into a few
@@ -134,7 +135,9 @@ class Scenario(_Strict):
     seed: int
     first_monday: date
     weeks: int = Field(ge=1)
-    output_dir: Path
+    # Where `--scenario NAME` writes; fixture scenarios have none, their folder is registered.
+    output_dir: Path | None = None
+    has_readme: bool = False
     agent: AgentSpec
     versions: tuple[VersionSpec, ...]
     traces: TraceLayout
@@ -160,14 +163,15 @@ def generate(scenario: Scenario, out_dir: Path) -> list[Path]:
     unknown = {tool for spec in scenario.classes for tool in spec.tools} - _TOOLS.keys()
     if unknown:
         raise ValueError(f"the scenario names tools the generator cannot fake: {sorted(unknown)}")
-    cases = _make_cases(scenario)
+    cases = make_cases(scenario)
     written = [
-        *_write_traces(scenario, cases, out_dir / "traces"),
-        _write_verdicts(cases, out_dir / "verdicts.csv"),
-        *_write_checklists(scenario, out_dir / "checklists"),
+        *write_traces(scenario, cases, out_dir / "traces"),
+        write_verdicts(cases, out_dir / "verdicts.csv"),
+        *write_checklists(scenario, out_dir / "checklists"),
         _write_config(scenario, out_dir / "detecttrace.yaml"),
-        _write_text(out_dir / "README.txt", README_TEXT),
     ]
+    if scenario.has_readme:
+        written.append(write_text(out_dir / "README.txt", README_TEXT))
     return sorted(written, key=lambda path: path.as_posix())
 
 
@@ -179,7 +183,7 @@ def update_golden(out_dir: Path) -> Path:
 
     config_path = out_dir / "detecttrace.yaml"
     results = normalize_results(run_check(load_run_config(config_path), config_path).results)
-    return _write_text(out_dir / GOLDEN_NAME, to_golden_text(results))
+    return write_text(out_dir / GOLDEN_NAME, to_golden_text(results))
 
 
 def normalize_results(results: dict[str, object]) -> dict[str, object]:
@@ -187,24 +191,47 @@ def normalize_results(results: dict[str, object]) -> dict[str, object]:
     return {**results, "generated_by": "detecttrace"}
 
 
-def to_golden_text(results: dict[str, object]) -> str:
+def to_golden_text(results: object) -> str:
     return json.dumps(results, ensure_ascii=False, allow_nan=False, indent=1) + "\n"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate a synthetic DetectTrace dataset.")
-    parser.add_argument("--scenario", default="demo", help="scenario name in scenarios/")
+    parser = argparse.ArgumentParser(description="Generate synthetic DetectTrace datasets.")
+    parser.add_argument("--scenario", help="write only this scenario (a name in scenarios/)")
     parser.add_argument("--out", type=Path, help="output folder (default: the scenario's)")
     parser.add_argument("--update-golden", action="store_true", help=f"also rewrite {GOLDEN_NAME}")
     args = parser.parse_args(argv)
-    scenario = load_scenario(args.scenario)
-    out_dir: Path = args.out or REPO_ROOT / scenario.output_dir
-    paths = generate(scenario, out_dir)
-    if args.update_golden:
-        paths.append(update_golden(out_dir))
+    if args.scenario is None:
+        if args.out is not None:
+            parser.error("--out needs --scenario")
+        paths = _write_everything(args.update_golden)
+    else:
+        scenario = load_scenario(args.scenario)
+        if args.out is None and scenario.output_dir is None:
+            parser.error(f"scenario {args.scenario} has no output_dir; give --out")
+        out_dir: Path = args.out or REPO_ROOT / (scenario.output_dir or "")
+        paths = generate(scenario, out_dir)
+        if args.update_golden:
+            paths.append(update_golden(out_dir))
     for path in paths:
         print(path)
     return 0
+
+
+def _write_everything(should_update_golden: bool) -> list[Path]:
+    # Imported here because fixture_specs builds on this module.
+    import fixture_specs
+
+    scenario = load_scenario("demo")
+    demo_dir = REPO_ROOT / (scenario.output_dir or "")
+    paths = generate(scenario, demo_dir)
+    if should_update_golden:
+        paths.append(update_golden(demo_dir))
+    for spec in fixture_specs.FIXTURES:
+        paths.extend(fixture_specs.write_fixture(spec, fixture_specs.FIXTURE_ROOT))
+        if should_update_golden:
+            paths.append(fixture_specs.update_fixture_golden(spec, fixture_specs.FIXTURE_ROOT))
+    return paths
 
 
 class _Rng:
@@ -273,7 +300,7 @@ class _Case:
     spans: list[dict[str, Any]] = field(default_factory=list)
 
 
-def _make_cases(scenario: Scenario) -> list[_Case]:
+def make_cases(scenario: Scenario) -> list[_Case]:
     monday = datetime.combine(scenario.first_monday, datetime.min.time(), tzinfo=UTC)
     first_ns = int(monday.timestamp()) * _NS
     cases: list[_Case] = []
@@ -684,7 +711,49 @@ _TOOLS: dict[str, ToolFaker] = {
 }
 
 
-def _write_traces(scenario: Scenario, cases: Sequence[_Case], folder: Path) -> list[Path]:
+# Rewrites one span (an OTLP JSON object) as another instrumentation would have written it.
+SpanTransform = Callable[[dict[str, Any]], dict[str, Any]]
+Compression = Literal["gzip", "zstd", "none"]
+_SUFFIXES: dict[Compression, str] = {"gzip": ".gz", "zstd": ".zst", "none": ""}
+
+
+def write_traces(
+    scenario: Scenario,
+    cases: Sequence[_Case],
+    folder: Path,
+    *,
+    compression: Compression = "gzip",
+    transform: SpanTransform | None = None,
+) -> list[Path]:
+    """Write the cases as Collector file-exporter output: JSON lines rotated into a few files."""
+    lines = [
+        (end_ns, json.dumps(document, separators=(",", ":")))
+        for end_ns, document in to_trace_documents(scenario, cases, transform)
+    ]
+    folder.mkdir(parents=True, exist_ok=True)
+    # Rotated names carry a timestamp, so files from an earlier run would otherwise linger.
+    for stale in folder.glob("traces*.jsonl*"):
+        stale.unlink()
+    per_file = -(-len(lines) // scenario.traces.files)
+    chunks = [lines[first : first + per_file] for first in range(0, len(lines), per_file)]
+    paths: list[Path] = []
+    suffix = _SUFFIXES[compression]
+    for index, chunk in enumerate(chunks):
+        # Named as the file exporter rotates: the live file, and older ones stamped at rotation.
+        is_live = index == len(chunks) - 1
+        stamp = datetime.fromtimestamp(chunk[-1][0] // _NS + 1, tz=UTC).strftime(
+            "%Y-%m-%dT%H-%M-%S"
+        )
+        name = "traces.jsonl" if is_live else f"traces-{stamp}.000.jsonl"
+        text = "".join(line + "\n" for _, line in chunk)
+        paths.append(write_compressed(folder / (name + suffix), text.encode("utf-8"), compression))
+    return paths
+
+
+def to_trace_documents(
+    scenario: Scenario, cases: Sequence[_Case], transform: SpanTransform | None = None
+) -> list[tuple[int, dict[str, Any]]]:
+    """One OTLP document per batch of cases, with the latest end time in the batch."""
     resource = {
         "attributes": [
             _to_key_value(key, value)
@@ -699,7 +768,7 @@ def _write_traces(scenario: Scenario, cases: Sequence[_Case], folder: Path) -> l
     }
     scope = {"name": "soc_agent.tracing", "version": "0.4.0"}
     size = scenario.traces.cases_per_batch
-    lines: list[tuple[int, str]] = []
+    documents: list[tuple[int, dict[str, Any]]] = []
     for first in range(0, len(cases), size):
         batch = cases[first : first + size]
         # The Collector exports spans as they end, so children come before their parents.
@@ -707,53 +776,46 @@ def _write_traces(scenario: Scenario, cases: Sequence[_Case], folder: Path) -> l
             (span for case in batch for span in case.spans),
             key=lambda span: (int(span["endTimeUnixNano"]), span["spanId"]),
         )
+        if transform is not None:
+            spans = [transform(span) for span in spans]
         document = {
             "resourceSpans": [
                 {"resource": resource, "scopeSpans": [{"scope": scope, "spans": spans}]}
             ]
         }
-        lines.append(
-            (max(case.end_ns for case in batch), json.dumps(document, separators=(",", ":")))
-        )
-    folder.mkdir(parents=True, exist_ok=True)
-    # Rotated names carry a timestamp, so files from an earlier run would otherwise linger.
-    for stale in folder.glob("traces*.jsonl*"):
-        stale.unlink()
-    per_file = -(-len(lines) // scenario.traces.files)
-    chunks = [lines[first : first + per_file] for first in range(0, len(lines), per_file)]
-    paths: list[Path] = []
-    for index, chunk in enumerate(chunks):
-        # Named as the file exporter rotates: the live file, and older ones stamped at rotation.
-        is_live = index == len(chunks) - 1
-        stamp = datetime.fromtimestamp(chunk[-1][0] // _NS + 1, tz=UTC).strftime(
-            "%Y-%m-%dT%H-%M-%S"
-        )
-        name = "traces.jsonl.gz" if is_live else f"traces-{stamp}.000.jsonl.gz"
-        text = "".join(line + "\n" for _, line in chunk)
-        paths.append(_write_gzip(folder / name, text.encode("utf-8")))
-    return paths
+        documents.append((max(case.end_ns for case in batch), document))
+    return documents
 
 
-def _write_gzip(path: Path, data: bytes) -> Path:
-    with (
-        path.open("wb") as raw,
-        gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as file,
-    ):
-        file.write(data)
+def write_compressed(path: Path, data: bytes, compression: Compression) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if compression == "gzip":
+        with (
+            path.open("wb") as raw,
+            gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as file,
+        ):
+            file.write(data)
+    elif compression == "zstd":
+        # Imported here: zstandard is an optional extra, needed only for the zstd fixture.
+        import zstandard
+
+        path.write_bytes(zstandard.ZstdCompressor(level=3).compress(data))
+    else:
+        path.write_bytes(data)
     return path
 
 
-def _write_verdicts(cases: Sequence[_Case], path: Path) -> Path:
+def write_verdicts(cases: Sequence[_Case], path: Path) -> Path:
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(("case_id", "alert_class", "verdict", "closed_at"))
     # Exported in the order analysts closed the cases, as a case system would.
     for case in sorted(cases, key=lambda case: (case.closed_ns, case.case_id)):
         writer.writerow((case.case_id, case.alert_class, case.analyst_label, _iso(case.closed_ns)))
-    return _write_text(path, buffer.getvalue())
+    return write_text(path, buffer.getvalue())
 
 
-def _write_checklists(scenario: Scenario, folder: Path) -> list[Path]:
+def write_checklists(scenario: Scenario, folder: Path) -> list[Path]:
     folder.mkdir(parents=True, exist_ok=True)
     header = "# Generic example checklist for the demo, not a curated playbook.\n"
     paths: list[Path] = []
@@ -764,14 +826,14 @@ def _write_checklists(scenario: Scenario, folder: Path) -> list[Path]:
             else item
             for item in checklist["items"]
         ]
-        text = header + _to_yaml({**checklist, "items": items})
-        paths.append(_write_text(folder / f"{checklist['alert_class']}.yaml", text))
+        text = header + to_yaml({**checklist, "items": items})
+        paths.append(write_text(folder / f"{checklist['alert_class']}.yaml", text))
     return paths
 
 
 def _write_config(scenario: Scenario, path: Path) -> Path:
     header = "# Configuration for the bundled demo. Paths are relative to this file.\n"
-    return _write_text(path, header + _to_yaml(scenario.config))
+    return write_text(path, header + to_yaml(scenario.config))
 
 
 class _FlowMap(dict[str, Any]):
@@ -788,17 +850,20 @@ _Dumper.add_representer(
 )
 
 
-def _to_yaml(data: object) -> str:
+def to_yaml(data: object) -> str:
     return yaml.dump(
         data, Dumper=_Dumper, sort_keys=False, default_flow_style=False, allow_unicode=True
     )
 
 
-def _write_text(path: Path, text: str) -> Path:
+def write_text(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(text.encode("utf-8"))
     return path
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Run as the `generate` module, so fixture_specs (which imports it) shares this one copy.
+    import generate as generator
+
+    sys.exit(generator.main())

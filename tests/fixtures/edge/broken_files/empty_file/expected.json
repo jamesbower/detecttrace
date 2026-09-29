@@ -1,0 +1,32 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.columns.case_id"
+ ],
+ "results": {
+  "totals": {
+   "coverage": {
+    "verdicts_matched": 1,
+    "verdicts_total": 1,
+    "traces_matched": 1,
+    "traces_total": 1,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  },
+  "case_rows": {
+   "columns": {
+    "case_id": [
+     "C-1"
+    ]
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "empty_file",
+   "subject": "traces-2026-08-04T10-00-03.000.jsonl",
+   "detail": ""
+  }
+ ]
+}

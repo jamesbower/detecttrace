@@ -1,0 +1,70 @@
+{
+ "keep": [
+  "case_rows.checklists",
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.satisfied",
+  "case_rows.columns.missed_items",
+  "case_rows.columns.failed_items"
+ ],
+ "results": {
+  "case_rows": {
+   "checklists": [
+    {
+     "class": 0,
+     "items": [
+      1,
+      2
+     ]
+    }
+   ],
+   "strings": [
+    "impossible_travel",
+    "hours_text",
+    "hours_number",
+    "2026-W32",
+    "v1"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2",
+     "C-3"
+    ],
+    "satisfied": [
+     1,
+     1,
+     1
+    ],
+    "missed_items": [
+     [
+      0
+     ],
+     [
+      0
+     ],
+     [
+      1
+     ]
+    ],
+    "failed_items": [
+     [],
+     [],
+     []
+    ]
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "rule_type_mismatch",
+   "subject": "impossible_travel/hours_text",
+   "detail": "'hours' (equals): the value is a number; unquote the expected value in the checklist; first seen in case C-1"
+  },
+  {
+   "kind": "rule_type_mismatch",
+   "subject": "impossible_travel/hours_number",
+   "detail": "'hours' (equals): the value is text; quote the expected value in the checklist; first seen in case C-3"
+  }
+ ]
+}

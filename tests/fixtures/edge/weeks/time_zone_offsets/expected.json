@@ -1,0 +1,35 @@
+{
+ "keep": [
+  "totals.period",
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.week"
+ ],
+ "results": {
+  "totals": {
+   "period": {
+    "first_week": "2026-W32",
+    "last_week": "2026-W33"
+   }
+  },
+  "case_rows": {
+   "strings": [
+    "impossible_travel",
+    "2026-W32",
+    "v1",
+    "2026-W33"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2"
+    ],
+    "week": [
+     1,
+     3
+    ]
+   }
+  }
+ },
+ "issues": []
+}

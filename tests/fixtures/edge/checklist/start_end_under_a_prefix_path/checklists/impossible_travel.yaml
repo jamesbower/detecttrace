@@ -1,0 +1,9 @@
+alert_class: impossible_travel
+items:
+- id: grant_window
+  tool: get_oauth_grants
+  args:
+    window:
+      min_duration: 24h
+      start: from
+      end: to

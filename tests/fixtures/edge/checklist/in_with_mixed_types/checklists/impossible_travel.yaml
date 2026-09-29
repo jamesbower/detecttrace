@@ -1,0 +1,10 @@
+alert_class: impossible_travel
+items:
+- id: lookback
+  tool: get_signin_logs
+  args:
+    range:
+      in:
+      - 24
+      - 24h
+      - true

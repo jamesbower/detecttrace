@@ -1,0 +1,43 @@
+{
+ "keep": [
+  "classes.alert_class",
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.class"
+ ],
+ "results": {
+  "classes": [
+   {
+    "alert_class": "impossible_travel"
+   },
+   {
+    "alert_class": "oauth_consent"
+   }
+  ],
+  "case_rows": {
+   "strings": [
+    "oauth_consent",
+    "2026-W32",
+    "v1",
+    "impossible_travel"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2"
+    ],
+    "class": [
+     0,
+     3
+    ]
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "alert_class_conflict",
+   "subject": "C-1",
+   "detail": "CSV 'oauth_consent', trace 'impossible_travel'; using the CSV value"
+  }
+ ]
+}

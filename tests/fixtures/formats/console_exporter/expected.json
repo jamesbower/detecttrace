@@ -1,0 +1,36 @@
+{
+ "keep": [
+  "totals"
+ ],
+ "results": {
+  "totals": {
+   "cases": 0,
+   "classes": 0,
+   "period": {
+    "first_week": null,
+    "last_week": null
+   },
+   "versions": [],
+   "coverage": {
+    "verdicts_matched": 0,
+    "verdicts_total": 1,
+    "traces_matched": 0,
+    "traces_total": 0,
+    "verdicts_low": true,
+    "traces_low": false
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "console_exporter_output",
+   "subject": "console.json",
+   "detail": "this is OpenTelemetry console exporter output, not OTLP JSON; write traces with the Collector file exporter, or with FileSpanExporter (pip install detecttrace[otel])"
+  },
+  {
+   "kind": "verdict_without_root",
+   "subject": "CASE-1",
+   "detail": ""
+  }
+ ]
+}

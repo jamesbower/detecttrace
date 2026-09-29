@@ -1,0 +1,3 @@
+case_id,alert_class,verdict
+C-1,oauth_consent,TP
+C-2,impossible_travel,TP

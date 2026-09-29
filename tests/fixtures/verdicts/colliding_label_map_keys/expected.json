@@ -1,0 +1,13 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.verdict_codes",
+  "case_rows.columns.case_id",
+  "case_rows.columns.analyst",
+  "case_rows.columns.agent"
+ ],
+ "error": {
+  "type": "ConfigFileError",
+  "message": "detecttrace.yaml: invalid configuration\n  label_map: labels 'Closed - Benign' and 'closed  -  BENIGN' are the same after normalization but map to 'benign' and 'false_positive'. Keep only one of them."
+ }
+}

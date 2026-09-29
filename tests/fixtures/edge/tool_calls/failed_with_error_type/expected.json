@@ -1,0 +1,59 @@
+{
+ "keep": [
+  "case_rows.checklists",
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.satisfied",
+  "case_rows.columns.missed_items",
+  "case_rows.columns.failed_items",
+  "case_detail"
+ ],
+ "results": {
+  "case_rows": {
+   "checklists": [
+    {
+     "class": 0,
+     "items": [
+      1
+     ]
+    }
+   ],
+   "strings": [
+    "impossible_travel",
+    "mfa_check",
+    "2026-W32",
+    "v1"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1"
+    ],
+    "satisfied": [
+     0
+    ],
+    "missed_items": [
+     []
+    ],
+    "failed_items": [
+     [
+      0
+     ]
+    ]
+   }
+  },
+  "case_detail": [
+   {
+    "case_id": "C-1",
+    "calls": [
+     {
+      "tool": "check_mfa_status",
+      "status": "failed",
+      "duration_ms": 500.0,
+      "arguments": "{\"user\": \"user0001@example.com\"}"
+     }
+    ]
+   }
+  ]
+ },
+ "issues": []
+}

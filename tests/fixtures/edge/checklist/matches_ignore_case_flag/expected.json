@@ -1,0 +1,49 @@
+{
+ "keep": [
+  "case_rows.checklists",
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.satisfied",
+  "case_rows.columns.missed_items",
+  "case_rows.columns.failed_items"
+ ],
+ "results": {
+  "case_rows": {
+   "checklists": [
+    {
+     "class": 0,
+     "items": [
+      1
+     ]
+    }
+   ],
+   "strings": [
+    "impossible_travel",
+    "audit_query",
+    "2026-W32",
+    "v1"
+   ],
+   "columns": {
+    "case_id": [
+     "C-1",
+     "C-2"
+    ],
+    "satisfied": [
+     1,
+     0
+    ],
+    "missed_items": [
+     [],
+     [
+      0
+     ]
+    ],
+    "failed_items": [
+     [],
+     []
+    ]
+   }
+  }
+ },
+ "issues": []
+}

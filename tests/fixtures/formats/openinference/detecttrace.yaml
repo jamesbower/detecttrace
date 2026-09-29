@@ -1,0 +1,23 @@
+# Test fixture configuration. Paths are relative to this file.
+traces:
+  path: traces/
+  format: otlp_jsonl
+verdicts:
+  path: verdicts.csv
+label_map:
+  TP: true_positive
+  Malicious: true_positive
+  FP: false_positive
+  Benign: benign
+  Closed - Benign: benign
+checklists: checklists/
+output: detecttrace-demo.html
+mapping:
+  case_id: soc.case.id
+  alert_class: soc.alert.class
+  verdict: soc.agent.verdict
+  prompt_version: soc.prompt.version
+  operation:
+    attribute: openinference.span.kind
+    agent_value: AGENT
+    tool_value: TOOL

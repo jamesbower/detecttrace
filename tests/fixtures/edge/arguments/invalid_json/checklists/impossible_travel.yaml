@@ -1,0 +1,7 @@
+alert_class: impossible_travel
+items:
+- id: signins
+  tool: get_signin_logs
+  args:
+    user:
+      exists: true

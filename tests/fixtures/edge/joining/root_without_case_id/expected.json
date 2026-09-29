@@ -1,0 +1,32 @@
+{
+ "keep": [
+  "totals.coverage",
+  "case_rows.columns.case_id"
+ ],
+ "results": {
+  "totals": {
+   "coverage": {
+    "verdicts_matched": 1,
+    "verdicts_total": 1,
+    "traces_matched": 1,
+    "traces_total": 1,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  },
+  "case_rows": {
+   "columns": {
+    "case_id": [
+     "C-1"
+    ]
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "agent_without_case_id",
+   "subject": "00000000000000000000000000000002/0000000000000001",
+   "detail": ""
+  }
+ ]
+}

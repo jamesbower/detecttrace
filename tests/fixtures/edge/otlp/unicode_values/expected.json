@@ -1,0 +1,45 @@
+{
+ "keep": [
+  "classes.alert_class",
+  "case_rows.strings",
+  "case_rows.columns.case_id",
+  "case_rows.columns.class",
+  "case_detail"
+ ],
+ "results": {
+  "classes": [
+   {
+    "alert_class": "Reise_über_Grenzen"
+   }
+  ],
+  "case_rows": {
+   "strings": [
+    "Reise_über_Grenzen",
+    "2026-W32",
+    "v1"
+   ],
+   "columns": {
+    "case_id": [
+     "FALL-Ω-1"
+    ],
+    "class": [
+     0
+    ]
+   }
+  },
+  "case_detail": [
+   {
+    "case_id": "FALL-Ω-1",
+    "calls": [
+     {
+      "tool": "get_signin_logs",
+      "status": "success",
+      "duration_ms": 500.0,
+      "arguments": "{\"user\": \"müller@example.com\", \"note\": \"東京 ✓\"}"
+     }
+    ]
+   }
+  ]
+ },
+ "issues": []
+}

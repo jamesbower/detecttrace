@@ -1,0 +1,9 @@
+case_id,alert_class,verdict,closed_at
+RB-0001,impossible_travel,FP,2026-08-05T02:32:23Z
+RB-0002,impossible_travel,FP,2026-08-07T10:00:50Z
+RB-0003,impossible_travel,TP,2026-08-08T22:49:03Z
+RB-0004,impossible_travel,Benign,2026-08-11T20:22:03Z
+RB-0005,impossible_travel,FP,2026-08-14T00:35:00Z
+RB-0006,impossible_travel,TP,2026-08-16T04:18:29Z
+RB-0007,impossible_travel,FP,2026-08-20T05:58:30Z
+RB-0008,impossible_travel,TP,2026-08-24T02:19:10Z

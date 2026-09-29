@@ -1,0 +1,73 @@
+# Test fixture: eight prompt versions, one a week, so two are pooled as other.
+# Written by `uv run python scripts/synthetic/generate.py` into tests/fixtures/edge/versions/more_than_six.
+
+seed: 20260805
+first_monday: "2026-08-03"
+weeks: 8
+
+agent:
+  name: soc-triage-agent
+  service_version: 2.3.1
+  model: example-model-large
+
+versions:
+  - name: v1
+    first_week: 1
+  - name: v2
+    first_week: 2
+  - name: v3
+    first_week: 3
+  - name: v4
+    first_week: 4
+  - name: v5
+    first_week: 5
+  - name: v6
+    first_week: 6
+  - name: v7
+    first_week: 7
+  - name: v8
+    first_week: 8
+
+traces:
+  files: 1
+  cases_per_batch: 4
+
+noise:
+  skip: 0.0
+  narrow: 0.0
+  failure: 0.0
+  retry: 0.0
+
+agent_accuracy:
+  threat: 0.9
+  non_threat: 0.9
+
+classes:
+  - name: impossible_travel
+    case_prefix: MV
+    cases_per_week: 4
+    true_positive_rate: 0.3
+    false_positive_share: 0.5
+    tools:
+      - get_user_profile
+
+analyst_labels:
+  true_positive: [TP]
+  false_positive: [FP]
+  benign: [Benign]
+agent_labels:
+  true_positive: TP
+  false_positive: FP
+  benign: Benign
+
+config:
+  traces:
+    path: traces/
+  verdicts:
+    path: verdicts.csv
+  label_map:
+    TP: true_positive
+    FP: false_positive
+    Benign: benign
+
+checklists: []

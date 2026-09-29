@@ -10,6 +10,7 @@ seed: 20260803
 first_monday: "2026-08-03"
 weeks: 6
 output_dir: src/detecttrace/demo_data
+has_readme: true
 
 agent:
   name: soc-triage-agent

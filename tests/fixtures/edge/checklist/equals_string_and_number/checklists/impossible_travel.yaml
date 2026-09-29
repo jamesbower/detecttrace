@@ -1,0 +1,12 @@
+alert_class: impossible_travel
+items:
+- id: hours_text
+  tool: get_signin_logs
+  args:
+    hours:
+      equals: '24'
+- id: hours_number
+  tool: get_signin_logs
+  args:
+    hours:
+      equals: 24
