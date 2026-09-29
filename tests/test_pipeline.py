@@ -7,6 +7,7 @@ import pytest
 from builders import RUN_CONFIG, RUN_VERDICTS, run_trace, write_jsonl, write_run_folder
 
 from detecttrace import pipeline
+from detecttrace.dashboard import render_dashboard
 from detecttrace.model import IssueKind
 from detecttrace.otlp import TraceFileError
 from detecttrace.pipeline import RunResult, run_check
@@ -238,3 +239,50 @@ def test_pausing_the_garbage_collector_leaves_the_demo_results_unchanged(
     unpaused = _run(config_path).results
 
     assert unpaused == paused
+
+
+# Very long labels
+
+HUGE = "x" * (1 << 20)
+
+
+def _write_huge_version_run(tmp_path: Path) -> Path:
+    config_path = write_run_folder(
+        tmp_path,
+        case_ids=("DT-1",),
+        verdicts="case_id,alert_class,verdict\nDT-1,impossible_travel,TP\n",
+    )
+    document = run_trace(1, "DT-1")
+    root = document["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+    version = next(a for a in root["attributes"] if a["key"] == "detecttrace.prompt_version")
+    version["value"] = {"stringValue": HUGE}
+    write_jsonl(tmp_path / "traces" / "batch.jsonl", [document])
+    return config_path
+
+
+def test_a_one_megabyte_version_keeps_the_page_small(tmp_path: Path) -> None:
+    result = _run(_write_huge_version_run(tmp_path))
+
+    html = render_dashboard(result.results)
+
+    assert len(html.encode()) < 1 << 20
+
+
+def test_a_one_megabyte_version_is_reported(tmp_path: Path) -> None:
+    result = _run(_write_huge_version_run(tmp_path))
+
+    assert [
+        issue.detail for issue in result.issues if issue.kind is IssueKind.INVALID_ATTRIBUTE
+    ] == ["detecttrace.prompt_version is longer than 200 characters; shortened"]
+
+
+def test_a_one_megabyte_case_id_on_both_sides_still_joins(tmp_path: Path) -> None:
+    config_path = write_run_folder(
+        tmp_path,
+        case_ids=(HUGE,),
+        verdicts=f"case_id,alert_class,verdict\n{HUGE},impossible_travel,TP\n",
+    )
+
+    result = _run(config_path)
+
+    assert result.case_count == 1

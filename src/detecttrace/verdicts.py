@@ -9,9 +9,20 @@ import csv
 from pathlib import Path
 from typing import TextIO
 
-from detecttrace.model import InputFileError, Issue, IssueKind, VerdictRow
+from detecttrace.model import (
+    REPORT_KEY_LENGTH,
+    SHORTENED_DETAIL,
+    InputFileError,
+    Issue,
+    IssueKind,
+    VerdictRow,
+    to_short_label,
+)
 
 REQUIRED_COLUMNS = ("case_id", "alert_class", "verdict")
+# The csv module's default of 128 KiB would skip a row whose long case ID a trace also carries
+# (both sides are shortened alike and still join); a longer field is surely a broken row.
+MAX_FIELD_CHARACTERS = 4 << 20
 
 
 class VerdictFileError(InputFileError):
@@ -22,7 +33,12 @@ def read_verdicts(path: Path) -> tuple[list[VerdictRow], list[Issue]]:
     """Read every verdict row. Rows that share a case ID are all returned; the join resolves them."""
     try:
         with path.open(encoding="utf-8-sig", newline="") as handle:
-            return _read_rows(handle, path)
+            # The limit is process-wide, so it is put back for any other csv user.
+            previous_limit = csv.field_size_limit(MAX_FIELD_CHARACTERS)
+            try:
+                return _read_rows(handle, path)
+            finally:
+                csv.field_size_limit(previous_limit)
     except FileNotFoundError as error:
         raise VerdictFileError(
             f"Verdict file not found: {path}. Check verdicts.path in detecttrace.yaml."
@@ -55,6 +71,7 @@ def _read_rows(handle: TextIO, path: Path) -> tuple[list[VerdictRow], list[Issue
     positions = [header.index(column) for column in REQUIRED_COLUMNS]
     rows: list[VerdictRow] = []
     issues: list[Issue] = []
+    reported_long: set[tuple[str, str]] = set()
     while True:
         previous_line = reader.line_num
         try:
@@ -107,8 +124,28 @@ def _read_rows(handle: TextIO, path: Path) -> tuple[list[VerdictRow], list[Issue
                 )
             )
             continue
-        rows.append(VerdictRow(case_id, alert_class, label, line_number))
+        subject = f"{path.name}:{line_number}"
+        rows.append(
+            VerdictRow(
+                _shorten(case_id, "case_id", subject, issues, reported_long),
+                _shorten(alert_class, "alert_class", subject, issues, reported_long),
+                _shorten(label, "verdict", subject, issues, reported_long),
+                line_number,
+            )
+        )
     return rows, issues
+
+
+def _shorten(
+    value: str, column: str, subject: str, issues: list[Issue], reported: set[tuple[str, str]]
+) -> str:
+    short = to_short_label(value)
+    if short is not value and (column, value[:REPORT_KEY_LENGTH]) not in reported:
+        reported.add((column, value[:REPORT_KEY_LENGTH]))
+        issues.append(
+            Issue(IssueKind.LONG_VERDICT_VALUE, subject, f"{column} is {SHORTENED_DETAIL}")
+        )
+    return short
 
 
 def _invalid_row(path: Path, line_number: int, detail: str) -> Issue:

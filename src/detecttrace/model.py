@@ -13,6 +13,23 @@ def describe_os_error(error: OSError) -> str:
     return error.strerror or type(error).__name__
 
 
+MAX_LABEL_LENGTH = 200
+SHORTENED_DETAIL = f"longer than {MAX_LABEL_LENGTH} characters; shortened"
+# A shortened value is reported once per field and start, not once per case that carries it.
+REPORT_KEY_LENGTH = 60
+
+
+def to_short_label(text: str) -> str:
+    """`text` cut to MAX_LABEL_LENGTH characters, ending in "…", when it is longer.
+
+    The same text always gives the same result, so a case ID shortened in the traces and in
+    the verdict file still joins.
+    """
+    if len(text) <= MAX_LABEL_LENGTH:
+        return text
+    return text[: MAX_LABEL_LENGTH - 1] + "\u2026"
+
+
 class Verdict(StrEnum):
     TRUE_POSITIVE = "true_positive"
     FALSE_POSITIVE = "false_positive"
@@ -38,6 +55,7 @@ class IssueKind(StrEnum):
     VERSION_CONFLICT = "version_conflict"
     DUPLICATE_ROOT = "duplicate_root"
     INVALID_VERDICT_ROW = "invalid_verdict_row"
+    LONG_VERDICT_VALUE = "long_verdict_value"
     DUPLICATE_VERDICT = "duplicate_verdict"
     CONFLICTING_ANALYST_VERDICT = "conflicting_analyst_verdict"
     ROOT_WITHOUT_VERDICT = "root_without_verdict"

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from detecttrace.model import IssueKind, VerdictRow
-from detecttrace.verdicts import VerdictFileError, read_verdicts
+from detecttrace.verdicts import MAX_FIELD_CHARACTERS, VerdictFileError, read_verdicts
 
 
 def write_csv(tmp_path: Path, text: str) -> Path:
@@ -94,7 +94,7 @@ def test_invalid_row_issue_subject_is_the_file_name_and_line(tmp_path: Path) -> 
 
 
 def test_row_with_a_field_over_the_csv_size_limit_is_reported(tmp_path: Path) -> None:
-    oversized = "x" * (csv.field_size_limit() + 1)
+    oversized = "x" * (MAX_FIELD_CHARACTERS + 1)
     path = write_csv(tmp_path, f"case_id,alert_class,verdict\nDT-1,{oversized},TP\nDT-2,x,FP\n")
 
     _, issues = read_verdicts(path)
@@ -105,7 +105,7 @@ def test_row_with_a_field_over_the_csv_size_limit_is_reported(tmp_path: Path) ->
 
 
 def test_rows_after_a_field_over_the_csv_size_limit_are_still_read(tmp_path: Path) -> None:
-    oversized = "x" * (csv.field_size_limit() + 1)
+    oversized = "x" * (MAX_FIELD_CHARACTERS + 1)
     path = write_csv(tmp_path, f"case_id,alert_class,verdict\nDT-1,{oversized},TP\nDT-2,x,FP\n")
 
     rows, _ = read_verdicts(path)
@@ -114,7 +114,7 @@ def test_rows_after_a_field_over_the_csv_size_limit_are_still_read(tmp_path: Pat
 
 
 def test_quoted_value_over_the_csv_size_limit_spanning_lines_raises(tmp_path: Path) -> None:
-    multiline = "x\n" * (csv.field_size_limit() // 2 + 1)
+    multiline = "x\n" * (MAX_FIELD_CHARACTERS // 2 + 1)
     path = write_csv(tmp_path, f'case_id,alert_class,verdict\nDT-1,"{multiline}",TP\n')
 
     with pytest.raises(VerdictFileError, match="unbalanced quote"):
@@ -172,7 +172,7 @@ def test_quoted_multiline_value_in_an_extra_column_is_read(tmp_path: Path) -> No
 
 
 def test_oversized_field_after_blank_lines_is_reported_at_its_own_line(tmp_path: Path) -> None:
-    oversized = "x" * (csv.field_size_limit() + 1)
+    oversized = "x" * (MAX_FIELD_CHARACTERS + 1)
     path = write_csv(
         tmp_path,
         f"case_id,alert_class,verdict\nDT-1,x,TP\n\n\nDT-2,{oversized},FP\nDT-3,y,TP\n",
@@ -186,7 +186,7 @@ def test_oversized_field_after_blank_lines_is_reported_at_its_own_line(tmp_path:
 
 
 def test_rows_around_an_oversized_field_after_blank_lines_are_read(tmp_path: Path) -> None:
-    oversized = "x" * (csv.field_size_limit() + 1)
+    oversized = "x" * (MAX_FIELD_CHARACTERS + 1)
     path = write_csv(
         tmp_path,
         f"case_id,alert_class,verdict\nDT-1,x,TP\n\n\nDT-2,{oversized},FP\nDT-3,y,TP\n",
@@ -236,3 +236,56 @@ def test_duplicate_required_header_column_raises_with_its_name(tmp_path: Path) -
 def test_directory_path_raises_could_not_be_opened(tmp_path: Path) -> None:
     with pytest.raises(VerdictFileError, match="could not be opened"):
         read_verdicts(tmp_path)
+
+
+# Very long values
+
+LONG = "x" * 1000
+SHORTENED = "x" * 199 + "…"
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        (f"{LONG},impossible_travel,TP", VerdictRow(SHORTENED, "impossible_travel", "TP", 2)),
+        (f"DT-1,{LONG},TP", VerdictRow("DT-1", SHORTENED, "TP", 2)),
+        (f"DT-1,impossible_travel,{LONG}", VerdictRow("DT-1", "impossible_travel", SHORTENED, 2)),
+    ],
+    ids=["case_id", "alert_class", "verdict"],
+)
+def test_a_value_longer_than_200_characters_is_shortened(
+    tmp_path: Path, line: str, expected: VerdictRow
+) -> None:
+    rows, _ = read_verdicts(write_csv(tmp_path, f"case_id,alert_class,verdict\n{line}\n"))
+    assert rows == [expected]
+
+
+def test_a_shortened_value_is_reported(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, f"case_id,alert_class,verdict\n{LONG},impossible_travel,TP\n")
+    _, issues = read_verdicts(path)
+    assert [(issue.kind, issue.subject, issue.detail) for issue in issues] == [
+        (
+            IssueKind.LONG_VERDICT_VALUE,
+            "verdicts.csv:2",
+            "case_id is longer than 200 characters; shortened",
+        )
+    ]
+
+
+def test_long_values_that_start_alike_are_reported_once(tmp_path: Path) -> None:
+    path = write_csv(tmp_path, f"case_id,alert_class,verdict\n{LONG}a,c,TP\n{LONG}b,c,TP\n")
+    _, issues = read_verdicts(path)
+    assert len(issues) == 1
+
+
+def test_a_one_megabyte_value_is_read(tmp_path: Path) -> None:
+    huge = "x" * (1 << 20)
+    path = write_csv(tmp_path, f"case_id,alert_class,verdict\n{huge},c,TP\n")
+    rows, _ = read_verdicts(path)
+    assert [row.case_id for row in rows] == [SHORTENED]
+
+
+def test_reading_leaves_the_csv_field_limit_as_it_was(tmp_path: Path) -> None:
+    before = csv.field_size_limit()
+    read_verdicts(write_csv(tmp_path, "case_id,alert_class,verdict\nDT-1,c,TP\n"))
+    assert csv.field_size_limit() == before

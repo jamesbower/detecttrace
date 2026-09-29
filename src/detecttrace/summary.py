@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from detecttrace import conventions
-from detecttrace.model import Issue, IssueKind
+from detecttrace.model import MAX_LABEL_LENGTH, Issue, IssueKind
 
 
 class Severity(StrEnum):
@@ -36,6 +36,7 @@ SEVERITY: Mapping[IssueKind, Severity] = {
     IssueKind.VERSION_CONFLICT: _I,
     IssueKind.DUPLICATE_ROOT: _W,
     IssueKind.INVALID_VERDICT_ROW: _I,
+    IssueKind.LONG_VERDICT_VALUE: _I,
     IssueKind.DUPLICATE_VERDICT: _W,
     IssueKind.CONFLICTING_ANALYST_VERDICT: _I,
     IssueKind.ROOT_WITHOUT_VERDICT: _W,
@@ -149,6 +150,11 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "verdict row could not be read and was skipped",
         "verdict rows could not be read and were skipped",
         "Each row needs case_id, alert_class, and verdict; quote values that contain commas.",
+    ),
+    IssueKind.LONG_VERDICT_VALUE: (
+        f"verdict row has a value longer than {MAX_LABEL_LENGTH} characters, which was shortened",
+        f"verdict rows have values longer than {MAX_LABEL_LENGTH} characters, which were shortened",
+        f"Keep case IDs, alert classes, and verdict labels to {MAX_LABEL_LENGTH} characters.",
     ),
     IssueKind.DUPLICATE_VERDICT: (
         "case has repeated verdict rows that agree",

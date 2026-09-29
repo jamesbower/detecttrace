@@ -810,3 +810,80 @@ def test_version_conflict_under_an_ignored_root_is_not_reported() -> None:
     ]
 
     assert issue_kinds(spans, mapping) == [IssueKind.DUPLICATE_ROOT]
+
+
+# Very long labels
+
+LONG = "x" * 1000
+SHORTENED = "x" * 199 + "…"
+SHORTENED_DETAIL = "longer than 200 characters; shortened"
+
+
+def long_label_issues(spans: list[Span]) -> list[Issue]:
+    _, issues = build_trace_cases(spans, MAPPING)
+    return [issue for issue in issues if issue.detail.endswith(SHORTENED_DETAIL)]
+
+
+def test_a_case_id_longer_than_200_characters_is_shortened() -> None:
+    cases, _ = build_trace_cases([case_root("01", LONG)], MAPPING)
+    assert cases[0].case_id == SHORTENED
+
+
+def test_a_case_id_of_exactly_200_characters_is_kept() -> None:
+    cases, _ = build_trace_cases([case_root("01", "x" * 200)], MAPPING)
+    assert cases[0].case_id == "x" * 200
+
+
+def test_a_shortened_case_id_is_reported_as_an_invalid_attribute() -> None:
+    assert long_label_issues([case_root("01", LONG)]) == [
+        Issue(
+            IssueKind.INVALID_ATTRIBUTE,
+            f"{TRACE_ID}/01",
+            "detecttrace.case_id is longer than 200 characters; shortened",
+        )
+    ]
+
+
+def test_long_values_that_start_alike_are_reported_once() -> None:
+    spans = [case_root("01", LONG + "a"), case_root("02", LONG + "b", start_ns=5)]
+    assert len(long_label_issues(spans)) == 1
+
+
+def test_long_values_of_different_attributes_are_each_reported() -> None:
+    spans = [case_root("01", LONG, attributes={"detecttrace.alert_class": LONG})]
+    assert len(long_label_issues(spans)) == 2
+
+
+@pytest.mark.parametrize(
+    ("key", "field"),
+    [
+        ("detecttrace.alert_class", "alert_class"),
+        ("detecttrace.prompt_version", "prompt_version"),
+        ("detecttrace.verdict", "agent_label"),
+    ],
+)
+def test_a_long_case_label_is_shortened(key: str, field: str) -> None:
+    cases, _ = build_trace_cases([case_root("01", "DT-1", attributes={key: LONG})], MAPPING)
+    assert getattr(cases[0], field) == SHORTENED
+
+
+def test_a_long_resource_version_is_shortened() -> None:
+    root = case_root("01", "DT-1", resource={"detecttrace.prompt_version": LONG})
+    cases, _ = build_trace_cases([root], MAPPING)
+    assert cases[0].prompt_version == SHORTENED
+
+
+def test_a_long_descendant_version_is_shortened() -> None:
+    mapping = MappingConfig(prompt_version_lookup="descendant")
+    spans = [
+        case_root("01", "DT-1"),
+        make_span("02", "01", attributes={"detecttrace.prompt_version": LONG}),
+    ]
+    cases, _ = build_trace_cases(spans, mapping)
+    assert cases[0].prompt_version == SHORTENED
+
+
+def test_a_long_tool_name_is_shortened() -> None:
+    assert tools_by_case([case_root("01", "DT-1"), tool_span("02", "01", LONG)]) == {
+        "DT-1": (SHORTENED,)
+    }

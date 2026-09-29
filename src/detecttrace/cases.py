@@ -7,7 +7,19 @@ from typing import Literal
 
 from detecttrace import conventions
 from detecttrace.config import MappingConfig, OperationConfig
-from detecttrace.model import Issue, IssueKind, Span, ToolCall, TraceCase
+from detecttrace.model import (
+    REPORT_KEY_LENGTH,
+    SHORTENED_DETAIL,
+    Issue,
+    IssueKind,
+    Span,
+    ToolCall,
+    TraceCase,
+    to_short_label,
+)
+
+# (attribute key, first characters) of each long value already reported.
+_ReportedLong = set[tuple[str, str]]
 
 
 def build_trace_cases(
@@ -19,12 +31,13 @@ def build_trace_cases(
     for span in spans:
         by_trace[span.trace_id].append(span)
     candidates: list[_OpenCase] = []
+    reported_long: _ReportedLong = set()
     for trace_id in sorted(by_trace):
-        candidates.extend(_walk_trace(by_trace[trace_id], mapping, issues))
+        candidates.extend(_walk_trace(by_trace[trace_id], mapping, issues, reported_long))
     # Closing only the kept roots keeps a dropped duplicate's issues out of the report.
     reported_resource_values: set[tuple[str, str]] = set()
     cases = [
-        _close_case(case, mapping, issues, reported_resource_values)
+        _close_case(case, mapping, issues, reported_resource_values, reported_long)
         for case in _pick_latest_roots(candidates, issues)
     ]
     return cases, issues
@@ -44,7 +57,10 @@ def _span_order(span: Span) -> tuple[int, str]:
 
 
 def _walk_trace(
-    trace_spans: list[Span], mapping: MappingConfig, issues: list[Issue]
+    trace_spans: list[Span],
+    mapping: MappingConfig,
+    issues: list[Issue],
+    reported_long: _ReportedLong,
 ) -> list[_OpenCase]:
     by_id = {span.span_id: span for span in trace_spans}
     children: dict[str, list[Span]] = defaultdict(list)
@@ -57,7 +73,7 @@ def _walk_trace(
         else:
             tops.append(span)
 
-    walk = _TraceWalk(children, mapping, issues)
+    walk = _TraceWalk(children, mapping, issues, reported_long)
     for span in sorted(tops, key=_span_order):
         walk.run(span, is_broken_chain=span.parent_span_id is not None)
     if len(walk.visited) < len(by_id):
@@ -86,6 +102,7 @@ class _TraceWalk:
     children: dict[str, list[Span]]
     mapping: MappingConfig
     issues: list[Issue]
+    reported_long: _ReportedLong
     open_cases: list[_OpenCase] = field(default_factory=list)
     orphan_count: int = 0
     visited: set[str] = field(default_factory=set)
@@ -116,8 +133,13 @@ class _TraceWalk:
         subject = f"{span.trace_id}/{span.span_id}"
         # _to_text returns None for missing and invalid alike; only invalid adds an issue.
         issue_count = len(self.issues)
-        case_id = _to_text(
-            span.attributes.get(self.mapping.case_id), subject, self.mapping.case_id, self.issues
+        key = self.mapping.case_id
+        case_id = _shorten(
+            _to_text(span.attributes.get(key), subject, key, self.issues),
+            key,
+            subject,
+            self.issues,
+            self.reported_long,
         )
         if case_id is None:
             # A present but invalid case ID is already reported as INVALID_ATTRIBUTE.
@@ -146,7 +168,9 @@ class _TraceWalk:
 
     def _visit_tool(self, span: Span, current: _OpenCase | None, is_broken_chain: bool) -> None:
         if current is not None:
-            current.tool_calls.append(_to_tool_call(span, self.mapping, self.issues))
+            current.tool_calls.append(
+                _to_tool_call(span, self.mapping, self.issues, self.reported_long)
+            )
             return
         self.orphan_count += 1
         kind = IssueKind.BROKEN_PARENT_CHAIN if is_broken_chain else IssueKind.ORPHAN_TOOL_SPAN
@@ -177,7 +201,9 @@ def _classify(span: Span, operation: OperationConfig) -> Literal["agent", "tool"
     return None
 
 
-def _to_tool_call(span: Span, mapping: MappingConfig, issues: list[Issue]) -> ToolCall:
+def _to_tool_call(
+    span: Span, mapping: MappingConfig, issues: list[Issue], reported_long: _ReportedLong
+) -> ToolCall:
     subject = f"{span.trace_id}/{span.span_id}"
     raw_name = span.attributes.get(mapping.tool_name)
     tool_name = ""
@@ -211,7 +237,7 @@ def _to_tool_call(span: Span, mapping: MappingConfig, issues: list[Issue]) -> To
         )
     return ToolCall(
         span_id=span.span_id,
-        tool_name=tool_name,
+        tool_name=_shorten(tool_name, mapping.tool_name, subject, issues, reported_long) or "",
         arguments=arguments,
         start_ns=span.start_ns,
         end_ns=span.end_ns,
@@ -224,14 +250,17 @@ def _close_case(
     mapping: MappingConfig,
     issues: list[Issue],
     reported_resource_values: set[tuple[str, str]],
+    reported_long: _ReportedLong,
 ) -> TraceCase:
     root = case.root
     subject = case.case_id
     prompt_version = _read_root_or_resource(
-        root, mapping.prompt_version, subject, issues, reported_resource_values
+        root, mapping.prompt_version, subject, issues, reported_resource_values, reported_long
     )
     if prompt_version is None and mapping.prompt_version_lookup == "descendant":
-        prompt_version = _read_descendant_version(case, mapping.prompt_version, issues)
+        prompt_version = _read_descendant_version(
+            case, mapping.prompt_version, issues, reported_long
+        )
     is_incomplete = case.orphan_count > 0
     if is_incomplete:
         issues.append(
@@ -248,10 +277,14 @@ def _close_case(
         start_ns=root.start_ns,
         end_ns=root.end_ns,
         alert_class=_read_root_or_resource(
-            root, mapping.alert_class, subject, issues, reported_resource_values
+            root, mapping.alert_class, subject, issues, reported_resource_values, reported_long
         ),
-        agent_label=_to_text(
-            root.attributes.get(mapping.verdict), subject, mapping.verdict, issues
+        agent_label=_shorten(
+            _to_text(root.attributes.get(mapping.verdict), subject, mapping.verdict, issues),
+            mapping.verdict,
+            subject,
+            issues,
+            reported_long,
         ),
         prompt_version=prompt_version,
         tool_calls=tuple(sorted(case.tool_calls, key=lambda call: (call.start_ns, call.span_id))),
@@ -265,10 +298,11 @@ def _read_root_or_resource(
     subject: str,
     issues: list[Issue],
     reported_resource_values: set[tuple[str, str]],
+    reported_long: _ReportedLong,
 ) -> str | None:
     value = _to_text(root.attributes.get(key), subject, key, issues)
     if value is not None:
-        return value
+        return _shorten(value, key, subject, issues, reported_long)
     raw = root.resource_attributes.get(key)
     found: list[Issue] = []
     value = _to_text(raw, "resource", key, found)
@@ -279,14 +313,22 @@ def _read_root_or_resource(
             Issue(issue.kind, issue.subject, f"{issue.detail}; first seen in trace {root.trace_id}")
             for issue in found
         )
-    return value
+    return _shorten(value, key, subject, issues, reported_long)
 
 
-def _read_descendant_version(case: _OpenCase, key: str, issues: list[Issue]) -> str | None:
+def _read_descendant_version(
+    case: _OpenCase, key: str, issues: list[Issue], reported_long: _ReportedLong
+) -> str | None:
     values: list[str] = []
     for span in sorted(case.descendants, key=_span_order):
-        value = _to_text(
-            span.attributes.get(key), case.case_id, f"{key} on span {span.span_id}", issues
+        value = _shorten(
+            _to_text(
+                span.attributes.get(key), case.case_id, f"{key} on span {span.span_id}", issues
+            ),
+            key,
+            case.case_id,
+            issues,
+            reported_long,
         )
         if value is not None:
             values.append(value)
@@ -318,6 +360,19 @@ def _to_text(value: object, subject: str, key: str, issues: list[Issue]) -> str 
         )
         return None
     return text.strip() or None
+
+
+def _shorten(
+    text: str | None, key: str, subject: str, issues: list[Issue], reported: _ReportedLong
+) -> str | None:
+    """`text` cut to the label limit, reported once per key and start; None stays None."""
+    if text is None:
+        return None
+    short = to_short_label(text)
+    if short is not text and (key, text[:REPORT_KEY_LENGTH]) not in reported:
+        reported.add((key, text[:REPORT_KEY_LENGTH]))
+        issues.append(Issue(IssueKind.INVALID_ATTRIBUTE, subject, f"{key} is {SHORTENED_DETAIL}"))
+    return short
 
 
 def _pick_latest_roots(candidates: list[_OpenCase], issues: list[Issue]) -> list[_OpenCase]:
