@@ -6,6 +6,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
+    "jinja2>=3.1",
     "pydantic>=2.7",
     "pyyaml>=6",
     "typer>=0.27.2",
@@ -40,8 +41,11 @@ extraPaths = ["tests", "scripts/synthetic"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts/synthetic"]
-addopts = "-m 'not benchmark'"
-markers = ["benchmark: performance gates; run with `uv run pytest -m benchmark`"]
+addopts = "-m 'not benchmark and not browser'"
+markers = [
+    "benchmark: performance gates; run with `uv run pytest -m benchmark`",
+    "browser: dashboard checks in a real browser; run by hand with `uv run pytest -m browser`",
+]
 
 [dependency-groups]
 dev = [
