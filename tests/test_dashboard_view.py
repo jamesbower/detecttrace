@@ -520,20 +520,6 @@ def test_a_class_filter_uses_the_class_index_in_the_strings_table() -> None:
     assert build_view(results()).cases.class_filters[0].class_index == 1
 
 
-def test_detail_outcomes_pass_through_to_the_script() -> None:
-    outcomes = [
-        {
-            "item": "signin",
-            "status": "missed",
-            "reason": "wrong_arguments",
-            "failed_rule": "tenant: equals",
-        }
-    ]
-    detail = [{"case_id": "C-1", "calls": [], "outcomes": outcomes}]
-    view = build_view(results(case_detail=detail))
-    assert view.cases.script_data["case_detail"] == detail
-
-
 # Schema
 
 

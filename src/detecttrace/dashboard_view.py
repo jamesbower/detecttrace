@@ -233,7 +233,6 @@ class CasesView:
     total_text: str
     detail_count_text: str
     class_filters: tuple[ClassFilterView, ...]
-    script_data: Mapping[str, object]  # what the case-table script reads, passed through as is
 
 
 @dataclass(frozen=True, slots=True)
@@ -741,11 +740,6 @@ def _to_cases_view(data: Any) -> CasesView:
             )
             for class_data in data["classes"]
         ),
-        script_data={
-            "schema_version": data["schema_version"],
-            "case_rows": case_rows,
-            "case_detail": detail,
-        },
     )
 
 

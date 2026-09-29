@@ -52,7 +52,7 @@ MAX_ARGUMENT_CHARS = 200
 UNKNOWN_VERDICT_CODE = -1
 GENERATED_BY_PREFIX = "detecttrace"
 # generated_by is the second key this module writes, so the head of the file is enough.
-_MARKER_READ_BYTES = 64 * 1024
+MARKER_READ_BYTES = 64 * 1024
 _JSON_WHITESPACE = " \t\n\r"
 
 
@@ -122,10 +122,18 @@ def write_results_json(results: Mapping[str, object], path: Path) -> None:
     """
     # Serialized before any file is created, so a ValueError leaves nothing behind.
     text = json.dumps(results, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    write_text_atomically(text + "\n", path)
+
+
+def write_text_atomically(text: str, path: Path) -> None:
+    """Write `text` as UTF-8 to a temporary file beside `path`, then move it into place.
+
+    A reader never sees a half-written file, and a failed write leaves `path` as it was.
+    """
     handle, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as file:
-            file.write(text + "\n")
+            file.write(text)
         # mkstemp creates the file owner-only; give it the mode a plain open() would.
         os.chmod(temp_name, 0o666 & ~_UMASK)
         os.replace(temp_name, path)
@@ -144,7 +152,7 @@ def is_results_file(path: Path) -> bool:
     if not stat.S_ISREG(path.stat().st_mode):
         return False
     with path.open("rb") as file:
-        head = file.read(_MARKER_READ_BYTES)
+        head = file.read(MARKER_READ_BYTES)
     generated_by = _read_generated_by(head.decode("utf-8", errors="replace"))
     return generated_by is not None and generated_by.startswith(GENERATED_BY_PREFIX)
 

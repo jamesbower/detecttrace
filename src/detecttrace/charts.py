@@ -187,7 +187,7 @@ def _lay_out_series(item: SeriesInput, order: Sequence[int], to_x, to_y) -> Char
         point = (to_x(position), to_y(value))
         current.append(point)
         if item.style != "all":
-            markers.append(_create_marker(item.style, point, item.counts[index] < FEW_CASES))
+            markers.append(create_marker(item.style, *point, is_few=item.counts[index] < FEW_CASES))
     if current:
         segments.append(current)
     # A lone point has no line to draw; its marker stands for it.
@@ -197,18 +197,18 @@ def _lay_out_series(item: SeriesInput, order: Sequence[int], to_x, to_y) -> Char
     return ChartSeries(style=item.style, path=path, markers=tuple(markers))
 
 
-def _create_marker(style: str, point: tuple[float, float], is_few: bool) -> Marker:
+def create_marker(
+    style: str, x: float, y: float, *, is_few: bool = False, radius: float = MARKER_RADIUS
+) -> Marker:
+    """The marker for a style key centred on (x, y); legends use it with a smaller radius."""
     shape = SHAPE_BY_STYLE[style]
-    x, y = point
     offsets = _POLYGONS.get(shape, ())
     return Marker(
         shape=shape,
         x=x,
         y=y,
-        r=MARKER_RADIUS,
-        points=tuple(
-            (_round(x + dx * MARKER_RADIUS), _round(y + dy * MARKER_RADIUS)) for dx, dy in offsets
-        ),
+        r=radius,
+        points=tuple((_round(x + dx * radius), _round(y + dy * radius)) for dx, dy in offsets),
         is_few=is_few,
     )
 
