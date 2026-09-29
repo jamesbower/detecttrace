@@ -1,5 +1,6 @@
 """One full run: read the inputs named by the configuration and build the results object."""
 
+import gc
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,8 +41,17 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
             f"No checklist files (*.yaml, *.yml) found under {config.checklists}. "
             f"Check checklists in {config_path.name}."
         )
-    spans, issues = load_spans(config.traces.path)
-    trace_cases, case_issues = build_trace_cases(spans, config.mapping)
+    # Loading allocates millions of small objects that all live until the run ends, so the
+    # collector's repeated scans of them find nothing to free; pausing it cut the
+    # 50,000-case run by about a third for a few percent more peak memory.
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        spans, issues = load_spans(config.traces.path)
+        trace_cases, case_issues = build_trace_cases(spans, config.mapping)
+    finally:
+        if was_enabled:
+            gc.enable()
     issues.extend(case_issues)
     verdict_rows, verdict_issues = read_verdicts(config.verdicts.path)
     issues.extend(verdict_issues)

@@ -1,12 +1,20 @@
+import gc
+import shutil
 from pathlib import Path
 
+import generate
+import pytest
 from builders import RUN_CONFIG, RUN_VERDICTS, run_trace, write_jsonl, write_run_folder
 
+from detecttrace import pipeline
 from detecttrace.model import IssueKind
+from detecttrace.otlp import TraceFileError
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
 from detecttrace.summary import JoinCoverage
+
+DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 
 
 def _run(config_path: Path) -> RunResult:
@@ -195,3 +203,33 @@ def test_results_with_lone_surrogates_in_the_input_can_be_written(tmp_path: Path
     write_results_json(result.results, tmp_path / "out.json")
 
     assert "DT-\ufffd" in (tmp_path / "out.json").read_text(encoding="utf-8")
+
+
+def test_garbage_collector_is_on_after_a_run(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+
+    _run(config_path)
+
+    assert gc.isenabled()
+
+
+def test_garbage_collector_is_on_after_loading_fails(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    shutil.rmtree(tmp_path / "traces")
+
+    with pytest.raises(TraceFileError):
+        _run(config_path)
+
+    assert gc.isenabled()
+
+
+def test_pausing_the_garbage_collector_leaves_the_demo_results_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = DEMO_DIR / "detecttrace.yaml"
+    paused = _run(config_path).results
+    monkeypatch.setattr(pipeline.gc, "disable", lambda: None)
+
+    unpaused = _run(config_path).results
+
+    assert unpaused == paused
