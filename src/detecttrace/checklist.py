@@ -3,6 +3,7 @@
 import math
 import os
 import re
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_core import ErrorDetails
 from yaml.composer import ComposerError
 from yaml.constructor import ConstructorError, SafeConstructor
 from yaml.events import AliasEvent
@@ -24,12 +26,16 @@ from yaml.nodes import MappingNode, Node, ScalarNode
 
 from detecttrace.config import normalize_label
 from detecttrace.durations import parse_duration
-from detecttrace.model import InputFileError
+from detecttrace.model import InputFileError, describe_os_error
 
 # [0-9] rather than \d: \d also matches non-ASCII digits, which int() would accept.
 _PATH = re.compile(r"[^.\[\]]+((?:\.[^.\[\]]+|\[[0-9]+\])*)")
 _PATH_PART = re.compile(r"\.([^.\[\]]+)|\[([0-9]+)\]")
 _YAML_SUFFIXES = (".yaml", ".yml")
+# Real checklists are a few KB, and PyYAML's pure-Python parser takes seconds per megabyte.
+_MAX_FILE_BYTES = 1 << 20
+_MAX_ECHO_CHARS = 60
+_JSON_VALUE_TAGS = frozenset({"list", "dict", "str", "bool", "int", "float"})
 
 
 class ChecklistFileError(InputFileError):
@@ -43,7 +49,7 @@ def parse_path(text: str) -> tuple[str | int, ...]:
     match = _PATH.fullmatch(text)
     if match is None:
         raise ValueError(
-            f"path '{text}' is not valid; use '$' or dot notation with list indexes, like a.b[0]"
+            f"path '{_shorten(text)}' is not valid; use '$' or dot notation with list indexes, like a.b[0]"
         )
     first = text[: match.start(1)]
     parts: list[str | int] = [first]
@@ -66,6 +72,14 @@ class ArgRule(BaseModel):
     start: str | None = None
     end: str | None = None
 
+    @field_validator("equals", "in_")
+    @classmethod
+    def _check_no_nan(cls, value: JsonValue) -> JsonValue:
+        # Arguments are compared strictly, and NaN never equals anything, so the rule could never pass.
+        if _contains_nan(value):
+            raise ValueError("NaN never matches any argument value; remove it")
+        return value
+
     @field_validator("matches")
     @classmethod
     def _check_regex(cls, value: str | None) -> str | None:
@@ -80,7 +94,9 @@ class ArgRule(BaseModel):
     @classmethod
     def _check_duration(cls, value: str | None) -> str | None:
         if value is not None and parse_duration(value) is None:
-            raise ValueError(f"'{value}' is not a duration; use a form like 24h, 7d or PT24H")
+            raise ValueError(
+                f"'{_shorten(value)}' is not a duration; use a form like 24h, 7d or PT24H"
+            )
         return value
 
     @field_validator("min", "max", mode="before")
@@ -165,7 +181,7 @@ class Checklist(BaseModel):
         seen: set[str] = set()
         for item in value:
             if item.id in seen:
-                raise ValueError(f"duplicate item id '{item.id}'")
+                raise ValueError(f"duplicate item id '{_shorten(item.id)}'")
             seen.add(item.id)
         return value
 
@@ -188,7 +204,7 @@ def load_checklists(path: Path) -> dict[str, Checklist]:
         key = normalize_label(checklist.alert_class)
         if key in sources:
             raise ChecklistFileError(
-                f"{subject}: alert class '{checklist.alert_class}' already has a checklist "
+                f"{subject}: alert class '{_shorten(checklist.alert_class)}' already has a checklist "
                 f"in {sources[key]}. Keep one file per alert class."
             )
         sources[key] = subject
@@ -205,11 +221,13 @@ def _list_checklist_files(path: Path) -> list[tuple[Path, str]]:
         folder = Path(error.filename)
         subject = "." if folder == path else folder.relative_to(path).as_posix()
         raise ChecklistFileError(
-            f"{subject}: checklist folder cannot be read: {_describe_os_error(error)}"
+            f"{subject}: checklist folder cannot be read: {describe_os_error(error)}"
         )
 
     files: list[tuple[Path, str]] = []
     # os.walk, not Path.rglob: rglob on 3.11 silently skips folders it cannot list.
+    # Symlinked subfolders are not followed (os.walk's default), as in the trace loader,
+    # so a link back to a parent folder cannot loop forever.
     for folder, folder_names, file_names in os.walk(path, onerror=report):
         folder_names[:] = sorted(name for name in folder_names if not name.startswith("."))
         for name in file_names:
@@ -222,15 +240,22 @@ def _list_checklist_files(path: Path) -> list[tuple[Path, str]]:
 
 def _load_file(file_path: Path, subject: str) -> Checklist:
     try:
+        # One stat for both checks; like Path.is_file() it follows symlinks, and it keeps a
+        # FIFO or device named *.yaml from blocking or streaming forever.
+        status = file_path.stat()
+        if not stat.S_ISREG(status.st_mode):
+            raise ChecklistFileError(f"{subject}: not a regular file")
+        if status.st_size > _MAX_FILE_BYTES:
+            raise ChecklistFileError(f"{subject}: larger than 1 MiB; checklists are a few KB")
         text = file_path.read_bytes().decode("utf-8-sig")
     except OSError as error:
-        raise ChecklistFileError(
-            f"{subject}: cannot be read: {_describe_os_error(error)}"
-        ) from None
+        raise ChecklistFileError(f"{subject}: cannot be read: {describe_os_error(error)}") from None
     except UnicodeDecodeError:
         raise ChecklistFileError(f"{subject}: not valid UTF-8 text") from None
     try:
         document = yaml.load(text, Loader=_CoreSchemaLoader)
+    except RecursionError:
+        raise ChecklistFileError(f"{subject}: nested too deeply") from None
     except yaml.MarkedYAMLError as error:
         where = f" (line {error.problem_mark.line + 1})" if error.problem_mark else ""
         reason = error.problem or error.context or "invalid YAML"
@@ -248,15 +273,45 @@ def _load_file(file_path: Path, subject: str) -> Checklist:
         raise ChecklistFileError(f"{subject}: invalid checklist\n  " + "\n  ".join(lines)) from None
 
 
-def _describe_validation_error(detail: Any) -> str:
+def _describe_validation_error(detail: ErrorDetails) -> str:
     message = str(detail["msg"]).removeprefix("Value error, ")
-    location = ".".join(str(part) for part in detail["loc"])
+    location = ".".join(str(part) for part in _drop_json_value_tags(detail["loc"]))
     return f"{location}: {message}" if location else message
 
 
-def _describe_os_error(error: OSError) -> str:
-    # str(error) embeds the absolute path, which must not reach the dashboard.
-    return error.strerror or type(error).__name__
+def _drop_json_value_tags(location: tuple[int | str, ...]) -> list[int | str]:
+    # JsonValue is a tagged union, so Pydantic puts a type tag such as "dict" before every key
+    # or index inside `equals` and `in` values. Tags and keys alternate, so a user key that
+    # happens to be named "dict" is kept.
+    parts = list(location)
+    if len(parts) < 5 or parts[0] != "items" or parts[2] != "args":
+        return parts
+    start = {"equals": 5, "in": 6}.get(str(parts[4]))
+    if start is None:
+        return parts
+    inner = [
+        part
+        for offset, part in enumerate(parts[start:])
+        if offset % 2 or part not in _JSON_VALUE_TAGS
+    ]
+    return parts[:start] + inner
+
+
+def _contains_nan(value: JsonValue) -> bool:
+    if isinstance(value, float):
+        return math.isnan(value)
+    if isinstance(value, list):
+        return any(_contains_nan(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_nan(item) for item in value.values())
+    return False
+
+
+def _shorten(text: str) -> str:
+    # Values are echoed in error messages; a long one would bury the reason.
+    if len(text) <= _MAX_ECHO_CHARS:
+        return text
+    return text[:_MAX_ECHO_CHARS] + "…"
 
 
 def _yaml_name(field_name: str) -> str:
@@ -302,25 +357,56 @@ class _CoreSchemaLoader(yaml.SafeLoader):
             except TypeError:
                 continue  # SafeConstructor reports the unhashable key.
             if is_duplicate:
-                raise ConstructorError(None, None, f"duplicate key '{key}'", key_node.start_mark)
+                raise ConstructorError(
+                    None, None, f"duplicate key '{_shorten(str(key))}'", key_node.start_mark
+                )
             seen.add(key)
         return super().construct_mapping(node, deep=deep)
 
+    # The constructors re-check the text because an explicit tag such as `!!int` skips the
+    # implicit resolvers, and Python's parsers accept YAML 1.1 forms like 1_000 and infinity.
+
+    def construct_core_bool(self, node: ScalarNode) -> bool:
+        text = str(self.construct_scalar(node))
+        if not _BOOL.match(text):
+            raise ConstructorError(
+                None,
+                None,
+                f"'{_shorten(text)}' is not a boolean; use true or false",
+                node.start_mark,
+            )
+        return text.lower() == "true"
+
     def construct_core_int(self, node: ScalarNode) -> int:
         text = str(self.construct_scalar(node))
-        if text.startswith("0o"):
-            return int(text[2:], 8)
-        if text.startswith("0x"):
-            return int(text[2:], 16)
-        return int(text)
+        if not _INT.match(text):
+            raise ConstructorError(
+                None, None, f"'{_shorten(text)}' is not an integer", node.start_mark
+            )
+        try:
+            if text.startswith("0o"):
+                return int(text[2:], 8)
+            if text.startswith("0x"):
+                return int(text[2:], 16)
+            return int(text)
+        except ValueError:
+            # Python refuses decimal strings over 4300 digits.
+            raise ConstructorError(
+                None, None, "integer has too many digits", node.start_mark
+            ) from None
 
     def construct_core_float(self, node: ScalarNode) -> float:
-        text = str(self.construct_scalar(node)).lower()
-        if text.endswith(".inf"):
-            return -math.inf if text.startswith("-") else math.inf
-        if text == ".nan":
+        text = str(self.construct_scalar(node))
+        if not _FLOAT.match(text):
+            raise ConstructorError(
+                None, None, f"'{_shorten(text)}' is not a float", node.start_mark
+            )
+        lowered = text.lower()
+        if lowered.endswith(".inf"):
+            return -math.inf if lowered.startswith("-") else math.inf
+        if lowered == ".nan":
             return math.nan
-        return float(text)
+        return float(lowered)
 
 
 _CoreSchemaLoader.add_implicit_resolver("tag:yaml.org,2002:bool", _BOOL, list("tTfF"))
@@ -331,7 +417,7 @@ _CoreSchemaLoader.add_implicit_resolver("tag:yaml.org,2002:float", _FLOAT, list(
 # Only JSON types: explicit tags such as !!timestamp, !!binary or !!set fail as undefined.
 _CoreSchemaLoader.yaml_constructors = {
     "tag:yaml.org,2002:null": SafeConstructor.construct_yaml_null,
-    "tag:yaml.org,2002:bool": SafeConstructor.construct_yaml_bool,
+    "tag:yaml.org,2002:bool": _CoreSchemaLoader.construct_core_bool,
     "tag:yaml.org,2002:int": _CoreSchemaLoader.construct_core_int,
     "tag:yaml.org,2002:float": _CoreSchemaLoader.construct_core_float,
     "tag:yaml.org,2002:str": SafeConstructor.construct_yaml_str,

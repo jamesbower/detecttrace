@@ -10,6 +10,11 @@ class InputFileError(Exception):
     """Input the run cannot use at all; the CLI exits 1."""
 
 
+def describe_os_error(error: OSError) -> str:
+    """Describe a file system error without the path, which must not reach the dashboard."""
+    return error.strerror or type(error).__name__
+
+
 class Verdict(StrEnum):
     TRUE_POSITIVE = "true_positive"
     FALSE_POSITIVE = "false_positive"

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from detecttrace.checklist import ChecklistFileError, load_checklists, parse_path
+from detecttrace.checklist import ArgRule, ChecklistFileError, load_checklists, parse_path
 from detecttrace.model import InputFileError
 
 needs_permissions = pytest.mark.skipif(
@@ -55,9 +55,15 @@ def _one_item(args: str) -> str:
     return f"alert_class: phishing\nitems:\n  - id: a\n    tool: t\n    args:\n{args}"
 
 
-def _rule(tmp_path: Path, rule: str):
+def _rule(tmp_path: Path, rule: str) -> ArgRule:
     path = _write(tmp_path, "c.yaml", _one_item(f"      x: {rule}\n"))
     return load_checklists(path)["phishing"].items[0].args["x"]
+
+
+def _load_error(path: Path) -> str:
+    with pytest.raises(ChecklistFileError) as error:
+        load_checklists(path)
+    return str(error.value)
 
 
 # Loading
@@ -150,18 +156,20 @@ def test_duplicate_yaml_key_raises(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "text",
+    ("text", "location"),
     [
-        "alert_class: phishing\nitems:\n  - {id: a, too: t}\n",
-        _one_item("      x: { regex: a }\n"),
-        "alert_class: phishing\nitems:\n  - {id: a, tool: t}\nextra: 1\n",
-        _one_item("      x: { in_: [a] }\n"),
+        ("alert_class: phishing\nitems:\n  - {id: a, too: t}\n", "items.0.too"),
+        (_one_item("      x: { regex: a }\n"), "items.0.args.x.regex"),
+        ("alert_class: phishing\nitems:\n  - {id: a, tool: t}\nextra: 1\n", "extra"),
+        (_one_item("      x: { in_: [a] }\n"), "items.0.args.x.in_"),
     ],
     ids=["unknown-field", "unknown-rule", "unknown-top-level", "python-field-name"],
 )
-def test_unknown_field_or_rule_raises(tmp_path: Path, text: str) -> None:
+def test_unknown_field_or_rule_raises(tmp_path: Path, text: str, location: str) -> None:
     path = _write(tmp_path, "c.yaml", text)
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(
+        ChecklistFileError, match=rf"(?s)c\.yaml: invalid checklist\n.*{location}: Extra inputs"
+    ):
         load_checklists(path)
 
 
@@ -212,7 +220,7 @@ def test_two_files_for_the_same_class_name_both_files(tmp_path: Path) -> None:
 @pytest.mark.parametrize("text", ["- a\n- b\n", "", "# only a comment\n", "just text\n"])
 def test_top_level_that_is_not_a_mapping_raises(tmp_path: Path, text: str) -> None:
     path = _write(tmp_path, "c.yaml", text)
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: expected a mapping"):
         load_checklists(path)
 
 
@@ -230,7 +238,14 @@ def test_folder_named_like_a_yaml_file_is_read_as_a_folder(tmp_path: Path) -> No
 
 def test_broken_symlink_raises(tmp_path: Path) -> None:
     (tmp_path / "c.yaml").symlink_to(tmp_path / "missing.yaml")
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: cannot be read"):
+        load_checklists(tmp_path)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+def test_named_pipe_is_not_read(tmp_path: Path) -> None:
+    os.mkfifo(tmp_path / "c.yaml")
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: not a regular file"):
         load_checklists(tmp_path)
 
 
@@ -238,7 +253,7 @@ def test_broken_symlink_raises(tmp_path: Path) -> None:
 def test_unreadable_file_raises(tmp_path: Path) -> None:
     path = _write(tmp_path, "c.yaml", "alert_class: phishing\nitems:\n  - {id: a, tool: t}\n")
     path.chmod(0)
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: cannot be read"):
         load_checklists(tmp_path)
 
 
@@ -258,6 +273,25 @@ def test_pydantic_errors_are_condensed_to_location_and_message(tmp_path: Path) -
     path = _write(tmp_path, "c.yaml", _one_item("      x: { min: '24' }\n"))
     with pytest.raises(ChecklistFileError, match=r"items\.0\.args\.x\.min: "):
         load_checklists(path)
+
+
+@pytest.mark.parametrize(
+    ("rule", "location"),
+    [
+        ("{ equals: {1: a} }", "x.equals.1.[key]"),
+        ("{ in: [b, {1: a}] }", "x.in.1.1.[key]"),
+        ("{ equals: [{list: {1: a}}] }", "x.equals.0.list.1.[key]"),
+    ],
+    ids=["equals", "in", "nested-key-named-like-a-tag"],
+)
+def test_error_locations_leave_out_json_type_tags(tmp_path: Path, rule: str, location: str) -> None:
+    path = _write(tmp_path, "c.yaml", _one_item(f"      x: {rule}\n"))
+    assert f"items.0.args.{location}: " in _load_error(path)
+
+
+def test_echoed_values_are_shortened(tmp_path: Path) -> None:
+    path = _write(tmp_path, "c.yaml", _one_item(f"      x: {{ min_duration: {'x' * 100_000} }}\n"))
+    assert len(_load_error(path)) < 500
 
 
 # Hostile input
@@ -282,27 +316,71 @@ def test_yaml_aliases_are_rejected(tmp_path: Path) -> None:
 
 def test_explicit_timestamp_tag_is_rejected(tmp_path: Path) -> None:
     path = _write(tmp_path, "c.yaml", _one_item("      x: { equals: !!timestamp 2026-09-01 }\n"))
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: could not determine a constructor"):
         load_checklists(path)
 
 
 def test_python_object_tag_is_rejected(tmp_path: Path) -> None:
     path = _write(tmp_path, "c.yaml", "!!python/object/apply:os.system [echo hi]\n")
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: could not determine a constructor"):
         load_checklists(path)
 
 
-def test_five_megabyte_file_loads(tmp_path: Path) -> None:
-    value = "x" * 5_000_000
-    rule = _rule(tmp_path, f"{{ equals: {value} }}")
-    assert rule.equals == value
-
-
-def test_five_megabyte_invalid_file_raises_a_short_error(tmp_path: Path) -> None:
-    path = _write(tmp_path, "c.yaml", "x" * 5_000_000)
-    with pytest.raises(ChecklistFileError) as error:
+@pytest.mark.parametrize(
+    ("value", "reason"),
+    [
+        ("!!int abc", "'abc' is not an integer"),
+        ("!!int 0x", "'0x' is not an integer"),
+        ("!!int 1_000", "'1_000' is not an integer"),
+        ("!!float abc", "'abc' is not a float"),
+        ("!!float infinity", "'infinity' is not a float"),
+        ("!!bool maybe", "'maybe' is not a boolean"),
+        ("!!bool yes", "'yes' is not a boolean"),
+        ("1" + "0" * 5000, "integer has too many digits"),
+        ("[" * 500 + "]" * 500, "nested too deeply"),
+    ],
+    ids=[
+        "int-letters",
+        "int-empty-hex",
+        "int-underscore",
+        "float-letters",
+        "float-infinity-word",
+        "bool-unknown",
+        "bool-yaml-11",
+        "int-too-long",
+        "deep-nesting",
+    ],
+)
+def test_unusable_scalar_or_nesting_raises(tmp_path: Path, value: str, reason: str) -> None:
+    path = _write(tmp_path, "c.yaml", _one_item(f"      x: {{ equals: {value} }}\n"))
+    with pytest.raises(ChecklistFileError, match=rf"c\.yaml: {reason}"):
         load_checklists(path)
-    assert len(str(error.value)) < 500
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("!!int 0x1A", 26), ("!!float 1", 1.0), ("!!bool FALSE", False), ("!!float -.inf", -math.inf)],
+)
+def test_explicit_core_tags_accept_yaml_12_forms(
+    tmp_path: Path, value: str, expected: object
+) -> None:
+    assert _rule(tmp_path, f"{{ equals: {value} }}").equals == expected
+
+
+def test_file_over_one_mebibyte_raises(tmp_path: Path) -> None:
+    path = _write(tmp_path, "c.yaml", _one_item(f"      x: {{ equals: {'x' * (1 << 20)} }}\n"))
+    with pytest.raises(ChecklistFileError, match=r"c\.yaml: larger than 1 MiB"):
+        load_checklists(path)
+
+
+def test_file_just_under_the_size_limit_loads(tmp_path: Path) -> None:
+    value = "x" * 900_000
+    assert _rule(tmp_path, f"{{ equals: {value} }}").equals == value
+
+
+def test_large_invalid_file_raises_a_short_error(tmp_path: Path) -> None:
+    path = _write(tmp_path, "c.yaml", "x" * 900_000)
+    assert len(_load_error(path)) < 500
 
 
 def test_catastrophic_regex_is_accepted_at_load(tmp_path: Path) -> None:
@@ -363,8 +441,11 @@ def test_core_schema_numbers_load(tmp_path: Path, text: str, expected: float) ->
     assert _rule(tmp_path, f"{{ equals: {text} }}").equals == expected
 
 
-def test_nan_loads_as_a_float(tmp_path: Path) -> None:
-    assert repr(_rule(tmp_path, "{ equals: .NaN }").equals) == "nan"
+@pytest.mark.parametrize("rule", ["{ equals: .NaN }", "{ equals: [1, .nan] }", "{ in: [a, .NAN] }"])
+def test_nan_in_equals_or_in_raises(tmp_path: Path, rule: str) -> None:
+    path = _write(tmp_path, "c.yaml", _one_item(f"      x: {rule}\n"))
+    with pytest.raises(ChecklistFileError, match="NaN never matches"):
+        load_checklists(path)
 
 
 def test_min_and_max_load(tmp_path: Path) -> None:
@@ -385,42 +466,53 @@ def test_kql_min_ago_loads(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "rule",
+    ("rule", "reason"),
     [
-        "{ matches: '(' }",
-        "{ min_duration: 24 }",
-        "{ min_duration: soon }",
-        "{ kql_min_ago: soon }",
-        "{ kql_min_ago: 24 }",
-        "{ min_duration: 24h, start: s }",
-        "{ min_duration: 24h, end: e }",
-        "{ equals: 1, start: s, end: e }",
-        "{ min_duration: 24h, start: 'a..b', end: e }",
-        "{ min: true }",
-        "{ min: '24' }",
-        "{ min: 48, max: 24 }",
-        "{ max: .nan }",
-        "{ exists: 'yes' }",
-        "{ exists: 1 }",
-        "{ in: a }",
-        "{ in: null }",
-        "{ matches: null }",
-        "{}",
-        "null",
+        ("{ matches: '(' }", "matches: not a valid regular expression"),
+        ("{ min_duration: 24 }", "min_duration: Input should be a valid string"),
+        ("{ min_duration: soon }", "min_duration: 'soon' is not a duration"),
+        ("{ kql_min_ago: soon }", "kql_min_ago: 'soon' is not a duration"),
+        ("{ kql_min_ago: 24 }", "kql_min_ago: Input should be a valid string"),
+        ("{ min_duration: 24h, start: s }", "'start' and 'end' must be given together"),
+        ("{ min_duration: 24h, end: e }", "'start' and 'end' must be given together"),
+        ("{ equals: 1, start: s, end: e }", "only used with 'min_duration'"),
+        ("{ min_duration: 24h, start: 'a..b', end: e }", "start: path 'a..b' is not valid"),
+        ("{ min: true }", "min: must be a number"),
+        ("{ min: '24' }", "min: must be a number"),
+        ("{ min: 48, max: 24 }", r"'min' \(48\) is greater than 'max' \(24\)"),
+        ("{ max: .nan }", "max: must be a number, not NaN"),
+        ("{ exists: 'yes' }", "exists: Input should be a valid boolean"),
+        ("{ exists: 1 }", "exists: Input should be a valid boolean"),
+        ("{ in: a }", "in: Input should be a valid list"),
+        ("{ in: null }", "'in' must not be null"),
+        ("{ matches: null }", "'matches' must not be null"),
+        ("{}", "no rule given"),
+        ("null", "Input should be a valid dictionary"),
     ],
 )
-def test_invalid_rule_raises(tmp_path: Path, rule: str) -> None:
+def test_invalid_rule_raises(tmp_path: Path, rule: str, reason: str) -> None:
     path = _write(tmp_path, "c.yaml", _one_item(f"      x: {rule}\n"))
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(ChecklistFileError, match=rf"c\.yaml: invalid checklist\n.*{reason}"):
         load_checklists(path)
 
 
 @pytest.mark.parametrize(
-    "key", ["'a..b'", "'a[x]'", "'[0]'", "''", "'a.'", "'a['", "'a]'", "'a[-1]'", "1"]
+    ("key", "reason"),
+    [
+        ("'a..b'", "path 'a..b' is not valid"),
+        ("'a[x]'", r"path 'a\[x\]' is not valid"),
+        ("'[0]'", r"path '\[0\]' is not valid"),
+        ("''", "path '' is not valid"),
+        ("'a.'", "path 'a.' is not valid"),
+        ("'a['", r"path 'a\[' is not valid"),
+        ("'a]'", r"path 'a\]' is not valid"),
+        ("'a[-1]'", r"path 'a\[-1\]' is not valid"),
+        ("1", "Input should be a valid string"),
+    ],
 )
-def test_bad_path_key_raises(tmp_path: Path, key: str) -> None:
+def test_bad_path_key_raises(tmp_path: Path, key: str, reason: str) -> None:
     path = _write(tmp_path, "c.yaml", _one_item(f"      {key}: {{ exists: true }}\n"))
-    with pytest.raises(ChecklistFileError, match=r"c\.yaml"):
+    with pytest.raises(ChecklistFileError, match=rf"c\.yaml: invalid checklist\n.*{reason}"):
         load_checklists(path)
 
 

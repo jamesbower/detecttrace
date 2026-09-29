@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, TypeVar
 
-from detecttrace.model import InputFileError, Issue, IssueKind, Span
+from detecttrace.model import InputFileError, Issue, IssueKind, Span, describe_os_error
 
 _GZIP_MAGIC = b"\x1f\x8b"
 _BOM = b"\xef\xbb\xbf"
@@ -83,11 +83,11 @@ def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]
         if folder == path:
             # An issue for "." would only be followed by a misleading "No trace files found".
             raise TraceFileError(
-                f"Trace folder {path} cannot be read: {_describe_os_error(error)}. "
+                f"Trace folder {path} cannot be read: {describe_os_error(error)}. "
                 "Check its permissions."
             )
         subject = folder.relative_to(path).as_posix()
-        issues.append(Issue(IssueKind.INVALID_FILE, subject, _describe_os_error(error)))
+        issues.append(Issue(IssueKind.INVALID_FILE, subject, describe_os_error(error)))
 
     files: list[tuple[Path, str]] = []
     # os.walk, not Path.rglob: rglob on 3.11 silently skips folders it cannot list.
@@ -113,7 +113,7 @@ def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]
                         )
                     )
             except OSError as error:
-                issues.append(Issue(IssueKind.INVALID_FILE, subject, _describe_os_error(error)))
+                issues.append(Issue(IssueKind.INVALID_FILE, subject, describe_os_error(error)))
     # POSIX form so Windows and Linux read files, and so pick duplicate winners, in the same order.
     return sorted(files, key=lambda item: item[1])
 
@@ -135,12 +135,7 @@ def _read_documents(
     except _COMPRESSION_ERRORS as error:
         issues.append(_compression_issue(error, subject))
     except OSError as error:
-        issues.append(Issue(IssueKind.INVALID_FILE, subject, _describe_os_error(error)))
-
-
-def _describe_os_error(error: OSError) -> str:
-    # str(error) embeds the absolute path, which must not reach the dashboard.
-    return error.strerror or type(error).__name__
+        issues.append(Issue(IssueKind.INVALID_FILE, subject, describe_os_error(error)))
 
 
 def _compression_issue(error: Exception, subject: str, suffix: str = "") -> Issue:
