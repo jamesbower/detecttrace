@@ -261,14 +261,17 @@ class SummaryLine:
     severity: Severity
     kind: IssueKind
     count: int
-    message: str  # the full sentence with count and fix hint, with the raw key
+    message: str  # the sentence with the count, without the fix hint, with the raw key
     terminal_message: str  # the same sentence, with the key made safe for a terminal
+    hint: str  # the fix hint, with the raw configuration file name
+    terminal_hint: str  # the same hint, with the file name made safe for a terminal
     examples: tuple[IssueExample, ...]  # up to 3, one per subject, raw
 
 
 @dataclass(frozen=True, slots=True)
 class CoverageLine:
     message: str  # ready for the terminal
+    hint: str | None  # ready for the terminal; set only when coverage is low
     is_low: bool
 
 
@@ -317,10 +320,10 @@ def summarize_issues(
             severity=SEVERITY[kind],
             kind=kind,
             count=group.count,
-            message=_render(kind, key, group.count, config_name),
-            terminal_message=_render(
-                kind, to_terminal_text(key), group.count, terminal_config_name
-            ),
+            message=_render_message(kind, key, group.count),
+            terminal_message=_render_message(kind, to_terminal_text(key), group.count),
+            hint=_render_hint(kind, key, config_name),
+            terminal_hint=_render_hint(kind, to_terminal_text(key), terminal_config_name),
             examples=tuple(group.examples),
         )
         for (kind, key), group in ordered
@@ -392,11 +395,15 @@ def _to_group_key(issue: Issue) -> str:
     return ""
 
 
-def _render(kind: IssueKind, key: str, count: int, config_name: str) -> str:
-    singular, plural, hint = _TEMPLATES[kind]
+def _render_message(kind: IssueKind, key: str, count: int) -> str:
+    singular, plural, _ = _TEMPLATES[kind]
     phrase = singular if count == 1 else plural
     # format() never re-reads substituted values, so braces in a label are safe.
-    return f"{count:,} {phrase}. {hint}".format(key=key, config=config_name)
+    return f"{count:,} {phrase}.".format(key=key)
+
+
+def _render_hint(kind: IssueKind, key: str, config_name: str) -> str:
+    return _TEMPLATES[kind][2].format(key=key, config=config_name)
 
 
 def _to_escape(char: str) -> str:
@@ -417,17 +424,15 @@ def _coverage_line(
 ) -> CoverageLine:
     noun = nouns[0] if total == 1 else nouns[1]
     if total == 0:
-        message = f"0 of 0 {noun} matched {other_side}: no {noun} were read."
-    else:
-        # Floored so a side just under half never shows as 50% next to the warning.
-        sentence = (
-            f"{matched:,} of {total:,} {noun} matched {other_side} ({matched * 100 // total}%)."
+        return CoverageLine(
+            f"0 of 0 {noun} matched {other_side}: no {noun} were read.", None, False
         )
-        if is_low_coverage(matched, total):
-            message = (
-                f"WARNING: {sentence} Less than half matched, so the results may be misleading; "
-                f"check mapping.case_id in {to_terminal_text(config_name)}."
-            )
-        else:
-            message = sentence
-    return CoverageLine(message, is_low_coverage(matched, total))
+    # Floored so a side just under half never shows as 50% next to the warning.
+    sentence = f"{matched:,} of {total:,} {noun} matched {other_side} ({matched * 100 // total}%)."
+    if not is_low_coverage(matched, total):
+        return CoverageLine(sentence, None, False)
+    return CoverageLine(
+        f"WARNING: {sentence} Less than half matched, so the results may be misleading.",
+        f"Check mapping.case_id in {to_terminal_text(config_name)}.",
+        True,
+    )

@@ -778,10 +778,7 @@ def test_unknown_tool_reaches_the_summary_grouped_under_its_name() -> None:
 
     [line] = summarize_issues(compute_metrics(cases, checklists)[1])
 
-    assert line.message == (
-        "2 checklist items require the tool 'ghost', which no case calls. "
-        "Check the tool name's spelling in the checklist."
-    )
+    assert line.message == "2 checklist items require the tool 'ghost', which no case calls."
 
 
 def test_unknown_tool_with_a_newline_in_its_name_keeps_the_whole_name() -> None:

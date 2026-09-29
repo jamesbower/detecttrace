@@ -42,8 +42,10 @@ NOTE = SummaryLine(
     severity=Severity.WARNING,
     kind=IssueKind.DUPLICATE_VERDICT,
     count=2,
-    message="2 duplicate verdict rows. Keep one row per case.",
-    terminal_message="2 duplicate verdict rows. Keep one row per case.",
+    message="2 duplicate verdict rows.",
+    terminal_message="2 duplicate verdict rows.",
+    hint="Keep one row per case.",
+    terminal_hint="Keep one row per case.",
     examples=(IssueExample("DT-1", "lines 2, 3"), IssueExample("DT-2", None)),
 )
 
@@ -173,7 +175,8 @@ def test_data_notes_carry_every_summary_line_field():
             "severity": "warning",
             "kind": "duplicate_verdict",
             "count": 2,
-            "message": "2 duplicate verdict rows. Keep one row per case.",
+            "message": "2 duplicate verdict rows.",
+            "hint": "Keep one row per case.",
             "examples": [
                 {"subject": "DT-1", "detail": "lines 2, 3"},
                 {"subject": "DT-2", "detail": None},

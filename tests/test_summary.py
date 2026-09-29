@@ -112,8 +112,25 @@ def test_every_kind_ends_a_sentence(kind: IssueKind) -> None:
 
 
 @pytest.mark.parametrize("kind", list(IssueKind))
-def test_every_kind_has_a_hint_sentence_after_the_count(kind: IssueKind) -> None:
-    assert ". " in only_line([Issue(kind, "a.jsonl", "x")]).message
+def test_every_kind_has_a_hint_sentence(kind: IssueKind) -> None:
+    assert only_line([Issue(kind, "a.jsonl", "x")]).hint.endswith(".")
+
+
+@pytest.mark.parametrize("kind", list(IssueKind))
+def test_every_kind_hint_renders_without_placeholders(kind: IssueKind) -> None:
+    assert "{" not in only_line([Issue(kind, "a.jsonl", "lookup_ip")]).hint
+
+
+@pytest.mark.parametrize("kind", list(IssueKind))
+def test_every_kind_message_leaves_out_the_hint(kind: IssueKind) -> None:
+    line = only_line([Issue(kind, "a.jsonl", "x")])
+    assert line.hint not in line.message
+
+
+@pytest.mark.parametrize("kind", list(IssueKind))
+def test_every_kind_terminal_message_leaves_out_the_hint(kind: IssueKind) -> None:
+    line = only_line([Issue(kind, "a.jsonl", "x")])
+    assert line.terminal_hint not in line.terminal_message
 
 
 # Escaped so a search of the code for private-document references stays clean.
@@ -126,6 +143,12 @@ def test_messages_do_not_reference_private_documents(kind: IssueKind, marker: st
     assert marker not in only_line([Issue(kind, "a.jsonl", "x")]).message
 
 
+@pytest.mark.parametrize("kind", list(IssueKind))
+@pytest.mark.parametrize("marker", PRIVATE_DOCUMENT_MARKERS)
+def test_hints_do_not_reference_private_documents(kind: IssueKind, marker: str) -> None:
+    assert marker not in only_line([Issue(kind, "a.jsonl", "x")]).hint
+
+
 def test_unmapped_labels_give_one_line_per_label() -> None:
     lines = summarize_issues(unmapped("Escalated", 12) + unmapped("Pending", 3))
     assert len(lines) == 2
@@ -133,20 +156,22 @@ def test_unmapped_labels_give_one_line_per_label() -> None:
 
 def test_unmapped_label_message_counts_what_it_is_about() -> None:
     lines = summarize_issues(unmapped("Escalated", 12) + unmapped("Pending", 3))
-    assert lines[0].message == (
-        "12 verdicts use the label 'Escalated', which has no mapping. "
-        "Add it to label_map in detecttrace.yaml."
-    )
+    assert lines[0].message == "12 verdicts use the label 'Escalated', which has no mapping."
+
+
+def test_unmapped_label_hint_names_the_setting_to_change() -> None:
+    lines = summarize_issues(unmapped("Escalated", 12))
+    assert lines[0].hint == "Add it to label_map in detecttrace.yaml."
 
 
 def test_config_name_is_used_when_given() -> None:
     [line] = summarize_issues(unmapped("Escalated", 1), config_name="prod.yaml")
-    assert line.message.endswith("Add it to label_map in prod.yaml.")
+    assert line.hint == "Add it to label_map in prod.yaml."
 
 
 def test_missing_tool_name_points_at_the_mapping() -> None:
     [line] = summarize_issues([Issue(IssueKind.MISSING_TOOL_NAME, "t/1")], config_name="prod.yaml")
-    assert line.message.endswith(
+    assert line.hint == (
         "Set the tool name attribute (mapping.tool_name in prod.yaml) on every tool span."
     )
 
@@ -284,7 +309,12 @@ def test_terminal_message_shortens_a_long_key() -> None:
 
 def test_terminal_message_escapes_the_config_name() -> None:
     [line] = summarize_issues(unmapped("Escalated", 1), config_name="a\x1b.yaml")
-    assert line.terminal_message.endswith("Add it to label_map in a\\x1b.yaml.")
+    assert line.terminal_hint == "Add it to label_map in a\\x1b.yaml."
+
+
+def test_hint_keeps_the_raw_config_name_for_the_results() -> None:
+    [line] = summarize_issues(unmapped("Escalated", 1), config_name="a\x1b.yaml")
+    assert line.hint == "Add it to label_map in a\x1b.yaml."
 
 
 def test_terminal_text_keeps_printable_text() -> None:
@@ -413,8 +443,18 @@ def test_low_verdict_coverage_shows_a_warning() -> None:
     [verdicts, _] = coverage_lines(JoinCoverage(412, 1030, 412, 412))
     assert verdicts.message == (
         "WARNING: 412 of 1,030 verdicts matched a trace (40%). Less than half matched, so the "
-        "results may be misleading; check mapping.case_id in detecttrace.yaml."
+        "results may be misleading."
     )
+
+
+def test_low_coverage_hint_points_at_the_case_id_mapping() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(412, 1030, 412, 412))
+    assert verdicts.hint == "Check mapping.case_id in detecttrace.yaml."
+
+
+def test_coverage_without_a_warning_has_no_hint() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(515, 1030, 515, 515))
+    assert verdicts.hint is None
 
 
 def test_low_trace_coverage_shows_a_warning() -> None:
@@ -466,4 +506,9 @@ def test_coverage_with_nothing_read_is_not_low() -> None:
 
 def test_coverage_hint_uses_the_config_name() -> None:
     [verdicts, _] = coverage_lines(JoinCoverage(1, 3, 1, 1), config_name="prod.yaml")
-    assert verdicts.message.endswith("check mapping.case_id in prod.yaml.")
+    assert verdicts.hint == "Check mapping.case_id in prod.yaml."
+
+
+def test_coverage_hint_escapes_the_config_name() -> None:
+    [verdicts, _] = coverage_lines(JoinCoverage(1, 3, 1, 1), config_name="a\x1b.yaml")
+    assert verdicts.hint == "Check mapping.case_id in a\\x1b.yaml."

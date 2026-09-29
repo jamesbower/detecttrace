@@ -257,13 +257,14 @@ def _echo_classes(run: RunResult) -> None:
 
 def _echo_summary(run: RunResult, config_name: str, *, is_err: bool) -> None:
     for line in coverage_lines(run.coverage, config_name):
-        typer.echo(line.message, err=is_err)
+        text = line.message if line.hint is None else f"{line.message} {line.hint}"
+        typer.echo(text, err=is_err)
     _echo_summary_lines(run.summary, is_err=is_err)
 
 
 def _echo_summary_lines(lines: list[SummaryLine], *, is_err: bool) -> None:
     for line in lines:
-        typer.echo(line.terminal_message, err=is_err)
+        typer.echo(f"{line.terminal_message} {line.terminal_hint}", err=is_err)
         for example in line.examples:
             typer.echo(f"    {_to_example_text(example)}", err=is_err)
 

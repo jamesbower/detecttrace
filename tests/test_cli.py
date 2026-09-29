@@ -168,6 +168,28 @@ def test_low_join_coverage_prints_the_warning(tmp_path: Path) -> None:
     assert "WARNING: 3 of 7 verdicts matched a trace (42%)." in result.stdout
 
 
+def test_low_join_coverage_prints_the_hint_after_the_warning(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path, verdicts=RUN_VERDICTS + EXTRA_VERDICTS)
+
+    result = _check(config_path)
+
+    assert (
+        "so the results may be misleading. Check mapping.case_id in detecttrace.yaml.\n"
+        in result.stdout
+    )
+
+
+def test_a_summary_line_prints_its_hint_after_the_message(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path, verdicts=RUN_VERDICTS + "DT-9,impossible_travel,FP\n")
+
+    result = _check(config_path)
+
+    assert (
+        "1 verdict has no matching trace. Check mapping.case_id in detecttrace.yaml and that "
+        "the traces cover the same cases.\n" in result.stdout
+    )
+
+
 def test_invalid_checklist_exits_1(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
     (tmp_path / "checklists" / "impossible_travel.yaml").write_text("items: [", encoding="utf-8")

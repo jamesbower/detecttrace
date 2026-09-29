@@ -7,6 +7,9 @@ Likewise a trend point's `scope` says whether it covers all versions, one versio
 pooled group; its `version` is null for the first and last, so `version: null` alone never
 means "all versions" (with scope `version` it means "no version").
 
+Each `data_notes` entry keeps its fix hint apart from its message: `message` is the sentence with
+the count, `hint` says what to change, so a page can style the two differently. Both are raw text.
+
 Each `case_detail` entry holds `case_id`, `calls` and `outcomes`. `outcomes` lists the case's
 checklist items in checklist order, each as `item` (the item ID), `status` (`satisfied`,
 `failed` or `missed`), `reason` (`not_called` or `wrong_arguments` for a missed item, else null)
@@ -259,6 +262,7 @@ def _to_note_data(line: SummaryLine) -> dict[str, object]:
         "kind": line.kind.value,
         "count": line.count,
         "message": line.message,
+        "hint": line.hint,
         "examples": [
             {"subject": example.subject, "detail": example.detail} for example in line.examples
         ],

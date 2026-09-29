@@ -171,8 +171,7 @@ def test_summary_lines_name_the_configuration_file(tmp_path: Path) -> None:
 
     result = _run(renamed)
 
-    assert result.summary[0].message == (
-        "1 verdict has no matching trace. "
+    assert result.summary[0].hint == (
         "Check mapping.case_id in prod.yaml and that the traces cover the same cases."
     )
 
