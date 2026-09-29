@@ -7,9 +7,9 @@ from detecttrace.stats import (
     BOOTSTRAP_RESAMPLES,
     BOOTSTRAP_SEED,
     Interval,
+    _kappa_standard_error,
     cohens_kappa,
     kappa_analytic_interval,
-    kappa_standard_error,
     mean_t_interval,
     percentile_bootstrap,
     t_quantile_975,
@@ -78,6 +78,12 @@ def test_wilson_no_successes_reaches_zero_without_going_below_it() -> None:
     )
 
 
+def test_wilson_low_bound_for_one_success_in_one_case() -> None:
+    interval = wilson_interval(1, 1)
+
+    assert interval is not None and interval.low == pytest.approx(0.2065, abs=1e-4)
+
+
 def test_wilson_with_no_cases_is_none() -> None:
     assert wilson_interval(0, 0) is None
 
@@ -119,7 +125,7 @@ def test_kappa_standard_error_matches_statsmodels(
 ) -> None:
     kappa = cohens_kappa(matrix)
 
-    assert kappa is not None and kappa_standard_error(matrix, kappa) == pytest.approx(
+    assert kappa is not None and _kappa_standard_error(matrix, kappa) == pytest.approx(
         std_kappa, rel=1e-9
     )
 
@@ -171,6 +177,17 @@ def test_mean_t_interval_low_matches_known_data() -> None:
     assert interval.low == pytest.approx(0.5 - 2.04523 * 0.50855 / math.sqrt(30), abs=1e-4)
 
 
+def test_mean_t_interval_with_one_value_raises() -> None:
+    with pytest.raises(ValueError):
+        mean_t_interval([0.5])
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
+def test_mean_t_interval_with_non_finite_value_raises(bad: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        mean_t_interval([0.5, bad, 0.25])
+
+
 def test_bootstrap_is_deterministic() -> None:
     def statistic(sample: list[int]) -> float:
         return sum(sample) / len(sample)
@@ -199,3 +216,18 @@ def test_bootstrap_gives_no_interval_when_too_few_resamples_are_valid() -> None:
 
 def test_bootstrap_of_constant_statistic_is_a_point() -> None:
     assert percentile_bootstrap(10, lambda sample: 0.7).interval == Interval(0.7, 0.7)
+
+
+def test_bootstrap_with_no_cases_raises() -> None:
+    with pytest.raises(ValueError):
+        percentile_bootstrap(0, lambda sample: 1.0)
+
+
+def _nan_when_zero_drawn(sample: list[int]) -> float:
+    return math.nan if 0 in sample else 1.0
+
+
+def test_bootstrap_drops_resamples_whose_statistic_is_nan() -> None:
+    expected = _count_resamples_containing_zero(5)
+
+    assert percentile_bootstrap(5, _nan_when_zero_drawn).dropped == expected

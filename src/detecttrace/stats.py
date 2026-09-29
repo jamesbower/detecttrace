@@ -56,7 +56,7 @@ def cohens_kappa(matrix: ConfusionMatrix) -> float | None:
     return (observed * n - expected) / (n * n - expected)
 
 
-def kappa_standard_error(matrix: ConfusionMatrix, kappa: float) -> float:
+def _kappa_standard_error(matrix: ConfusionMatrix, kappa: float) -> float:
     """Large-sample standard error of kappa-hat (Fleiss, Cohen & Everitt 1969), not the one under kappa = 0."""
     n, rows, columns = _margins(matrix)
     size = len(matrix)
@@ -81,7 +81,7 @@ def kappa_analytic_interval(matrix: ConfusionMatrix) -> Interval | None:
     kappa = cohens_kappa(matrix)
     if kappa is None:
         return None
-    half = Z_95 * kappa_standard_error(matrix, kappa)
+    half = Z_95 * _kappa_standard_error(matrix, kappa)
     return Interval(max(-1.0, kappa - half), min(1.0, kappa + half))
 
 
@@ -96,16 +96,23 @@ def t_quantile_975(df: int) -> float:
 
 
 def mean_t_interval(values: Sequence[float]) -> Interval:
+    """95% t-interval for the mean.
+
+    Defined from two values, but the t quantile is only accurate to 1e-5 from df >= 10;
+    callers use it from n >= 30.
+    """
     n = len(values)
     if n < 2:
         raise ValueError("a t-interval needs at least two values")
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("a t-interval needs finite values, got NaN or infinity")
     mean = statistics.fmean(values)
     half = t_quantile_975(n - 1) * statistics.stdev(values) / math.sqrt(n)
     return Interval(mean - half, mean + half)
 
 
 def percentile_bootstrap(n: int, statistic: Callable[[list[int]], float | None]) -> BootstrapResult:
-    """Resample indices 0..n-1; `statistic` returns None when it is undefined for a resample."""
+    """Resample indices 0..n-1; `statistic` returns None or NaN when undefined for a resample."""
     if n < 1:
         raise ValueError("bootstrap needs at least one case")
     rng = random.Random(BOOTSTRAP_SEED)
@@ -113,7 +120,7 @@ def percentile_bootstrap(n: int, statistic: Callable[[list[int]], float | None])
     estimates = [
         value
         for value in (statistic(rng.choices(indices, k=n)) for _ in range(BOOTSTRAP_RESAMPLES))
-        if value is not None
+        if value is not None and not math.isnan(value)
     ]
     dropped = BOOTSTRAP_RESAMPLES - len(estimates)
     if len(estimates) < BOOTSTRAP_MIN_VALID:

@@ -10,13 +10,23 @@ _SHORT = re.compile(_NUMBER + r"(s|m|h|d)")
 _ISO = re.compile(
     rf"P(?:{_NUMBER}W)?(?:{_NUMBER}D)?(?:T(?:{_NUMBER}H)?(?:{_NUMBER}M)?(?:{_NUMBER}S)?)?"
 )
+_KQL_AGO_OPEN = re.compile(r"\bago\s*\(")
 # One nested bracket level is allowed so ago(time(1d)) is reported rather than missed.
-_KQL_AGO = re.compile(r"\bago\(\s*((?:[^()]|\([^()]*\))*?)\s*\)")
+# Each character has exactly one way to match, so a failed match costs linear time;
+# whitespace is stripped in Python because letting \s* and [^()] compete is cubic.
+_KQL_AGO_BODY = re.compile(r"([^()]*(?:\([^()]*\)[^()]*)*)\)")
+# Raw text in reports is cut short so one pathological query can't flood them.
+_REPORTED_RAW_LENGTH = 60
 _KQL_SPAN = re.compile(_NUMBER + r"(ms|d|h|m|s)")
 _SECONDS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400}
 
 
 def parse_duration(text: str) -> timedelta | None:
+    """Read "24h"-style or ISO 8601 (weeks down to seconds) durations; None if unreadable.
+
+    ISO parsing is lenient: any unit may carry a fraction ("P1.5W", "PT0.5H"),
+    and weeks may be mixed with days ("P1W2D"), which strict ISO 8601 forbids.
+    """
     # A leading minus is ignored: "-24h" is how many tools write a 24-hour lookback.
     text = text.strip().removeprefix("-")
     try:
@@ -32,17 +42,27 @@ def parse_duration(text: str) -> timedelta | None:
 
 
 def kql_lookbacks(text: str) -> tuple[list[timedelta], list[str]]:
+    """Read the timespans in ago(...) calls; the rest are returned as unreadable raw text."""
     readable: list[timedelta] = []
     unreadable: list[str] = []
-    for raw in _KQL_AGO.findall(text):
+    position = 0
+    while opening := _KQL_AGO_OPEN.search(text, position):
+        body = _KQL_AGO_BODY.match(text, opening.end())
+        if body is None:
+            # Unclosed, or nested too deeply: the brackets that follow can't be trusted
+            # to delimit later lookbacks, so the whole remainder is one unreadable span.
+            unreadable.append(text[opening.end() :].strip()[:_REPORTED_RAW_LENGTH])
+            break
+        position = body.end()
+        raw = body[1].strip()
         match = _KQL_SPAN.fullmatch(raw)
         if match is None:
-            unreadable.append(raw)
+            unreadable.append(raw[:_REPORTED_RAW_LENGTH])
             continue
         try:
             readable.append(timedelta(seconds=float(match[1]) * _SECONDS[match[2]]))
         except OverflowError:
-            unreadable.append(raw)
+            unreadable.append(raw[:_REPORTED_RAW_LENGTH])
     return readable, unreadable
 
 

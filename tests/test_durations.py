@@ -25,9 +25,10 @@ DAY = timedelta(days=1)
         ("PT1H30M", timedelta(minutes=90)),
         ("PT0.5S", timedelta(seconds=0.5)),
         ("-P1D", DAY),
+        ("P1.5W", timedelta(days=10.5)),
     ],
 )
-def test_parse_duration_reads_short_and_iso_forms(text, expected):
+def test_parse_duration_reads_short_and_iso_forms(text: str, expected: timedelta) -> None:
     assert parse_duration(text) == expected
 
 
@@ -53,7 +54,7 @@ def test_parse_duration_reads_short_and_iso_forms(text, expected):
         "P\uff12D",
     ],
 )
-def test_parse_duration_rejects_unreadable_text(text):
+def test_parse_duration_rejects_unreadable_text(text: str) -> None:
     assert parse_duration(text) is None
 
 
@@ -67,10 +68,11 @@ def test_parse_duration_rejects_unreadable_text(text):
         ("ago(30s)", [timedelta(seconds=30)]),
         ("ago(500ms)", [timedelta(milliseconds=500)]),
         ("ago( 7d )", [7 * DAY]),
+        ("ago (1d)", [DAY]),
         ("ago(1d) and ago(2h)", [DAY, 2 * HOUR]),
     ],
 )
-def test_kql_lookbacks_reads_lookbacks(text, expected):
+def test_kql_lookbacks_reads_lookbacks(text: str, expected: list[timedelta]) -> None:
     assert kql_lookbacks(text) == (expected, [])
 
 
@@ -83,25 +85,33 @@ def test_kql_lookbacks_reads_lookbacks(text, expected):
         ("ago()", ""),
         ("ago(\uff11d)", "\uff11d"),
         ("ago(99999999999999d)", "99999999999999d"),
+        ("ago(f(g(1d)))", "f(g(1d)))"),
+        ("ago(1d", "1d"),
+        # Long inputs guard against the regex backtracking in polynomial time.
+        pytest.param("ago(" + " " * 5000, "", id="unclosed-after-spaces"),
+        pytest.param("ago(" + " " * 5000 + "x", "x", id="unclosed-after-spaces-then-text"),
+        pytest.param("ago(\n" + "\t" * 5000 + "(", "(", id="unclosed-after-tabs-then-bracket"),
+        pytest.param("ago(a" + " " * 40000 + "b)", "a" + " " * 59, id="long-span-truncated"),
+        pytest.param("ago(" * 10000, "ago(" * 15, id="repeated-unclosed"),
     ],
 )
-def test_kql_lookbacks_reports_unreadable_spans(text, raw):
+def test_kql_lookbacks_reports_unreadable_spans(text: str, raw: str) -> None:
     assert kql_lookbacks(text) == ([], [raw])
 
 
 @pytest.mark.parametrize("text", ["timeago(1d)", "no lookback here", ""])
-def test_kql_lookbacks_ignores_text_without_a_lookback(text):
+def test_kql_lookbacks_ignores_text_without_a_lookback(text: str) -> None:
     assert kql_lookbacks(text) == ([], [])
 
 
-def test_kql_lookbacks_handles_many_occurrences():
+def test_kql_lookbacks_handles_many_occurrences() -> None:
     readable, unreadable = kql_lookbacks("ago(1d) " * 10000)
 
     assert (len(readable), unreadable) == (10000, [])
 
 
-def test_kql_lookbacks_handles_unclosed_brackets():
-    assert kql_lookbacks("ago(" * 10000) == ([], [])
+def test_parse_duration_treats_a_fraction_of_an_hour_as_minutes() -> None:
+    assert parse_duration("0.1h") == parse_duration("6m")
 
 
 @pytest.mark.parametrize(
@@ -113,7 +123,7 @@ def test_kql_lookbacks_handles_unclosed_brackets():
         ("2026-09-01T00:00:00", "2026-09-01T06:00:00", 6 * HOUR),
     ],
 )
-def test_timestamp_difference_is_absolute(start, end, expected):
+def test_timestamp_difference_is_absolute(start: str, end: str, expected: timedelta) -> None:
     assert timestamp_difference(start, end) == expected
 
 
@@ -127,5 +137,5 @@ def test_timestamp_difference_is_absolute(start, end, expected):
         ("", ""),
     ],
 )
-def test_timestamp_difference_rejects_unreadable_input(start, end):
+def test_timestamp_difference_rejects_unreadable_input(start: str, end: str) -> None:
     assert timestamp_difference(start, end) is None
