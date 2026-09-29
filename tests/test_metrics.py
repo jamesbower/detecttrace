@@ -10,6 +10,7 @@ from detecttrace.checklist import Checklist
 from detecttrace.evidence import CaseEvidence, ItemOutcome, ItemStatus, MissedReason
 from detecttrace.metrics import (
     Agreement,
+    Completeness,
     Kappa,
     KappaNote,
     MetricsReport,
@@ -26,6 +27,7 @@ from detecttrace.stats import (
     BOOTSTRAP_RESAMPLES,
     Interval,
     kappa_analytic_interval,
+    mean_t_interval,
     wilson_interval,
 )
 
@@ -204,6 +206,12 @@ def test_kappa_when_analysts_always_say_benign_is_zero_without_interval() -> Non
     assert metrics.kappa == Kappa(0.0, None, None, KappaNote.ONE_SIDE_SAME_VERDICT, 0)
 
 
+def test_kappa_when_each_side_always_gives_a_different_verdict_is_zero_without_interval() -> None:
+    metrics = slice_of({(TP, FP): 40})
+
+    assert metrics.kappa == Kappa(0.0, None, None, KappaNote.ONE_SIDE_SAME_VERDICT, 0)
+
+
 def test_kappa_at_100_cases_uses_analytic_method() -> None:
     metrics = slice_of(MIXED_100)
 
@@ -261,61 +269,64 @@ def test_kappa_bootstrap_with_many_undefined_resamples_still_has_a_value() -> No
 # Completeness
 
 
+def completeness_of(cases: list[Case], satisfied: list[int], item_count: int) -> Completeness:
+    metrics = compute_slice(cases, evidence_for(cases, satisfied, item_count), item_count)
+    assert metrics.completeness is not None
+    return metrics.completeness
+
+
+# Every value from 0 to 4 satisfied items, so the case values vary.
+VARIED_30 = [0, 1, 2, 3, 4] * 6
+VARIED_29 = VARIED_30[:29]
+
+
 def test_completeness_at_30_cases_uses_t_method() -> None:
-    cases = make_cases({(TP, TP): 30})
-    evidence = evidence_for(cases, [2] * 30, 4)
+    completeness = completeness_of(make_cases({(TP, TP): 30}), VARIED_30, 4)
 
-    metrics = compute_slice(cases, evidence, 4)
+    assert completeness.method == "t"
 
-    assert metrics.completeness is not None and metrics.completeness.method == "t"
+
+def test_completeness_with_30_varied_cases_has_t_interval() -> None:
+    completeness = completeness_of(make_cases({(TP, TP): 30}), VARIED_30, 4)
+
+    assert completeness.interval == mean_t_interval([0.0, 0.25, 0.5, 0.75, 1.0] * 6)
 
 
 def test_completeness_t_interval_is_clipped_to_one() -> None:
     # 29 complete cases and one empty one: the unclipped upper bound is about 1.03.
-    cases = make_cases({(TP, TP): 30})
-    evidence = evidence_for(cases, [4] * 29 + [0], 4)
+    completeness = completeness_of(make_cases({(TP, TP): 30}), [4] * 29 + [0], 4)
 
-    metrics = compute_slice(cases, evidence, 4)
-
-    assert metrics.completeness is not None and metrics.completeness.interval.high == 1.0
+    assert completeness.interval == Interval(mean_t_interval([1.0] * 29 + [0.0]).low, 1.0)
 
 
 def test_completeness_at_29_cases_uses_bootstrap_method() -> None:
-    cases = make_cases({(TP, TP): 29})
-    evidence = evidence_for(cases, [2] * 29, 4)
+    completeness = completeness_of(make_cases({(TP, TP): 29}), VARIED_29, 4)
 
-    metrics = compute_slice(cases, evidence, 4)
-
-    assert metrics.completeness is not None and metrics.completeness.method == "bootstrap"
+    assert completeness.method == "bootstrap"
 
 
 def test_completeness_mean_is_share_of_items_satisfied() -> None:
-    cases = make_cases({(TP, TP): 2})
-    evidence = evidence_for(cases, [1, 4], 4)
+    completeness = completeness_of(make_cases({(TP, TP): 2}), [1, 4], 4)
 
-    metrics = compute_slice(cases, evidence, 4)
-
-    assert metrics.completeness is not None and metrics.completeness.mean == 0.625
+    assert completeness.mean == 0.625
 
 
-def test_completeness_with_equal_values_has_zero_width_interval() -> None:
-    cases = make_cases({(TP, TP): 10})
-    evidence = evidence_for(cases, [2] * 10, 4)
+def test_completeness_with_40_equal_values_has_no_interval() -> None:
+    completeness = completeness_of(make_cases({(TP, TP): 40}), [2] * 40, 4)
 
-    metrics = compute_slice(cases, evidence, 4)
-
-    assert metrics.completeness is not None and metrics.completeness.interval == Interval(0.5, 0.5)
+    assert completeness == Completeness(0.5, None, 40, None)
 
 
-def test_completeness_of_one_case_has_zero_width_interval() -> None:
-    cases = make_cases({(TP, TP): 1})
-    evidence = evidence_for(cases, [3], 4)
+def test_completeness_with_10_equal_values_has_no_interval() -> None:
+    completeness = completeness_of(make_cases({(TP, TP): 10}), [2] * 10, 4)
 
-    metrics = compute_slice(cases, evidence, 4)
+    assert completeness == Completeness(0.5, None, 10, None)
 
-    assert metrics.completeness is not None and metrics.completeness.interval == Interval(
-        0.75, 0.75
-    )
+
+def test_completeness_of_one_case_has_no_interval() -> None:
+    completeness = completeness_of(make_cases({(TP, TP): 1}), [3], 4)
+
+    assert completeness == Completeness(0.75, None, 1, None)
 
 
 def test_completeness_without_checklist_is_none() -> None:
@@ -331,12 +342,9 @@ def test_completeness_with_no_cases_is_none() -> None:
 
 
 def test_completeness_counts_case_without_agent_verdict() -> None:
-    cases = make_cases({(TP, TP): 2, (TP, None): 1})
-    evidence = evidence_for(cases, [1, 1, 1], 4)
+    completeness = completeness_of(make_cases({(TP, TP): 2, (TP, None): 1}), [1, 1, 1], 4)
 
-    metrics = compute_slice(cases, evidence, 4)
-
-    assert metrics.completeness is not None and metrics.completeness.n == 3
+    assert completeness.n == 3
 
 
 def test_completeness_with_case_missing_from_evidence_raises() -> None:
@@ -579,6 +587,31 @@ def test_trend_point_averages_completeness_and_agreement_of_the_week() -> None:
     ]
 
     assert report_of(cases, TWO_ITEMS).classes[0].trend[0] == WeekPoint(W38, None, 0.75, 2, 0.5, 2)
+
+
+def test_trend_version_point_averages_only_that_version() -> None:
+    cases = [
+        make_case(
+            "a-1",
+            TP,
+            TP,
+            version="v1",
+            start_ns=IN_W38,
+            calls=(make_call("alpha"), make_call("beta")),
+        ),
+        make_case("a-2", TP, FP, version="v2", start_ns=IN_W38, calls=(make_call("alpha"),)),
+    ]
+
+    assert report_of(cases, TWO_ITEMS).classes[0].trend[2] == WeekPoint(W38, "v2", 0.5, 1, 0.0, 1)
+
+
+def test_trend_orders_versions_by_first_start_not_name() -> None:
+    cases = [
+        make_case("a-1", TP, TP, version="v1", start_ns=at(2026, 9, 15, 12)),
+        make_case("a-2", TP, TP, version="v2", start_ns=at(2026, 9, 15, 11)),
+    ]
+
+    assert trend_keys(report_of(cases)) == [(W38, None), (W38, "v2"), (W38, "v1")]
 
 
 def test_trend_point_without_agreement_cases_has_no_agreement() -> None:

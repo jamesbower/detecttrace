@@ -55,7 +55,7 @@ class Agreement:
 class Kappa:
     value: float | None
     interval: Interval | None
-    method: Literal["analytic", "bootstrap"] | None  # None when no interval was computed
+    method: Literal["analytic", "bootstrap"] | None  # None when no interval was attempted
     note: KappaNote | None
     dropped_resamples: int
 
@@ -63,9 +63,9 @@ class Kappa:
 @dataclass(frozen=True, slots=True)
 class Completeness:
     mean: float
-    interval: Interval
+    interval: Interval | None
     n: int
-    method: Literal["t", "bootstrap"]
+    method: Literal["t", "bootstrap"] | None  # None when no interval was attempted
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,14 +340,18 @@ def _completeness(
             raise ValueError(f"no evidence for case '{case.case_id}' although a checklist exists")
         values.append(case_evidence.satisfied_count / item_count)
     mean = statistics.fmean(values)
+    # One case or equal values give a zero-width interval that would look precise, so none
+    # is shown.
+    if len(values) < 2 or min(values) == max(values):
+        return Completeness(mean, None, len(values), None)
     if len(values) >= T_INTERVAL_MIN_CASES:
         return Completeness(mean, _clip(mean_t_interval(values)), len(values), "t")
     result = percentile_bootstrap(
         len(values), lambda indices: statistics.fmean(values[i] for i in indices)
     )
-    # The mean of a non-empty resample is always defined, so every resample is valid.
-    if result.interval is None:
-        raise RuntimeError("bootstrap of a mean dropped resamples")
+    # The mean of a non-empty resample of finite values is always defined, so no resample is
+    # dropped and the interval always exists.
+    assert result.interval is not None
     return Completeness(mean, _clip(result.interval), len(values), "bootstrap")
 
 
