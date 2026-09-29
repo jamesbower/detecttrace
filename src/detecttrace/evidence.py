@@ -25,6 +25,7 @@ _UNREADABLE = object()
 # A call read by many items, or a query with thousands of bad lookbacks, should cost a few
 # issues, not thousands.
 _MAX_REPORTS_PER_CALL = 5
+_UNREADABLE_RULE = "arguments could not be read"
 _NUMERIC_TEXT = re.compile(r"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?")
 
 
@@ -43,6 +44,9 @@ class MissedReason(StrEnum):
 class ItemOutcome:
     status: ItemStatus
     missed_reason: MissedReason | None  # set only when status is MISSED
+    # Set only for WRONG_ARGUMENTS: "<path>: <rule>" for the first rule the first call failed,
+    # or "arguments could not be read". Raw text from the checklist, not escaped.
+    failed_rule: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -226,23 +230,29 @@ def _evaluate_item(item: ChecklistItem, calls: list[ToolCall], state: _CaseState
         return ItemOutcome(ItemStatus.MISSED, MissedReason.NOT_CALLED)
     is_satisfied = False
     has_failed_call = False
+    first_failed_rule: str | None = None
     for call in calls:
         if call.is_failed:
             has_failed_call = True
+            continue
         # Every successful call is checked, not just up to the first pass, so reports don't
         # depend on call order.
-        elif _call_passes(item, call, state):
+        failed_rule = _find_failed_rule(item, call, state)
+        if failed_rule is None:
             is_satisfied = True
+        elif first_failed_rule is None:
+            first_failed_rule = failed_rule
     if is_satisfied:
         return ItemOutcome(ItemStatus.SATISFIED, None)
     if has_failed_call:
         return ItemOutcome(ItemStatus.FAILED, None)
-    return ItemOutcome(ItemStatus.MISSED, MissedReason.WRONG_ARGUMENTS)
+    return ItemOutcome(ItemStatus.MISSED, MissedReason.WRONG_ARGUMENTS, first_failed_rule)
 
 
-def _call_passes(item: ChecklistItem, call: ToolCall, state: _CaseState) -> bool:
+def _find_failed_rule(item: ChecklistItem, call: ToolCall, state: _CaseState) -> str | None:
+    """Describe the first rule the call fails (paths in checklist order); None if all pass."""
     if not item.args:
-        return True
+        return None
     if call.span_id not in state.arguments_by_span:
         arguments, problem = _parse_arguments(call.arguments)
         if problem:
@@ -256,13 +266,17 @@ def _call_passes(item: ChecklistItem, call: ToolCall, state: _CaseState) -> bool
         state.arguments_by_span[call.span_id] = arguments
     root = state.arguments_by_span[call.span_id]
     if root is _UNREADABLE:
-        return False
+        return _UNREADABLE_RULE
     where = _Where(state, item.id, call.span_id)
     # A list, not a generator: every rule runs so each unreadable value is reported.
-    results = [
-        _rule_passes(_resolve(root, _path(key)), rule, where) for key, rule in item.args.items()
+    failures = [
+        _find_failed_check(_resolve(root, _path(key)), rule, where)
+        for key, rule in item.args.items()
     ]
-    return all(results)
+    for key, failure in zip(item.args, failures, strict=True):
+        if failure is not None:
+            return f"{key}: {failure}"
+    return None
 
 
 def _parse_arguments(arguments: str | dict[str, object] | None) -> tuple[object, str]:
@@ -328,26 +342,29 @@ def _resolve(root: object, path: tuple[str | int, ...]) -> object:
     return value
 
 
-def _rule_passes(value: object, rule: ArgRule, where: _Where) -> bool:
-    results: list[bool] = []
+def _find_failed_check(value: object, rule: ArgRule, where: _Where) -> str | None:
+    """Name the first check under one path that fails, in a fixed order; None when all pass."""
+    results: list[tuple[str, bool]] = []
     # `equals: null` is a real rule, so whether it was given comes from the fields set.
     if "equals" in rule.model_fields_set:
-        results.append(json_equal(value, rule.equals))
+        results.append(("equals", json_equal(value, rule.equals)))
     if rule.in_ is not None:
-        results.append(any(json_equal(value, option) for option in rule.in_))
+        results.append(("in", any(json_equal(value, option) for option in rule.in_)))
     if rule.exists is not None:
-        results.append((value is not _MISSING) is rule.exists)
+        results.append(("exists", (value is not _MISSING) is rule.exists))
     if rule.matches is not None:
-        results.append(isinstance(value, str) and _pattern(rule.matches).search(value) is not None)
+        is_match = isinstance(value, str) and _pattern(rule.matches).search(value) is not None
+        results.append(("matches", is_match))
     if rule.min_duration is not None:
-        results.append(_duration_passes(value, rule, _threshold(rule.min_duration), where))
+        is_long = _duration_passes(value, rule, _threshold(rule.min_duration), where)
+        results.append(("min_duration", is_long))
     if rule.kql_min_ago is not None:
-        results.append(_kql_passes(value, _threshold(rule.kql_min_ago), where))
+        results.append(("kql_min_ago", _kql_passes(value, _threshold(rule.kql_min_ago), where)))
     if rule.min is not None:
-        results.append(_is_number(value) and value >= rule.min)
+        results.append(("min", _is_number(value) and value >= rule.min))
     if rule.max is not None:
-        results.append(_is_number(value) and value <= rule.max)
-    return all(results)
+        results.append(("max", _is_number(value) and value <= rule.max))
+    return next((name for name, is_passed in results if not is_passed), None)
 
 
 def _duration_passes(value: object, rule: ArgRule, threshold: timedelta, where: _Where) -> bool:

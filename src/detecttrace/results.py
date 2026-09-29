@@ -6,6 +6,15 @@ records with a `version` field instead; the pooled group sits under its own `oth
 Likewise a trend point's `scope` says whether it covers all versions, one version or the
 pooled group; its `version` is null for the first and last, so `version: null` alone never
 means "all versions" (with scope `version` it means "no version").
+
+Each `case_detail` entry holds `case_id`, `calls` and `outcomes`. `outcomes` lists the case's
+checklist items in checklist order, each as `item` (the item ID), `status` (`satisfied`,
+`failed` or `missed`), `reason` (`not_called` or `wrong_arguments` for a missed item, else null)
+and `failed_rule` (for `wrong_arguments` only, else null). `failed_rule` is "<path>: <rule>" for
+the first rule the first successful call failed, or "arguments could not be read". It is raw
+checklist text, so a page must escape it. A case whose class has no checklist has no outcomes.
+Only detail cases carry outcomes, so their size is bounded by `max_detail_cases`; `case_rows`
+keeps just the indexes of missed and failed items.
 """
 
 import json
@@ -18,7 +27,7 @@ from pathlib import Path
 from detecttrace import __version__
 from detecttrace.checklist import Checklist
 from detecttrace.config import normalize_label
-from detecttrace.evidence import CaseEvidence, ItemStatus
+from detecttrace.evidence import CaseEvidence, ItemOutcome, ItemStatus
 from detecttrace.metrics import (
     VERDICT_ORDER,
     ClassReport,
@@ -96,7 +105,7 @@ def build_results(
         "classes": [_to_class_data(class_report) for class_report in report.classes],
         "data_notes": [_to_note_data(line) for line in summary_lines],
         "case_rows": _build_case_rows(report, ordered, checklists),
-        "case_detail": _build_case_detail(ordered, report.evidence, max_detail_cases),
+        "case_detail": _build_case_detail(ordered, report.evidence, checklists, max_detail_cases),
     }
 
 
@@ -322,7 +331,10 @@ def _to_verdict_code(verdict: Verdict | None) -> int:
 
 
 def _build_case_detail(
-    cases: Sequence[Case], evidence: Mapping[str, CaseEvidence], max_detail_cases: int
+    cases: Sequence[Case],
+    evidence: Mapping[str, CaseEvidence],
+    checklists: Mapping[str, Checklist],
+    max_detail_cases: int,
 ) -> list[dict[str, object]]:
     ranked: list[tuple[int, int, str, Case]] = []
     for case in cases:
@@ -332,9 +344,34 @@ def _build_case_detail(
     ranked.sort(key=lambda entry: entry[:3])
     # A list, not a dict keyed by case ID, so the priority order survives any JSON reader.
     return [
-        {"case_id": case.case_id, "calls": [_to_call_data(call) for call in case.tool_calls]}
+        {
+            "case_id": case.case_id,
+            "calls": [_to_call_data(call) for call in case.tool_calls],
+            "outcomes": _to_outcomes_data(case, evidence.get(case.case_id), checklists),
+        }
         for _, _, _, case in ranked[: max(max_detail_cases, 0)]
     ]
+
+
+def _to_outcomes_data(
+    case: Case, evidence: CaseEvidence | None, checklists: Mapping[str, Checklist]
+) -> list[dict[str, object]]:
+    if evidence is None:
+        return []
+    items = checklists[normalize_label(case.alert_class)].items
+    return [
+        _to_outcome_data(item.id, outcome)
+        for item, outcome in zip(items, evidence.outcomes, strict=True)
+    ]
+
+
+def _to_outcome_data(item_id: str, outcome: ItemOutcome) -> dict[str, object]:
+    return {
+        "item": item_id,
+        "status": outcome.status.value,
+        "reason": None if outcome.missed_reason is None else outcome.missed_reason.value,
+        "failed_rule": outcome.failed_rule,
+    }
 
 
 def _to_detail_group(case: Case, evidence: CaseEvidence | None) -> int | None:

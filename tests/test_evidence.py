@@ -22,7 +22,11 @@ SPAN = "00f0000000000001"
 SATISFIED = ItemOutcome(ItemStatus.SATISFIED, None)
 FAILED = ItemOutcome(ItemStatus.FAILED, None)
 NOT_CALLED = ItemOutcome(ItemStatus.MISSED, MissedReason.NOT_CALLED)
-WRONG_ARGUMENTS = ItemOutcome(ItemStatus.MISSED, MissedReason.WRONG_ARGUMENTS)
+UNREADABLE = "arguments could not be read"
+
+
+def wrong_arguments(failed_rule: str) -> ItemOutcome:
+    return ItemOutcome(ItemStatus.MISSED, MissedReason.WRONG_ARGUMENTS, failed_rule)
 
 
 def make_call(
@@ -115,12 +119,12 @@ def test_wrong_arguments_plus_a_failed_call_is_failed():
 
 def test_wrong_arguments_without_a_failed_call_is_missed_as_wrong_arguments():
     items = [make_item({"range": {"min_duration": "24h"}})]
-    assert outcomes(items, make_call({"range": "12h"})) == (WRONG_ARGUMENTS,)
+    assert outcomes(items, make_call({"range": "12h"})) == (wrong_arguments("range: min_duration"),)
 
 
 def test_unreadable_arguments_are_missed_as_wrong_arguments():
     items = [make_item({"range": {"exists": False}})]
-    assert outcomes(items, make_call("{not json")) == (WRONG_ARGUMENTS,)
+    assert outcomes(items, make_call("{not json")) == (wrong_arguments(UNREADABLE),)
 
 
 def test_tool_name_differing_only_in_case_is_not_called():
@@ -133,7 +137,7 @@ def test_rules_passed_by_different_calls_are_not_combined():
         make_call({"range": "48h", "tenant": "example-dev"}),
         make_call({"range": "1h", "tenant": "example-prod"}, span_id="00f0000000000002"),
     )
-    assert outcomes([make_item(rules)], *calls) == (WRONG_ARGUMENTS,)
+    assert outcomes([make_item(rules)], *calls) == (wrong_arguments("tenant: equals"),)
 
 
 def test_one_call_satisfies_two_items():
@@ -148,6 +152,73 @@ def test_call_with_an_empty_tool_name_does_not_count_as_a_call_to_the_item_tool(
 def test_unreadable_arguments_plus_a_failed_call_is_failed():
     calls = (make_call("{not json"), make_call(span_id="00f0000000000002", is_failed=True))
     assert outcomes([make_item({"range": {"exists": True}})], *calls) == (FAILED,)
+
+
+# Failing rule of a missed item
+
+
+def test_failed_rule_names_the_path_and_the_rule_that_failed():
+    items = [make_item({"tenant": {"equals": "example-prod"}})]
+    assert outcomes(items, make_call({"tenant": "example-dev"}))[0].failed_rule == "tenant: equals"
+
+
+def test_failed_rule_names_a_short_duration():
+    items = [make_item({"range": {"min_duration": "24h"}})]
+    assert outcomes(items, make_call({"range": "1h"}))[0].failed_rule == "range: min_duration"
+
+
+def test_failed_rule_comes_from_the_first_call():
+    rules = {"range": {"min_duration": "24h"}, "tenant": {"equals": "example-prod"}}
+    calls = (
+        make_call({"range": "1h", "tenant": "example-prod"}),
+        make_call({"range": "48h", "tenant": "example-dev"}, span_id="00f0000000000002"),
+    )
+    assert outcomes([make_item(rules)], *calls)[0].failed_rule == "range: min_duration"
+
+
+def test_failed_rule_is_the_first_failing_path_in_checklist_order():
+    rules = {"tenant": {"equals": "example-prod"}, "range": {"min_duration": "24h"}}
+    call = make_call({"range": "1h", "tenant": "example-dev"})
+    assert outcomes([make_item(rules)], call)[0].failed_rule == "tenant: equals"
+
+
+def test_failed_rule_skips_passing_rules_under_the_same_path():
+    items = [make_item({"hours": {"min": 24, "max": 48}})]
+    assert outcomes(items, make_call({"hours": 12}))[0].failed_rule == "hours: min"
+
+
+def test_failed_rule_says_when_the_arguments_could_not_be_read():
+    items = [make_item({"tenant": {"equals": "example-prod"}})]
+    assert outcomes(items, make_call("{not json"))[0].failed_rule == UNREADABLE
+
+
+def test_failed_rule_without_arguments_names_the_first_rule():
+    items = [make_item({"tenant": {"equals": "example-prod"}, "range": {"exists": True}})]
+    assert outcomes(items, make_call(None))[0].failed_rule == "tenant: equals"
+
+
+def test_failed_rule_without_arguments_names_a_top_level_exists():
+    items = [make_item({"$": {"exists": True}})]
+    assert outcomes(items, make_call(None))[0].failed_rule == "$: exists"
+
+
+def test_failed_rule_without_arguments_skips_a_passing_exists_false():
+    items = [make_item({"z": {"exists": False}, "tenant": {"equals": "example-prod"}})]
+    assert outcomes(items, make_call(None))[0].failed_rule == "tenant: equals"
+
+
+@pytest.mark.parametrize(
+    ("call", "expected"),
+    [
+        (make_call({"tenant": "example-prod"}), SATISFIED),
+        (make_call({"tenant": "example-dev"}, is_failed=True), FAILED),
+        (make_call(tool="check_mfa_status"), NOT_CALLED),
+    ],
+    ids=["satisfied", "failed", "not_called"],
+)
+def test_failed_rule_is_none_unless_the_arguments_were_wrong(call, expected):
+    items = [make_item({"tenant": {"equals": "example-prod"}})]
+    assert outcomes(items, call) == (expected,)
 
 
 def test_satisfied_count_counts_satisfied_items():
@@ -402,7 +473,7 @@ def test_min_and_max_together_pass_a_value_between():
 
 def test_min_and_max_under_one_key_must_both_pass():
     items = [make_item({"hours": {"min": 24, "max": 48}})]
-    assert outcomes(items, make_call({"hours": 60})) == (WRONG_ARGUMENTS,)
+    assert outcomes(items, make_call({"hours": 60})) == (wrong_arguments("hours: max"),)
 
 
 # kql_min_ago
@@ -560,7 +631,7 @@ def test_arguments_with_a_non_finite_constant_are_unreadable(constant):
 
 def test_arguments_with_a_non_finite_constant_do_not_satisfy_an_item():
     assert outcomes([make_item({"x": {"exists": True}})], make_call('{"x": NaN}')) == (
-        WRONG_ARGUMENTS,
+        wrong_arguments(UNREADABLE),
     )
 
 
@@ -582,7 +653,7 @@ def test_map_arguments_with_a_non_finite_number_are_unreadable(arguments):
 
 def test_map_arguments_with_nan_do_not_satisfy_an_item():
     call = ToolCall(SPAN, TOOL, {"x": float("nan")}, 0, 100, False)
-    assert outcomes([make_item({"z": {"exists": False}})], call) == (WRONG_ARGUMENTS,)
+    assert outcomes([make_item({"z": {"exists": False}})], call) == (wrong_arguments(UNREADABLE),)
 
 
 def test_item_without_args_does_not_read_arguments():
@@ -719,7 +790,9 @@ def test_mismatch_for_an_epoch_number_start_suggests_timestamps():
 
 def test_epoch_number_start_and_end_fail_as_wrong_arguments():
     items = [make_item(WINDOW_RULE)]
-    assert outcomes(items, make_call({"start": 1, "end": 2})) == (WRONG_ARGUMENTS,)
+    assert outcomes(items, make_call({"start": 1, "end": 2})) == (
+        wrong_arguments("$: min_duration"),
+    )
 
 
 def test_mismatch_for_a_non_string_end_names_the_path_under_the_key():

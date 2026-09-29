@@ -414,6 +414,66 @@ def test_detail_lists_each_call_with_status_duration_and_arguments():
     ]
 
 
+def test_detail_lists_each_checklist_item_outcome_in_checklist_order():
+    calls = (call("get_signin_logs"), call("check_mfa_status", is_failed=True))
+    cases = [case("DT-1", analyst=TP, agent=FP, calls=calls)]
+
+    assert results_for(cases)["case_detail"][0]["outcomes"] == [
+        {"item": "signins", "status": "satisfied", "reason": None, "failed_rule": None},
+        {"item": "mfa", "status": "failed", "reason": None, "failed_rule": None},
+        {"item": "user", "status": "missed", "reason": "not_called", "failed_rule": None},
+    ]
+
+
+# Argument keys are checklist text; a hostile one must reach the results unchanged, since the
+# page escapes it when it shows it.
+HOSTILE_KEY = '<script>&"x"'
+TENANT_CHECKLISTS = {
+    "impossible_travel": Checklist.model_validate(
+        {
+            "alert_class": "impossible_travel",
+            "items": [
+                {
+                    "id": "signins",
+                    "tool": "get_signin_logs",
+                    "args": {HOSTILE_KEY: {"equals": "example-prod"}},
+                }
+            ],
+        }
+    )
+}
+
+
+def test_detail_outcome_carries_the_failed_rule_unchanged():
+    calls = (call("get_signin_logs", arguments={HOSTILE_KEY: "example-dev"}),)
+    cases = [case("DT-1", analyst=TP, agent=FP, calls=calls)]
+
+    assert results_for(cases, checklists=TENANT_CHECKLISTS)["case_detail"][0]["outcomes"] == [
+        {
+            "item": "signins",
+            "status": "missed",
+            "reason": "wrong_arguments",
+            "failed_rule": f"{HOSTILE_KEY}: equals",
+        }
+    ]
+
+
+def test_detail_outcomes_are_empty_for_a_class_without_a_checklist():
+    cases = [case("DT-1", analyst=TP, agent=FP, alert_class="oauth_consent")]
+
+    assert results_for(cases)["case_detail"][0]["outcomes"] == []
+
+
+def test_case_rows_carry_no_outcomes():
+    assert "outcomes" not in results_for(MIXED)["case_rows"]["columns"]
+
+
+def test_detail_keys_come_in_a_fixed_order():
+    cases = [case("DT-1", analyst=TP, agent=FP)]
+
+    assert list(results_for(cases)["case_detail"][0]) == ["case_id", "calls", "outcomes"]
+
+
 def test_a_call_that_ends_before_it_starts_has_a_zero_duration():
     cases = [case("DT-1", analyst=TP, agent=FP, calls=(call(start_ns=5_000_000, end_ns=0),))]
 
