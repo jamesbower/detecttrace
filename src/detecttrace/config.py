@@ -46,19 +46,23 @@ class Config(BaseModel):
         normalized: dict[str, Verdict] = {}
         first_key: dict[str, str] = {}
         for key, verdict in raw.items():
-            norm = normalize_label(key)
-            if norm in normalized and normalized[norm] != verdict:
+            normalized_key = normalize_label(key)
+            if not normalized_key:
+                raise ValueError(f"label '{key}' is empty after normalization")
+            if normalized_key in normalized and normalized[normalized_key] != verdict:
                 raise ValueError(
-                    f"labels '{first_key[norm]}' and '{key}' are the same after normalization "
-                    f"but map to '{normalized[norm]}' and '{verdict}'. Keep only one of them."
+                    f"labels '{first_key[normalized_key]}' and '{key}' are the same after normalization "
+                    f"but map to '{normalized[normalized_key]}' and '{verdict}'. Keep only one of them."
                 )
-            normalized[norm] = verdict
-            first_key.setdefault(norm, key)
+            normalized[normalized_key] = verdict
+            first_key.setdefault(normalized_key, key)
         return normalized
 
     def to_analyst_verdict(self, label: str) -> Verdict | None:
         return self.label_map.get(normalize_label(label))
 
     def to_agent_verdict(self, label: str) -> Verdict | None:
-        norm = normalize_label(label)
-        return self.agent_label_map.get(norm) or self.label_map.get(norm)
+        normalized_key = normalize_label(label)
+        if normalized_key in self.agent_label_map:
+            return self.agent_label_map[normalized_key]
+        return self.label_map.get(normalized_key)

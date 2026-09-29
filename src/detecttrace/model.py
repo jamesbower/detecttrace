@@ -65,9 +65,8 @@ class Span:
 class ToolCall:
     span_id: str
     tool_name: str  # empty when unknown: satisfies no checklist item
-    arguments: (
-        str | dict[str, object] | None
-    )  # JSON string as sent, or a map in its original key order
+    # JSON string as sent, or a map in its original key order.
+    arguments: str | dict[str, object] | None
     start_ns: int
     end_ns: int
     is_failed: bool
@@ -83,6 +82,7 @@ class TraceCase:
     alert_class: str | None
     agent_label: str | None
     prompt_version: str | None
+    # ordered by start time, then span ID
     tool_calls: tuple[ToolCall, ...]
     is_incomplete_trace: bool
 
@@ -92,6 +92,7 @@ class VerdictRow:
     case_id: str
     alert_class: str
     label: str
+    # physical 1-based line in the CSV (header is line 1)
     line_number: int
 
 
@@ -103,5 +104,6 @@ class Case:
     analyst_verdict: Verdict | None  # None: unmapped or conflicting label
     agent_verdict: Verdict | None  # None: unmapped or missing label
     start_ns: int
+    # ordered by start time, then span ID
     tool_calls: tuple[ToolCall, ...]
     is_incomplete_trace: bool

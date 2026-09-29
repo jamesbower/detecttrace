@@ -35,14 +35,24 @@ def test_label_keys_that_collide_with_different_verdicts_are_rejected() -> None:
         Config(label_map={"Benign": Verdict.BENIGN, "benign ": Verdict.FALSE_POSITIVE})
 
 
-def test_label_keys_that_collide_with_the_same_verdict_are_merged() -> None:
+def test_agent_label_keys_that_collide_with_different_verdicts_are_rejected() -> None:
+    with pytest.raises(ValidationError, match="same after normalization"):
+        Config(agent_label_map={"Benign": Verdict.BENIGN, "benign ": Verdict.FALSE_POSITIVE})
+
+
+def test_label_keys_that_collide_with_the_same_verdict_are_accepted() -> None:
     config = Config(label_map={"TP": Verdict.TRUE_POSITIVE, "tp": Verdict.TRUE_POSITIVE})
 
-    assert config.label_map == {"tp": Verdict.TRUE_POSITIVE}
+    assert config.to_analyst_verdict("TP") == Verdict.TRUE_POSITIVE
+
+
+def test_label_key_that_is_empty_after_normalization_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="empty after normalization"):
+        Config(label_map={"  ": Verdict.BENIGN})
 
 
 def test_label_map_value_outside_the_verdict_set_is_rejected() -> None:
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="label_map"):
         Config.model_validate({"label_map": {"TP": "malicious"}})
 
 
@@ -59,6 +69,18 @@ def test_agent_label_falls_back_to_label_map() -> None:
     config = Config(label_map={"Benign": Verdict.BENIGN}, agent_label_map={"x": Verdict.BENIGN})
 
     assert config.to_agent_verdict("benign") == Verdict.BENIGN
+
+
+def test_agent_label_map_lookup_ignores_case_and_whitespace() -> None:
+    config = Config(agent_label_map={"Escalate": Verdict.TRUE_POSITIVE})
+
+    assert config.to_agent_verdict(" escalate") == Verdict.TRUE_POSITIVE
+
+
+def test_agent_label_in_neither_map_gives_none() -> None:
+    config = Config(label_map={"TP": Verdict.TRUE_POSITIVE})
+
+    assert config.to_agent_verdict("Escalated") is None
 
 
 def test_analyst_lookup_never_uses_agent_label_map() -> None:
