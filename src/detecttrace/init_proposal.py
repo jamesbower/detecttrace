@@ -6,7 +6,7 @@ decides what to show, ask and write.
 
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 
 from detecttrace import conventions
@@ -216,24 +216,15 @@ def propose_init(
         name: _propose_or_measure_field(name, agent_runs, trace_format, mapping, notes)
         for name in ("case_id", "alert_class", "verdict")
     }
-    prompt_version, prompt_version_lookup = _propose_or_measure_prompt_version(
-        spans,
-        agent_runs,
-        trace_format,
-        fields["case_id"].value,
-        operation_config,
-        mapping,
-        notes,
-    )
     is_openinference = operation.source == SOURCE_OPENINFERENCE
     tool_source = SOURCE_OPENINFERENCE if is_openinference else SOURCE_DEFAULT
     tool_name = _OPENINFERENCE_TOOL_NAME if is_openinference else _DEFAULTS.tool_name
     tool_arguments = _OPENINFERENCE_TOOL_ARGUMENTS if is_openinference else _DEFAULTS.tool_arguments
-    proposed = MappingProposal(
+    unversioned = MappingProposal(
         case_id=fields["case_id"],
         alert_class=fields["alert_class"],
         verdict=fields["verdict"],
-        prompt_version=prompt_version,
+        prompt_version=FieldProposal(None, SOURCE_NOT_FOUND, 0, len(agent_runs)),
         tool_name=_propose_tool_field(
             *_choose_key(tool_name, tool_source, None if mapping is None else mapping.tool_name),
             is_tool_name,
@@ -249,7 +240,29 @@ def propose_init(
             tool_calls,
         ),
         operation=operation,
-        prompt_version_lookup=prompt_version_lookup,
+    )
+
+    # Probing for a managed prompt version builds cases, which at 50k cases costs seconds; a
+    # mapping built once is reused, so the probe that succeeds is also the final build.
+    built: dict[MappingConfig, list[TraceCase]] = {}
+
+    def build_cases(case_mapping: MappingConfig) -> list[TraceCase]:
+        if case_mapping not in built:
+            built[case_mapping], _ = build_trace_cases(spans, case_mapping)
+        return built[case_mapping]
+
+    prompt_version, prompt_version_lookup = _propose_or_measure_prompt_version(
+        agent_runs,
+        trace_format,
+        # The given mapping, not the proposal's, so settings the proposal omits still apply.
+        unversioned.to_mapping_config() if mapping is None else mapping,
+        unversioned.case_id.value is not None,
+        mapping,
+        build_cases,
+        notes,
+    )
+    proposed = replace(
+        unversioned, prompt_version=prompt_version, prompt_version_lookup=prompt_version_lookup
     )
     if proposed.alert_class.value is None:
         notes.append(
@@ -260,10 +273,7 @@ def propose_init(
 
     trace_cases: list[TraceCase] = []
     if proposed.case_id.value is not None:
-        # The given mapping, not the proposal's, so settings the proposal omits still apply.
-        trace_cases, _ = build_trace_cases(
-            spans, proposed.to_mapping_config() if mapping is None else mapping
-        )
+        trace_cases = build_cases(proposed.to_mapping_config() if mapping is None else mapping)
 
     analyst_labels = _pick_spellings(row.label for row in verdict_rows)
     label_map, unmapped_analyst = _auto_map(analyst_labels)
@@ -400,28 +410,30 @@ def _propose_or_measure_field(
 
 
 def _propose_or_measure_prompt_version(
-    spans: list[Span],
     agent_runs: list[Span],
     trace_format: TraceFormat,
-    case_id_key: str | None,
-    operation: OperationConfig,
+    base: MappingConfig,
+    has_case_id: bool,
     mapping: MappingConfig | None,
+    build_cases: Callable[[MappingConfig], list[TraceCase]],
     notes: list[str],
 ) -> tuple[FieldProposal, PromptVersionLookup]:
     field_notes: list[str] = []
     total = len(agent_runs)
     field = _propose_field("prompt_version", agent_runs, trace_format, field_notes)
     lookup = _DEFAULTS.prompt_version_lookup
-    if field.value is None and trace_format == "langfuse" and case_id_key is not None:
+    if field.value is None and trace_format == "langfuse" and has_case_id:
         # Langfuse links a managed prompt only to a generation, never to the agent run, so
         # the version is read below the agent run exactly as check's descendant lookup does.
-        managed = MappingConfig(
-            case_id=case_id_key,
-            prompt_version=_LANGFUSE_PROMPT_VERSION,
-            prompt_version_lookup="descendant",
-            operation=operation,
+        # `base` is the mapping check would use but for the prompt version, so on success
+        # this build is the final one.
+        managed = base.model_copy(
+            update={
+                "prompt_version": _LANGFUSE_PROMPT_VERSION,
+                "prompt_version_lookup": "descendant",
+            }
         )
-        covered = _count_versioned_cases(spans, managed)
+        covered = _count_versioned_cases(build_cases(managed))
         if _is_enough(covered, total):
             field = FieldProposal(
                 _LANGFUSE_PROMPT_VERSION, SOURCE_LANGFUSE_MANAGED_PROMPT, covered, total
@@ -442,7 +454,7 @@ def _propose_or_measure_prompt_version(
         notes += field_notes
         return field, lookup
     if mapping.prompt_version_lookup == "descendant":
-        covered = _count_versioned_cases(spans, mapping)
+        covered = _count_versioned_cases(build_cases(mapping))
     else:
         covered = sum(
             1 for run in agent_runs if _has_value(run, mapping.prompt_version, is_root_only=False)
@@ -453,8 +465,7 @@ def _propose_or_measure_prompt_version(
     )
 
 
-def _count_versioned_cases(spans: list[Span], mapping: MappingConfig) -> int:
-    trace_cases, _ = build_trace_cases(spans, mapping)
+def _count_versioned_cases(trace_cases: list[TraceCase]) -> int:
     return sum(1 for case in trace_cases if case.prompt_version is not None)
 
 

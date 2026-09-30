@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 from builders import make_span, span_hex
 
+from detecttrace import init_proposal
+from detecttrace.cases import build_trace_cases
 from detecttrace.config import MappingConfig, OperationConfig
 from detecttrace.init_proposal import (
     SOURCE_DETECTTRACE,
@@ -18,7 +20,7 @@ from detecttrace.init_proposal import (
     Proposal,
     propose_init,
 )
-from detecttrace.model import Span, Verdict, VerdictRow
+from detecttrace.model import Issue, Span, TraceCase, Verdict, VerdictRow
 from detecttrace.runconfig import TraceFormat, load_run_config
 from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
@@ -352,6 +354,22 @@ def test_real_managed_prompt_capture_maps_with_the_descendant_lookup(
     assert proposal.mapping.to_mapping_config() == MappingConfig(
         prompt_version="langfuse.prompt_version", prompt_version_lookup="descendant"
     )
+
+
+def test_real_managed_prompt_capture_builds_its_cases_once(
+    real_managed_prompt_spans: list[Span], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    built: list[MappingConfig] = []
+
+    def build_and_record(
+        spans: list[Span], mapping: MappingConfig
+    ) -> tuple[list[TraceCase], list[Issue]]:
+        built.append(mapping)
+        return build_trace_cases(spans, mapping)
+
+    monkeypatch.setattr(init_proposal, "build_trace_cases", build_and_record)
+    propose_init(real_managed_prompt_spans, "langfuse", [])
+    assert len(built) == 1
 
 
 def test_real_managed_prompt_blob_export_proposes_the_descendant_lookup() -> None:
