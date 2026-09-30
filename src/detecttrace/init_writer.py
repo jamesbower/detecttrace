@@ -9,7 +9,7 @@ import dataclasses
 import os
 import re
 from pathlib import Path, PurePath
-from typing import Any
+from typing import Any, get_args
 
 from pydantic import ValidationError
 
@@ -43,8 +43,9 @@ _MAPPING_FIELDS = (
     "tool_arguments",
 )
 _OPERATION_FIELDS = ("attribute", "agent_value", "tool_value", "span_name_fallback")
+_TRACE_FORMAT_KEY = "traces.format"
 _OTHER_KEYS = (
-    "traces.format",
+    _TRACE_FORMAT_KEY,
     "traces.path",
     "verdicts.path",
     "checklists",
@@ -171,6 +172,19 @@ def apply_overrides(draft: InitDraft, sets: list[str]) -> InitDraft:
     for text in sets:
         draft = _apply_override(draft, text)
     return draft
+
+
+def find_set_trace_format(sets: list[str]) -> TraceFormat | None:
+    """The trace format the last `--set traces.format=...` names, or None when none names a
+    known one; an unknown one is left for apply_overrides to report.
+    """
+    trace_format = None
+    for text in sets:
+        key, _, value = text.partition("=")
+        if key == _TRACE_FORMAT_KEY:
+            trace_format = value
+    known: tuple[TraceFormat, ...] = get_args(TraceFormat)
+    return next((name for name in known if name == trace_format), None)
 
 
 def set_label(draft: InitDraft, area: str, label: str, verdict: Verdict) -> InitDraft:

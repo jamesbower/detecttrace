@@ -48,6 +48,7 @@ from detecttrace.init_writer import (
     apply_overrides,
     check_round_trip,
     create_draft,
+    find_set_trace_format,
     render_config_yaml,
     render_example_checklist,
     set_label,
@@ -462,13 +463,25 @@ def _init(options: _InitOptions) -> int:
             _echo_error(problem)
             return 1
 
-    trace_format, format_issues = detect_format(options.traces, path_hint=_TRACES_HINT)
+    traces_text = to_terminal_text(str(options.traces), limit=None)
+    # A format set with --set is how the configuration will read the traces, so the proposal
+    # reads them that way too.
+    trace_format = find_set_trace_format(options.sets)
     if trace_format is None:
-        traces_text = to_terminal_text(str(options.traces), limit=None)
-        _echo_error(f"No OTLP JSON or Langfuse export found in {traces_text}. {NOTHING_WRITTEN}")
-        _echo_summary_lines(summarize_issues(format_issues, config_path.name), is_err=True)
-        return 1
+        trace_format, format_issues = detect_format(options.traces, path_hint=_TRACES_HINT)
+        if trace_format is None:
+            _echo_error(
+                f"No OTLP JSON or Langfuse export found in {traces_text}. {NOTHING_WRITTEN}"
+            )
+            _echo_summary_lines(summarize_issues(format_issues, config_path.name), is_err=True)
+            return 1
     spans, trace_issues = load_spans(options.traces, format=trace_format, path_hint=_TRACES_HINT)
+    if not spans:
+        _echo_error(
+            f"No span could be read from {traces_text} as {trace_format}. {NOTHING_WRITTEN}"
+        )
+        _echo_summary_lines(summarize_issues(trace_issues, config_path.name), is_err=True)
+        return 1
     rows, verdict_issues = read_verdicts(options.verdicts, path_hint=_VERDICTS_HINT)
     inputs = _InitInputs(spans, rows, options)
     proposal = propose_init(spans, trace_format, rows)

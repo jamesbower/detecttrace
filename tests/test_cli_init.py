@@ -688,6 +688,54 @@ def test_a_verdict_file_without_the_required_columns_exits_1(tmp_path: Path) -> 
     assert result.exit_code == 1
 
 
+# Trace format set with --set
+
+
+def _init_otlp_subset(tmp_path: Path, trace_format: str) -> Result:
+    folder = FIXTURES / "formats" / "otlp_subset"
+    return _invoke(
+        "init",
+        "--traces",
+        str(folder / "traces"),
+        "--verdicts",
+        str(folder / "verdicts.csv"),
+        "--config",
+        str(tmp_path / "detecttrace.yaml"),
+        "--yes",
+        "--dry-run",
+        "--set",
+        f"traces.format={trace_format}",
+    )
+
+
+def test_a_set_trace_format_that_reads_no_span_exits_1(tmp_path: Path) -> None:
+    result = _init_otlp_subset(tmp_path, "langfuse")
+
+    assert result.exit_code == 1
+
+
+def test_a_set_trace_format_that_reads_no_span_reports_it_as_check_would(
+    tmp_path: Path,
+) -> None:
+    [line] = summarize_issues([Issue(IssueKind.INVALID_LANGFUSE_DOCUMENT, "x")])
+
+    result = _init_otlp_subset(tmp_path, "langfuse")
+
+    assert line.terminal_hint in result.stderr
+
+
+def test_a_set_trace_format_is_the_one_the_summary_names(tmp_path: Path) -> None:
+    result = _init_otlp_subset(tmp_path, "otlp_json")
+
+    assert "Traces: otlp_json, " in result.stderr
+
+
+def test_a_set_trace_format_is_the_one_the_header_names(tmp_path: Path) -> None:
+    result = _init_otlp_subset(tmp_path, "otlp_json")
+
+    assert "# Found: otlp_json traces, " in result.stdout
+
+
 # Orphans
 
 
