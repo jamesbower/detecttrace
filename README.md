@@ -25,7 +25,7 @@ A local command-line tool that turns traces and verdicts into a view that goes b
 - **Evidence completeness.** You write a short checklist of the tool calls your playbook requires for an alert class. DetectTrace checks each case's successful tool calls against it and reports the share of items satisfied, per case and per class. A step is reported as failed (the call errored), not called, or called with the wrong arguments.
 - **Skipped steps by version.** How often each checklist step was skipped, per prompt or model version. For example: "MFA check skipped: 5% in v1, 45% in v2."
 - **Weekly trend.** Per alert class, split by version, with the number of cases each week.
-- **Honest uncertainty.** Every value carries its number of cases (n) and a 95% confidence interval. Small samples are marked as such.
+- **Honest uncertainty.** Every value carries its number of cases (n). Agreement, chance-corrected agreement and evidence completeness also carry a 95% confidence interval. Small samples are marked as such. The definitions are in [docs/metrics.md](docs/metrics.md).
 - **Case detail.** Each case with the agent verdict, the analyst verdict and checklist coverage, and, for notable cases (dangerous closes, disagreements, failed calls, missed steps), its tool calls.
 - **Data notes.** Bad input is reported, not hidden: orphan traces and verdicts, duplicates, unmapped labels, and tool arguments that couldn't be read.
 
@@ -118,7 +118,7 @@ output: detecttrace-dashboard.html
 
 ### Inputs
 
-**Traces.** OTLP JSON files: JSON lines or a single document, uncompressed, gzip, or zstd (install the `zstd` extra). DetectTrace uses the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). A case is an `invoke_agent` span, and tool calls are `execute_tool` spans. Extra attributes carry what the standard doesn't: `detecttrace.case_id`, `detecttrace.alert_class`, and `detecttrace.verdict`, plus an optional `detecttrace.prompt_version` for the version split. If your traces use other attribute names, map them in the configuration's `mapping` section. `init` proposes the mapping for you.
+**Traces.** OTLP JSON files: JSON lines or a single document, uncompressed, gzip, or zstd (install the `zstd` extra). DetectTrace uses the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). A case is an `invoke_agent` span, and tool calls are `execute_tool` spans. Extra attributes carry what the standard doesn't: `detecttrace.case_id`, `detecttrace.alert_class`, and `detecttrace.verdict`, plus an optional `detecttrace.prompt_version` for the version split. If your traces use other attribute names, map them in the configuration's `mapping` section. `init` proposes the mapping for you. The full specification is in [docs/attributes.md](docs/attributes.md).
 
 To get trace files, you have three options:
 
@@ -137,7 +137,7 @@ To get trace files, you have three options:
 
 - **Langfuse.** Set `format: langfuse` and point `traces.path` at an export of observations: pages from the v2 observations API (request the `io` field group, which holds the tool arguments), or a blob storage export in JSON or JSONL (the `observations_v2/` folder). The Langfuse Python SDK exports only some spans by default. If tool calls are missing, set `should_export_span=lambda span: True`. DetectTrace warns when an export has agent runs but no tool calls.
 
-The OpenTelemetry SDK's console exporter doesn't write OTLP JSON. DetectTrace recognizes its output and says so.
+The OpenTelemetry SDK's console exporter doesn't write OTLP JSON. DetectTrace recognizes its output and says so. Details for each source are in [docs/trace-sources.md](docs/trace-sources.md).
 
 **Verdicts.** A CSV with `case_id`, `alert_class`, and `verdict`. The label map converts your team's labels into three verdicts: `true_positive`, `false_positive`, and `benign`. Matching ignores case and extra spaces. Add `agent_label_map` if the agent uses different labels from the analysts. DetectTrace never guesses a label; unmapped labels are reported.
 
@@ -162,7 +162,7 @@ items:
       lookback_days: { min: 30 }
 ```
 
-An item is satisfied when the case has a successful call to that tool and every argument rule passes. Argument rules: `equals`, `in`, `exists`, `matches`, `min`, `max`, `min_duration`, and `kql_min_ago`. Without a checklist, an alert class gets verdict metrics only. Files ending in `.yaml.example` are ignored, and `check` notes each one.
+An item is satisfied when the case has a successful call to that tool and every argument rule passes. Argument rules: `equals`, `in`, `exists`, `matches`, `min`, `max`, `min_duration`, and `kql_min_ago`. Without a checklist, an alert class gets verdict metrics only. Files ending in `.yaml.example` are ignored, and `check` notes each one. Every rule, with examples, is in [docs/checklists.md](docs/checklists.md).
 
 ## Privacy
 
