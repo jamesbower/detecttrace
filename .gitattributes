@@ -1,0 +1,6 @@
+# Keep LF on every checkout: golden files and fixtures are compared byte for byte.
+* text=auto eol=lf
+*.gz binary
+*.zst binary
+# Saved by Excel with CRLF endings on purpose; the reader must accept them as they are.
+tests/fixtures/verdicts/excel_csv/*.csv -text
