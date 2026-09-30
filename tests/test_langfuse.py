@@ -418,6 +418,19 @@ def test_an_otlp_document_read_as_langfuse_says_so(tmp_path: Path) -> None:
         5,
         ["attributes.a"],
     ],
+    # Short ids: pytest puts the test id in an environment variable, which Windows caps at
+    # 32,767 characters, and the deep-nesting cases are 100,000 characters long.
+    ids=[
+        "not_json",
+        "cut_off_json",
+        "deep_array",
+        "deep_array_in_object",
+        "json_string_of_object",
+        "json_array_text",
+        "json_number_text",
+        "number",
+        "list",
+    ],
 )
 def test_metadata_that_is_not_an_object_is_reported(tmp_path: Path, metadata: object) -> None:
     _, issues = load(tmp_path, [langfuse_row(S1, metadata=metadata)])
