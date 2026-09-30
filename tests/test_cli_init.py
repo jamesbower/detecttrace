@@ -279,7 +279,7 @@ def test_an_existing_configuration_without_force_is_named(demo_copy: Path) -> No
 
     result = _init(demo_copy, "--yes")
 
-    assert f"{demo_copy / 'detecttrace.yaml'} exists" in result.stderr
+    assert f"{(demo_copy / 'detecttrace.yaml').as_posix()} exists" in result.stderr
 
 
 def test_an_existing_example_checklist_without_force_is_named(demo_copy: Path) -> None:
@@ -288,7 +288,10 @@ def test_an_existing_example_checklist_without_force_is_named(demo_copy: Path) -
 
     result = _init(demo_copy, "--yes")
 
-    assert f"{demo_copy / 'checklists' / 'impossible_travel.yaml.example'} exists" in result.stderr
+    assert (
+        f"{(demo_copy / 'checklists' / 'impossible_travel.yaml.example').as_posix()} exists"
+        in result.stderr
+    )
 
 
 def test_an_existing_example_checklist_is_kept_without_force(demo_copy: Path) -> None:
@@ -360,7 +363,7 @@ def test_interactive_asks_before_writing(tmp_path: Path, interactive: None) -> N
 
     result = _init(tmp_path, input=ACCEPT_MAPPING + "y\n")
 
-    assert f"Write {tmp_path / 'detecttrace.yaml'}? [Y/n]" in result.stderr
+    assert f"Write {(tmp_path / 'detecttrace.yaml').as_posix()}? [Y/n]" in result.stderr
 
 
 def test_interactive_replaces_the_case_id(tmp_path: Path, interactive: None) -> None:
