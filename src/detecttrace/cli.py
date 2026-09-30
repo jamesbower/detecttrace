@@ -25,7 +25,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 from importlib.resources import as_file, files
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn
 
 import typer
 from typer.core import TyperGroup
@@ -57,10 +57,10 @@ from detecttrace.init_writer import (
     to_checklist_file_name,
 )
 from detecttrace.langfuse import find_missing_tool_calls
-from detecttrace.model import InputFileError, IssueKind, Span, Verdict, VerdictRow
+from detecttrace.model import InputFileError, Issue, IssueKind, Span, Verdict, VerdictRow
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
-from detecttrace.runconfig import RunConfig, load_run_config
+from detecttrace.runconfig import RunConfig, TraceFormat, load_run_config
 from detecttrace.summary import (
     IssueExample,
     Severity,
@@ -448,21 +448,58 @@ def _is_interactive() -> bool:
     return sys.stdin.isatty()
 
 
+class _InitStop(Exception):
+    """init has said why it stops; it exits with `code`."""
+
+    def __init__(self, code: int) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+@dataclass(frozen=True, slots=True)
+class _Sample:
+    spans: list[Span]
+    rows: list[VerdictRow]
+    trace_format: TraceFormat
+    trace_issues: list[Issue]
+    verdict_issues: list[Issue]
+
+
 def _init(options: _InitOptions) -> int:
-    # Checked before the inputs are read, so CI never waits on a long read to learn this.
+    try:
+        is_interactive = _check_init_can_start(options)
+        sample = _load_sample(options)
+        proposal, draft = _propose(sample, options)
+        if not options.is_quiet:
+            _echo_found(proposal, draft, sample, options)
+        if is_interactive:
+            draft = _ask(sample, options, proposal, draft)
+        _check_required(draft, options)
+        return _emit(draft, options, is_interactive=is_interactive)
+    except _InitStop as stop:
+        return stop.code
+
+
+def _check_init_can_start(options: _InitOptions) -> bool:
+    """Whether init asks questions; stops when it cannot ask and has no --yes, or cannot
+    write the configuration. Checked before the inputs are read, so CI never waits on a long
+    read to learn this.
+    """
     is_interactive = not options.is_yes and _is_interactive()
     if not options.is_yes and not is_interactive:
-        _echo_error(NO_TERMINAL)
-        return 1
-    config_path = options.config
+        _stop(NO_TERMINAL)
     if not options.is_dry_run:
+        config_path = options.config
         problem = _find_init_folder_problem(config_path) or _find_init_target_problem(
             config_path, is_force=options.is_force
         )
         if problem is not None:
-            _echo_error(problem)
-            return 1
+            _stop(problem)
+    return is_interactive
 
+
+def _load_sample(options: _InitOptions) -> _Sample:
+    config_name = options.config.name
     traces_text = _to_path_text(options.traces)
     # A format set with --set is how the configuration will read the traces, so the proposal
     # reads them that way too.
@@ -473,57 +510,49 @@ def _init(options: _InitOptions) -> int:
             _echo_error(
                 f"No OTLP JSON or Langfuse export found in {traces_text}. {NOTHING_WRITTEN}"
             )
-            _echo_summary_lines(summarize_issues(format_issues, config_path.name), is_err=True)
-            return 1
+            _echo_summary_lines(summarize_issues(format_issues, config_name), is_err=True)
+            raise _InitStop(1)
     spans, trace_issues = load_spans(options.traces, format=trace_format, path_hint=_TRACES_HINT)
     if not spans:
         _echo_error(
             f"No span could be read from {traces_text} as {trace_format}. {NOTHING_WRITTEN}"
         )
-        _echo_summary_lines(summarize_issues(trace_issues, config_path.name), is_err=True)
-        return 1
+        _echo_summary_lines(summarize_issues(trace_issues, config_name), is_err=True)
+        raise _InitStop(1)
     rows, verdict_issues = read_verdicts(options.verdicts, path_hint=_VERDICTS_HINT)
-    inputs = _InitInputs(spans, rows, options)
-    proposal = propose_init(spans, trace_format, rows)
+    return _Sample(spans, rows, trace_format, trace_issues, verdict_issues)
+
+
+def _propose(sample: _Sample, options: _InitOptions) -> tuple[Proposal, InitDraft]:
+    proposal = propose_init(sample.spans, sample.trace_format, sample.rows)
     try:
-        draft = apply_overrides(inputs.create_draft(proposal), options.sets)
-        proposal, draft = _repropose(inputs, proposal, draft)
+        draft = apply_overrides(_create_draft(proposal, options), options.sets)
+        proposal, draft = _repropose(sample, options, proposal, draft)
     except OverrideError as error:
-        _echo_error(f"{error} {NOTHING_WRITTEN}")
-        return 1
-    example_path = _to_example_path(draft, config_path)
+        _stop(f"{error} {NOTHING_WRITTEN}")
+    example_path = _to_example_path(draft, options.config)
     if example_path is not None and not options.is_dry_run:
         problem = _find_init_target_problem(example_path, is_force=options.is_force)
         if problem is not None:
-            _echo_error(problem)
-            return 1
-    missing_tool_calls = find_missing_tool_calls(
-        proposal.trace_format, proposal.trace_cases, options.traces.name
-    )
-    if missing_tool_calls is not None:
-        trace_issues.append(missing_tool_calls)
-    if not options.is_quiet:
-        _echo_found(
-            proposal,
-            draft,
-            len(rows),
-            summarize_issues(trace_issues + verdict_issues, config_path.name),
-        )
+            _stop(problem)
+    return proposal, draft
 
-    if is_interactive:
-        try:
-            asked = _ask_mapping(draft, proposal)
-            proposal, draft = _repropose(inputs, proposal, asked)
-            if draft is not asked:
-                _echo_orphans(proposal)
-            draft = _ask_labels(draft)
-        except typer.Abort:
-            typer.echo(f"\nStopped. {NOTHING_WRITTEN}", err=True)
-            return 1
-        example_path = _to_example_path(draft, config_path)
+
+def _ask(sample: _Sample, options: _InitOptions, proposal: Proposal, draft: InitDraft) -> InitDraft:
+    try:
+        asked = _ask_mapping(draft, proposal)
+        proposal, draft = _repropose(sample, options, proposal, asked)
+        if draft is not asked:
+            _echo_orphans(proposal)
+        return _ask_labels(draft)
+    except typer.Abort:
+        typer.echo(f"\nStopped. {NOTHING_WRITTEN}", err=True)
+        raise _InitStop(1) from None
+
+
+def _check_required(draft: InitDraft, options: _InitOptions) -> None:
     if draft.missing_required:
-        _echo_error(_describe_missing(draft.missing_required))
-        return 1
+        _stop(_describe_missing(draft.missing_required))
     unmapped = len(draft.unmapped_analyst_labels) + len(draft.unmapped_agent_labels)
     if unmapped and not options.is_quiet:
         noun = "label is" if unmapped == 1 else "labels are"
@@ -533,9 +562,14 @@ def _init(options: _InitOptions) -> int:
             err=True,
         )
 
+
+def _emit(draft: InitDraft, options: _InitOptions, *, is_interactive: bool) -> int:
+    """Print the files with --dry-run; otherwise confirm when interactive, and write them."""
+    config_path = options.config
     text = render_config_yaml(draft)
     # A mismatch is a bug in init, not in the input: the exception makes it exit 2.
     check_round_trip(text, draft)
+    example_path = _to_example_path(draft, config_path)
     example = None
     if example_path is not None and draft.example_class is not None:
         example = (
@@ -565,23 +599,22 @@ def _init(options: _InitOptions) -> int:
     return _write_init_files(config_path, text, example, options)
 
 
-@dataclass(frozen=True, slots=True)
-class _InitInputs:
-    spans: list[Span]
-    rows: list[VerdictRow]
-    options: _InitOptions
+def _stop(message: str) -> NoReturn:
+    _echo_error(message)
+    raise _InitStop(1)
 
-    def create_draft(self, proposal: Proposal) -> InitDraft:
-        return create_draft(
-            proposal,
-            config_path=self.options.config,
-            traces_path=self.options.traces,
-            verdicts_path=self.options.verdicts,
-        )
+
+def _create_draft(proposal: Proposal, options: _InitOptions) -> InitDraft:
+    return create_draft(
+        proposal,
+        config_path=options.config,
+        traces_path=options.traces,
+        verdicts_path=options.verdicts,
+    )
 
 
 def _repropose(
-    inputs: _InitInputs, proposal: Proposal, draft: InitDraft
+    sample: _Sample, options: _InitOptions, proposal: Proposal, draft: InitDraft
 ) -> tuple[Proposal, InitDraft]:
     """Propose again through the draft's mapping when the user changed it, since the example
     checklist, labels, orphans and coverage all depend on it; the draft is returned unchanged
@@ -592,10 +625,10 @@ def _repropose(
     """
     if draft.mapping == proposal.mapping.to_mapping_config():
         return proposal, draft
-    proposal = propose_init(inputs.spans, proposal.trace_format, inputs.rows, mapping=draft.mapping)
-    rebuilt = inputs.create_draft(proposal)
+    proposal = propose_init(sample.spans, proposal.trace_format, sample.rows, mapping=draft.mapping)
+    rebuilt = _create_draft(proposal, options)
     # The coverage comes from the new proposal: --set would describe a set key without it.
-    reapplied = apply_overrides(rebuilt, inputs.options.sets)
+    reapplied = apply_overrides(rebuilt, options.sets)
     return proposal, replace(reapplied, mapping=draft.mapping, coverage=rebuilt.coverage)
 
 
@@ -628,15 +661,14 @@ def _find_init_target_problem(target: Path, *, is_force: bool) -> str | None:
 
 
 def _echo_found(
-    proposal: Proposal, draft: InitDraft, verdict_row_count: int, problems: list[SummaryLine]
+    proposal: Proposal, draft: InitDraft, sample: _Sample, options: _InitOptions
 ) -> None:
-
     def echo(text: str = "") -> None:
         typer.echo(text, err=True)
 
     echo(
         f"Traces: {proposal.trace_format}, {proposal.agent_run_count:,} agent runs. "
-        f"Verdicts: {verdict_row_count:,} rows."
+        f"Verdicts: {len(sample.rows):,} rows."
     )
     echo("Mapping:")
     for name in FIELD_NAMES:
@@ -682,6 +714,13 @@ def _echo_found(
         for label in unmapped:
             echo(f"  {to_terminal_text(label)}: not mapped")
     _echo_orphans(proposal)
+    trace_issues = list(sample.trace_issues)
+    missing_tool_calls = find_missing_tool_calls(
+        proposal.trace_format, proposal.trace_cases, options.traces.name
+    )
+    if missing_tool_calls is not None:
+        trace_issues.append(missing_tool_calls)
+    problems = summarize_issues(trace_issues + sample.verdict_issues, options.config.name)
     if problems:
         echo("Input problems (check reports them too):")
         _echo_summary_lines(problems, is_err=True)
