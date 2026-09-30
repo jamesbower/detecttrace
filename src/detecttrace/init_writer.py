@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from detecttrace.checklist import EXAMPLE_SUFFIX
 from detecttrace.config import MappingConfig, OperationConfig, normalize_label
 from detecttrace.init_proposal import REQUIRED_LABELS, FieldProposal, Proposal
 from detecttrace.model import Verdict
@@ -28,7 +29,6 @@ from detecttrace.runconfig import (
 from detecttrace.yaml12 import Yaml12Error, parse_yaml12
 
 CHECKLISTS_FOLDER = "checklists"
-EXAMPLE_SUFFIX = ".yaml.example"
 MAX_EXAMPLE_ITEMS = 50
 MAX_FILE_NAME_LENGTH = 64
 

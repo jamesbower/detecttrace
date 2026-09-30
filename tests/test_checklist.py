@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from detecttrace.checklist import ArgRule, ChecklistFileError, load_checklists, parse_path
+from detecttrace.checklist import (
+    ArgRule,
+    ChecklistFileError,
+    find_inactive_checklists,
+    load_checklists,
+    parse_path,
+)
 from detecttrace.model import InputFileError
 
 needs_permissions = pytest.mark.skipif(
@@ -600,3 +606,34 @@ def test_lone_surrogate_in_an_item_id_loads_as_a_replacement_character(tmp_path:
         tmp_path, "c.yaml", 'alert_class: phishing\nitems:\n  - {id: "a\\ud800", tool: t}\n'
     )
     assert load_checklists(path)["phishing"].items[0].id == "a�"
+
+
+# Inactive example checklists
+
+
+def test_inactive_checklists_lists_example_files_by_relative_path(tmp_path: Path) -> None:
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "b.yaml.example").write_text("x", encoding="utf-8")
+    (tmp_path / "a.YAML.EXAMPLE").write_text("x", encoding="utf-8")
+    (tmp_path / "c.yaml").write_text(EXAMPLE, encoding="utf-8")
+
+    assert find_inactive_checklists(tmp_path) == ["a.YAML.EXAMPLE", "sub/b.yaml.example"]
+
+
+def test_inactive_checklists_skips_hidden_files(tmp_path: Path) -> None:
+    (tmp_path / ".a.yaml.example").write_text("x", encoding="utf-8")
+
+    assert find_inactive_checklists(tmp_path) == []
+
+
+def test_inactive_checklists_of_a_single_file_is_empty(tmp_path: Path) -> None:
+    path = tmp_path / "a.yaml"
+    path.write_text(EXAMPLE, encoding="utf-8")
+
+    assert find_inactive_checklists(path) == []
+
+
+def test_example_files_are_not_loaded_as_checklists(tmp_path: Path) -> None:
+    (tmp_path / "a.yaml.example").write_text("items: [", encoding="utf-8")
+
+    assert load_checklists(tmp_path) == {}

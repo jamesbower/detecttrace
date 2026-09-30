@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from detecttrace.cases import build_trace_cases
-from detecttrace.checklist import ChecklistFileError, load_checklists
+from detecttrace.checklist import ChecklistFileError, find_inactive_checklists, load_checklists
 from detecttrace.join import join_cases
 from detecttrace.metrics import MetricsReport, compute_metrics
 from detecttrace.model import Issue, IssueKind
@@ -35,7 +35,9 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
     """
     # Checklists are small and read first, so a typo in one fails before a long trace read.
     checklists = {} if config.checklists is None else load_checklists(config.checklists)
-    if config.checklists is not None and not checklists:
+    inactive = [] if config.checklists is None else find_inactive_checklists(config.checklists)
+    # A folder holding only init's example checklists runs without checklists, with a note.
+    if config.checklists is not None and not checklists and not inactive:
         # Otherwise a wrong folder would score every class as having no checklist, silently.
         raise ChecklistFileError(
             f"No checklist files (*.yaml, *.yml) found under {config.checklists}. "
@@ -53,6 +55,13 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
         if was_enabled:
             gc.enable()
     issues.extend(case_issues)
+    if config.checklists is not None:
+        # The subject says where the file is, as the other paths in the results do.
+        folder = config_path.absolute().parent
+        issues.extend(
+            Issue(IssueKind.INACTIVE_CHECKLIST, _to_source(config.checklists / name, folder), name)
+            for name in inactive
+        )
     if (
         config.traces.format == "langfuse"
         and trace_cases

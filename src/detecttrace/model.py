@@ -79,14 +79,16 @@ class IssueKind(StrEnum):
     LEGACY_LANGFUSE_TRACE = "legacy_langfuse_trace"
     LANGFUSE_WITHOUT_IO = "langfuse_without_io"
     LANGFUSE_NO_TOOL_CALLS = "langfuse_no_tool_calls"
+    INACTIVE_CHECKLIST = "inactive_checklist"
 
 
 @dataclass(frozen=True, slots=True)
 class Issue:
     kind: IssueKind
     subject: str  # the file, span, or case ID the issue is about
-    # For UNMAPPED_ANALYST_LABEL, UNMAPPED_AGENT_LABEL and UNKNOWN_CHECKLIST_TOOL this is the
-    # bare label or tool the summary groups by, never a sentence; for other kinds it describes.
+    # For UNMAPPED_ANALYST_LABEL, UNMAPPED_AGENT_LABEL, UNKNOWN_CHECKLIST_TOOL and
+    # INACTIVE_CHECKLIST this is the bare label, tool or file the summary groups by, never a
+    # sentence; for other kinds it describes.
     detail: str = ""
 
 

@@ -60,6 +60,7 @@ SEVERITY: Mapping[IssueKind, Severity] = {
     IssueKind.LEGACY_LANGFUSE_TRACE: _I,
     IssueKind.LANGFUSE_WITHOUT_IO: _W,
     IssueKind.LANGFUSE_NO_TOOL_CALLS: _W,
+    IssueKind.INACTIVE_CHECKLIST: _W,
 }
 
 _AGENT = conventions.INVOKE_AGENT
@@ -289,6 +290,11 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "The Langfuse SDK's default span filter may have dropped them; "
         "set should_export_span=lambda span: True.",
     ),
+    IssueKind.INACTIVE_CHECKLIST: (
+        "checklist '{key}' is inactive",
+        "checklists '{key}' are inactive",
+        "Rename it to .yaml to measure evidence completeness.",
+    ),
 }
 
 # Kinds whose Issue.detail is the grouping key itself, so repeating it per example adds nothing.
@@ -297,6 +303,7 @@ _KEY_IN_DETAIL = frozenset(
         IssueKind.UNMAPPED_ANALYST_LABEL,
         IssueKind.UNMAPPED_AGENT_LABEL,
         IssueKind.UNKNOWN_CHECKLIST_TOOL,
+        IssueKind.INACTIVE_CHECKLIST,
     }
 )
 _MAX_EXAMPLES = 3

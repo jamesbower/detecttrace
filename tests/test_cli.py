@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from builders import RUN_CONFIG, RUN_VERDICTS, write_run_folder
+from html_tree import has_tag, parse_html
 from typer.testing import CliRunner, Result
 
 from detecttrace import __version__, cli, pipeline
@@ -252,6 +253,72 @@ def test_checklists_are_read_before_the_traces(tmp_path: Path) -> None:
     result = _check(config_path)
 
     assert "impossible_travel.yaml" in result.stderr
+
+
+INACTIVE_NOTE = (
+    "1 checklist 'impossible_travel.yaml.example' is inactive. "
+    "Rename it to .yaml to measure evidence completeness."
+)
+
+
+def _write_inactive_example(tmp_path: Path, *, is_only: bool = False) -> Path:
+    config_path = write_run_folder(tmp_path)
+    folder = tmp_path / "checklists"
+    (folder / "impossible_travel.yaml.example").write_text(
+        (folder / "impossible_travel.yaml").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    if is_only:
+        (folder / "impossible_travel.yaml").unlink()
+    return config_path
+
+
+def test_an_inactive_example_checklist_is_noted_in_the_terminal_summary(tmp_path: Path) -> None:
+    result = _check(_write_inactive_example(tmp_path))
+
+    assert INACTIVE_NOTE in result.stdout
+
+
+def test_an_inactive_example_checklist_note_names_its_path(tmp_path: Path) -> None:
+    result = _check(_write_inactive_example(tmp_path))
+
+    assert "    checklists/impossible_travel.yaml.example\n" in result.stdout
+
+
+def test_an_inactive_example_checklist_is_noted_in_the_dashboard_data_notes(
+    tmp_path: Path,
+) -> None:
+    _check(_write_inactive_example(tmp_path))
+
+    page = parse_html((tmp_path / "dashboard.html").read_text(encoding="utf-8"))
+    notes = page.find(has_tag("ol", **{"class": "notes"}))
+    assert "impossible_travel.yaml.example' is inactive" in notes.text()
+
+
+def test_an_inactive_example_checklist_does_not_fail_strict(tmp_path: Path) -> None:
+    result = _check(_write_inactive_example(tmp_path), "--strict")
+
+    assert result.exit_code == 0
+
+
+def test_a_checklist_folder_with_only_examples_runs(tmp_path: Path) -> None:
+    result = _check(_write_inactive_example(tmp_path, is_only=True))
+
+    assert result.exit_code == 0
+
+
+def test_a_checklist_folder_with_only_examples_still_gets_the_note(tmp_path: Path) -> None:
+    result = _check(_write_inactive_example(tmp_path, is_only=True))
+
+    assert INACTIVE_NOTE in result.stdout
+
+
+def test_a_checklist_folder_with_only_examples_scores_no_evidence(tmp_path: Path) -> None:
+    config_path = _write_inactive_example(tmp_path, is_only=True)
+
+    _check(config_path, "--json", str(tmp_path / "results.json"))
+
+    results = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
+    assert results["classes"][0]["overall"]["completeness"] is None
 
 
 HEADER_ONLY = "case_id,alert_class,verdict\n"

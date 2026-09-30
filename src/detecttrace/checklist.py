@@ -26,6 +26,7 @@ from detecttrace.yaml12 import Yaml12Error, load_yaml12
 _PATH = re.compile(r"[^.\[\]]+((?:\.[^.\[\]]+|\[[0-9]+\])*)")
 _PATH_PART = re.compile(r"\.([^.\[\]]+)|\[([0-9]+)\]")
 _YAML_SUFFIXES = (".yaml", ".yml")
+EXAMPLE_SUFFIX = ".yaml.example"
 # Real checklists are a few KB, and PyYAML's pure-Python parser takes seconds per megabyte.
 _MAX_FILE_BYTES = 1 << 20
 _MAX_ECHO_CHARS = 60
@@ -214,7 +215,8 @@ def load_checklists(path: Path) -> dict[str, Checklist]:
         )
     checklists: dict[str, Checklist] = {}
     sources: dict[str, str] = {}
-    for file_path, subject in _list_checklist_files(path):
+    files = [(path, path.name)] if not path.is_dir() else _list_folder(path, _YAML_SUFFIXES)
+    for file_path, subject in files:
         checklist = _load_file(file_path, subject)
         key = normalize_label(checklist.alert_class)
         if key in sources:
@@ -227,10 +229,20 @@ def load_checklists(path: Path) -> dict[str, Checklist]:
     return checklists
 
 
-def _list_checklist_files(path: Path) -> list[tuple[Path, str]]:
-    """Return (file, subject) pairs; the subject is the POSIX path relative to `path`."""
+def find_inactive_checklists(path: Path) -> list[str]:
+    """The *.yaml.example files (any case) in the checklist folder `path`, as POSIX paths
+    relative to it, in sorted order; hidden files and folders are skipped.
+
+    `init` writes its example checklist this way, and it is not measured until renamed, so
+    check notes each one. A single checklist file has none.
+    """
     if not path.is_dir():
-        return [(path, path.name)]
+        return []
+    return [subject for _, subject in _list_folder(path, (EXAMPLE_SUFFIX,))]
+
+
+def _list_folder(path: Path, suffixes: tuple[str, ...]) -> list[tuple[Path, str]]:
+    """Return (file, subject) pairs; the subject is the POSIX path relative to `path`."""
 
     def report(error: OSError) -> None:
         folder = Path(error.filename)
@@ -246,7 +258,7 @@ def _list_checklist_files(path: Path) -> list[tuple[Path, str]]:
     for folder, folder_names, file_names in os.walk(path, onerror=report):
         folder_names[:] = sorted(name for name in folder_names if not name.startswith("."))
         for name in file_names:
-            if name.startswith(".") or not name.lower().endswith(_YAML_SUFFIXES):
+            if name.startswith(".") or not name.lower().endswith(suffixes):
                 continue
             file_path = Path(folder, name)
             files.append((file_path, file_path.relative_to(path).as_posix()))
