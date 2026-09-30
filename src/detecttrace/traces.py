@@ -2,7 +2,6 @@
 
 import gzip
 import io
-import json
 import os
 import re
 import zlib
@@ -39,10 +38,6 @@ _BOM = b"\xef\xbb\xbf"
 # A UTF-16 or UTF-32 BOM, or an ASCII character padded with NULs: JSON text starts with
 # an ASCII character, so this is UTF-16 or UTF-32 without a BOM. Covers the UTF-32 BOMs too.
 _UTF16_OR_UTF32_START = re.compile(rb"\xff\xfe|\xfe\xff|[^\x00]\x00|\x00{1,3}[^\x00]")
-# Strict UTF-8 decoding rejects raw surrogates, so only a JSON escape can produce one.
-# A valid pair decodes to one character, so any surrogate left over is a lone one.
-_MAY_HOLD_SURROGATE = re.compile(r"\\u[dD][89a-fA-F]")
-_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 class _CorruptZstdError(Exception):
@@ -90,6 +85,7 @@ def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[
     parse_document = _PARSERS[format]
     spans: list[Span] = []
     seen: dict[tuple[str, str], Span] = {}
+    parsed_count = 0
     for file_path, subject in trace_files:
         file_issues: list[Issue] = []
         span_count = 0
@@ -116,7 +112,21 @@ def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[
             issues.append(Issue(IssueKind.CONSOLE_EXPORTER_OUTPUT, subject, _CONSOLE_DETAIL))
         else:
             issues.extend(file_issues)
-    return spans, issues
+        parsed_count += span_count
+    return spans, _merge_rows_without_io(issues, parsed_count, path)
+
+
+def _merge_rows_without_io(issues: list[Issue], parsed_count: int, path: Path) -> list[Issue]:
+    """Replace the Langfuse parser's per-row LANGFUSE_WITHOUT_IO issues with at most one.
+
+    An export made without the io field group has no row with input or output, so only
+    then is it noted. Duplicate rows count on both sides, so they never change the outcome.
+    """
+    kept = [issue for issue in issues if issue.kind is not IssueKind.LANGFUSE_WITHOUT_IO]
+    rows_without_io = len(issues) - len(kept)
+    if rows_without_io and rows_without_io == parsed_count:
+        kept.append(Issue(IssueKind.LANGFUSE_WITHOUT_IO, path.name, "no row has input or output"))
+    return kept
 
 
 def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]:
@@ -229,7 +239,7 @@ def _read_one_document(
     except UnicodeDecodeError:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, "not UTF-8"))
         return
-    document = _parse_json_text(text)
+    document = otlp.parse_json_text(text)
     if document is None:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
         return
@@ -240,7 +250,7 @@ def _load_document(file_path: Path) -> Json | None:
     # A too-large file whose first line is not a whole document is read as JSON lines instead.
     data = _read_document_bytes(file_path)
     try:
-        return None if data is None else _parse_json_text(data.decode("utf-8-sig"))
+        return None if data is None else otlp.parse_json_text(data.decode("utf-8-sig"))
     except UnicodeDecodeError:
         return None
 
@@ -396,43 +406,4 @@ def _parse_json_line(line: bytes) -> Json | None:
         text = line.decode("utf-8")
     except UnicodeDecodeError:
         return None
-    return _parse_json_text(text)
-
-
-def _parse_json_text(text: str) -> Json | None:
-    # A str, never bytes: json.loads on bytes would also accept UTF-16 and UTF-32.
-    try:
-        document = json.loads(text)
-    except (ValueError, RecursionError):
-        return None
-    return _replace_surrogates(document) if _MAY_HOLD_SURROGATE.search(text) else document
-
-
-def _replace_surrogates(document: Json) -> Json:
-    """Replace lone surrogates in every string and key with U+FFFD, in place where possible.
-
-    A lone surrogate can't be encoded as UTF-8, so one left in a case ID or argument would
-    make the results write fail. The walk uses a stack, since a document can nest as deep
-    as the JSON parser allows.
-    """
-    if isinstance(document, str):
-        return _SURROGATE.sub("\ufffd", document)
-    stack = [document]
-    while stack:
-        container = stack.pop()
-        if isinstance(container, list):
-            for index, value in enumerate(container):
-                if isinstance(value, str):
-                    container[index] = _SURROGATE.sub("\ufffd", value)
-                elif isinstance(value, list | dict):
-                    stack.append(value)
-        elif isinstance(container, dict):
-            items = list(container.items())
-            container.clear()
-            for key, value in items:
-                if isinstance(value, str):
-                    value = _SURROGATE.sub("\ufffd", value)
-                elif isinstance(value, list | dict):
-                    stack.append(value)
-                container[_SURROGATE.sub("\ufffd", key)] = value
-    return document
+    return otlp.parse_json_text(text)

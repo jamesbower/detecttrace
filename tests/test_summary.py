@@ -203,6 +203,16 @@ def test_missing_tool_name_points_at_the_mapping() -> None:
     )
 
 
+@pytest.mark.parametrize("kind", [IssueKind.INVALID_LINE, IssueKind.INVALID_FILE])
+def test_trace_input_hints_name_langfuse_exports_too(kind: IssueKind) -> None:
+    assert "Langfuse" in only_line([Issue(kind, "x")]).hint
+
+
+def test_langfuse_without_io_reads_as_one_note_about_the_export() -> None:
+    message = only_line([Issue(IssueKind.LANGFUSE_WITHOUT_IO, "x")]).message
+    assert message.startswith("1 Langfuse export has no input or output fields")
+
+
 def test_singular_count_uses_singular_noun_and_verb() -> None:
     assert only_line(unmapped("Escalated", 1)).message.startswith("1 verdict uses the label")
 

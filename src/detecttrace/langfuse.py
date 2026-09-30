@@ -5,8 +5,8 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 from detecttrace import conventions
-from detecttrace.model import Issue, IssueKind, Span
-from detecttrace.otlp import Json, Report
+from detecttrace.model import Issue, IssueKind, Span, to_short_label
+from detecttrace.otlp import Json, Report, parse_json_text
 
 _MAX_ID_LENGTH = 200
 _HEX_ID = re.compile(r"[0-9a-fA-F]+")
@@ -22,6 +22,7 @@ _NANOS_PER_SECOND = 1_000_000_000
 _UINT64_LIMIT = 2**64
 _ERROR_LEVEL = "ERROR"
 _TOOL_TYPE = "TOOL"
+_EXECUTE_TOOL_PREFIX = conventions.EXECUTE_TOOL + " "
 _OPERATIONS = {"AGENT": conventions.INVOKE_AGENT, _TOOL_TYPE: conventions.EXECUTE_TOOL}
 _ATTRIBUTES_PREFIX = "attributes."
 _RESOURCE_PREFIX = "resourceAttributes."
@@ -48,6 +49,9 @@ def parse_document(
     (the blob JSON export), or one row (a line of the blob JSONL export). Rows may use the
     API's camelCase or the blob export's snake_case field names. `output`, the tool result,
     is never read.
+
+    A row without `input` and `output` keys gets a LANGFUSE_WITHOUT_IO issue with no detail;
+    load_spans turns those into one note when no row of the input has either key.
     """
     prefix = "" if line_number is None else f"line {line_number}: "
 
@@ -106,7 +110,7 @@ def _to_span(row: Json, where: str, report: Report) -> Span | None:
     if "input" not in row and "output" not in row:
         # The field groups a user asked for decide which keys exist, so absence (not null)
         # means the io group was left out: no tool arguments, and metadata may be cut.
-        report(IssueKind.LANGFUSE_WITHOUT_IO, f"{where}: no input or output field")
+        report(IssueKind.LANGFUSE_WITHOUT_IO, "")
     row_type = _read_text(row, "type", where, report)
     name = _read_text(row, "name", where, report) or ""
     attributes, resource_attributes = _read_metadata(row.get("metadata"), where, report)
@@ -118,7 +122,9 @@ def _to_span(row: Json, where: str, report: Report) -> Span | None:
         attributes[conventions.OPERATION_ATTRIBUTE] = _OPERATIONS[row_type]
     if row_type == _TOOL_TYPE:
         # Langfuse names a tool row by its tool and moves the call arguments into `input`.
-        if name:
+        # A name in the OTLP `execute_tool <tool>` form is left to the span-name fallback,
+        # which strips the prefix, or reports a missing tool name, exactly as for OTLP.
+        if name and name != conventions.EXECUTE_TOOL and not name.startswith(_EXECUTE_TOOL_PREFIX):
             attributes.setdefault(conventions.TOOL_NAME, name)
         arguments = row.get("input")
         if arguments is not None and arguments != "":
@@ -203,10 +209,15 @@ def _read_metadata(
 
     `attributes.<name>` and `resourceAttributes.<name>` hold the OpenTelemetry attributes;
     `scope.*` is left out; any other key is named `langfuse.metadata.<key>`. Values keep the
-    type Langfuse wrote: typed in API pages, all strings in the blob export.
+    type Langfuse wrote: typed in API pages, all strings in the blob export. Metadata given
+    as a JSON string is decoded once; values inside it are never decoded again.
     """
     if metadata is None:
         return {}, {}
+    if isinstance(metadata, str):
+        decoded = parse_json_text(metadata)
+        if isinstance(decoded, dict):
+            metadata = decoded
     if not isinstance(metadata, dict):
         report(
             IssueKind.LANGFUSE_METADATA_NOT_OBJECT,
@@ -242,5 +253,6 @@ def _add_derived(
     elif attributes[key] != value:
         report(
             IssueKind.INVALID_ATTRIBUTE,
-            f"{where}: {key} is given twice with different values; the span attribute was kept",
+            f"{where}: {to_short_label(key)} is given twice with different values; "
+            "the span attribute was kept",
         )

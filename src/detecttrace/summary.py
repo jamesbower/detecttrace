@@ -85,12 +85,13 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
     IssueKind.INVALID_LINE: (
         "trace line is not valid JSON and was skipped",
         "trace lines are not valid JSON and were skipped",
-        "Each line must hold one OTLP JSON export request; check the exporter's output format.",
+        "Each line must hold one trace export record (an OTLP JSON export request, or a "
+        "Langfuse observation row); check the exporter's output format.",
     ),
     IssueKind.INVALID_FILE: (
         "trace file or folder could not be read",
         "trace files or folders could not be read",
-        "Check the file permissions and that each file holds OTLP JSON.",
+        "Check the file permissions and that each file holds OTLP JSON or a Langfuse export.",
     ),
     IssueKind.INVALID_SPAN: (
         "span is malformed and was skipped",
@@ -272,9 +273,9 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "Export observations (the v2 observations API or a blob export) instead of traces.",
     ),
     IssueKind.LANGFUSE_WITHOUT_IO: (
-        "Langfuse observation has no input or output field, so tool arguments are missing and "
+        "Langfuse export has no input or output fields, so tool arguments are missing and "
         "long metadata values may be cut",
-        "Langfuse observations have no input or output field, so tool arguments are missing and "
+        "Langfuse exports have no input or output fields, so tool arguments are missing and "
         "long metadata values may be cut",
         "Export observations with the io field group; expandMetadata alone keeps metadata "
         "whole but still leaves out tool arguments.",

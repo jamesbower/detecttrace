@@ -249,6 +249,31 @@ def test_a_tool_name_attribute_wins_over_the_row_name(tmp_path: Path) -> None:
     assert only_span(tmp_path, row).attributes["gen_ai.tool.name"] == "lookup"
 
 
+@pytest.mark.parametrize("name", ["execute_tool", "execute_tool lookup"])
+def test_a_tool_row_named_by_its_operation_is_not_given_a_tool_name(
+    tmp_path: Path, name: str
+) -> None:
+    span = only_span(tmp_path, langfuse_row(S1, type="TOOL", name=name))
+    assert "gen_ai.tool.name" not in span.attributes
+
+
+def test_a_tool_row_named_execute_tool_and_a_tool_calls_that_tool(tmp_path: Path) -> None:
+    rows = [
+        langfuse_row(S1, type="AGENT", attributes={"detecttrace.case_id": "DT-1"}),
+        langfuse_row(S2, S1, type="TOOL", name="execute_tool lookup"),
+    ]
+    assert cases_of(load(tmp_path, rows)[0])["DT-1"].tool_calls[0].tool_name == "lookup"
+
+
+def test_a_tool_row_named_only_execute_tool_is_missing_its_tool_name(tmp_path: Path) -> None:
+    rows = [
+        langfuse_row(S1, type="AGENT", attributes={"detecttrace.case_id": "DT-1"}),
+        langfuse_row(S2, S1, type="TOOL", name="execute_tool"),
+    ]
+    _, issues = build_trace_cases(load(tmp_path, rows)[0], MappingConfig())
+    assert issues == [Issue(IssueKind.MISSING_TOOL_NAME, f"{TRACE_ID}/{S2}")]
+
+
 def test_a_span_row_is_not_given_a_tool_name(tmp_path: Path) -> None:
     assert "gen_ai.tool.name" not in only_span(tmp_path, langfuse_row(S1, name="x")).attributes
 
@@ -385,8 +410,10 @@ def test_an_otlp_document_read_as_langfuse_says_so(tmp_path: Path) -> None:
         "not json",
         '{"attributes.detecttrace.case_id": "DT-1", "attributes.note": "cut at two hund',
         "[" * 100_000,
+        '{"attributes.a": ' + "[" * 100_000 + "]" * 100_000 + "}",
         '"{\\"attributes.a\\": 1}"',
-        '{"attributes.a": 1}',
+        '["attributes.a"]',
+        "5",
         5,
         ["attributes.a"],
     ],
@@ -394,6 +421,22 @@ def test_an_otlp_document_read_as_langfuse_says_so(tmp_path: Path) -> None:
 def test_metadata_that_is_not_an_object_is_reported(tmp_path: Path, metadata: object) -> None:
     _, issues = load(tmp_path, [langfuse_row(S1, metadata=metadata)])
     assert kinds(issues) == [IssueKind.LANGFUSE_METADATA_NOT_OBJECT]
+
+
+def test_metadata_given_as_a_json_string_is_read(tmp_path: Path) -> None:
+    metadata = json.dumps({"attributes.detecttrace.case_id": "DT-1", "case_id": "c"})
+    span = only_span(tmp_path, langfuse_row(S1, metadata=metadata))
+    assert span.attributes == {"detecttrace.case_id": "DT-1", "langfuse.metadata.case_id": "c"}
+
+
+def test_metadata_string_values_are_not_decoded_again(tmp_path: Path) -> None:
+    metadata = json.dumps({"attributes.a": '{"b": 1}'})
+    assert only_span(tmp_path, langfuse_row(S1, metadata=metadata)).attributes == {"a": '{"b": 1}'}
+
+
+def test_a_lone_surrogate_in_a_metadata_string_is_replaced(tmp_path: Path) -> None:
+    metadata = '{"attributes.a": "\\ud800"}'
+    assert only_span(tmp_path, langfuse_row(S1, metadata=metadata)).attributes == {"a": "\ufffd"}
 
 
 def test_a_row_whose_metadata_is_not_an_object_is_still_read(tmp_path: Path) -> None:
@@ -433,6 +476,13 @@ def test_a_name_given_twice_with_different_values_is_reported(tmp_path: Path) ->
             "the span attribute was kept",
         )
     ]
+
+
+def test_a_long_name_given_twice_is_shortened_in_the_report(tmp_path: Path) -> None:
+    key = "k" * 100_000
+    metadata = {key: "B", f"attributes.langfuse.metadata.{key}": "A"}
+    [issue] = load(tmp_path, [langfuse_row(S1, metadata=metadata)])[1]
+    assert len(issue.detail) < 300
 
 
 def test_a_name_given_twice_with_the_same_value_is_not_reported(tmp_path: Path) -> None:
@@ -597,6 +647,21 @@ def test_a_row_with_one_of_input_or_output_is_not_reported(tmp_path: Path, field
     assert load(tmp_path, [row])[1] == []
 
 
+def test_duplicate_rows_without_input_or_output_are_reported_once(tmp_path: Path) -> None:
+    row = langfuse_row(S1)
+    del row["input"], row["output"]
+    _, issues = load_lines(tmp_path, [row, row])
+    assert kinds(issues) == [IssueKind.DUPLICATE_SPAN, IssueKind.LANGFUSE_WITHOUT_IO]
+
+
+def test_a_row_without_input_or_output_among_rows_with_them_is_not_reported(
+    tmp_path: Path,
+) -> None:
+    row = langfuse_row(S2)
+    del row["input"], row["output"]
+    assert load(tmp_path, [langfuse_row(S1), row])[1] == []
+
+
 def test_rows_with_null_input_and_output_are_not_reported(tmp_path: Path) -> None:
     assert load(tmp_path, [langfuse_row(S1, input=None, output=None)])[1] == []
 
@@ -732,9 +797,14 @@ def test_real_blob_export_is_read_without_issues(name: str) -> None:
     assert load_spans(REAL / name, format="langfuse")[1] == []
 
 
-def test_real_export_without_the_io_group_is_reported_for_every_row(tmp_path: Path) -> None:
+def test_real_export_without_the_io_group_is_reported_once(tmp_path: Path) -> None:
     _, issues = load_spans(copy_files(tmp_path, NO_IO_PAGES), format="langfuse")
-    assert kinds(issues) == [IssueKind.LANGFUSE_WITHOUT_IO] * 16
+    assert kinds(issues) == [IssueKind.LANGFUSE_WITHOUT_IO]
+
+
+def test_real_export_with_one_page_without_the_io_group_is_not_reported(tmp_path: Path) -> None:
+    folder = copy_files(tmp_path, [*API_PAGES[:3], NO_IO_PAGES[3]])
+    assert load_spans(folder, format="langfuse")[1] == []
 
 
 def test_real_export_without_the_io_group_has_no_tool_arguments(tmp_path: Path) -> None:
