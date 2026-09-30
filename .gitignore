@@ -41,8 +41,10 @@ wheels/
 
 # IDE
 .idea/
+CLAUDE.md
 CLAUDE.local.md
-.claude/settings.local.json
+CLAUDE.local.md.example
+.claude/
 docs/superpowers/
 .clinerules-*
 .projectBrief.md
