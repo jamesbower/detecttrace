@@ -136,6 +136,7 @@ class Proposal:
     unmapped_analyst_labels: tuple[str, ...]
     # Agent labels that match no analyst label and no fixed spelling.
     unmapped_agent_labels: tuple[str, ...]
+    trace_cases: list[TraceCase]  # the cases check would build through this mapping
     tool_names_by_class: dict[str, tuple[str, ...]]
     case_counts_by_class: dict[str, int]
     traces_without_verdict: OrphanSummary
@@ -224,13 +225,6 @@ def propose_init(
         trace_cases, _ = build_trace_cases(
             spans, proposed.to_mapping_config() if mapping is None else mapping
         )
-    if trace_format == "langfuse" and trace_cases and not any(c.tool_calls for c in trace_cases):
-        # The Langfuse SDK's default span filter can drop tool spans before they reach
-        # Langfuse, which would show as low evidence completeness with no other sign.
-        notes.append(
-            "Langfuse input has agent runs but no tool calls. The Langfuse SDK's default "
-            "span filter may have dropped them; set should_export_span=lambda span: True."
-        )
 
     analyst_labels = _pick_spellings(row.label for row in verdict_rows)
     label_map, unmapped_analyst = _auto_map(analyst_labels)
@@ -255,6 +249,7 @@ def propose_init(
         agent_label_map=agent_label_map,
         unmapped_analyst_labels=_cap(unmapped_analyst, "analyst", notes),
         unmapped_agent_labels=_cap(unmapped_agent, "agent", notes),
+        trace_cases=trace_cases,
         tool_names_by_class=tool_names_by_class,
         case_counts_by_class=case_counts_by_class,
         traces_without_verdict=_summarize_orphans(trace_ids - verdict_ids),

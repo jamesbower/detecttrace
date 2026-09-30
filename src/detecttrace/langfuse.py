@@ -6,7 +6,8 @@ from datetime import UTC, datetime, timedelta
 
 from detecttrace import conventions
 from detecttrace.jsontext import Json, Report, parse_json_text
-from detecttrace.model import Issue, IssueKind, Span, to_short_label
+from detecttrace.model import Issue, IssueKind, Span, TraceCase, to_short_label
+from detecttrace.runconfig import TraceFormat
 
 _MAX_ID_LENGTH = 200
 _HEX_ID = re.compile(r"[0-9a-fA-F]+")
@@ -112,6 +113,26 @@ def is_langfuse_document(document: Json) -> bool:
         return bool(document) and _is_row(document[0])
     return isinstance(document, dict) and (
         isinstance(document.get("data"), list) or _is_row(document)
+    )
+
+
+def find_missing_tool_calls(
+    trace_format: TraceFormat, trace_cases: list[TraceCase], subject: str
+) -> Issue | None:
+    """A LANGFUSE_NO_TOOL_CALLS issue about `subject` (the trace path's name) when Langfuse
+    input has agent runs but not one tool call, else None.
+
+    The Langfuse SDK's default span filter can drop tool spans before they reach Langfuse,
+    which would show as low evidence completeness with no other sign.
+    """
+    if trace_format != "langfuse" or not trace_cases:
+        return None
+    if any(case.tool_calls for case in trace_cases):
+        return None
+    return Issue(
+        IssueKind.LANGFUSE_NO_TOOL_CALLS,
+        subject,
+        f"{len(trace_cases):,} agent run(s), no tool calls",
     )
 
 

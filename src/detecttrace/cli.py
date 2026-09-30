@@ -52,6 +52,7 @@ from detecttrace.init_writer import (
     set_label,
     to_checklist_file_name,
 )
+from detecttrace.langfuse import find_missing_tool_calls
 from detecttrace.model import InputFileError, IssueKind, Span, Verdict, VerdictRow
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
@@ -482,6 +483,11 @@ def _init(options: _InitOptions) -> int:
         if problem is not None:
             _echo_error(problem)
             return 1
+    missing_tool_calls = find_missing_tool_calls(
+        proposal.trace_format, proposal.trace_cases, options.traces.name
+    )
+    if missing_tool_calls is not None:
+        trace_issues.append(missing_tool_calls)
     if not options.is_quiet:
         _echo_found(proposal, len(rows), summarize_issues(trace_issues + verdict_issues))
 

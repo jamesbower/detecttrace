@@ -8,6 +8,7 @@ from pathlib import Path
 from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import ChecklistFileError, find_inactive_checklists, load_checklists
 from detecttrace.join import join_cases
+from detecttrace.langfuse import find_missing_tool_calls
 from detecttrace.metrics import MetricsReport, compute_metrics
 from detecttrace.model import Issue, IssueKind
 from detecttrace.results import build_results
@@ -62,20 +63,11 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
             Issue(IssueKind.INACTIVE_CHECKLIST, _to_source(config.checklists / name, folder), name)
             for name in inactive
         )
-    if (
-        config.traces.format == "langfuse"
-        and trace_cases
-        and not any(case.tool_calls for case in trace_cases)
-    ):
-        # The Langfuse SDK's default span filter can drop tool spans before they reach
-        # Langfuse, which would show as low evidence completeness with no other sign.
-        issues.append(
-            Issue(
-                IssueKind.LANGFUSE_NO_TOOL_CALLS,
-                config.traces.path.name,
-                f"{len(trace_cases):,} agent run(s), no tool calls",
-            )
-        )
+    missing_tool_calls = find_missing_tool_calls(
+        config.traces.format, trace_cases, config.traces.path.name
+    )
+    if missing_tool_calls is not None:
+        issues.append(missing_tool_calls)
     verdict_rows, verdict_issues = read_verdicts(config.verdicts.path)
     issues.extend(verdict_issues)
     cases, join_issues = join_cases(trace_cases, verdict_rows, config.to_config())

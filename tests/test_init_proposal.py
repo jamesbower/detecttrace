@@ -424,14 +424,12 @@ def test_missing_alert_class_is_noted() -> None:
     assert any("alert class" in note for note in propose([case(0, "DT-1")]).notes)
 
 
-def test_langfuse_runs_without_tool_calls_are_noted() -> None:
+def test_langfuse_runs_without_tool_calls_are_left_to_the_input_problems() -> None:
     proposal = propose([case(0, "DT-1")], trace_format="langfuse")
-    assert any("should_export_span" in note for note in proposal.notes)
-
-
-def test_langfuse_runs_with_tool_calls_have_no_filter_note() -> None:
-    proposal = propose([case(0, "DT-1"), tool(0, "get_signin_logs")], trace_format="langfuse")
-    assert not any("should_export_span" in note for note in proposal.notes)
+    assert proposal.notes == (
+        "no alert class found on agent runs; alert classes come from the verdict file only",
+        "no prompt version found; every case will show as (no version)",
+    )
 
 
 # Label maps

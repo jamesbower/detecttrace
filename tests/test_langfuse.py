@@ -19,7 +19,8 @@ from typer.testing import CliRunner
 from detecttrace import cli
 from detecttrace.cases import build_trace_cases
 from detecttrace.config import MappingConfig
-from detecttrace.model import Issue, IssueKind, Span, TraceCase
+from detecttrace.langfuse import find_missing_tool_calls
+from detecttrace.model import Issue, IssueKind, Span, ToolCall, TraceCase
 from detecttrace.pipeline import run_check
 from detecttrace.runconfig import load_run_config
 from detecttrace.summary import summarize_issues
@@ -997,3 +998,29 @@ def test_an_otlp_input_without_tool_calls_gets_no_langfuse_note(tmp_path: Path) 
     )
     run = run_check(load_run_config(config_path), config_path)
     assert IssueKind.LANGFUSE_NO_TOOL_CALLS not in kinds(run.issues)
+
+
+# Agent runs without tool calls
+
+
+def trace_case(tool_calls: tuple[ToolCall, ...] = ()) -> TraceCase:
+    return TraceCase("DT-1", TRACE_ID, S1, 0, 1, None, None, None, tool_calls, False)
+
+
+def test_langfuse_cases_without_tool_calls_give_one_issue() -> None:
+    assert find_missing_tool_calls("langfuse", [trace_case(), trace_case()], "traces") == Issue(
+        IssueKind.LANGFUSE_NO_TOOL_CALLS, "traces", "2 agent run(s), no tool calls"
+    )
+
+
+def test_langfuse_cases_with_a_tool_call_give_no_issue() -> None:
+    call = ToolCall(S2, "scan", None, 0, 1, False)
+    assert find_missing_tool_calls("langfuse", [trace_case(), trace_case((call,))], "x") is None
+
+
+def test_langfuse_input_without_cases_gives_no_issue() -> None:
+    assert find_missing_tool_calls("langfuse", [], "traces") is None
+
+
+def test_otlp_cases_without_tool_calls_give_no_issue() -> None:
+    assert find_missing_tool_calls("otlp_jsonl", [trace_case()], "traces") is None

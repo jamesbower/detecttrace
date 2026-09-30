@@ -9,6 +9,8 @@ from typer.testing import CliRunner, Result
 
 from detecttrace import cli
 from detecttrace.init_writer import RoundTripError
+from detecttrace.model import Issue, IssueKind
+from detecttrace.summary import summarize_issues
 
 DEMO_DATA = Path(cli.__file__).parent / cli.DEMO_FOLDER
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -742,6 +744,25 @@ def test_langfuse_without_tool_calls_prints_the_span_filter_hint(tmp_path: Path)
     result = _init(tmp_path, "--yes", "--dry-run")
 
     assert "should_export_span=lambda span: True" in result.stderr
+
+
+def test_langfuse_without_tool_calls_is_reported_in_checks_words(tmp_path: Path) -> None:
+    _write_langfuse_without_tools(tmp_path)
+    [line] = summarize_issues(
+        [Issue(IssueKind.LANGFUSE_NO_TOOL_CALLS, "traces", "1 agent run(s), no tool calls")]
+    )
+
+    result = _init(tmp_path, "--yes", "--dry-run")
+
+    assert f"{line.terminal_message} {line.terminal_hint}" in result.stderr
+
+
+def test_langfuse_without_tool_calls_gives_the_span_filter_hint_once(tmp_path: Path) -> None:
+    _write_langfuse_without_tools(tmp_path)
+
+    result = _init(tmp_path, "--yes", "--dry-run")
+
+    assert result.stderr.count("should_export_span") == 1
 
 
 # End to end
