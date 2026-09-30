@@ -257,6 +257,12 @@ def test_absolute_paths_are_kept(tmp_path: Path) -> None:
     assert config.traces.path == Path("/srv/traces")
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive paths")
+def test_absolute_windows_paths_are_kept(tmp_path: Path) -> None:
+    config = _load(tmp_path, "traces: {path: 'C:/srv/traces'}\nverdicts: {path: v}\n")
+    assert config.traces.path == Path("C:/srv/traces")
+
+
 @pytest.mark.parametrize(
     "text",
     [
