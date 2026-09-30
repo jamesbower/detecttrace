@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pyright
+      - run: uv run pytest
+
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - run: node --test tests/js/*.test.mjs
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync
+      - run: uv run --with playwright playwright install --with-deps chromium
+      # -rs lists any skip, so a missing Playwright can't pass as a green run unnoticed.
+      - run: uv run --with playwright pytest -m browser -rs tests/browser
+
+  wheel:
+    name: wheel (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # The wheel is pure Python, so the oldest and newest supported versions bracket
+        # the install; the test job already covers 3.12 on every OS.
+        python: ["3.11", "3.13"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      # Git Bash can't glob or cd through a backslashed Windows path, so use its POSIX form.
+      - name: Choose a work folder outside the checkout
+        run: |
+          root="$RUNNER_TEMP/smoke"
+          if [ "$RUNNER_OS" = "Windows" ]; then root="$(cygpath -u "$root")"; fi
+          mkdir -p "$root/demo"
+          echo "SMOKE_ROOT=$root" >> "$GITHUB_ENV"
+      - run: uv build --wheel --out-dir "$SMOKE_ROOT/dist"
+      - name: Install the wheel into a clean venv outside the checkout
+        run: |
+          uv venv "$SMOKE_ROOT/venv" --python "${{ matrix.python }}"
+          uv pip install --python "$SMOKE_ROOT/venv" "$SMOKE_ROOT"/dist/*.whl
+      - name: Run the demo from a folder outside the checkout
+        working-directory: ${{ runner.temp }}/smoke/demo
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cli="$SMOKE_ROOT/venv/Scripts/detecttrace.exe"
+          else
+            cli="$SMOKE_ROOT/venv/bin/detecttrace"
+          fi
+          "$cli" --version
+          "$cli" demo
+          test -s detecttrace-demo.html
+          grep -q "</html>" detecttrace-demo.html
