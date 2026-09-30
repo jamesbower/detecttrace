@@ -3,12 +3,14 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A manual run must not cancel, or be cancelled by, the push run on the same branch.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -107,3 +109,19 @@ jobs:
           "$cli" demo
           test -s detecttrace-demo.html
           grep -q "</html>" detecttrace-demo.html
+
+  # The release workflow gates tags on this; run it by hand to see the timings on a runner.
+  benchmark:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --locked
+      # -s prints the stage timings; -rA lists every result.
+      - run: uv run pytest -m benchmark -s -rA
