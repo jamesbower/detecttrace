@@ -183,7 +183,7 @@ impossible_travel.yaml: invalid checklist
 | Two files for one alert class (after ignoring case and extra spaces) | `alert class '<class>' already has a checklist in <file>. Keep one file per alert class.` |
 | A `checklists` folder with no `*.yaml`, `*.yml` or `.yaml.example` file | `No checklist files (*.yaml, *.yml) found under <folder>.` |
 
-Checklist files are read as YAML 1.2 with JSON types only, so `no` is text, not `false`, and `2026-09-01` is text, not a date. Duplicate keys, aliases (`&` and `*`) and tags such as `!!timestamp` are errors. A file larger than 1 MiB is refused.
+Checklist files are read as YAML 1.2 with JSON types only, so `no` is text, not `false`, and `2026-09-01` is text, not a date. Duplicate keys, aliases (`*name`) and tags such as `!!timestamp` are errors. A file larger than 1 MiB is refused.
 
 Checklist items are also checked against the traces, as warnings:
 

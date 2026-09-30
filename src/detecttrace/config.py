@@ -1,4 +1,4 @@
-"""Configuration models. M1 covers the attribute mapping and the label maps."""
+"""Configuration models: the attribute mapping and the label maps."""
 
 from typing import Literal
 

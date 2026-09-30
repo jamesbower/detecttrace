@@ -26,7 +26,7 @@ Notes:
 | Value type | Read as |
 |---|---|
 | String | The text, with leading and trailing spaces removed |
-| Integer or double | Its text: `2` reads `"2"` and `1.5` reads `"1.5"` |
+| Integer or double | An integer reads as its digits (`2` reads `"2"`); a double reads in its shortest form (`1.5` reads `"1.5"`, `2.0` reads `"2.0"`) |
 | Boolean | `"true"` or `"false"` |
 | Blank string | Missing |
 | Array, map, NaN or infinity | Missing, and reported as an attribute that could not be used |
@@ -96,6 +96,7 @@ DetectTrace walks each trace from its top spans down.
 | A tool span below it | The tool call belongs to that case. |
 | An agent span below it with no case ID, or with the same case ID | A sub-agent. Its tool calls count for the case. |
 | An agent span below it with a different case ID | It opens its own case. The tool calls below it count there, not in the outer case. Reported as a nested case. |
+| An outer case's ID again, deeper inside a nested case (DT-1 inside DT-2 inside DT-1) | No new case opens. The span is a sub-agent of the innermost case (DT-2), and its tool calls count there. Reported as a nested case. |
 | An agent span with no case ID, not inside a case | Reported: "invoke_agent span has no case ID and was not scored". This includes an orchestrator agent above the cases. |
 | A tool span not inside any case | Reported as an orphan tool span. Every case in the same trace is reported as incomplete. |
 | A span whose parent is not in the files | Walked as a top span. A tool span below it with no case is reported as a broken parent chain. |
