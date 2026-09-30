@@ -73,6 +73,12 @@ class IssueKind(StrEnum):
     UNUSED_CHECKLIST = "unused_checklist"
     CONSOLE_EXPORTER_OUTPUT = "console_exporter_output"
     UNSUPPORTED_COMPRESSION = "unsupported_compression"
+    INVALID_LANGFUSE_DOCUMENT = "invalid_langfuse_document"
+    INVALID_LANGFUSE_ROW = "invalid_langfuse_row"
+    LANGFUSE_METADATA_NOT_OBJECT = "langfuse_metadata_not_object"
+    LEGACY_LANGFUSE_TRACE = "legacy_langfuse_trace"
+    LANGFUSE_WITHOUT_IO = "langfuse_without_io"
+    LANGFUSE_NO_TOOL_CALLS = "langfuse_no_tool_calls"
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,8 +92,8 @@ class Issue:
 
 @dataclass(frozen=True, slots=True)
 class Span:
-    trace_id: str  # lowercase hex
-    span_id: str  # lowercase hex
+    trace_id: str  # lowercase hex; a Langfuse ID that isn't hex is kept as given
+    span_id: str  # lowercase hex; a Langfuse ID that isn't hex is kept as given
     parent_span_id: str | None
     name: str
     start_ns: int

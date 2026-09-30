@@ -54,6 +54,12 @@ SEVERITY: Mapping[IssueKind, Severity] = {
     IssueKind.UNUSED_CHECKLIST: _W,
     IssueKind.CONSOLE_EXPORTER_OUTPUT: _I,
     IssueKind.UNSUPPORTED_COMPRESSION: _I,
+    IssueKind.INVALID_LANGFUSE_DOCUMENT: _I,
+    IssueKind.INVALID_LANGFUSE_ROW: _I,
+    IssueKind.LANGFUSE_METADATA_NOT_OBJECT: _I,
+    IssueKind.LEGACY_LANGFUSE_TRACE: _I,
+    IssueKind.LANGFUSE_WITHOUT_IO: _W,
+    IssueKind.LANGFUSE_NO_TOOL_CALLS: _W,
 }
 
 _AGENT = conventions.INVOKE_AGENT
@@ -241,6 +247,43 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "trace file is zstd-compressed and was skipped",
         "trace files are zstd-compressed and were skipped",
         "Install detecttrace[zstd] to read zstd-compressed files.",
+    ),
+    IssueKind.INVALID_LANGFUSE_DOCUMENT: (
+        "trace document is not a Langfuse observation export and was skipped",
+        "trace documents are not Langfuse observation exports and were skipped",
+        "With traces.format: langfuse, each file must hold observation rows: an API page "
+        "with a data list, a JSON array of rows, or one row per line.",
+    ),
+    IssueKind.INVALID_LANGFUSE_ROW: (
+        "Langfuse observation row is malformed and was skipped",
+        "Langfuse observation rows are malformed and were skipped",
+        "Each observation row needs an id, a traceId, and start and end times.",
+    ),
+    IssueKind.LANGFUSE_METADATA_NOT_OBJECT: (
+        "Langfuse observation has metadata that is not an object, so its attributes were not read",
+        "Langfuse observations have metadata that is not an object, so their attributes were "
+        "not read",
+        "Export observations from Langfuse v4 (the v2 observations API or a blob export), "
+        "which writes metadata as an object.",
+    ),
+    IssueKind.LEGACY_LANGFUSE_TRACE: (
+        "Langfuse row is a legacy trace object and was skipped",
+        "Langfuse rows are legacy trace objects and were skipped",
+        "Export observations (the v2 observations API or a blob export) instead of traces.",
+    ),
+    IssueKind.LANGFUSE_WITHOUT_IO: (
+        "Langfuse observation has no input or output field, so tool arguments are missing and "
+        "long metadata values may be cut",
+        "Langfuse observations have no input or output field, so tool arguments are missing and "
+        "long metadata values may be cut",
+        "Export observations with the io field group; expandMetadata alone keeps metadata "
+        "whole but still leaves out tool arguments.",
+    ),
+    IssueKind.LANGFUSE_NO_TOOL_CALLS: (
+        "Langfuse input has agent runs but no tool calls",
+        "Langfuse inputs have agent runs but no tool calls",
+        "The Langfuse SDK's default span filter may have dropped them; "
+        "set should_export_span=lambda span: True.",
     ),
 }
 

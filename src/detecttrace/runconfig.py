@@ -51,14 +51,6 @@ class TracesConfig(BaseModel):
 
     _check_path = field_validator("path", mode="before")(_check_path)
 
-    @field_validator("format")
-    @classmethod
-    def _check_supported(cls, value: str) -> str:
-        # Listed in the Literal so the message says "not yet" rather than "unknown format".
-        if value == "langfuse":
-            raise ValueError("'langfuse' is not supported yet; use otlp_jsonl or otlp_json")
-        return value
-
 
 class VerdictsConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")

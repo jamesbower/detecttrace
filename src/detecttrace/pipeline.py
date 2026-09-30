@@ -9,7 +9,7 @@ from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import ChecklistFileError, load_checklists
 from detecttrace.join import join_cases
 from detecttrace.metrics import MetricsReport, compute_metrics
-from detecttrace.model import Issue
+from detecttrace.model import Issue, IssueKind
 from detecttrace.results import build_results
 from detecttrace.runconfig import RunConfig
 from detecttrace.summary import JoinCoverage, SummaryLine, summarize_issues
@@ -53,6 +53,20 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
         if was_enabled:
             gc.enable()
     issues.extend(case_issues)
+    if (
+        config.traces.format == "langfuse"
+        and trace_cases
+        and not any(case.tool_calls for case in trace_cases)
+    ):
+        # The Langfuse SDK's default span filter can drop tool spans before they reach
+        # Langfuse, which would show as low evidence completeness with no other sign.
+        issues.append(
+            Issue(
+                IssueKind.LANGFUSE_NO_TOOL_CALLS,
+                config.traces.path.name,
+                f"{len(trace_cases):,} agent run(s), no tool calls",
+            )
+        )
     verdict_rows, verdict_issues = read_verdicts(config.verdicts.path)
     issues.extend(verdict_issues)
     cases, join_issues = join_cases(trace_cases, verdict_rows, config.to_config())

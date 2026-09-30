@@ -66,6 +66,39 @@ def otlp_document(
     }
 
 
+def langfuse_row(
+    row_id: str,
+    parent: str | None = None,
+    *,
+    trace_id: str = TRACE_ID,
+    type: str = "SPAN",
+    name: str = "span",
+    start: str = "2026-09-30T08:00:00.000Z",
+    end: str = "2026-09-30T08:00:01.000Z",
+    level: str = "DEFAULT",
+    attributes: dict[str, object] | None = None,
+    resource: dict[str, object] | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
+    """One Langfuse v2 observation row in the API's camelCase form, metadata flattened."""
+    metadata = {f"resourceAttributes.{key}": value for key, value in (resource or {}).items()}
+    metadata.update({f"attributes.{key}": value for key, value in (attributes or {}).items()})
+    return {
+        "id": row_id,
+        "traceId": trace_id,
+        "parentObservationId": parent,
+        "type": type,
+        "name": name,
+        "startTime": start,
+        "endTime": end,
+        "level": level,
+        "input": None,
+        "output": None,
+        "metadata": metadata,
+        **fields,
+    }
+
+
 def write_jsonl(path: Path, documents: list[dict[str, Any]]) -> Path:
     path.write_text("".join(json.dumps(doc) + "\n" for doc in documents), encoding="utf-8")
     return path

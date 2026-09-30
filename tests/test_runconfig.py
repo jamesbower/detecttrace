@@ -178,9 +178,9 @@ def test_unknown_mapping_key_is_rejected(tmp_path: Path) -> None:
     assert "\n  mapping.caseid: Extra inputs are not permitted" in message
 
 
-def test_langfuse_format_is_not_supported_yet(tmp_path: Path) -> None:
-    message = _load_error(tmp_path, "traces: {path: t, format: langfuse}\nverdicts: {path: v}\n")
-    assert "traces.format: 'langfuse' is not supported yet" in message
+def test_langfuse_format_is_accepted(tmp_path: Path) -> None:
+    config = _load(tmp_path, "traces: {path: t, format: langfuse}\nverdicts: {path: v}\n")
+    assert config.traces.format == "langfuse"
 
 
 def test_unknown_format_is_rejected(tmp_path: Path) -> None:

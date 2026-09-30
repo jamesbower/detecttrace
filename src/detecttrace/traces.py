@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from detecttrace import otlp
+from detecttrace import langfuse, otlp
 from detecttrace.model import InputFileError, Issue, IssueKind, Span, describe_os_error
 from detecttrace.otlp import Json
 from detecttrace.runconfig import TraceFormat
@@ -61,6 +61,7 @@ _ParseDocument = Callable[[Json, str, int | None, list[Issue]], Iterator[Span]]
 _PARSERS: dict[TraceFormat, _ParseDocument] = {
     "otlp_jsonl": otlp.parse_document,
     "otlp_json": otlp.parse_document,
+    "langfuse": langfuse.parse_document,
 }
 
 
@@ -74,7 +75,7 @@ def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[
     Files are read in sorted path order and the first copy of a duplicate span wins,
     so the same input always gives the same spans. Invalid input is reported as an
     Issue; TraceFileError is raised only when there is nothing to read. `format` picks the
-    document parser; either OTLP format reads JSON lines and one-document files alike.
+    document parser; every format reads JSON lines and one-document files alike.
     """
     if not path.exists():
         raise TraceFileError(
