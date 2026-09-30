@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           enable-cache: true
-      - run: uv sync
+      - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pyright
@@ -57,7 +57,7 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: true
-      - run: uv sync
+      - run: uv sync --locked
       - run: uv run --with playwright playwright install --with-deps chromium
       # -rs lists any skip, so a missing Playwright can't pass as a green run unnoticed.
       - run: uv run --with playwright pytest -m browser -rs tests/browser
