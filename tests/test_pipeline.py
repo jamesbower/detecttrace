@@ -9,11 +9,11 @@ from builders import RUN_CONFIG, RUN_VERDICTS, run_trace, write_jsonl, write_run
 from detecttrace import pipeline
 from detecttrace.dashboard import render_dashboard
 from detecttrace.model import IssueKind
-from detecttrace.otlp import TraceFileError
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
 from detecttrace.summary import JoinCoverage
+from detecttrace.traces import TraceFileError
 
 DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 

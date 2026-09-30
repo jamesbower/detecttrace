@@ -10,10 +10,10 @@ from detecttrace.checklist import ChecklistFileError, load_checklists
 from detecttrace.join import join_cases
 from detecttrace.metrics import MetricsReport, compute_metrics
 from detecttrace.model import Issue
-from detecttrace.otlp import load_spans
 from detecttrace.results import build_results
 from detecttrace.runconfig import RunConfig
 from detecttrace.summary import JoinCoverage, SummaryLine, summarize_issues
+from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
 
 
@@ -47,7 +47,7 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
     was_enabled = gc.isenabled()
     gc.disable()
     try:
-        spans, issues = load_spans(config.traces.path)
+        spans, issues = load_spans(config.traces.path, format=config.traces.format)
         trace_cases, case_issues = build_trace_cases(spans, config.mapping)
     finally:
         if was_enabled:

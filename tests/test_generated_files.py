@@ -14,9 +14,9 @@ import pytest
 
 from detecttrace.metrics import SliceMetrics
 from detecttrace.model import IssueKind
-from detecttrace.otlp import load_spans
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.runconfig import load_run_config
+from detecttrace.traces import load_spans
 
 DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 FIXTURE_ROOT = fixture_specs.FIXTURE_ROOT

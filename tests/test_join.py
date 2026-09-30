@@ -8,7 +8,7 @@ from detecttrace.cases import build_trace_cases
 from detecttrace.config import Config
 from detecttrace.join import join_cases
 from detecttrace.model import Case, IssueKind, ToolCall, TraceCase, Verdict, VerdictRow
-from detecttrace.otlp import load_spans
+from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
 
 CONFIG = Config(

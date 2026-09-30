@@ -17,9 +17,9 @@ from detecttrace.config import Config
 from detecttrace.join import join_cases
 from detecttrace.metrics import compute_metrics
 from detecttrace.model import Case, IssueKind, ToolCall, Verdict
-from detecttrace.otlp import load_spans
 from detecttrace.results import build_results, is_results_file, write_results_json
 from detecttrace.summary import IssueExample, JoinCoverage, Severity, SummaryLine
+from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
 
 DAY_NS = 86_400 * 1_000_000_000

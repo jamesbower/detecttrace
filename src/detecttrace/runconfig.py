@@ -24,6 +24,8 @@ _MAX_FILE_BYTES = 1 << 20
 _SEPARATORS = "|".join(re.escape(separator) for separator in (os.sep, os.altsep) if separator)
 _NO_NAME = ("", ".", "..")
 
+TraceFormat = Literal["otlp_jsonl", "otlp_json", "langfuse"]
+
 
 class ConfigFileError(InputFileError):
     """The configuration file cannot be used: missing, unreadable, or invalid."""
@@ -45,7 +47,7 @@ class TracesConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     path: Path
-    format: Literal["otlp_jsonl", "otlp_json", "langfuse"] = "otlp_jsonl"
+    format: TraceFormat = "otlp_jsonl"
 
     _check_path = field_validator("path", mode="before")(_check_path)
 
