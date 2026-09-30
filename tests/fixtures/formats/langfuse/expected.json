@@ -1,0 +1,49 @@
+{
+ "keep": [
+  "totals"
+ ],
+ "results": {
+  "totals": {
+   "cases": 55,
+   "classes": 1,
+   "period": {
+    "first_week": "2026-W33",
+    "last_week": "2026-W35"
+   },
+   "versions": [
+    "v1",
+    "v2"
+   ],
+   "coverage": {
+    "verdicts_matched": 55,
+    "verdicts_total": 55,
+    "traces_matched": 55,
+    "traces_total": 55,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  }
+ },
+ "issues": [
+  {
+   "kind": "duplicate_span",
+   "subject": "blob.jsonl.gz",
+   "detail": "b8fc16d540116bee570165ce16c4df23/4a2b2bee2523e9dd"
+  },
+  {
+   "kind": "duplicate_span",
+   "subject": "blob.jsonl.gz",
+   "detail": "b8fc16d540116bee570165ce16c4df23/2d6fa94cb4fc318f"
+  },
+  {
+   "kind": "duplicate_span",
+   "subject": "blob.jsonl.gz",
+   "detail": "b8fc16d540116bee570165ce16c4df23/33abac7c0e98bf24"
+  },
+  {
+   "kind": "duplicate_span",
+   "subject": "blob.jsonl.gz",
+   "detail": "b8fc16d540116bee570165ce16c4df23/eee30adaa20e1f7a"
+  }
+ ]
+}

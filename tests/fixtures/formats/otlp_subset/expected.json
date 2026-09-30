@@ -1,0 +1,28 @@
+{
+ "keep": [
+  "totals"
+ ],
+ "results": {
+  "totals": {
+   "cases": 55,
+   "classes": 1,
+   "period": {
+    "first_week": "2026-W33",
+    "last_week": "2026-W35"
+   },
+   "versions": [
+    "v1",
+    "v2"
+   ],
+   "coverage": {
+    "verdicts_matched": 55,
+    "verdicts_total": 55,
+    "traces_matched": 55,
+    "traces_total": 55,
+    "verdicts_low": false,
+    "traces_low": false
+   }
+  }
+ },
+ "issues": []
+}

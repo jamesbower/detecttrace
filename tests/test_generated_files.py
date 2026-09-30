@@ -35,7 +35,7 @@ AS_NUMBER = re.compile(r'"asn\\?":\s*([0-9]+)')
 TRUE_POSITIVE_CODE = 0
 MAX_DEMO_BYTES = 500 * 1024
 MAX_GENERATION_SECONDS = 5.0
-MAX_FIXTURE_BYTES = 3 * 1024 * 1024
+MAX_FIXTURE_BYTES = 3584 * 1024
 
 
 @pytest.fixture(scope="module")
@@ -107,7 +107,7 @@ def test_regenerated_fixture_files_decode_to_the_same_content(
     assert _read_decoded(regenerated_fixtures, names) == _read_decoded(FIXTURE_ROOT, names)
 
 
-def test_fixtures_are_under_3_mb() -> None:
+def test_fixtures_are_under_3_5_mb() -> None:
     assert sum(path.stat().st_size for path in FIXTURE_ROOT.rglob("*") if path.is_file()) < (
         MAX_FIXTURE_BYTES
     )
