@@ -6,7 +6,6 @@ import generate
 import pytest
 from builders import RUN_CONFIG, RUN_VERDICTS, run_trace, write_jsonl, write_run_folder
 
-from detecttrace import pipeline
 from detecttrace.dashboard import render_dashboard
 from detecttrace.model import IssueKind
 from detecttrace.pipeline import RunResult, run_check
