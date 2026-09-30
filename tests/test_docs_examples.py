@@ -1,6 +1,7 @@
-"""Every example in docs/*.md loads with the loader it documents, so the docs can't drift from the code."""
+"""Every example in README.md and docs/*.md loads with the loader it documents, so the docs can't drift from the code."""
 
 import re
+import textwrap
 import types
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,8 +12,10 @@ import yaml
 from detecttrace.checklist import load_checklists
 from detecttrace.runconfig import RunConfig, load_run_config
 
-DOCS = Path(__file__).parent.parent / "docs"
-_FENCE = re.compile(r"^```(\w*)\n(.*?)^```$", re.MULTILINE | re.DOTALL)
+ROOT = Path(__file__).parent.parent
+DOC_FILES = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
+# A fence may be indented, as in a list item; the closing fence has the same indent.
+_FENCE = re.compile(r"^( *)```(\w*)\n(.*?)^\1```$", re.MULTILINE | re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -38,15 +41,16 @@ def _classify(language: str, text: str) -> str:
 
 def _find_blocks() -> list[Block]:
     blocks: list[Block] = []
-    for path in sorted(DOCS.glob("*.md")):
+    for path in DOC_FILES:
         text = path.read_text(encoding="utf-8")
         for match in _FENCE.finditer(text):
-            language = match[1]
+            language = match[2]
             if language not in ("yaml", "python"):
                 continue
             line = text.count("\n", 0, match.start()) + 1
             where = f"{path.name}:{line}"
-            blocks.append(Block(where, language, match[2], _classify(language, match[2])))
+            body = textwrap.dedent(match[3])
+            blocks.append(Block(where, language, body, _classify(language, body)))
     return blocks
 
 
