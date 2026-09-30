@@ -2,6 +2,7 @@
 
 import math
 from collections import defaultdict
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Literal, TypeGuard
 
@@ -27,13 +28,18 @@ def build_trace_cases(
 ) -> tuple[list[TraceCase], list[Issue]]:
     """Group spans into cases. One case per case ID; duplicate roots are resolved and reported."""
     issues: list[Issue] = []
-    by_trace: dict[str, list[Span]] = defaultdict(list)
-    for span in spans:
-        by_trace[span.trace_id].append(span)
-    candidates: list[_OpenCase] = []
     reported_long: _ReportedLong = set()
-    for trace_id in sorted(by_trace):
-        candidates.extend(_walk_trace(by_trace[trace_id], mapping, issues, reported_long))
+    key = mapping.case_id
+
+    def read_case_id(span: Span) -> str | None:
+        subject = f"{span.trace_id}/{span.span_id}"
+        text = _to_text(span.attributes.get(key), subject, key, issues)
+        return _shorten(text, key, subject, issues, reported_long)
+
+    candidates: list[_OpenCase] = []
+    for trace_spans in _group_by_trace(spans):
+        walk = _walk_trace(trace_spans, mapping, read_case_id, issues, reported_long)
+        candidates.extend(walk.open_cases)
     # Closing only the kept roots keeps a dropped duplicate's issues out of the report.
     reported_resource_values: set[tuple[str, str]] = set()
     cases = [
@@ -41,6 +47,80 @@ def build_trace_cases(
         for case in _pick_latest_roots(candidates, issues)
     ]
     return cases, issues
+
+
+@dataclass(frozen=True, slots=True)
+class CaseRoots:
+    # The agent spans check opens a case at, including every copy of a duplicated case ID.
+    roots: list[Span]
+    # The topmost agent span of each agent subtree outside any case with no case ID in it:
+    # the runs check reports as missing their case ID.
+    keyless_tops: list[Span]
+
+
+def find_case_roots(
+    spans: list[Span],
+    operation: OperationConfig,
+    read_case_id: Callable[[Span], str | None],
+) -> CaseRoots:
+    """Find where check opens cases, with case IDs read by `read_case_id`.
+
+    This is check's own walk: a case opens at an agent span with a case ID that no
+    enclosing case on its path has, so an agent with another case ID inside a case opens a
+    second one, and one with the same ID is a sub-agent. An orchestrator agent without a
+    case ID above agents with one is neither a root nor a keyless top.
+    """
+    mapping = MappingConfig(operation=operation)
+    roots: list[Span] = []
+    keyless_tops: list[Span] = []
+    for trace_spans in _group_by_trace(spans):
+        walk = _walk_trace(trace_spans, mapping, read_case_id, [], set())
+        roots.extend(case.root for case in walk.open_cases)
+        keyless_tops.extend(_find_keyless_tops(trace_spans, walk))
+    return CaseRoots(roots, keyless_tops)
+
+
+def to_single_text(value: object) -> str | None:
+    """`value` as check reads one attribute value: its text, or None when it is missing,
+    blank, a number that is not finite, or not a single value."""
+    if isinstance(value, bool):
+        text = "true" if value else "false"
+    elif isinstance(value, float) and not math.isfinite(value):
+        return None
+    elif isinstance(value, int | float | str):
+        text = str(value)  # str(float) is the shortest form that round-trips
+    else:
+        return None
+    return text.strip() or None
+
+
+def _group_by_trace(spans: list[Span]) -> list[list[Span]]:
+    by_trace: dict[str, list[Span]] = defaultdict(list)
+    for span in spans:
+        by_trace[span.trace_id].append(span)
+    return [by_trace[trace_id] for trace_id in sorted(by_trace)]
+
+
+def _find_keyless_tops(trace_spans: list[Span], walk: "_TraceWalk") -> list[Span]:
+    parents = {span.span_id: span.parent_span_id for span in trace_spans}
+
+    def ancestors(span: Span) -> Iterator[str]:
+        seen: set[str] = set()
+        parent = span.parent_span_id
+        # A set, since a parent cycle would otherwise loop forever.
+        while parent is not None and parent in parents and parent not in seen:
+            seen.add(parent)
+            yield parent
+            parent = parents[parent]
+
+    above_a_root = {span_id for case in walk.open_cases for span_id in ancestors(case.root)}
+    candidates = [span for span in walk.keyless if span.span_id not in above_a_root]
+    candidate_ids = {span.span_id for span in candidates}
+    return [
+        span
+        for span in candidates
+        if not any(span_id in candidate_ids for span_id in ancestors(span))
+    ]
 
 
 @dataclass(slots=True)
@@ -59,9 +139,10 @@ def _span_order(span: Span) -> tuple[int, str]:
 def _walk_trace(
     trace_spans: list[Span],
     mapping: MappingConfig,
+    read_case_id: Callable[[Span], str | None],
     issues: list[Issue],
     reported_long: _ReportedLong,
-) -> list[_OpenCase]:
+) -> "_TraceWalk":
     by_id = {span.span_id: span for span in trace_spans}
     children: dict[str, list[Span]] = defaultdict(list)
     parents: dict[str, Span] = {}
@@ -73,7 +154,7 @@ def _walk_trace(
         else:
             tops.append(span)
 
-    walk = _TraceWalk(children, mapping, issues, reported_long)
+    walk = _TraceWalk(children, mapping, read_case_id, issues, reported_long)
     for span in sorted(tops, key=_span_order):
         walk.run(span, is_broken_chain=span.parent_span_id is not None)
     if len(walk.visited) < len(by_id):
@@ -92,7 +173,7 @@ def _walk_trace(
 
     for case in walk.open_cases:
         case.orphan_count = walk.orphan_count
-    return walk.open_cases
+    return walk
 
 
 @dataclass(slots=True)
@@ -101,11 +182,13 @@ class _TraceWalk:
 
     children: dict[str, list[Span]]
     mapping: MappingConfig
+    read_case_id: Callable[[Span], str | None]  # reports an invalid value as an issue
     issues: list[Issue]
     reported_long: _ReportedLong
     open_cases: list[_OpenCase] = field(default_factory=list)
     orphan_count: int = 0
     visited: set[str] = field(default_factory=set)
+    keyless: list[Span] = field(default_factory=list)  # agents without a case ID, outside cases
 
     def run(self, top: Span, is_broken_chain: bool) -> None:
         is_collecting_descendants = self.mapping.prompt_version_lookup == "descendant"
@@ -130,21 +213,16 @@ class _TraceWalk:
     def _visit_agent(
         self, span: Span, current: _OpenCase | None, path_case_ids: tuple[str, ...]
     ) -> tuple[_OpenCase | None, tuple[str, ...]]:
-        subject = f"{span.trace_id}/{span.span_id}"
-        # _to_text returns None for missing and invalid alike; only invalid adds an issue.
+        # read_case_id returns None for missing and invalid alike; only invalid adds an issue.
         issue_count = len(self.issues)
-        key = self.mapping.case_id
-        case_id = _shorten(
-            _to_text(span.attributes.get(key), subject, key, self.issues),
-            key,
-            subject,
-            self.issues,
-            self.reported_long,
-        )
+        case_id = self.read_case_id(span)
         if case_id is None:
-            # A present but invalid case ID is already reported as INVALID_ATTRIBUTE.
-            if current is None and len(self.issues) == issue_count:
-                self.issues.append(Issue(IssueKind.AGENT_WITHOUT_CASE_ID, subject))
+            if current is None:
+                self.keyless.append(span)
+                # A present but invalid case ID is already reported as INVALID_ATTRIBUTE.
+                if len(self.issues) == issue_count:
+                    subject = f"{span.trace_id}/{span.span_id}"
+                    self.issues.append(Issue(IssueKind.AGENT_WITHOUT_CASE_ID, subject))
             return current, path_case_ids
         if case_id in path_case_ids:
             # The innermost case owns its whole subtree, so a reappearing outer ID is a sub-agent.
@@ -349,26 +427,16 @@ def _read_descendant_version(
 
 
 def _to_text(value: object, subject: str, key: str, issues: list[Issue]) -> str | None:
-    """Convert one attribute value to text; None means missing."""
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        text = "true" if value else "false"
-    elif isinstance(value, float) and not math.isfinite(value):
-        issues.append(Issue(IssueKind.INVALID_ATTRIBUTE, subject, f"{key} is not a finite number"))
-        return None
-    elif isinstance(value, int | float | str):
-        text = str(value)  # str(float) is the shortest form that round-trips
-    else:
-        issues.append(
-            Issue(
-                IssueKind.INVALID_ATTRIBUTE,
-                subject,
-                f"{key} is a {type(value).__name__}, not a single value",
-            )
+    """to_single_text, reporting a value that is present but not readable; None means missing."""
+    text = to_single_text(value)
+    if text is None and value is not None and not isinstance(value, str):
+        detail = (
+            "is not a finite number"
+            if isinstance(value, float)
+            else f"is a {type(value).__name__}, not a single value"
         )
-        return None
-    return text.strip() or None
+        issues.append(Issue(IssueKind.INVALID_ATTRIBUTE, subject, f"{key} {detail}"))
+    return text
 
 
 def _shorten(

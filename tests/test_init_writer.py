@@ -565,6 +565,7 @@ def proposal(counts: dict[str, int], tools: dict[str, tuple[str, ...]]) -> Propo
         agent_label_map={},
         unmapped_analyst_labels=(),
         unmapped_agent_labels=(),
+        trace_cases=[],
         tool_names_by_class=tools,
         case_counts_by_class=counts,
         traces_without_verdict=OrphanSummary(0, ()),

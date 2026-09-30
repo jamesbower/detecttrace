@@ -4,15 +4,29 @@ Nothing here reads files or prints: the command loads the inputs, calls propose_
 decides what to show, ask and write.
 """
 
-import math
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from functools import partial
 
 from detecttrace import conventions
-from detecttrace.cases import build_trace_cases, classify_span, is_tool_arguments, is_tool_name
+from detecttrace.cases import (
+    build_trace_cases,
+    classify_span,
+    find_case_roots,
+    is_tool_arguments,
+    is_tool_name,
+    to_single_text,
+)
 from detecttrace.config import MappingConfig, OperationConfig, normalize_label
-from detecttrace.model import MAX_LABEL_LENGTH, Span, TraceCase, Verdict, VerdictRow
+from detecttrace.model import (
+    MAX_LABEL_LENGTH,
+    Span,
+    TraceCase,
+    Verdict,
+    VerdictRow,
+    to_short_label,
+)
 from detecttrace.runconfig import TraceFormat
 
 SOURCE_DETECTTRACE = "detecttrace attribute"
@@ -69,8 +83,6 @@ _SUFFIXES = {
 # check reads these two from the agent run's own attributes only; the others fall back to
 # the resource, so a key found only there is still readable.
 _ROOT_ONLY_FIELDS = ("case_id", "verdict")
-# (trace ID, span ID)
-_SpanKey = tuple[str, str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,84 +322,32 @@ def _propose_operation(spans: list[Span], notes: list[str]) -> OperationProposal
 def _find_agent_runs(
     spans: list[Span], operation: OperationConfig, case_id_key: str | None
 ) -> list[Span]:
-    """The agent spans check would open cases at: with `case_id_key`, as check would read it;
-    without, whichever candidate key the case ID is read from.
-
-    check opens a case at the first agent span on a path that has a case ID, so an
-    orchestrator agent above agents with case IDs is not a run of its own. An agent subtree
-    in which no agent has a candidate case ID is one run, at its topmost agent span: the run
-    check would report as missing its case ID.
+    """The agent spans check would open cases at, plus each run it would report as missing
+    its case ID: with `case_id_key`, as check would read it; without, from whichever
+    candidate key holds the case ID.
     """
-    by_key = {(span.trace_id, span.span_id): span for span in spans}
-    is_agent = {key: classify_span(span, operation) == "agent" for key, span in by_key.items()}
-    is_keyed = {
-        key: is_agent[key] and _has_case_id_candidate(by_key[key], case_id_key) for key in by_key
-    }
-    has_keyed_below: set[_SpanKey] = set()
-    for key, keyed in is_keyed.items():
-        parent = _parent_key(by_key[key])
-        # has_keyed_below holds every ancestor of a marked span, so a marked parent ends the
-        # walk; this also stops a parent cycle.
-        while keyed and parent in by_key and parent not in has_keyed_below:
-            has_keyed_below.add(parent)
-            parent = _parent_key(by_key[parent])
-    is_keyless_top = {
-        key: is_agent[key] and not is_keyed[key] and key not in has_keyed_below for key in by_key
-    }
-    has_keyed_above = _create_ancestor_check(by_key, is_keyed)
-    has_keyless_top_above = _create_ancestor_check(by_key, is_keyless_top)
-
-    runs: list[Span] = []
-    for key, span in by_key.items():
-        parent = _parent_key(span)
-        is_run_start = is_keyed[key] or (is_keyless_top[key] and not has_keyless_top_above(parent))
-        if is_run_start and not has_keyed_above(parent):
-            runs.append(span)
-    return runs
+    found = find_case_roots(spans, operation, partial(_read_case_id, case_id_key))
+    return found.roots + found.keyless_tops
 
 
-def _parent_key(span: Span) -> _SpanKey | None:
-    parent = span.parent_span_id
-    return None if parent is None else (span.trace_id, parent)
-
-
-def _create_ancestor_check(
-    by_key: dict[_SpanKey, Span], flags: dict[_SpanKey, bool]
-) -> Callable[[_SpanKey | None], bool]:
-    """Return whether a span or one of its ancestors has its flag set."""
-    memo: dict[_SpanKey, bool] = {}
-
-    def check(key: _SpanKey | None) -> bool:
-        path: list[_SpanKey] = []
-        on_path: set[_SpanKey] = set()
-        result = False
-        # Iterative, with a set for parent cycles: a deep or looping chain must not recurse.
-        while key is not None and key in by_key and key not in on_path:
-            if key in memo:
-                result = memo[key]
-                break
-            path.append(key)
-            on_path.add(key)
-            if flags[key]:
-                result = True
-                break
-            key = _parent_key(by_key[key])
-        for visited in path:
-            memo[visited] = result
-        return result
-
-    return check
-
-
-def _has_case_id_candidate(span: Span, case_id_key: str | None) -> bool:
+def _read_case_id(case_id_key: str | None, span: Span) -> str | None:
     if case_id_key is not None:
-        return _has_value(span, case_id_key, is_root_only=True)
-    if _has_value(span, _DEFAULTS.case_id, is_root_only=True):
-        return True
+        return _read_text(span, case_id_key)
+    text = _read_text(span, _DEFAULTS.case_id)
+    if text is not None:
+        return text
     suffixes = _SUFFIXES["case_id"]
-    return any(
-        _is_suffix_key(key, suffixes) and _is_text(value) for key, value in span.attributes.items()
-    )
+    for key, value in span.attributes.items():
+        text = to_single_text(value)
+        if text is not None and _is_suffix_key(key, suffixes):
+            return to_short_label(text)
+    return None
+
+
+def _read_text(span: Span, key: str) -> str | None:
+    text = to_single_text(span.attributes.get(key))
+    # Shortened as check shortens a case ID, so two IDs check would equate stay equal.
+    return None if text is None else to_short_label(text)
 
 
 def _propose_or_measure_field(
@@ -459,7 +419,7 @@ def _count_suffix_matches(
             for key, value in attributes.items():
                 if key not in usable:
                     usable[key] = _is_suffix_key(key, suffixes)
-                if usable[key] and _is_text(value):
+                if usable[key] and _has_text(value):
                     found.add(key)
         counts.update(found)
     return counts
@@ -477,18 +437,13 @@ def _is_writable_key(key: str) -> bool:
 
 def _has_value(run: Span, key: str, is_root_only: bool) -> bool:
     # As in check, an unreadable value on the span falls through to the resource.
-    if _is_text(run.attributes.get(key)):
+    if _has_text(run.attributes.get(key)):
         return True
-    return not is_root_only and _is_text(run.resource_attributes.get(key))
+    return not is_root_only and _has_text(run.resource_attributes.get(key))
 
 
-def _is_text(value: object) -> bool:
-    """Whether check reads `value` as a single non-empty value."""
-    if isinstance(value, float) and not math.isfinite(value):
-        return False
-    if isinstance(value, bool | int | float):
-        return True
-    return isinstance(value, str) and bool(value.strip())
+def _has_text(value: object) -> bool:
+    return to_single_text(value) is not None
 
 
 def _is_enough(covered: int, total: int) -> bool:

@@ -234,6 +234,16 @@ def test_an_orchestrated_agent_without_a_case_id_is_an_agent_run() -> None:
     assert propose(spans).agent_run_count == 2
 
 
+def test_an_agent_with_another_case_id_inside_a_case_is_a_second_agent_run() -> None:
+    spans = [case(0, "DT-1"), sub_agent(0, {"detecttrace.case_id": "DT-2"})]
+    assert propose(spans).agent_run_count == 2
+
+
+def test_an_agent_with_the_same_case_id_inside_its_case_is_not_a_second_agent_run() -> None:
+    spans = [case(0, "DT-1"), sub_agent(0, {"detecttrace.case_id": "DT-1"})]
+    assert propose(spans).agent_run_count == 1
+
+
 def test_an_agent_tree_without_a_case_id_is_one_agent_run() -> None:
     assert propose([run(0, {}), sub_agent(0, {})]).agent_run_count == 1
 
