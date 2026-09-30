@@ -503,7 +503,12 @@ def _init(options: _InitOptions) -> int:
     if missing_tool_calls is not None:
         trace_issues.append(missing_tool_calls)
     if not options.is_quiet:
-        _echo_found(proposal, draft, len(rows), summarize_issues(trace_issues + verdict_issues))
+        _echo_found(
+            proposal,
+            draft,
+            len(rows),
+            summarize_issues(trace_issues + verdict_issues, config_path.name),
+        )
 
     if is_interactive:
         try:

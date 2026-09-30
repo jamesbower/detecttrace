@@ -11,6 +11,7 @@ from detecttrace import cli
 from detecttrace.init_writer import RoundTripError
 from detecttrace.model import Issue, IssueKind
 from detecttrace.summary import summarize_issues
+from detecttrace.verdicts import read_verdicts
 
 DEMO_DATA = Path(cli.__file__).parent / cli.DEMO_FOLDER
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -698,6 +699,32 @@ def test_a_verdict_file_without_the_required_columns_exits_1(tmp_path: Path) -> 
     result = _init(tmp_path, "--yes", "--dry-run")
 
     assert result.exit_code == 1
+
+
+def test_input_problems_name_the_configuration_file_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    traces, verdicts = _write_inputs(tmp_path)
+
+    # No reading problem names the configuration yet, so one that does is added.
+    def read_with_a_problem(path: Path, **kwargs: Any) -> tuple[list[Any], list[Issue]]:
+        rows, issues = read_verdicts(path, **kwargs)
+        return rows, [*issues, Issue(IssueKind.UNMAPPED_ANALYST_LABEL, "X")]
+
+    monkeypatch.setattr(cli, "read_verdicts", read_with_a_problem)
+    result = _invoke(
+        "init",
+        "--traces",
+        str(traces),
+        "--verdicts",
+        str(verdicts),
+        "--config",
+        str(tmp_path / "other.yaml"),
+        "--yes",
+        "--dry-run",
+    )
+
+    assert "Add it to label_map in other.yaml." in result.stderr
 
 
 # Trace format set with --set
