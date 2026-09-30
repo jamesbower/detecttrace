@@ -906,7 +906,8 @@ def test_check_measures_evidence_after_the_example_is_renamed(demo_copy: Path) -
     )
 
     results = yaml.safe_load((demo_copy / "results.json").read_text(encoding="utf-8"))
-    assert results["classes"][0]["overall"]["completeness"] is not None
+    # Not 100%: each case calls only some of the tools the example lists.
+    assert results["classes"][0]["overall"]["completeness"]["mean"] == 0.8930817610062893
 
 
 def test_a_configuration_that_does_not_load_back_exits_2(

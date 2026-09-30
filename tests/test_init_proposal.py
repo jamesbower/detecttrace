@@ -148,7 +148,18 @@ def test_a_proposal_must_cover_half_of_the_agent_runs(covered: int, expected: st
 
 def test_a_candidate_under_half_is_named_in_the_notes() -> None:
     spans = runs(100, {"soc.case.id": 49})
-    assert any("soc.case.id" in note and "49 of 100" in note for note in propose(spans).notes)
+    assert (
+        "case_id: soc.case.id is on only 49 of 100 agent runs; not proposed, since it must be "
+        "on at least half"
+    ) in propose(spans).notes
+
+
+def test_the_below_half_note_names_the_candidate_with_the_most_coverage() -> None:
+    spans = runs(10, {"detecttrace.case_id": 2, "soc.case.id": 4})
+    assert (
+        "case_id: soc.case.id is on only 4 of 10 agent runs; not proposed, since it must be "
+        "on at least half"
+    ) in propose(spans).notes
 
 
 def test_a_field_found_nowhere_has_no_value_and_full_total() -> None:
@@ -198,7 +209,7 @@ def test_higher_coverage_beats_a_shorter_key() -> None:
 
 def test_the_runner_up_is_named_in_the_notes() -> None:
     proposal = propose([run(0, {"a.case_id": "DT-1", "b.case_id": "DT-1"})])
-    assert any("b.case_id" in note for note in proposal.notes)
+    assert "case_id: also found b.case_id on 1 of 1 agent runs" in proposal.notes
 
 
 def test_alert_class_is_read_from_resource_attributes() -> None:
@@ -441,11 +452,17 @@ def test_no_verdict_rows_is_missing_verdict_labels() -> None:
 
 
 def test_missing_prompt_version_is_noted() -> None:
-    assert any("(no version)" in note for note in propose([case(0, "DT-1")]).notes)
+    assert (
+        "no prompt version found; every case will show as (no version)"
+        in propose([case(0, "DT-1")]).notes
+    )
 
 
 def test_missing_alert_class_is_noted() -> None:
-    assert any("alert class" in note for note in propose([case(0, "DT-1")]).notes)
+    assert (
+        "no alert class found on agent runs; alert classes come from the verdict file only"
+        in propose([case(0, "DT-1")]).notes
+    )
 
 
 def test_langfuse_runs_without_tool_calls_are_left_to_the_input_problems() -> None:
@@ -657,7 +674,10 @@ def test_a_given_key_drops_the_detection_note_for_its_field() -> None:
     spans = [case(0, "DT-1", **{"soc.kind": "malware"})]
     mapping = MappingConfig(alert_class="soc.kind")
     proposal = propose_init(spans, "otlp_jsonl", [], mapping=mapping)
-    assert not any("no alert class found" in note for note in proposal.notes)
+    assert (
+        "no alert class found on agent runs; alert classes come from the verdict file only"
+        not in proposal.notes
+    )
 
 
 # Hostile input
@@ -690,7 +710,10 @@ def test_many_unmapped_labels_are_capped() -> None:
 
 def test_capped_unmapped_labels_are_noted() -> None:
     rows = [row(f"DT-{index}", f"label {index}") for index in range(5_000)]
-    assert any("4,900 more" in note for note in propose([case(0, "DT-1")], rows).notes)
+    assert (
+        "4,900 more unmapped analyst labels are not listed; check reports every one"
+        in propose([case(0, "DT-1")], rows).notes
+    )
 
 
 def test_a_label_with_control_characters_is_kept_exactly() -> None:

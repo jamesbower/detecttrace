@@ -214,8 +214,7 @@ def test_init_configuration_with_the_demo_checklists_gives_the_demo_results_up_t
     (checklists / "impossible_travel.yaml.example").rename(checklists / "impossible_travel.yaml")
     # The example lists every tool called, not the playbook, and covers one class; the
     # demo's hand-written checklists replace it, so the configuration alone is under test.
-    for checklist in sorted((DEMO_DIR / "checklists").iterdir()):
-        shutil.copy(checklist, checklists / checklist.name)
+    shutil.copytree(DEMO_DIR / "checklists", checklists, dirs_exist_ok=True)
     _invoke("check", "--config", str(config_path), "--json", str(tmp_path / "results.json"))
 
     results = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
