@@ -19,13 +19,13 @@ import json
 import logging
 import math
 import os
+import stat
 import string
 import threading
 import time
 import weakref
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 try:
@@ -44,6 +44,17 @@ __all__ = ["FileSpanExporter"]
 _logger = logging.getLogger("detecttrace.otel")
 _PLACEHOLDERS = frozenset({"pid", "date"})
 _WARNING_INTERVAL_SECONDS = 60.0
+# O_NOFOLLOW: a symlink planted at the path cannot redirect spans into another file.
+# O_NONBLOCK: opening a FIFO planted there returns at once instead of waiting for a reader.
+_O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
+_OPEN_FLAGS = (
+    os.O_RDWR
+    | os.O_APPEND
+    | os.O_CREAT
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_BINARY", 0)
+    | _O_NONBLOCK
+)
 # The Python enum counts from 0; OTLP keeps 0 for "unspecified" and counts from 1.
 _OTLP_KINDS = {
     SpanKind.INTERNAL: 1,
@@ -67,9 +78,14 @@ class FileSpanExporter(SpanExporter):
     `}}` for literal braces. The path is worked out again at every export, so a forked
     child or a new day moves to a new file. The folder must already exist.
 
-    Exports never raise: a file that cannot be written returns FAILURE and logs a warning
-    on the "detecttrace.otel" logger at most once a minute, with the number of failed
-    exports since the last warning. `clock` gives seconds since the epoch, for tests.
+    A new file is created readable by its owner only; a symlink or anything else that is
+    not a regular file at the path is refused.
+
+    Exports never raise: a file that cannot be written, or an export after shutdown,
+    returns FAILURE and logs a warning on the "detecttrace.otel" logger at most once a
+    minute, with the number of failed exports since the last warning. Failures left
+    unreported are logged at the next successful export (at most once a minute) or at
+    shutdown. `clock` gives seconds since the epoch, for tests.
     """
 
     def __init__(self, path: str | os.PathLike[str], *, clock: Callable[[], float] = time.time):
@@ -81,6 +97,7 @@ class FileSpanExporter(SpanExporter):
         self._file_path: str | None = None
         self._is_shut_down = False
         self._last_warning: float | None = None
+        self._last_recovery: float | None = None
         self._suppressed = 0
         if hasattr(os, "register_at_fork"):
             # A weak reference, so the hook never keeps a discarded exporter alive.
@@ -101,31 +118,40 @@ class FileSpanExporter(SpanExporter):
             _log(warning)
             return SpanExportResult.FAILURE
         with self._lock:
-            if self._is_shut_down:
-                return SpanExportResult.FAILURE
-            path = self._template
-            try:
-                path = self._resolve_path()
-                self._write(path, line)
-            # ValueError and friends: a NUL in the path, or a clock that fails or is out of range.
-            except (OSError, ValueError, TypeError, OverflowError) as error:
-                # The file may end in a partial line; reopening it starts a new line first.
-                self._close()
-                warning = self._count_failure(f"could not write spans to {path}: {error!r}")
-            else:
-                return SpanExportResult.SUCCESS
-        _log(warning)
-        return SpanExportResult.FAILURE
+            result, message = self._export_line(line)
+        _log(message)
+        return result
 
     def shutdown(self) -> None:
         """Close the file; later exports return FAILURE. Safe to call more than once."""
         with self._lock:
             self._is_shut_down = True
             self._close()
+            message = self._take_suppressed(f"for {self._template} shut down")
+        _log(message)
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Return True: each export is written unbuffered, so nothing waits to be flushed."""
         return True
+
+    def _export_line(self, line: bytes) -> tuple[SpanExportResult, str | None]:
+        """Write `line` with the lock held; return the result and a message to log, if any."""
+        if self._is_shut_down:
+            return SpanExportResult.FAILURE, self._count_failure(
+                f"for {self._template} is shut down; spans dropped"
+            )
+        path = self._template
+        try:
+            path = self._resolve_path()
+            self._write(path, line)
+        # ValueError and friends: a NUL in the path, or a clock that fails or is out of range.
+        except (OSError, ValueError, TypeError, OverflowError) as error:
+            # The file may end in a partial line; reopening it starts a new line first.
+            self._close()
+            return SpanExportResult.FAILURE, self._count_failure(
+                f"could not write spans to {path}: {error!r}"
+            )
+        return SpanExportResult.SUCCESS, self._count_success(path)
 
     def _resolve_path(self) -> str:
         day = datetime.fromtimestamp(self._clock(), tz=UTC).date().isoformat()
@@ -137,7 +163,7 @@ class FileSpanExporter(SpanExporter):
             # Unbuffered append: each line goes out in one write call, so on a local disk
             # processes sharing a file append whole lines, and a forked child inherits no
             # buffered data that it could write a second time.
-            file = Path(path).open("a+b", buffering=0)  # noqa: SIM115 - kept open across exports
+            file = _open_regular_file(path)
             self._file = file
             self._file_path = path
             # An earlier write that failed part way left a partial line; end it, so this
@@ -158,18 +184,30 @@ class FileSpanExporter(SpanExporter):
     def _count_failure(self, message: str) -> str | None:
         """Return the warning to log for this failure, or None while warnings are paced."""
         now = self._now()
-        # A clock that went backwards also warns, rather than staying silent until it catches up.
-        if self._last_warning is not None and 0 <= now - self._last_warning < (
-            _WARNING_INTERVAL_SECONDS
-        ):
+        if _is_recent(self._last_warning, now):
             self._suppressed += 1
             return None
         if self._suppressed:
-            plural = "" if self._suppressed == 1 else "s"
-            message += (
-                f"; {self._suppressed} failed export{plural} suppressed since the last warning"
-            )
+            message += f"; {_count_exports(self._suppressed)} suppressed since the last warning"
         self._last_warning = now
+        self._suppressed = 0
+        return message
+
+    def _count_success(self, path: str) -> str | None:
+        """Return the message reporting failures suppressed before this success, if due."""
+        if not self._suppressed:
+            return None
+        now = self._now()
+        # Paced too, so exports that alternate between failing and succeeding stay quiet.
+        if _is_recent(self._last_recovery, now):
+            return None
+        self._last_recovery = now
+        return self._take_suppressed(f"recovered writing to {path}")
+
+    def _take_suppressed(self, event: str) -> str | None:
+        if not self._suppressed:
+            return None
+        message = f"{event}; {_count_exports(self._suppressed)} since the last warning"
         self._suppressed = 0
         return message
 
@@ -188,6 +226,20 @@ class FileSpanExporter(SpanExporter):
         self._file_path = None
 
 
+def _open_regular_file(path: str) -> io.FileIO:
+    """Open `path` for appending, creating it owner-only; refuse anything but a regular file."""
+    fd = os.open(path, _OPEN_FLAGS, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(f"{path} is not a regular file")
+        if _O_NONBLOCK:
+            os.set_blocking(fd, True)
+        return os.fdopen(fd, "a+b", buffering=0)
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def _write_all(file: io.FileIO, data: bytes) -> None:
     view = memoryview(data)
     while view:
@@ -195,6 +247,16 @@ def _write_all(file: io.FileIO, data: bytes) -> None:
         if not written:
             raise OSError(f"wrote nothing of {len(view)} bytes")
         view = view[written:]
+
+
+def _is_recent(last: float | None, now: float) -> bool:
+    # A clock that went backwards counts as not recent, so the message is logged rather
+    # than held back until the clock catches up.
+    return last is not None and 0 <= now - last < _WARNING_INTERVAL_SECONDS
+
+
+def _count_exports(count: int) -> str:
+    return f"{count} failed export{'' if count == 1 else 's'}"
 
 
 def _log(warning: str | None) -> None:

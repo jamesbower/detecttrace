@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -42,6 +43,7 @@ RESOURCE = Resource({"service.name": "triage-agent", "service.version": "1.2.0"}
 SCOPE = InstrumentationScope("soc_agent.tracing", "0.4.0")
 MIDNIGHT = datetime(2026, 10, 1, tzinfo=UTC).timestamp()
 LOGGER_NAME = "detecttrace.otel"
+SCHEMA_URL = "https://opentelemetry.io/schemas/1.26.0"
 THREADS_PER_DAY = 4
 FORK_TIMEOUT_SECONDS = 10
 ROUND_TRIP_ATTRIBUTES: dict[str, Any] = {
@@ -410,6 +412,33 @@ def test_spans_are_grouped_by_resource_then_scope(tmp_path: Path) -> None:
     ] == [[["a", "d"], ["c"]], [["b"]]]
 
 
+def export_document(tmp_path: Path, span: ReadableSpan) -> dict[str, Any]:
+    """Export one span and return the whole OTLP JSON document."""
+    path = tmp_path / "spans.jsonl"
+    FileSpanExporter(path).export([span])
+    return read_documents(path)[0]
+
+
+def test_scope_without_a_version_encodes_its_name_only(tmp_path: Path) -> None:
+    document = export_document(tmp_path, make_span(scope=InstrumentationScope("s")))
+
+    assert document["resourceSpans"][0]["scopeSpans"][0]["scope"] == {"name": "s"}
+
+
+def test_resource_schema_url_is_written_on_the_resource_spans(tmp_path: Path) -> None:
+    resource = Resource({"service.name": "triage-agent"}, SCHEMA_URL)
+    document = export_document(tmp_path, make_span(resource=resource))
+
+    assert document["resourceSpans"][0]["schemaUrl"] == SCHEMA_URL
+
+
+def test_scope_schema_url_is_written_on_the_scope_spans(tmp_path: Path) -> None:
+    scope = InstrumentationScope("s", schema_url=SCHEMA_URL)
+    document = export_document(tmp_path, make_span(scope=scope))
+
+    assert document["resourceSpans"][0]["scopeSpans"][0]["schemaUrl"] == SCHEMA_URL
+
+
 def test_one_export_writes_one_line(tmp_path: Path) -> None:
     path = tmp_path / "spans.jsonl"
     exporter = FileSpanExporter(path)
@@ -679,6 +708,94 @@ def test_suppressed_count_restarts_after_each_warning(
     assert "failed export" not in caplog.records[-1].getMessage()
 
 
+UNENCODABLE = {"k": object()}
+
+
+def test_first_success_after_suppressed_failures_reports_them(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    path = tmp_path / "spans.jsonl"
+    clock = FixedClock()
+    exporter = FileSpanExporter(path, clock=clock)
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    clock.now += 10
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.export([make_span()])
+
+    assert caplog.records[-1].getMessage() == (
+        f"FileSpanExporter recovered writing to {path}; 2 failed exports since the last warning"
+    )
+
+
+def test_success_after_an_unsuppressed_failure_logs_nothing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    exporter = FileSpanExporter(tmp_path / "spans.jsonl", clock=FixedClock())
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.export([make_span()])
+
+    assert len(caplog.records) == 1
+
+
+def test_recovery_restarts_the_suppressed_count(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    clock = FixedClock()
+    exporter = FileSpanExporter(tmp_path / "spans.jsonl", clock=clock)
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    clock.now += 10
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.export([make_span()])
+    clock.now += 60
+    exporter.export([make_span(attributes=UNENCODABLE)])
+
+    assert "failed export" not in caplog.records[-1].getMessage()
+
+
+def test_recoveries_are_reported_at_most_once_a_minute(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Exports that alternate between failing and succeeding would otherwise log at each success.
+    clock = FixedClock()
+    exporter = FileSpanExporter(tmp_path / "spans.jsonl", clock=clock)
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    clock.now += 10
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.export([make_span()])
+    clock.now += 10
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.export([make_span()])
+
+    assert len(caplog.records) == 2
+
+
+def test_shutdown_reports_suppressed_failures(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    path = tmp_path / "spans.jsonl"
+    clock = FixedClock()
+    exporter = FileSpanExporter(path, clock=clock)
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    clock.now += 10
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.shutdown()
+
+    assert caplog.records[-1].getMessage() == (
+        f"FileSpanExporter for {path} shut down; 1 failed export since the last warning"
+    )
+
+
+def test_shutdown_without_suppressed_failures_logs_nothing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    exporter = FileSpanExporter(tmp_path / "spans.jsonl", clock=FixedClock())
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    exporter.shutdown()
+
+    assert len(caplog.records) == 1
+
+
 def test_clock_that_raises_returns_failure(tmp_path: Path) -> None:
     exporter = FileSpanExporter(tmp_path / "{date}.jsonl", clock=broken_clock)
 
@@ -751,6 +868,32 @@ def test_export_after_shutdown_returns_failure(tmp_path: Path) -> None:
     assert exporter.export([make_span()]) is SpanExportResult.FAILURE
 
 
+def test_export_after_shutdown_warns_that_spans_are_dropped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    path = tmp_path / "spans.jsonl"
+    exporter = FileSpanExporter(path)
+    exporter.shutdown()
+    exporter.export([make_span()])
+
+    assert [r.getMessage() for r in caplog.records] == [
+        f"FileSpanExporter for {path} is shut down; spans dropped"
+    ]
+
+
+def test_exports_after_shutdown_warn_once_a_minute(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    clock = FixedClock()
+    exporter = FileSpanExporter(tmp_path / "spans.jsonl", clock=clock)
+    exporter.shutdown()
+    exporter.export([make_span()])
+    clock.now += 59
+    exporter.export([make_span()])
+
+    assert len(caplog.records) == 1
+
+
 def test_shutdown_twice_is_safe(tmp_path: Path) -> None:
     exporter = FileSpanExporter(tmp_path / "spans.jsonl")
     exporter.export([make_span()])
@@ -765,6 +908,88 @@ def test_force_flush_returns_true(tmp_path: Path) -> None:
     exporter.export([make_span()])
 
     assert exporter.force_flush() is True
+
+
+# --- What the path points at ----------------------------------------------------------------------
+
+needs_posix = pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX files")
+
+
+@pytest.fixture
+def umask_022() -> Iterator[None]:
+    previous = os.umask(0o022)
+    yield
+    os.umask(previous)
+
+
+@needs_posix
+@pytest.mark.usefixtures("umask_022")
+def test_new_file_is_readable_by_its_owner_only(tmp_path: Path) -> None:
+    path = tmp_path / "spans.jsonl"
+    FileSpanExporter(path).export([make_span()])
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+@needs_posix
+def test_existing_file_keeps_its_mode(tmp_path: Path) -> None:
+    path = tmp_path / "spans.jsonl"
+    path.touch(mode=0o640)
+    path.chmod(0o640)
+    FileSpanExporter(path).export([make_span()])
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o640
+
+
+@pytest.fixture
+def symlinked(tmp_path: Path) -> tuple[Path, Path]:
+    """A symlink at the export path and the empty file it points at."""
+    target = tmp_path / "target.jsonl"
+    target.touch()
+    link = tmp_path / "spans.jsonl"
+    link.symlink_to(target)
+    return link, target
+
+
+@needs_posix
+def test_symlink_at_the_path_returns_failure(symlinked: tuple[Path, Path]) -> None:
+    link, _ = symlinked
+
+    assert FileSpanExporter(link).export([make_span()]) is SpanExportResult.FAILURE
+
+
+@needs_posix
+def test_symlink_at_the_path_is_not_followed(symlinked: tuple[Path, Path]) -> None:
+    link, target = symlinked
+    FileSpanExporter(link).export([make_span()])
+
+    assert target.read_bytes() == b""
+
+
+@needs_posix
+def test_symlink_at_the_path_warns(
+    symlinked: tuple[Path, Path], caplog: pytest.LogCaptureFixture
+) -> None:
+    link, _ = symlinked
+    FileSpanExporter(link).export([make_span()])
+
+    assert [r.name for r in caplog.records] == [LOGGER_NAME]
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs os.mkfifo")
+def test_fifo_at_the_path_returns_failure_without_blocking(tmp_path: Path) -> None:
+    path = tmp_path / "spans.jsonl"
+    os.mkfifo(path)
+    exporter = FileSpanExporter(path)
+    results: list[SpanExportResult] = []
+    # A daemon thread, so an export blocked on the FIFO cannot keep the test run from exiting.
+    thread = threading.Thread(
+        target=lambda: results.append(exporter.export([make_span()])), daemon=True
+    )
+    thread.start()
+    thread.join(timeout=5)
+
+    assert results == [SpanExportResult.FAILURE]
 
 
 # --- Partial lines --------------------------------------------------------------------------------
@@ -794,7 +1019,7 @@ def test_export_after_a_short_then_failing_write_starts_a_new_line(
     expected = clean_line(tmp_path)
     path = tmp_path / "spans.jsonl"
     exporter = FileSpanExporter(path)
-    monkeypatch.setattr(Path, "open", _open_short_then_failing)
+    monkeypatch.setattr(os, "fdopen", _open_short_then_failing)
     exporter.export([make_span()])
     monkeypatch.undo()
     exporter.export([make_span()])
@@ -802,8 +1027,8 @@ def test_export_after_a_short_then_failing_write_starts_a_new_line(
     assert path.read_text().splitlines()[-1] == expected
 
 
-def _open_short_then_failing(path: Path, mode: str, buffering: int) -> "_ShortThenFailingFile":
-    return _ShortThenFailingFile(io.FileIO(path, mode.replace("b", "")))
+def _open_short_then_failing(fd: int, mode: str, buffering: int) -> "_ShortThenFailingFile":
+    return _ShortThenFailingFile(io.FileIO(fd, mode.replace("b", "")))
 
 
 class _ShortThenFailingFile:
