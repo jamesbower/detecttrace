@@ -220,11 +220,11 @@ def _write_demo_variant(
     write_traces: Callable[[generate.Scenario, Sequence[Any], Path], list[Path]],
     config: Mapping[str, object],
     *,
-    is_subset: bool = False,
+    subset: Callable[[], tuple[Any, ...]] | None = None,
 ) -> list[Path]:
     scenario, cases = _demo()
-    if is_subset:
-        cases = _demo_subset()
+    if subset is not None:
+        cases = subset()
         checklists = [item for item in scenario.checklists if item["alert_class"] == _SUBSET_CLASS]
         scenario = scenario.model_copy(update={"checklists": checklists})
     return [
@@ -303,6 +303,97 @@ def _demo_subset() -> tuple[Any, ...]:
     return tuple(
         case for case in cases if case.alert_class == _SUBSET_CLASS and 2 <= case.week <= 4
     )
+
+
+@cache
+def _demo_week_subset() -> tuple[Any, ...]:
+    """Week 4 of the subset: failed tool calls and the nested sub-agent, as plain JSON small
+    enough to keep as a fixture."""
+    return tuple(case for case in _demo_subset() if case.week == 4)
+
+
+def _write_through_exporter(
+    scenario: generate.Scenario, cases: Sequence[Any], folder: Path
+) -> list[Path]:
+    """Rebuild the cases' spans with the OpenTelemetry SDK and write them with FileSpanExporter,
+    one export per batch, into one file per UTC day."""
+    # Imported here: only this fixture needs the SDK.
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    from opentelemetry.sdk.trace.id_generator import IdGenerator
+
+    from detecttrace.otel import FileSpanExporter
+
+    class FixedIds(IdGenerator):
+        """Hands out the IDs set just before each span starts."""
+
+        trace_id = 0
+        span_id = 0
+
+        def generate_trace_id(self) -> int:
+            return self.trace_id
+
+        def generate_span_id(self) -> int:
+            return self.span_id
+
+    kinds = {1: trace.SpanKind.INTERNAL, 3: trace.SpanKind.CLIENT}
+    folder.mkdir(parents=True, exist_ok=True)
+    # The exporter appends, so files from an earlier run must go first.
+    for stale in folder.glob("*.jsonl"):
+        stale.unlink()
+    documents = generate.to_trace_documents(scenario, cases)
+    resource_spans = documents[0][1]["resourceSpans"][0]
+    scope = resource_spans["scopeSpans"][0]["scope"]
+    ids = FixedIds()
+    finished = InMemorySpanExporter()
+    provider = TracerProvider(
+        # Built directly, not with Resource.create, which would add the SDK's version.
+        resource=Resource(_to_python_attributes(resource_spans["resource"]["attributes"])),
+        id_generator=ids,
+    )
+    provider.add_span_processor(SimpleSpanProcessor(finished))
+    tracer = provider.get_tracer(scope["name"], scope["version"])
+    batch_end = [0]
+    exporter = FileSpanExporter(
+        folder / "traces-{date}.jsonl", clock=lambda: batch_end[0] / _NANOS_PER_SECOND
+    )
+    for end_ns, document in documents:
+        for span in document["resourceSpans"][0]["scopeSpans"][0]["spans"]:
+            ids.trace_id, ids.span_id = int(span["traceId"], 16), int(span["spanId"], 16)
+            parent = None
+            if span["parentSpanId"]:
+                parent_context = trace.SpanContext(
+                    ids.trace_id,
+                    int(span["parentSpanId"], 16),
+                    is_remote=False,
+                    trace_flags=trace.TraceFlags(trace.TraceFlags.SAMPLED),
+                )
+                parent = trace.set_span_in_context(trace.NonRecordingSpan(parent_context))
+            sdk_span = tracer.start_span(
+                span["name"],
+                context=parent,
+                kind=kinds[span["kind"]],
+                attributes=_to_python_attributes(span["attributes"]),
+                start_time=int(span["startTimeUnixNano"]),
+            )
+            if span["status"].get("code") == _OTLP_STATUS_ERROR:
+                sdk_span.set_status(
+                    trace.Status(trace.StatusCode.ERROR, span["status"].get("message"))
+                )
+            sdk_span.end(end_time=int(span["endTimeUnixNano"]))
+        batch_end[0] = end_ns
+        exporter.export(finished.get_finished_spans())
+        finished.clear()
+    exporter.shutdown()
+    provider.shutdown()
+    return sorted(folder.glob("*.jsonl"))
+
+
+def _to_python_attributes(items: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    return {item["key"]: _to_python_value(item["value"]) for item in items}
 
 
 _LANGFUSE_SOURCE = """\
@@ -669,7 +760,14 @@ _register(
 _register(
     "formats/otlp_subset",
     TOTALS_KEEP,
-    lambda folder: _write_demo_variant(folder, generate.write_traces, {}, is_subset=True),
+    lambda folder: _write_demo_variant(folder, generate.write_traces, {}, subset=_demo_subset),
+)
+_register(
+    "formats/file_span_exporter",
+    TOTALS_KEEP,
+    lambda folder: _write_demo_variant(
+        folder, _write_through_exporter, {}, subset=_demo_week_subset
+    ),
 )
 _register(
     "formats/langfuse",
@@ -680,7 +778,7 @@ _register(
             folder,
             _write_langfuse,
             {"traces": {"path": "traces/", "format": "langfuse"}},
-            is_subset=True,
+            subset=_demo_subset,
         ),
     ],
 )

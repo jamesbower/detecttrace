@@ -658,3 +658,21 @@ def test_cli_imports_without_the_sdk() -> None:
     result = _run_python("import detecttrace, detecttrace.cli, detecttrace.pipeline\n")
 
     assert (result.returncode, result.stderr) == (0, "")
+
+
+# --- Generated fixture ---------------------------------------------------------------------------
+
+
+def test_generated_fixture_reads_as_the_same_spans_as_the_otlp_variant() -> None:
+    formats = Path(__file__).parent / "fixtures" / "formats"
+    exported, _ = load_spans(formats / "file_span_exporter" / "traces")
+    trace_ids = {span.trace_id for span in exported}
+    otlp, _ = load_spans(formats / "otlp_subset" / "traces")
+
+    assert sorted(exported, key=_span_key) == sorted(
+        (span for span in otlp if span.trace_id in trace_ids), key=_span_key
+    )
+
+
+def _span_key(span: Span) -> tuple[str, str]:
+    return span.trace_id, span.span_id

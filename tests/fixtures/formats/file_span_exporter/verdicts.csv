@@ -1,0 +1,19 @@
+case_id,alert_class,verdict,closed_at
+DT-IT-0055,impossible_travel,Closed - Benign,2026-08-24T22:39:47Z
+DT-IT-0057,impossible_travel,FP,2026-08-25T04:51:40Z
+DT-IT-0056,impossible_travel,FP,2026-08-25T15:00:39Z
+DT-IT-0058,impossible_travel,FP,2026-08-26T17:57:43Z
+DT-IT-0059,impossible_travel,Closed - Benign,2026-08-27T03:55:36Z
+DT-IT-0061,impossible_travel,Closed - Benign,2026-08-27T11:35:00Z
+DT-IT-0060,impossible_travel,Closed - Benign,2026-08-27T22:11:35Z
+DT-IT-0063,impossible_travel,FP,2026-08-28T20:24:16Z
+DT-IT-0062,impossible_travel,Closed - Benign,2026-08-28T20:50:09Z
+DT-IT-0064,impossible_travel,FP,2026-08-29T13:43:38Z
+DT-IT-0065,impossible_travel,FP,2026-08-29T14:47:45Z
+DT-IT-0067,impossible_travel,FP,2026-08-29T22:29:14Z
+DT-IT-0066,impossible_travel,Closed - Benign,2026-08-30T08:30:34Z
+DT-IT-0068,impossible_travel,FP,2026-08-30T11:21:55Z
+DT-IT-0069,impossible_travel,FP,2026-08-30T19:43:02Z
+DT-IT-0070,impossible_travel,Malicious,2026-08-31T04:12:24Z
+DT-IT-0072,impossible_travel,FP,2026-08-31T06:13:36Z
+DT-IT-0071,impossible_travel,FP,2026-08-31T13:13:36Z
