@@ -152,7 +152,9 @@ class Proposal:
     # Agent labels that match no analyst label and no fixed spelling.
     unmapped_agent_labels: tuple[str, ...]
     trace_cases: list[TraceCase]  # the cases check would build through this mapping
+    # Up to MAX_LISTED_TOOLS names per class, most called first, then in code-point order.
     tool_names_by_class: dict[str, tuple[str, ...]]
+    tool_counts_by_class: dict[str, int]  # distinct tool names, listed or not
     case_counts_by_class: dict[str, int]
     traces_without_verdict: OrphanSummary
     verdicts_without_trace: OrphanSummary
@@ -253,7 +255,9 @@ def propose_init(
     if not label_map:
         missing.append(REQUIRED_LABELS)
 
-    tool_names_by_class, case_counts_by_class = _group_by_class(trace_cases, verdict_rows)
+    tool_names_by_class, tool_counts_by_class, case_counts_by_class = _group_by_class(
+        trace_cases, verdict_rows
+    )
     trace_ids = {case.case_id for case in trace_cases}
     verdict_ids = {row.case_id for row in verdict_rows}
     return Proposal(
@@ -266,6 +270,7 @@ def propose_init(
         unmapped_agent_labels=_cap(unmapped_agent, "agent", notes),
         trace_cases=trace_cases,
         tool_names_by_class=tool_names_by_class,
+        tool_counts_by_class=tool_counts_by_class,
         case_counts_by_class=case_counts_by_class,
         traces_without_verdict=_summarize_orphans(trace_ids - verdict_ids),
         verdicts_without_trace=_summarize_orphans(verdict_ids - trace_ids),
@@ -495,7 +500,7 @@ def _cap(labels: list[str], side: str, notes: list[str]) -> tuple[str, ...]:
 
 def _group_by_class(
     trace_cases: list[TraceCase], verdict_rows: list[VerdictRow]
-) -> tuple[dict[str, tuple[str, ...]], dict[str, int]]:
+) -> tuple[dict[str, tuple[str, ...]], dict[str, int], dict[str, int]]:
     # As in check: a case without a verdict row is dropped (ROOT_WITHOUT_VERDICT), a case's
     # class is its first verdict row's, and classes group by normalized name, shown in the
     # spelling of the first case in case-ID order.
@@ -503,7 +508,7 @@ def _group_by_class(
     for row in verdict_rows:
         class_by_case.setdefault(row.case_id, row.alert_class)
     spellings: dict[str, str] = {}
-    tools: dict[str, set[str]] = defaultdict(set)
+    calls: dict[str, Counter[str]] = defaultdict(Counter)
     counts: Counter[str] = Counter()
     for case in sorted(trace_cases, key=lambda case: case.case_id):
         alert_class = class_by_case.get(case.case_id)
@@ -512,9 +517,14 @@ def _group_by_class(
         key = normalize_label(alert_class)
         spellings.setdefault(key, alert_class)
         counts[key] += 1
-        tools[key].update(call.tool_name for call in case.tool_calls if call.tool_name)
+        calls[key].update(call.tool_name for call in case.tool_calls if call.tool_name)
+    tool_names: dict[str, tuple[str, ...]] = {}
+    for key in sorted(counts):
+        ranked = sorted(calls[key].items(), key=lambda item: (-item[1], item[0]))
+        tool_names[spellings[key]] = tuple(name for name, _ in ranked[:MAX_LISTED_TOOLS])
     return (
-        {spellings[key]: tuple(sorted(tools[key])[:MAX_LISTED_TOOLS]) for key in sorted(counts)},
+        tool_names,
+        {spellings[key]: len(calls[key]) for key in sorted(counts)},
         {spellings[key]: counts[key] for key in sorted(counts)},
     )
 

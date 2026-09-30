@@ -60,6 +60,20 @@ def tool(number: int, name: str, attributes: dict[str, object] | None = None) ->
     )
 
 
+def calls(number: int, names: list[str]) -> list[Span]:
+    """One tool call per name under run `number`; a name may repeat."""
+    return [
+        make_span(
+            span_hex(100 + index),
+            span_hex(1),
+            name=f"execute_tool {name}",
+            trace_id=trace_id(number),
+            attributes={"gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": name},
+        )
+        for index, name in enumerate(names)
+    ]
+
+
 def runs(total: int, counts: dict[str, int]) -> list[Span]:
     """`total` agent runs; each key in `counts` is on that many of them, the first ones."""
     return [
@@ -542,6 +556,23 @@ def test_tool_names_are_listed_per_alert_class() -> None:
         "impossible_travel": ("get_signin_logs", "get_user_profile"),
         "phishing": ("get_ip_reputation",),
     }
+
+
+def test_tool_names_are_listed_most_called_first() -> None:
+    spans = [case(0, "DT-0"), *calls(0, ["b_tool", "c_tool", "c_tool", "a_tool"])]
+    assert propose(spans, [row("DT-0")]).tool_names_by_class == {
+        "impossible_travel": ("c_tool", "a_tool", "b_tool")
+    }
+
+
+def test_tool_names_listed_are_capped() -> None:
+    spans = [case(0, "DT-0"), *calls(0, [f"tool{index:03d}" for index in range(201)])]
+    assert len(propose(spans, [row("DT-0")]).tool_names_by_class["impossible_travel"]) == 200
+
+
+def test_tool_counts_include_the_tools_past_the_cap() -> None:
+    spans = [case(0, "DT-0"), *calls(0, [f"tool{index:03d}" for index in range(201)])]
+    assert propose(spans, [row("DT-0")]).tool_counts_by_class == {"impossible_travel": 201}
 
 
 def test_a_case_without_a_verdict_row_is_not_counted() -> None:

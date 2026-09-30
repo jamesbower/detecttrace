@@ -11,7 +11,7 @@
 #   operation: "openinference.span.kind": agent runs "AGENT", tool calls "TOOL" (OpenInference)
 #
 # checklists/impossible_travel.yaml.example is inactive until renamed to .yaml.
-# It lists every tool the agent called for "impossible_travel";
+# It lists the tools the agent called for "impossible_travel", most called first;
 # keep only the calls the playbook requires, then rename it.
 traces:
   path: "traces"
@@ -45,20 +45,20 @@ mapping:
     # span_name_fallback: true
 --- # checklists/impossible_travel.yaml.example
 # Example checklist written by `detecttrace init`. It is inactive until renamed to impossible_travel.yaml.
-# It lists every tool the agent called for this alert class, so as written it would
-# score close to 100% evidence completeness. Keep only the calls the playbook
+# It lists the tools the agent called for this alert class, most called first, so as written
+# it would score close to 100% evidence completeness. Keep only the calls the playbook
 # requires, add argument rules where a call must cover a range or a value, then rename.
 alert_class: "impossible_travel"
 items:
-  - id: "check_mfa_status"
-    tool: "check_mfa_status"
+  - id: "get_user_locations"
+    tool: "get_user_locations"
   - id: "get_ip_reputation"
     tool: "get_ip_reputation"
   - id: "get_signin_logs"
     tool: "get_signin_logs"
-  - id: "get_user_locations"
-    tool: "get_user_locations"
-  - id: "get_user_profile"
-    tool: "get_user_profile"
   - id: "query_sentinel"
     tool: "query_sentinel"
+  - id: "get_user_profile"
+    tool: "get_user_profile"
+  - id: "check_mfa_status"
+    tool: "check_mfa_status"

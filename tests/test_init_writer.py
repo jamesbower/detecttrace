@@ -59,6 +59,7 @@ BASE = InitDraft(
     notes=("no prompt version found; every case will show as (no version)",),
     example_class="impossible_travel",
     example_tools=("get_signin_logs",),
+    example_tool_count=1,
 )
 
 HOSTILE_LABELS = [
@@ -478,7 +479,9 @@ def test_checklist_file_name(alert_class: str, expected: str) -> None:
 def load_example(tmp_path: Path, alert_class: str, tools: tuple[str, ...]) -> Checklist:
     folder = tmp_path / "checklists"
     folder.mkdir()
-    (folder / "x.yaml").write_text(render_example_checklist(alert_class, tools), encoding="utf-8")
+    (folder / "x.yaml").write_text(
+        render_example_checklist(alert_class, tools, len(tools)), encoding="utf-8"
+    )
     return load_checklists(folder)[normalize_label(alert_class)]
 
 
@@ -529,25 +532,56 @@ def test_example_checklist_caps_its_items(tmp_path: Path) -> None:
 
 
 def test_example_checklist_says_how_many_tools_are_left_out() -> None:
-    text = render_example_checklist("c", tuple(f"tool{n:03}" for n in range(60)))
+    text = render_example_checklist("c", tuple(f"tool{n:03}" for n in range(60)), 60)
 
     assert "# 10 more tools are not listed." in text.splitlines()
 
 
+def test_example_checklist_counts_tools_left_out_of_the_proposal_too() -> None:
+    text = render_example_checklist("c", tuple(f"tool{n:03}" for n in range(200)), 250)
+
+    assert "# 200 more tools are not listed." in text.splitlines()
+
+
+def test_example_checklist_does_not_claim_to_list_every_tool() -> None:
+    text = render_example_checklist("c", ("a",), 1)
+
+    assert "every tool" not in text
+
+
+def test_config_header_does_not_claim_the_example_lists_every_tool() -> None:
+    assert "every tool" not in render_config_yaml(BASE)
+
+
+def test_draft_keeps_the_example_class_tool_count() -> None:
+    created = create_draft(
+        proposal({"c": 1}, {"c": ("a", "b")}, tool_counts={"c": 250}),
+        config_path=Path("detecttrace.yaml"),
+        traces_path=Path("traces"),
+        verdicts_path=Path("verdicts.csv"),
+    )
+
+    assert created.example_tool_count == 250
+
+
 def test_example_checklist_without_tools_is_refused() -> None:
     with pytest.raises(ValueError, match="at least one tool"):
-        render_example_checklist("c", (" ",))
+        render_example_checklist("c", (" ",), 1)
 
 
 def test_example_checklist_file_is_not_loaded_before_renaming(tmp_path: Path) -> None:
     (tmp_path / to_checklist_file_name("c")).write_text(
-        render_example_checklist("c", ("a",)), encoding="utf-8"
+        render_example_checklist("c", ("a",), 1), encoding="utf-8"
     )
 
     assert load_checklists(tmp_path) == {}
 
 
-def proposal(counts: dict[str, int], tools: dict[str, tuple[str, ...]]) -> Proposal:
+def proposal(
+    counts: dict[str, int],
+    tools: dict[str, tuple[str, ...]],
+    tool_counts: dict[str, int] | None = None,
+) -> Proposal:
     field = FieldProposal("detecttrace.case_id", "detecttrace attribute", 1, 1)
     return Proposal(
         trace_format="otlp_jsonl",
@@ -567,6 +601,9 @@ def proposal(counts: dict[str, int], tools: dict[str, tuple[str, ...]]) -> Propo
         unmapped_agent_labels=(),
         trace_cases=[],
         tool_names_by_class=tools,
+        tool_counts_by_class={name: len(names) for name, names in tools.items()}
+        if tool_counts is None
+        else tool_counts,
         case_counts_by_class=counts,
         traces_without_verdict=OrphanSummary(0, ()),
         verdicts_without_trace=OrphanSummary(0, ()),
@@ -640,7 +677,10 @@ def demo_draft(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, InitDraf
     config_path.write_text(render_config_yaml(created), encoding="utf-8")
     (folder / "checklists").mkdir()
     (folder / "checklists" / "example.yaml").write_text(
-        render_example_checklist(created.example_class, created.example_tools), encoding="utf-8"
+        render_example_checklist(
+            created.example_class, created.example_tools, created.example_tool_count
+        ),
+        encoding="utf-8",
     )
     return config_path, created
 

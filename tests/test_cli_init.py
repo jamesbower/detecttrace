@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 import yaml
-from builders import langfuse_row, run_trace, span_hex, write_jsonl
+from builders import langfuse_row, otlp_span, run_trace, span_hex, write_jsonl
 from typer.testing import CliRunner, Result
 
 from detecttrace import cli
@@ -183,6 +183,27 @@ def test_found_summary_lists_tool_names_per_alert_class(tmp_path: Path) -> None:
     result = _init(tmp_path, "--yes", "--dry-run")
 
     assert "  impossible_travel (2 cases): get_signin_logs" in result.stderr
+
+
+def test_found_summary_counts_every_tool_past_the_listed_ones(tmp_path: Path) -> None:
+    document = run_trace(1, "DT-1")
+    spans = document["resourceSpans"][0]["scopeSpans"][0]["spans"]
+    root = spans[0]
+    spans += [
+        otlp_span(
+            f"{index + 16:016x}",
+            root["spanId"],
+            trace_id=root["traceId"],
+            name=f"execute_tool tool{index:03d}",
+            attributes={"gen_ai.operation.name": "execute_tool"},
+        )
+        for index in range(210)
+    ]
+    _write_inputs(tmp_path, documents=[document])
+
+    result = _init(tmp_path, "--yes", "--dry-run")
+
+    assert "and 201 more" in result.stderr
 
 
 def test_found_summary_shows_mapped_labels(tmp_path: Path) -> None:

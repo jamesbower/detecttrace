@@ -114,7 +114,8 @@ class InitDraft:
     coverage: dict[str, str]  # mapping field -> how init found its key, for the header
     notes: tuple[str, ...]
     example_class: str | None
-    example_tools: tuple[str, ...]
+    example_tools: tuple[str, ...]  # most called first
+    example_tool_count: int  # the class's distinct tools, including any not in example_tools
 
 
 def create_draft(
@@ -155,6 +156,9 @@ def create_draft(
         notes=proposal.notes,
         example_class=example_class,
         example_tools=() if example_class is None else proposal.tool_names_by_class[example_class],
+        example_tool_count=(
+            0 if example_class is None else proposal.tool_counts_by_class[example_class]
+        ),
     )
 
 
@@ -279,24 +283,27 @@ def to_checklist_file_name(alert_class: str) -> str:
     return name + EXAMPLE_SUFFIX
 
 
-def render_example_checklist(alert_class: str, tool_names: tuple[str, ...]) -> str:
-    """An inactive checklist with one item per tool name and no argument rules."""
+def render_example_checklist(alert_class: str, tool_names: tuple[str, ...], tool_count: int) -> str:
+    """An inactive checklist with one item per tool name, most called first, and no argument
+    rules; `tool_count` is the class's distinct tools, so a note can count those left out.
+    """
     usable = [name for name in tool_names if name.strip()]
     if not usable:
         raise ValueError("an example checklist needs at least one tool name")
     file_name = to_checklist_file_name(alert_class)
-    active_name = file_name.removesuffix(".example")
+    active_name = file_name.removesuffix(EXAMPLE_SUFFIX) + ".yaml"
+    listed = usable[:MAX_EXAMPLE_ITEMS]
     lines = [
         f"# Example checklist written by `detecttrace init`. It is inactive until renamed to {active_name}.",
-        "# It lists every tool the agent called for this alert class, so as written it would",
-        "# score close to 100% evidence completeness. Keep only the calls the playbook",
+        "# It lists the tools the agent called for this alert class, most called first, so as written",
+        "# it would score close to 100% evidence completeness. Keep only the calls the playbook",
         "# requires, add argument rules where a call must cover a range or a value, then rename.",
     ]
-    if len(usable) > MAX_EXAMPLE_ITEMS:
-        lines.append(f"# {len(usable) - MAX_EXAMPLE_ITEMS:,} more tools are not listed.")
+    if tool_count > len(listed):
+        lines.append(f"# {tool_count - len(listed):,} more tools are not listed.")
     lines += [f"alert_class: {to_yaml_string(alert_class)}", "items:"]
     ids: set[str] = set()
-    for tool in usable[:MAX_EXAMPLE_ITEMS]:
+    for tool in listed:
         item_id = _to_unique_id(_to_safe_name(tool) or "tool", ids)
         ids.add(item_id)
         lines += [f"  - id: {to_yaml_string(item_id)}", f"    tool: {to_yaml_string(tool)}"]
@@ -457,7 +464,8 @@ def _render_header(draft: InitDraft) -> list[str]:
         lines += [
             "",
             f"{draft.checklists_path}/{file_name} is inactive until renamed to .yaml.",
-            f"It lists every tool the agent called for {to_yaml_string(draft.example_class)};",
+            "It lists the tools the agent called for "
+            f"{to_yaml_string(draft.example_class)}, most called first;",
             "keep only the calls the playbook requires, then rename it.",
         ]
     return [f"# {_to_comment_text(line)}".rstrip() for line in lines]

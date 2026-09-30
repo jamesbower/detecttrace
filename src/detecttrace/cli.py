@@ -520,7 +520,12 @@ def _init(options: _InitOptions) -> int:
     check_round_trip(text, draft)
     example = None
     if example_path is not None and draft.example_class is not None:
-        example = (example_path, render_example_checklist(draft.example_class, draft.example_tools))
+        example = (
+            example_path,
+            render_example_checklist(
+                draft.example_class, draft.example_tools, draft.example_tool_count
+            ),
+        )
     if options.is_dry_run:
         typer.echo(text, nl=False)
         if example is not None:
@@ -630,8 +635,9 @@ def _echo_found(proposal: Proposal, verdict_row_count: int, problems: list[Summa
     for alert_class, tools in proposal.tool_names_by_class.items():
         count = proposal.case_counts_by_class[alert_class]
         shown = [to_terminal_text(tool) for tool in tools[:_MAX_SHOWN_TOOLS]]
-        if len(tools) > _MAX_SHOWN_TOOLS:
-            shown.append(f"and {len(tools) - _MAX_SHOWN_TOOLS:,} more")
+        tool_count = proposal.tool_counts_by_class[alert_class]
+        if tool_count > len(shown):
+            shown.append(f"and {tool_count - len(shown):,} more")
         noun = "case" if count == 1 else "cases"
         echo(
             f"  {to_terminal_text(alert_class)} ({count:,} {noun}): "
