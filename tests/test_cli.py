@@ -632,6 +632,31 @@ def _check_with_label(tmp_path: Path, label: str) -> Result:
     return _check(write_run_folder(tmp_path, verdicts=verdicts))
 
 
+def _run_check_on_cp1252_stdout(tmp_path: Path, label: str) -> subprocess.CompletedProcess[str]:
+    # Windows gives a redirected stdout the ANSI code page, which has no CJK characters.
+    verdicts = RUN_VERDICTS.replace("DT-1,impossible_travel,TP", f"DT-1,impossible_travel,{label}")
+    config_path = write_run_folder(tmp_path, verdicts=verdicts)
+    return subprocess.run(
+        [sys.executable, "-m", "detecttrace", "check", "--config", str(config_path)],
+        capture_output=True,
+        check=False,
+        encoding="cp1252",
+        env={**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"},
+    )
+
+
+def test_a_label_the_console_cannot_encode_does_not_crash(tmp_path: Path) -> None:
+    completed = _run_check_on_cp1252_stdout(tmp_path, "昇格")
+
+    assert completed.returncode == 0
+
+
+def test_a_label_the_console_cannot_encode_is_printed_escaped(tmp_path: Path) -> None:
+    completed = _run_check_on_cp1252_stdout(tmp_path, "昇格")
+
+    assert "the label '\\u6607\\u683c'" in completed.stdout
+
+
 def test_a_label_with_an_erase_sequence_is_printed_escaped(tmp_path: Path) -> None:
     result = _check_with_label(tmp_path, "X\x1b[2K")
 

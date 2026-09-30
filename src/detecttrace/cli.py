@@ -15,6 +15,7 @@ output path that can't be written, no scored case, `--strict` with invalid input
 without `--yes`; 2 for an internal error.
 """
 
+import io
 import os
 import stat
 import sys
@@ -147,6 +148,10 @@ def main(
     ] = False,
 ) -> None:
     """Compare an AI SOC agent's traces with analyst verdicts."""
+    # Windows gives a redirected stdout the ANSI code page (often cp1252). A label or path it
+    # cannot encode is printed as a \u escape instead of ending the run with an internal error.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(errors="backslashreplace")
 
 
 @app.command()
