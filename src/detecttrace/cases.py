@@ -117,7 +117,7 @@ class _TraceWalk:
             if span.span_id in self.visited:
                 continue
             self.visited.add(span.span_id)
-            kind = _classify(span, self.mapping.operation)
+            kind = classify_span(span, self.mapping.operation)
             if kind == "agent":
                 current, path_case_ids = self._visit_agent(span, current, path_case_ids)
             elif kind == "tool":
@@ -188,7 +188,8 @@ def _find_cycle_start(span: Span, parents: dict[str, Span]) -> Span:
     return min(cycle, key=_span_order)
 
 
-def _classify(span: Span, operation: OperationConfig) -> Literal["agent", "tool"] | None:
+def classify_span(span: Span, operation: OperationConfig) -> Literal["agent", "tool"] | None:
+    """Whether `span` is an agent run, a tool call, or neither under the operation rule."""
     value = span.attributes.get(operation.attribute)
     if not isinstance(value, str) or not value.strip():
         if not operation.span_name_fallback:

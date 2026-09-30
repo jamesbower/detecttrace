@@ -82,6 +82,22 @@ def parse_document(
             yield span
 
 
+def is_langfuse_document(document: Json) -> bool:
+    """Whether `document` is shaped like a Langfuse export: an API page, a row, or a list of rows."""
+    if isinstance(document, list):
+        return bool(document) and _is_row(document[0])
+    return isinstance(document, dict) and (
+        isinstance(document.get("data"), list) or _is_row(document)
+    )
+
+
+def _is_row(value: Json) -> bool:
+    # A legacy v3 trace object counts too, so the reader can explain how to export observations.
+    return isinstance(value, dict) and (
+        "traceId" in value or "trace_id" in value or isinstance(value.get("observations"), list)
+    )
+
+
 def _number_rows(rows: list[Json], name: str) -> Iterator[tuple[str, Json]]:
     for index, row in enumerate(rows):
         yield f"{name}[{index}]", row

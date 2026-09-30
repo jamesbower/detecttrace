@@ -5,7 +5,7 @@ import io
 import os
 import re
 import zlib
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -74,16 +74,8 @@ def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[
     Issue; TraceFileError is raised only when there is nothing to read. `format` picks the
     document parser; every format reads JSON lines and one-document files alike.
     """
-    if not path.exists():
-        raise TraceFileError(
-            f"Trace path not found: {path}. Check traces.path in detecttrace.yaml."
-        )
     issues: list[Issue] = []
-    trace_files = _list_trace_files(path, issues)
-    if not trace_files:
-        raise TraceFileError(
-            f"No trace files found under {path}. Check traces.path in detecttrace.yaml."
-        )
+    trace_files = _find_trace_files(path, issues)
     parse_document = _PARSERS[format]
     spans: list[Span] = []
     seen: dict[tuple[str, str], Span] = {}
@@ -116,6 +108,43 @@ def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[
             issues.extend(file_issues)
         parsed_count += span_count
     return spans, _merge_rows_without_io(issues, parsed_count, path)
+
+
+def detect_format(path: Path) -> tuple[TraceFormat | None, list[Issue]]:
+    """Name the format of the trace files at `path` from the first file with a known document.
+
+    Console exporter output gives no format and one CONSOLE_EXPORTER_OUTPUT issue. No format
+    and no issue means no file holds a document of a known shape. Only the first document of
+    each file is read (a one-document file is read whole), and files are tried in the order
+    load_spans reads them. Raises TraceFileError as load_spans does.
+    """
+    for file_path, subject in _find_trace_files(path, []):
+        documents = _read_documents(file_path, subject, [])
+        first = next(documents, None)
+        documents.close()
+        if first is not None:
+            document, line_number = first
+            if isinstance(document, dict) and isinstance(document.get("resourceSpans"), list):
+                return ("otlp_json" if line_number is None else "otlp_jsonl"), []
+            if langfuse.is_langfuse_document(document):
+                return "langfuse", []
+        # Sniffed only when the file holds no known document, as in load_spans.
+        if _is_console_exporter_output(file_path):
+            return None, [Issue(IssueKind.CONSOLE_EXPORTER_OUTPUT, subject, _CONSOLE_DETAIL)]
+    return None, []
+
+
+def _find_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]:
+    if not path.exists():
+        raise TraceFileError(
+            f"Trace path not found: {path}. Check traces.path in detecttrace.yaml."
+        )
+    trace_files = _list_trace_files(path, issues)
+    if not trace_files:
+        raise TraceFileError(
+            f"No trace files found under {path}. Check traces.path in detecttrace.yaml."
+        )
+    return trace_files
 
 
 def _merge_rows_without_io(issues: list[Issue], parsed_count: int, path: Path) -> list[Issue]:
@@ -178,7 +207,7 @@ def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]
 
 def _read_documents(
     file_path: Path, subject: str, issues: list[Issue]
-) -> Iterator[tuple[Json, int | None]]:
+) -> Generator[tuple[Json, int | None], None, None]:
     """Yield (document, line number); the line number is None for a one-document file."""
     try:
         first_line = _first_content_line(file_path)

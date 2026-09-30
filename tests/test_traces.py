@@ -11,6 +11,7 @@ from typing import BinaryIO
 import pytest
 import zstandard
 from builders import (
+    langfuse_row,
     otlp_document,
     otlp_span,
     span_hex,
@@ -19,13 +20,14 @@ from builders import (
 )
 
 from detecttrace.model import IssueKind, Span
-from detecttrace.traces import TraceFileError, load_spans
+from detecttrace.traces import TraceFileError, detect_format, load_spans
 
 S1 = span_hex(1)
 S2 = span_hex(2)
 BOM = "﻿"
 MIB = 1 << 20
-CONSOLE_OUTPUT = Path(__file__).parent / "fixtures" / "console_exporter" / "console.json"
+FIXTURES = Path(__file__).parent / "fixtures"
+CONSOLE_OUTPUT = FIXTURES / "console_exporter" / "console.json"
 needs_permissions = pytest.mark.skipif(
     sys.platform == "win32" or os.geteuid() == 0,
     reason="needs POSIX permissions that the current user cannot bypass",
@@ -963,3 +965,79 @@ def test_utf8_document_with_bom_loads(tmp_path: Path) -> None:
     spans, _ = load_spans(path)
 
     assert [s.span_id for s in spans] == [S1]
+
+
+# Format detection
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("formats/jsonl_rotated/traces", "otlp_jsonl"),
+        ("formats/gzip/traces", "otlp_jsonl"),
+        ("formats/zstd/traces", "otlp_jsonl"),
+        ("formats/single_document/traces", "otlp_json"),
+        ("formats/file_span_exporter/traces", "otlp_jsonl"),
+        ("formats/langfuse/traces", "langfuse"),
+        ("langfuse_real/v2_all_fields_page1.json", "langfuse"),
+        ("langfuse_real/blob_observations_v2.json", "langfuse"),
+        ("langfuse_real/blob_observations_v2.jsonl", "langfuse"),
+    ],
+)
+def test_detects_the_format_of_each_fixture(path: str, expected: str) -> None:
+    assert detect_format(FIXTURES / path) == (expected, [])
+
+
+def test_detects_console_exporter_output() -> None:
+    assert [issue.kind for issue in detect_format(CONSOLE_OUTPUT)[1]] == [
+        IssueKind.CONSOLE_EXPORTER_OUTPUT
+    ]
+
+
+def test_console_exporter_output_has_no_format() -> None:
+    assert detect_format(CONSOLE_OUTPUT)[0] is None
+
+
+def test_detects_a_pretty_printed_otlp_document(tmp_path: Path) -> None:
+    path = tmp_path / "trace.json"
+    path.write_text(json.dumps(otlp_document([otlp_span(S1)]), indent=2))
+    assert detect_format(path) == ("otlp_json", [])
+
+
+def test_detects_a_legacy_langfuse_trace_as_langfuse(tmp_path: Path) -> None:
+    path = write_jsonl(tmp_path / "traces.jsonl", [{"id": "t1", "observations": []}])
+    assert detect_format(path) == ("langfuse", [])
+
+
+def test_detection_skips_files_without_a_document(tmp_path: Path) -> None:
+    (tmp_path / "a.jsonl").write_text("not json\n")
+    write_jsonl(tmp_path / "b.jsonl", [langfuse_row("r1")])
+    assert detect_format(tmp_path) == ("langfuse", [])
+
+
+def test_detection_skips_files_of_an_unknown_shape(tmp_path: Path) -> None:
+    write_jsonl(tmp_path / "a.jsonl", [{"unrelated": 1}])
+    (tmp_path / "b.jsonl").write_text(_line(S1))
+    assert detect_format(tmp_path) == ("otlp_jsonl", [])
+
+
+def test_detection_without_a_recognized_file_has_no_format(tmp_path: Path) -> None:
+    (tmp_path / "a.jsonl").write_text("[]\n")
+    assert detect_format(tmp_path) == (None, [])
+
+
+def test_detection_reads_only_the_start_of_json_lines(tmp_path: Path) -> None:
+    path = tmp_path / "traces.jsonl"
+    path.write_text(_line(S1) + "x" * (40 * MIB) + "\n")
+    tracemalloc.start()
+    try:
+        detect_format(path)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert peak < 4 * MIB
+
+
+def test_detection_of_a_missing_path_raises(tmp_path: Path) -> None:
+    with pytest.raises(TraceFileError):
+        detect_format(tmp_path / "missing")
