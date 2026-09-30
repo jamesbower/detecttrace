@@ -933,7 +933,12 @@ def test_force_flush_returns_true(tmp_path: Path) -> None:
 
 # --- What the path points at ----------------------------------------------------------------------
 
-needs_posix = pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX files")
+needs_posix_modes = pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows files have no POSIX permission bits"
+)
+needs_nofollow = pytest.mark.skipif(
+    sys.platform == "win32", reason="O_NOFOLLOW is POSIX-only; Windows opens through the link"
+)
 
 
 @pytest.fixture
@@ -943,7 +948,7 @@ def umask_022() -> Iterator[None]:
     os.umask(previous)
 
 
-@needs_posix
+@needs_posix_modes
 @pytest.mark.usefixtures("umask_022")
 def test_new_file_is_readable_by_its_owner_only(tmp_path: Path) -> None:
     path = tmp_path / "spans.jsonl"
@@ -952,7 +957,7 @@ def test_new_file_is_readable_by_its_owner_only(tmp_path: Path) -> None:
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
-@needs_posix
+@needs_posix_modes
 def test_existing_file_keeps_its_mode(tmp_path: Path) -> None:
     path = tmp_path / "spans.jsonl"
     path.touch(mode=0o640)
@@ -972,14 +977,14 @@ def symlinked(tmp_path: Path) -> tuple[Path, Path]:
     return link, target
 
 
-@needs_posix
+@needs_nofollow
 def test_symlink_at_the_path_returns_failure(symlinked: tuple[Path, Path]) -> None:
     link, _ = symlinked
 
     assert FileSpanExporter(link).export([make_span()]) is SpanExportResult.FAILURE
 
 
-@needs_posix
+@needs_nofollow
 def test_symlink_at_the_path_is_not_followed(symlinked: tuple[Path, Path]) -> None:
     link, target = symlinked
     FileSpanExporter(link).export([make_span()])
@@ -987,7 +992,7 @@ def test_symlink_at_the_path_is_not_followed(symlinked: tuple[Path, Path]) -> No
     assert target.read_bytes() == b""
 
 
-@needs_posix
+@needs_nofollow
 def test_symlink_at_the_path_warns(
     symlinked: tuple[Path, Path], caplog: pytest.LogCaptureFixture
 ) -> None:
