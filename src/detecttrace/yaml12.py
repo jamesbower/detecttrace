@@ -49,6 +49,11 @@ def load_yaml12(path: Path, *, max_bytes: int, what: str) -> object:
         raise Yaml12Error(path, f"cannot be read: {describe_os_error(error)}") from None
     except UnicodeDecodeError:
         raise Yaml12Error(path, "not valid UTF-8 text") from None
+    return parse_yaml12(text, path)
+
+
+def parse_yaml12(text: str, path: Path) -> object:
+    """Load one YAML document from text; `path` only names the source in errors."""
     try:
         return yaml.load(text, Loader=_CoreSchemaLoader)
     except RecursionError:

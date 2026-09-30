@@ -20,7 +20,7 @@ from detecttrace.model import InputFileError
 from detecttrace.yaml12 import Yaml12Error, load_yaml12
 
 # Real configuration files are a few KB, and PyYAML's pure-Python parser takes seconds per megabyte.
-_MAX_FILE_BYTES = 1 << 20
+MAX_CONFIG_BYTES = 1 << 20
 _SEPARATORS = "|".join(re.escape(separator) for separator in (os.sep, os.altsep) if separator)
 _NO_NAME = ("", ".", "..")
 
@@ -106,10 +106,15 @@ def load_run_config(path: Path) -> RunConfig:
     """
     try:
         document = load_yaml12(
-            path, max_bytes=_MAX_FILE_BYTES, what="configuration files are a few KB"
+            path, max_bytes=MAX_CONFIG_BYTES, what="configuration files are a few KB"
         )
     except Yaml12Error as error:
         raise ConfigFileError(str(error)) from None
+    return to_run_config(document, path)
+
+
+def to_run_config(document: object, path: Path) -> RunConfig:
+    """Validate an already-parsed document as load_run_config does for the file at `path`."""
     if not isinstance(document, dict):
         raise ConfigFileError(
             f"{path}: expected a mapping with 'traces' and 'verdicts' at the top level"
@@ -117,11 +122,7 @@ def load_run_config(path: Path) -> RunConfig:
     try:
         config = RunConfig.model_validate(document)
     except ValidationError as error:
-        lines = [
-            f"{'.'.join(str(part) for part in detail['loc'])}: "
-            + str(detail["msg"]).removeprefix("Value error, ")
-            for detail in error.errors()
-        ]
+        lines = describe_validation_error(error)
         raise ConfigFileError(f"{path}: invalid configuration\n  " + "\n  ".join(lines)) from None
     folder = path.absolute().parent
     return config.model_copy(
@@ -132,3 +133,12 @@ def load_run_config(path: Path) -> RunConfig:
             "output": folder / config.output,
         }
     )
+
+
+def describe_validation_error(error: ValidationError) -> list[str]:
+    """One "location: message" line per problem, in the words a configuration file uses."""
+    return [
+        f"{'.'.join(str(part) for part in detail['loc'])}: "
+        + str(detail["msg"]).removeprefix("Value error, ")
+        for detail in error.errors()
+    ]
