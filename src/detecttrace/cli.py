@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from functools import partial
 from importlib.resources import as_file, files
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Annotated, Any, NoReturn
 
 import typer
@@ -585,11 +585,13 @@ def _emit(draft: InitDraft, options: _InitOptions, *, is_interactive: bool) -> i
         )
     if options.is_dry_run:
         typer.echo(text, nl=False)
-        if example is not None:
-            # A YAML document marker, so the output still reads as YAML. The path is as the
-            # configuration gives it: relative to the configuration file, or as set.
-            shown = f"{draft.checklists_path}/{example[0].name}"
-            typer.echo(f"--- # {to_terminal_text(shown, limit=None)}")
+        if example is not None and draft.checklists_path is not None:
+            # A YAML document marker, so the output still reads as YAML. The folder is as the
+            # configuration gives it (relative to the configuration file, or as set), in the
+            # same forward-slash form as every other path shown, so a Windows path never
+            # mixes separators.
+            shown = PurePath(draft.checklists_path, example[0].name)
+            typer.echo(f"--- # {_to_path_text(shown)}")
             typer.echo(example[1], nl=False)
         return 0
     if is_interactive:
@@ -886,5 +888,5 @@ def _to_check_command(config_path: Path) -> str:
     return f"detecttrace check --config {_to_path_text(config_path)}"
 
 
-def _to_path_text(path: Path) -> str:
+def _to_path_text(path: PurePath) -> str:
     return to_terminal_text(path.as_posix(), limit=None)
