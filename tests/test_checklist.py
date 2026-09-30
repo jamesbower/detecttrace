@@ -54,7 +54,8 @@ items:
 def _write(folder: Path, name: str, text: str) -> Path:
     path = folder / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    # LF on every OS, so a size test counts the same bytes on Windows.
+    path.write_text(text, encoding="utf-8", newline="\n")
     return path
 
 
