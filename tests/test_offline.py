@@ -42,7 +42,20 @@ NETWORK_MODULES = (
     "path", SOURCE_FILES, ids=[path.relative_to(SOURCE).as_posix() for path in SOURCE_FILES]
 )
 def test_module_imports_no_network_library(path: Path) -> None:
-    assert _network_imports(path) == []
+    assert _network_imports(path.read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("from urllib.request import urlopen", ["urllib.request"]),
+        ("import http.client", ["http.client"]),
+        ("from .socket import x", []),
+    ],
+    ids=["from-import", "dotted-import", "relative-import"],
+)
+def test_import_guard_finds_network_imports(source: str, expected: list[str]) -> None:
+    assert _network_imports(source) == expected
 
 
 def test_demo_runs_without_the_network(
@@ -95,8 +108,8 @@ def _invoke(*args: str) -> Result:
     return CliRunner().invoke(cli.app, list(args))
 
 
-def _network_imports(path: Path) -> list[str]:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+def _network_imports(source: str) -> list[str]:
+    tree = ast.parse(source)
     names: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
