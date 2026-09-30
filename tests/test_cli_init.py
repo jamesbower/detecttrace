@@ -85,6 +85,32 @@ def _write_langfuse_without_tools(folder: Path) -> None:
     )
 
 
+def _run_trace_with_attribute(number: int, case_id: str, key: str, value: str) -> dict[str, Any]:
+    document = run_trace(number, case_id)
+    root = document["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+    root["attributes"].append({"key": key, "value": {"stringValue": value}})
+    return document
+
+
+def _run_trace_with_renamed_attribute(
+    number: int, case_id: str, old: str, new: str
+) -> dict[str, Any]:
+    document = run_trace(number, case_id)
+    root = document["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+    for attribute in root["attributes"]:
+        if attribute["key"] == old:
+            attribute["key"] = new
+    return document
+
+
+def _copy_real_api_pages(folder: Path) -> None:
+    shutil.copytree(
+        FIXTURES / "langfuse_real",
+        folder / "traces",
+        ignore=lambda _folder, names: [name for name in names if name not in REAL_API_PAGES],
+    )
+
+
 def _run_trace_without_case_id() -> dict[str, Any]:
     document = run_trace(1, "DT-1")
     del document["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"][1]
@@ -373,6 +399,50 @@ def test_interactive_end_of_input_exits_1(tmp_path: Path, interactive: None) -> 
     assert result.exit_code == 1
 
 
+def test_interactive_end_of_input_at_the_final_question_exits_1(
+    tmp_path: Path, interactive: None
+) -> None:
+    _write_inputs(tmp_path)
+
+    result = _init(tmp_path, input=ACCEPT_MAPPING)
+
+    assert result.exit_code == 1
+
+
+def test_interactive_end_of_input_at_the_final_question_says_nothing_was_written(
+    tmp_path: Path, interactive: None
+) -> None:
+    _write_inputs(tmp_path)
+
+    result = _init(tmp_path, input=ACCEPT_MAPPING)
+
+    assert result.stderr.endswith("\nStopped. Nothing was written.\n")
+
+
+def test_interactive_shows_a_field_not_found_as_not_found(
+    tmp_path: Path, interactive: None
+) -> None:
+    documents = [
+        _run_trace_with_renamed_attribute(1, "DT-1", "detecttrace.alert_class", "soc.kind")
+    ]
+    _write_inputs(tmp_path, documents=documents)
+
+    result = _init(tmp_path, input=ACCEPT_MAPPING + "n\n")
+
+    assert "alert_class [not found]:" in result.stderr
+
+
+def test_interactive_case_id_entered_at_the_prompt_gives_the_example_checklist(
+    tmp_path: Path, interactive: None
+) -> None:
+    documents = [_run_trace_with_renamed_attribute(1, "DT-1", "detecttrace.case_id", "soc.ticket")]
+    _write_inputs(tmp_path, documents=documents)
+
+    _init(tmp_path, input="soc.ticket\n" + "\n" * 5 + "y\n")
+
+    assert (tmp_path / "checklists" / "impossible_travel.yaml.example").is_file()
+
+
 # Required fields
 
 
@@ -424,6 +494,92 @@ def test_a_set_value_is_written(tmp_path: Path) -> None:
     assert next(yaml.safe_load_all(result.stdout))["output"] == "report.html"
 
 
+# Mapping set with --set
+
+
+def test_a_set_case_id_gives_the_example_checklist(tmp_path: Path) -> None:
+    documents = [_run_trace_with_renamed_attribute(1, "DT-1", "detecttrace.case_id", "soc.ticket")]
+    _write_inputs(tmp_path, documents=documents)
+
+    result = _init(tmp_path, "--yes", "--dry-run", "--set", "mapping.case_id=soc.ticket")
+
+    assert list(yaml.safe_load_all(result.stdout))[1]["alert_class"] == "impossible_travel"
+
+
+def test_a_set_case_id_gives_the_orphan_counts(tmp_path: Path) -> None:
+    documents = [
+        _run_trace_with_attribute(1, "DT-1", "soc.ticket", "X-1"),
+        _run_trace_with_attribute(2, "DT-2", "soc.ticket", "X-2"),
+    ]
+    _write_inputs(tmp_path, documents=documents)
+
+    result = _init(tmp_path, "--yes", "--dry-run", "--set", "mapping.case_id=soc.ticket")
+
+    assert "Traces without a verdict: 2 (X-1, X-2)" in result.stderr
+
+
+def test_a_set_field_shows_its_coverage(tmp_path: Path) -> None:
+    documents = [
+        _run_trace_with_renamed_attribute(1, "DT-1", "detecttrace.alert_class", "soc.kind"),
+        _run_trace_with_renamed_attribute(2, "DT-2", "detecttrace.alert_class", "other.kind"),
+    ]
+    _write_inputs(tmp_path, documents=documents)
+
+    result = _init(tmp_path, "--yes", "--dry-run", "--set", "mapping.alert_class=soc.kind")
+
+    assert '#   alert_class: "soc.kind" on 1 of 2 agent runs (set by you)' in result.stdout
+
+
+def test_a_set_mapping_keeps_the_labels_set_with_set(tmp_path: Path) -> None:
+    documents = [_run_trace_with_attribute(1, "DT-1", "soc.ticket", "DT-1")]
+    _write_inputs(tmp_path, documents=documents, verdicts=VERDICTS + "DT-3,phishing,Bad\n")
+
+    result = _init(
+        tmp_path,
+        "--yes",
+        "--dry-run",
+        "--set",
+        "label_map.Bad=benign",
+        "--set",
+        "mapping.case_id=soc.ticket",
+    )
+
+    assert next(yaml.safe_load_all(result.stdout))["label_map"]["Bad"] == "benign"
+
+
+# Checklists folder set with --set
+
+
+def test_dry_run_with_a_checklists_folder_outside_exits_0(
+    demo_copy: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+
+    result = _init(demo_copy, "--yes", "--dry-run", "--set", f"checklists={elsewhere}")
+
+    assert result.exit_code == 0
+
+
+def test_dry_run_names_a_checklist_outside_by_its_path(
+    demo_copy: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+
+    result = _init(demo_copy, "--yes", "--dry-run", "--set", f"checklists={elsewhere}")
+
+    assert f"--- # {elsewhere.as_posix()}/impossible_travel.yaml.example\n" in result.stdout
+
+
+def test_yes_writes_the_example_checklist_into_a_folder_outside(
+    demo_copy: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+
+    _init(demo_copy, "--yes", "--set", f"checklists={elsewhere}")
+
+    assert (elsewhere / "impossible_travel.yaml.example").is_file()
+
+
 # Input problems
 
 
@@ -471,6 +627,34 @@ def test_a_missing_trace_path_exits_1(tmp_path: Path) -> None:
     result = _init(tmp_path, "--yes", "--dry-run")
 
     assert result.exit_code == 1
+
+
+def test_a_missing_trace_path_names_the_traces_option(tmp_path: Path) -> None:
+    (tmp_path / "verdicts.csv").write_text(VERDICTS, encoding="utf-8")
+
+    result = _init(tmp_path, "--yes", "--dry-run")
+
+    assert f"Trace path not found: {tmp_path / 'traces'}. Check --traces." in result.stderr
+
+
+def test_an_empty_trace_folder_names_the_traces_option(tmp_path: Path) -> None:
+    (tmp_path / "traces").mkdir()
+    (tmp_path / "verdicts.csv").write_text(VERDICTS, encoding="utf-8")
+
+    result = _init(tmp_path, "--yes", "--dry-run")
+
+    assert f"No trace files found under {tmp_path / 'traces'}. Check --traces." in result.stderr
+
+
+def test_a_missing_verdict_file_names_the_verdicts_option(tmp_path: Path) -> None:
+    _write_inputs(tmp_path)
+    (tmp_path / "verdicts.csv").unlink()
+
+    result = _init(tmp_path, "--yes", "--dry-run")
+
+    assert (
+        f"Verdict file not found: {tmp_path / 'verdicts.csv'}. Check --verdicts." in result.stderr
+    )
 
 
 def test_a_verdict_file_without_the_required_columns_exits_1(tmp_path: Path) -> None:
@@ -537,12 +721,13 @@ def test_an_escape_in_a_label_prints_escaped(tmp_path: Path, interactive: None) 
 
 
 def test_langfuse_real_capture_dry_run_detects_langfuse(tmp_path: Path) -> None:
-    (tmp_path / "traces").mkdir()
-    for name in REAL_API_PAGES:
-        shutil.copy(FIXTURES / "langfuse_real" / name, tmp_path / "traces" / name)
+    _copy_real_api_pages(tmp_path)
     (tmp_path / "verdicts.csv").write_text(
         "case_id,alert_class,verdict\n"
-        + "".join(f"CASE-900{n},impossible_travel,TP\n" for n in (1, 2, 3, 4)),
+        "CASE-9001,impossible_travel,TP\n"
+        "CASE-9002,impossible_travel,TP\n"
+        "CASE-9003,impossible_travel,TP\n"
+        "CASE-9004,impossible_travel,TP\n",
         encoding="utf-8",
     )
 
@@ -592,8 +777,7 @@ def test_check_measures_evidence_after_the_example_is_renamed(demo_copy: Path) -
     )
 
     results = yaml.safe_load((demo_copy / "results.json").read_text(encoding="utf-8"))
-    completeness = {c["alert_class"]: c["overall"]["completeness"] for c in results["classes"]}
-    assert completeness["impossible_travel"] is not None
+    assert results["classes"][0]["overall"]["completeness"] is not None
 
 
 def test_a_configuration_that_does_not_load_back_exits_2(

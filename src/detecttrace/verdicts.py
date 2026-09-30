@@ -23,14 +23,21 @@ REQUIRED_COLUMNS = ("case_id", "alert_class", "verdict")
 # The csv module's default of 128 KiB would skip a row whose long case ID a trace also carries
 # (both sides are shortened alike and still join); a longer field is surely a broken row.
 MAX_FIELD_CHARACTERS = 4 << 20
+# How to fix a missing verdict file, as check says it; init names its --verdicts option instead.
+PATH_HINT = "Check verdicts.path in detecttrace.yaml."
 
 
 class VerdictFileError(InputFileError):
     """The verdict file cannot be used at all: missing, unreadable, or its required columns are missing or repeated."""
 
 
-def read_verdicts(path: Path) -> tuple[list[VerdictRow], list[Issue]]:
-    """Read every verdict row. Rows that share a case ID are all returned; the join resolves them."""
+def read_verdicts(
+    path: Path, *, path_hint: str = PATH_HINT
+) -> tuple[list[VerdictRow], list[Issue]]:
+    """Read every verdict row. Rows that share a case ID are all returned; the join resolves them.
+
+    `path_hint` ends the error for a missing file.
+    """
     try:
         with path.open(encoding="utf-8-sig", newline="") as handle:
             # The limit is process-wide, so it is put back for any other csv user.
@@ -40,9 +47,7 @@ def read_verdicts(path: Path) -> tuple[list[VerdictRow], list[Issue]]:
             finally:
                 csv.field_size_limit(previous_limit)
     except FileNotFoundError as error:
-        raise VerdictFileError(
-            f"Verdict file not found: {path}. Check verdicts.path in detecttrace.yaml."
-        ) from error
+        raise VerdictFileError(f"Verdict file not found: {path}. {path_hint}") from error
     except UnicodeDecodeError as error:
         raise VerdictFileError(f"{path} is not UTF-8. Save it as UTF-8 CSV.") from error
     except OSError as error:

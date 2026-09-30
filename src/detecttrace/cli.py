@@ -52,7 +52,7 @@ from detecttrace.init_writer import (
     set_label,
     to_checklist_file_name,
 )
-from detecttrace.model import InputFileError, IssueKind, Verdict
+from detecttrace.model import InputFileError, IssueKind, Span, Verdict, VerdictRow
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
 from detecttrace.runconfig import RunConfig, load_run_config
@@ -77,6 +77,8 @@ NO_TERMINAL = "init needs a terminal to ask questions. Run init in a terminal, o
 INIT_FIELDS = ("case_id", "alert_class", "verdict", "prompt_version", "tool_name", "tool_arguments")
 _MAX_SHOWN_TOOLS = 10
 _LEAVE_UNMAPPED = ""
+_TRACES_HINT = "Check --traces."
+_VERDICTS_HINT = "Check --verdicts."
 _USAGE_ERROR_EXIT_CODE = 2
 
 
@@ -458,23 +460,19 @@ def _init(options: _InitOptions) -> int:
             _echo_error(problem)
             return 1
 
-    trace_format, format_issues = detect_format(options.traces)
+    trace_format, format_issues = detect_format(options.traces, path_hint=_TRACES_HINT)
     if trace_format is None:
         traces_text = to_terminal_text(str(options.traces), limit=None)
         _echo_error(f"No OTLP JSON or Langfuse export found in {traces_text}. {NOTHING_WRITTEN}")
         _echo_summary_lines(summarize_issues(format_issues, config_path.name), is_err=True)
         return 1
-    spans, trace_issues = load_spans(options.traces, format=trace_format)
-    rows, verdict_issues = read_verdicts(options.verdicts)
+    spans, trace_issues = load_spans(options.traces, format=trace_format, path_hint=_TRACES_HINT)
+    rows, verdict_issues = read_verdicts(options.verdicts, path_hint=_VERDICTS_HINT)
+    inputs = _InitInputs(spans, rows, options)
     proposal = propose_init(spans, trace_format, rows)
-    draft = create_draft(
-        proposal,
-        config_path=config_path,
-        traces_path=options.traces,
-        verdicts_path=options.verdicts,
-    )
     try:
-        draft = apply_overrides(draft, options.sets)
+        draft = apply_overrides(inputs.create_draft(proposal), options.sets)
+        proposal, draft = _repropose(inputs, proposal, draft)
     except OverrideError as error:
         _echo_error(f"{error} {NOTHING_WRITTEN}")
         return 1
@@ -489,11 +487,15 @@ def _init(options: _InitOptions) -> int:
 
     if is_interactive:
         try:
-            draft = _ask_mapping(draft, proposal)
+            asked = _ask_mapping(draft, proposal)
+            proposal, draft = _repropose(inputs, proposal, asked)
+            if draft is not asked:
+                _echo_orphans(proposal)
             draft = _ask_labels(draft)
         except typer.Abort:
             typer.echo(f"\nStopped. {NOTHING_WRITTEN}", err=True)
             return 1
+        example_path = _to_example_path(draft, config_path)
     if draft.missing_required:
         _echo_error(_describe_missing(draft.missing_required))
         return 1
@@ -515,16 +517,56 @@ def _init(options: _InitOptions) -> int:
     if options.is_dry_run:
         typer.echo(text, nl=False)
         if example is not None:
-            # A YAML document marker, so the output still reads as YAML. The path is relative
-            # to the configuration file, as the configuration's own paths are.
-            relative = example[0].relative_to(config_path.parent)
-            typer.echo(f"--- # {_to_path_text(relative)}")
+            # A YAML document marker, so the output still reads as YAML. The path is as the
+            # configuration gives it: relative to the configuration file, or as set.
+            shown = f"{draft.checklists_path}/{example[0].name}"
+            typer.echo(f"--- # {to_terminal_text(shown, limit=None)}")
             typer.echo(example[1], nl=False)
         return 0
-    if is_interactive and not _confirm_write(draft, config_path, example_path):
-        typer.echo(NOTHING_WRITTEN, err=True)
-        return 0
+    if is_interactive:
+        try:
+            is_confirmed = _confirm_write(draft, config_path, example_path)
+        except typer.Abort:
+            typer.echo(f"\nStopped. {NOTHING_WRITTEN}", err=True)
+            return 1
+        if not is_confirmed:
+            typer.echo(NOTHING_WRITTEN, err=True)
+            return 0
     return _write_init_files(config_path, text, example, options)
+
+
+@dataclass(frozen=True, slots=True)
+class _InitInputs:
+    spans: list[Span]
+    rows: list[VerdictRow]
+    options: _InitOptions
+
+    def create_draft(self, proposal: Proposal) -> InitDraft:
+        return create_draft(
+            proposal,
+            config_path=self.options.config,
+            traces_path=self.options.traces,
+            verdicts_path=self.options.verdicts,
+        )
+
+
+def _repropose(
+    inputs: _InitInputs, proposal: Proposal, draft: InitDraft
+) -> tuple[Proposal, InitDraft]:
+    """Propose again through the draft's mapping when the user changed it, since the example
+    checklist, labels, orphans and coverage all depend on it; the draft is returned unchanged
+    otherwise.
+
+    The rebuilt draft takes the --set arguments again, so settings and labels set there
+    survive, then the draft's mapping, so keys entered at a prompt win over --set.
+    """
+    if draft.mapping == proposal.mapping.to_mapping_config():
+        return proposal, draft
+    proposal = propose_init(inputs.spans, proposal.trace_format, inputs.rows, mapping=draft.mapping)
+    rebuilt = inputs.create_draft(proposal)
+    # The coverage comes from the new proposal: --set would describe a set key without it.
+    reapplied = apply_overrides(rebuilt, inputs.options.sets)
+    return proposal, replace(reapplied, mapping=draft.mapping, coverage=rebuilt.coverage)
 
 
 def _to_example_path(draft: InitDraft, config_path: Path) -> Path | None:
@@ -602,11 +644,18 @@ def _echo_found(proposal: Proposal, verdict_row_count: int, problems: list[Summa
             echo(f"  {to_terminal_text(label)}: {verdict.value}")
         for label in unmapped:
             echo(f"  {to_terminal_text(label)}: not mapped")
-    echo(_describe_orphans("Traces without a verdict", proposal.traces_without_verdict))
-    echo(_describe_orphans("Verdicts without a trace", proposal.verdicts_without_trace))
+    _echo_orphans(proposal)
     if problems:
         echo("Input problems (check reports them too):")
         _echo_summary_lines(problems, is_err=True)
+
+
+def _echo_orphans(proposal: Proposal) -> None:
+    for title, orphans in (
+        ("Traces without a verdict", proposal.traces_without_verdict),
+        ("Verdicts without a trace", proposal.verdicts_without_trace),
+    ):
+        typer.echo(_describe_orphans(title, orphans), err=True)
 
 
 def _describe_proposed_field(name: str, field: FieldProposal) -> str:
@@ -630,13 +679,17 @@ def _describe_orphans(title: str, orphans: OrphanSummary) -> str:
 
 def _ask_mapping(draft: InitDraft, proposal: Proposal) -> InitDraft:
     typer.echo("Press Enter to keep each proposal, or type the attribute to use.", err=True)
+    unchanged = proposal.mapping.to_mapping_config()
     for name in INIT_FIELDS:
         is_required = name in draft.missing_required
         current = getattr(draft.mapping, name)
-        proposed = getattr(proposal.mapping, name)
+        # A field not found holds its default key, which the user never chose.
+        is_not_found = getattr(proposal.mapping, name).value is None and current == getattr(
+            unchanged, name
+        )
         if is_required:
             shown = "not found, required"
-        elif proposed.value is None and current == proposed.value:
+        elif is_not_found:
             shown = "not found"
         else:
             shown = to_terminal_text(current, limit=None)
@@ -655,7 +708,6 @@ def _ask_mapping(draft: InitDraft, proposal: Proposal) -> InitDraft:
             except OverrideError as error:
                 _echo_error(str(error))
                 continue
-            draft = replace(draft, coverage={**draft.coverage, name: "entered at the prompt"})
             break
     return draft
 

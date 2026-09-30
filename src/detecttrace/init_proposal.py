@@ -23,6 +23,7 @@ SOURCE_NOT_FOUND = "not found"
 SOURCE_OPERATION_NAME = conventions.OPERATION_ATTRIBUTE
 SOURCE_SPAN_NAMES = "span names"
 SOURCE_OPENINFERENCE = "OpenInference"
+SOURCE_SET = "set by you"
 
 REQUIRED_LABELS = "verdict labels"
 
@@ -144,7 +145,11 @@ class Proposal:
 
 
 def propose_init(
-    spans: list[Span], trace_format: TraceFormat, verdict_rows: list[VerdictRow]
+    spans: list[Span],
+    trace_format: TraceFormat,
+    verdict_rows: list[VerdictRow],
+    *,
+    mapping: MappingConfig | None = None,
 ) -> Proposal:
     """Propose the mapping, label maps and checklist inputs for `init`.
 
@@ -153,48 +158,72 @@ def propose_init(
     version only); a key ending in a known name after a dot. A key qualifies when it is on at
     least half of the agent runs; among suffix matches the most common wins, then the
     shortest, then the first in code-point order. The result is the same for the same input.
+
+    With `mapping` (the user's edits), each key that differs from the one detected is
+    proposed as given, with source SOURCE_SET and its coverage, and everything else (agent
+    runs, cases, labels, tool names, orphans) is read through `mapping`.
     """
     notes: list[str] = []
-    operation = _propose_operation(spans, notes)
-    operation_config = OperationConfig(
-        attribute=operation.attribute,
-        agent_value=operation.agent_value,
-        tool_value=operation.tool_value,
-        span_name_fallback=operation.span_name_fallback,
+    operation_notes: list[str] = []
+    operation = _propose_operation(spans, operation_notes)
+    if mapping is not None and _to_operation_config(operation) != mapping.operation:
+        given = mapping.operation
+        operation = OperationProposal(
+            attribute=given.attribute,
+            agent_value=given.agent_value,
+            tool_value=given.tool_value,
+            span_name_fallback=given.span_name_fallback,
+            source=SOURCE_SET,
+        )
+    else:
+        notes += operation_notes
+    operation_config = _to_operation_config(operation)
+    agent_runs = _find_agent_runs(
+        spans, operation_config, None if mapping is None else mapping.case_id
     )
-    agent_runs = _find_agent_runs(spans, operation_config)
     tool_calls = [span for span in spans if classify_span(span, operation_config) == "tool"]
-    fields = {name: _propose_field(name, agent_runs, trace_format, notes) for name in _SUFFIXES}
+    fields = {
+        name: _propose_or_measure_field(name, agent_runs, trace_format, mapping, notes)
+        for name in _SUFFIXES
+    }
     is_openinference = operation.source == SOURCE_OPENINFERENCE
-    mapping = MappingProposal(
+    tool_source = SOURCE_OPENINFERENCE if is_openinference else SOURCE_DEFAULT
+    tool_name = _OPENINFERENCE_TOOL_NAME if is_openinference else _DEFAULTS.tool_name
+    tool_arguments = _OPENINFERENCE_TOOL_ARGUMENTS if is_openinference else _DEFAULTS.tool_arguments
+    proposed = MappingProposal(
         case_id=fields["case_id"],
         alert_class=fields["alert_class"],
         verdict=fields["verdict"],
         prompt_version=fields["prompt_version"],
         tool_name=_propose_tool_field(
-            _OPENINFERENCE_TOOL_NAME if is_openinference else _DEFAULTS.tool_name,
+            *_choose_key(tool_name, tool_source, None if mapping is None else mapping.tool_name),
             is_tool_name,
-            is_openinference,
             tool_calls,
         ),
         tool_arguments=_propose_tool_field(
-            _OPENINFERENCE_TOOL_ARGUMENTS if is_openinference else _DEFAULTS.tool_arguments,
+            *_choose_key(
+                tool_arguments,
+                tool_source,
+                None if mapping is None else mapping.tool_arguments,
+            ),
             is_tool_arguments,
-            is_openinference,
             tool_calls,
         ),
         operation=operation,
     )
-    if mapping.alert_class.value is None:
+    if proposed.alert_class.value is None:
         notes.append(
             "no alert class found on agent runs; alert classes come from the verdict file only"
         )
-    if mapping.prompt_version.value is None:
+    if proposed.prompt_version.value is None:
         notes.append("no prompt version found; every case will show as (no version)")
 
     trace_cases: list[TraceCase] = []
-    if mapping.case_id.value is not None:
-        trace_cases, _ = build_trace_cases(spans, mapping.to_mapping_config())
+    if proposed.case_id.value is not None:
+        # The given mapping, not the proposal's, so settings the proposal omits still apply.
+        trace_cases, _ = build_trace_cases(
+            spans, proposed.to_mapping_config() if mapping is None else mapping
+        )
     if trace_format == "langfuse" and trace_cases and not any(c.tool_calls for c in trace_cases):
         # The Langfuse SDK's default span filter can drop tool spans before they reach
         # Langfuse, which would show as low evidence completeness with no other sign.
@@ -211,7 +240,7 @@ def propose_init(
         if label is not None and normalize_label(label) not in analyst_labels
     )
     agent_label_map, unmapped_agent = _auto_map(agent_only)
-    missing = [name for name in _ROOT_ONLY_FIELDS if getattr(mapping, name).value is None]
+    missing = [name for name in _ROOT_ONLY_FIELDS if getattr(proposed, name).value is None]
     if not label_map:
         missing.append(REQUIRED_LABELS)
 
@@ -221,7 +250,7 @@ def propose_init(
     return Proposal(
         trace_format=trace_format,
         agent_run_count=len(agent_runs),
-        mapping=mapping,
+        mapping=proposed,
         label_map=label_map,
         agent_label_map=agent_label_map,
         unmapped_analyst_labels=_cap(unmapped_analyst, "analyst", notes),
@@ -233,6 +262,21 @@ def propose_init(
         missing_required=tuple(missing),
         notes=tuple(notes),
     )
+
+
+def _to_operation_config(operation: OperationProposal) -> OperationConfig:
+    return OperationConfig(
+        attribute=operation.attribute,
+        agent_value=operation.agent_value,
+        tool_value=operation.tool_value,
+        span_name_fallback=operation.span_name_fallback,
+    )
+
+
+def _choose_key(detected: str, source: str, given: str | None) -> tuple[str, str]:
+    if given is None or given == detected:
+        return detected, source
+    return given, SOURCE_SET
 
 
 def _propose_operation(spans: list[Span], notes: list[str]) -> OperationProposal:
@@ -268,8 +312,11 @@ def _propose_operation(spans: list[Span], notes: list[str]) -> OperationProposal
     )
 
 
-def _find_agent_runs(spans: list[Span], operation: OperationConfig) -> list[Span]:
-    """The agent spans check would open cases at, whichever key the case ID is read from.
+def _find_agent_runs(
+    spans: list[Span], operation: OperationConfig, case_id_key: str | None
+) -> list[Span]:
+    """The agent spans check would open cases at: with `case_id_key`, as check would read it;
+    without, whichever candidate key the case ID is read from.
 
     check opens a case at the first agent span on a path that has a case ID, so an
     orchestrator agent above agents with case IDs is not a run of its own. An agent subtree
@@ -278,7 +325,9 @@ def _find_agent_runs(spans: list[Span], operation: OperationConfig) -> list[Span
     """
     by_key = {(span.trace_id, span.span_id): span for span in spans}
     is_agent = {key: classify_span(span, operation) == "agent" for key, span in by_key.items()}
-    is_keyed = {key: is_agent[key] and _has_case_id_candidate(by_key[key]) for key in by_key}
+    is_keyed = {
+        key: is_agent[key] and _has_case_id_candidate(by_key[key], case_id_key) for key in by_key
+    }
     has_keyed_below: set[_SpanKey] = set()
     for key, keyed in is_keyed.items():
         parent = _parent_key(by_key[key])
@@ -335,13 +384,34 @@ def _create_ancestor_check(
     return check
 
 
-def _has_case_id_candidate(span: Span) -> bool:
+def _has_case_id_candidate(span: Span, case_id_key: str | None) -> bool:
+    if case_id_key is not None:
+        return _has_value(span, case_id_key, is_root_only=True)
     if _has_value(span, _DEFAULTS.case_id, is_root_only=True):
         return True
     suffixes = _SUFFIXES["case_id"]
     return any(
         _is_suffix_key(key, suffixes) and _is_text(value) for key, value in span.attributes.items()
     )
+
+
+def _propose_or_measure_field(
+    name: str,
+    agent_runs: list[Span],
+    trace_format: TraceFormat,
+    mapping: MappingConfig | None,
+    notes: list[str],
+) -> FieldProposal:
+    field_notes: list[str] = []
+    field = _propose_field(name, agent_runs, trace_format, field_notes)
+    given = None if mapping is None else getattr(mapping, name)
+    # A field not found is written with its default key, so that key given back is no change.
+    if given is None or given == (field.value or getattr(_DEFAULTS, name)):
+        notes += field_notes
+        return field
+    is_root_only = name in _ROOT_ONLY_FIELDS
+    covered = sum(1 for run in agent_runs if _has_value(run, given, is_root_only))
+    return FieldProposal(given, SOURCE_SET, covered, len(agent_runs))
 
 
 def _propose_field(
@@ -432,12 +502,11 @@ def _is_enough(covered: int, total: int) -> bool:
 
 def _propose_tool_field(
     key: str,
+    source: str,
     is_readable: Callable[[object], bool],
-    is_openinference: bool,
     tool_calls: list[Span],
 ) -> FieldProposal:
     covered = sum(1 for span in tool_calls if is_readable(span.attributes.get(key)))
-    source = SOURCE_OPENINFERENCE if is_openinference else SOURCE_DEFAULT
     return FieldProposal(key, source, covered, len(tool_calls))
 
 

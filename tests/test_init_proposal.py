@@ -4,11 +4,12 @@ from pathlib import Path
 import pytest
 from builders import make_span, span_hex
 
-from detecttrace.config import MappingConfig
+from detecttrace.config import MappingConfig, OperationConfig
 from detecttrace.init_proposal import (
     SOURCE_DETECTTRACE,
     SOURCE_LANGFUSE_PROMPT,
     SOURCE_OPENINFERENCE,
+    SOURCE_SET,
     SOURCE_SPAN_NAMES,
     SOURCE_SUFFIX,
     FieldProposal,
@@ -562,6 +563,62 @@ def test_alert_classes_differing_in_case_are_one_class() -> None:
     spans = [case(0, "DT-0"), case(1, "DT-1")]
     rows = [row("DT-0", alert_class="Phishing"), row("DT-1", alert_class="phishing")]
     assert propose(spans, rows).case_counts_by_class == {"Phishing": 2}
+
+
+# A given mapping
+
+
+def test_a_given_key_is_reported_with_its_coverage() -> None:
+    spans = [case(0, "DT-1", **{"soc.ticket": "X-1"}), case(1, "DT-2")]
+    proposal = propose_init(spans, "otlp_jsonl", [], mapping=MappingConfig(case_id="soc.ticket"))
+    assert proposal.mapping.case_id == FieldProposal("soc.ticket", SOURCE_SET, 1, 2)
+
+
+def test_a_given_key_equal_to_the_detected_one_keeps_its_source() -> None:
+    proposal = propose_init([case(0, "DT-1")], "otlp_jsonl", [], mapping=MappingConfig())
+    assert proposal.mapping.case_id == FieldProposal(
+        "detecttrace.case_id", SOURCE_DETECTTRACE, 1, 1
+    )
+
+
+def test_a_given_default_key_for_a_field_not_found_stays_not_found() -> None:
+    proposal = propose_init([case(0, "DT-1")], "otlp_jsonl", [], mapping=MappingConfig())
+    assert proposal.mapping.alert_class.value is None
+
+
+def test_a_given_case_id_key_gives_the_orphans() -> None:
+    spans = [case(0, "DT-1", **{"soc.ticket": "X-1"})]
+    mapping = MappingConfig(case_id="soc.ticket")
+    proposal = propose_init(spans, "otlp_jsonl", [row("DT-1")], mapping=mapping)
+    assert proposal.traces_without_verdict == OrphanSummary(1, ("X-1",))
+
+
+def test_a_given_verdict_key_gives_the_agent_labels() -> None:
+    spans = [case(0, "DT-1", **{"soc.outcome": "Escalated"})]
+    mapping = MappingConfig(verdict="soc.outcome")
+    proposal = propose_init(spans, "otlp_jsonl", [row("DT-1")], mapping=mapping)
+    assert proposal.unmapped_agent_labels == ("Escalated",)
+
+
+def test_a_given_tool_name_key_gives_the_tool_names() -> None:
+    spans = [case(0, "DT-1"), tool(0, "scan", {"soc.tool": "lookup"})]
+    mapping = MappingConfig(tool_name="soc.tool")
+    proposal = propose_init(spans, "otlp_jsonl", [row("DT-1")], mapping=mapping)
+    assert proposal.tool_names_by_class == {"impossible_travel": ("lookup",)}
+
+
+def test_a_given_operation_is_reported_as_set() -> None:
+    spans = [run(0, {"soc.kind": "agent", "detecttrace.case_id": "DT-1"})]
+    operation = OperationConfig(attribute="soc.kind", agent_value="agent", tool_value="tool")
+    proposal = propose_init(spans, "otlp_jsonl", [], mapping=MappingConfig(operation=operation))
+    assert proposal.mapping.operation.source == SOURCE_SET
+
+
+def test_a_given_key_drops_the_detection_note_for_its_field() -> None:
+    spans = [case(0, "DT-1", **{"soc.kind": "malware"})]
+    mapping = MappingConfig(alert_class="soc.kind")
+    proposal = propose_init(spans, "otlp_jsonl", [], mapping=mapping)
+    assert not any("no alert class found" in note for note in proposal.notes)
 
 
 # Hostile input

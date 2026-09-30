@@ -1153,3 +1153,22 @@ def test_a_failed_json_write_names_the_dashboard_that_was_written(
 
 def _raise_permission_error(*_args: object) -> None:
     raise PermissionError(13, "Permission denied")
+
+
+def test_check_names_the_config_setting_for_a_missing_trace_path(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "traces" / "batch.jsonl").unlink()
+    (tmp_path / "traces").rmdir()
+
+    result = _check(config_path)
+
+    assert "Check traces.path in detecttrace.yaml." in result.stderr
+
+
+def test_check_names_the_config_setting_for_a_missing_verdict_file(tmp_path: Path) -> None:
+    config_path = write_run_folder(tmp_path)
+    (tmp_path / "verdicts.csv").unlink()
+
+    result = _check(config_path)
+
+    assert "Check verdicts.path in detecttrace.yaml." in result.stderr

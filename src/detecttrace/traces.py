@@ -66,20 +66,28 @@ _PARSERS: dict[TraceFormat, _ParseDocument] = {
 }
 
 
+# How to fix a trace path that is missing or holds no files, as check says it; init names its
+# --traces option instead.
+PATH_HINT = "Check traces.path in detecttrace.yaml."
+
+
 class TraceFileError(InputFileError):
     """The trace path cannot be used at all: missing, unreadable, or holding no trace files."""
 
 
-def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[Span], list[Issue]]:
+def load_spans(
+    path: Path, *, format: TraceFormat = "otlp_jsonl", path_hint: str = PATH_HINT
+) -> tuple[list[Span], list[Issue]]:
     """Read every trace file at `path` (a file or a folder) and return unique spans.
 
     Files are read in sorted path order and the first copy of a duplicate span wins,
     so the same input always gives the same spans. Invalid input is reported as an
     Issue; TraceFileError is raised only when there is nothing to read. `format` picks the
-    document parser; every format reads JSON lines and one-document files alike.
+    document parser; every format reads JSON lines and one-document files alike. `path_hint`
+    ends the error for a missing path or one with no trace files.
     """
     issues: list[Issue] = []
-    trace_files = _find_trace_files(path, issues)
+    trace_files = _find_trace_files(path, issues, path_hint)
     parse_document = _PARSERS[format]
     spans: list[Span] = []
     seen: dict[tuple[str, str], Span] = {}
@@ -114,7 +122,9 @@ def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[
     return spans, _merge_rows_without_io(issues, parsed_count, path)
 
 
-def detect_format(path: Path) -> tuple[TraceFormat | None, list[Issue]]:
+def detect_format(
+    path: Path, *, path_hint: str = PATH_HINT
+) -> tuple[TraceFormat | None, list[Issue]]:
     """Name the format of the trace files at `path` from the first file with a known document.
 
     Files are tried in the order load_spans reads them, and up to _MAX_SNIFFED_DOCUMENTS
@@ -125,7 +135,7 @@ def detect_format(path: Path) -> tuple[TraceFormat | None, list[Issue]]:
     are returned: load_spans reports them. Raises TraceFileError as load_spans does.
     """
     issues: list[Issue] = []
-    for file_path, subject in _find_trace_files(path, issues):
+    for file_path, subject in _find_trace_files(path, issues, path_hint):
         file_issues: list[Issue] = []
         documents = _read_documents(file_path, subject, file_issues)
         try:
@@ -144,16 +154,12 @@ def detect_format(path: Path) -> tuple[TraceFormat | None, list[Issue]]:
     return None, issues
 
 
-def _find_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]:
+def _find_trace_files(path: Path, issues: list[Issue], path_hint: str) -> list[tuple[Path, str]]:
     if not path.exists():
-        raise TraceFileError(
-            f"Trace path not found: {path}. Check traces.path in detecttrace.yaml."
-        )
+        raise TraceFileError(f"Trace path not found: {path}. {path_hint}")
     trace_files = _list_trace_files(path, issues)
     if not trace_files:
-        raise TraceFileError(
-            f"No trace files found under {path}. Check traces.path in detecttrace.yaml."
-        )
+        raise TraceFileError(f"No trace files found under {path}. {path_hint}")
     return trace_files
 
 
