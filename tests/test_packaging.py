@@ -81,8 +81,10 @@ def dist(tmp_path_factory: pytest.TempPathFactory) -> Path:
         pytest.skip("uv is not on PATH, so the wheel and sdist can't be built")
     out_dir = tmp_path_factory.mktemp("dist")
     # Building the sdist first, then the wheel from it, also proves the sdist is complete.
+    # --force-pep517 builds with the uv_build that pyproject.toml pins, as the release does;
+    # uv's bundled backend follows uv's own version and changes the sdist between releases.
     subprocess.run(
-        [uv, "build", "--quiet", "--out-dir", str(out_dir), str(REPO_ROOT)],
+        [uv, "build", "--force-pep517", "--quiet", "--out-dir", str(out_dir), str(REPO_ROOT)],
         check=True,
         capture_output=True,
     )
