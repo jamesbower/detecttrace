@@ -2,6 +2,7 @@ import gzip
 import io
 import json
 import os
+import shutil
 import sys
 import tracemalloc
 from collections.abc import Iterator
@@ -1036,6 +1037,28 @@ def test_detection_reads_only_the_start_of_json_lines(tmp_path: Path) -> None:
     finally:
         tracemalloc.stop()
     assert peak < 4 * MIB
+
+
+def test_detection_keeps_scanning_after_console_exporter_output(tmp_path: Path) -> None:
+    shutil.copy(CONSOLE_OUTPUT, tmp_path / "0-console.json")
+    (tmp_path / "1-traces.jsonl").write_text(_line(S1))
+    assert detect_format(tmp_path) == ("otlp_jsonl", [])
+
+
+def test_detection_without_a_format_reports_zstd_without_extra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(sys.modules, "zstandard", None)
+    (tmp_path / "a.jsonl.zst").write_bytes(_zstd(_line(S1)))
+    assert [issue.kind for issue in detect_format(tmp_path)[1]] == [
+        IssueKind.UNSUPPORTED_COMPRESSION
+    ]
+
+
+def test_detection_reads_past_a_first_line_of_another_shape(tmp_path: Path) -> None:
+    path = tmp_path / "traces.jsonl"
+    path.write_text(json.dumps({"resourceMetrics": []}) + "\n" + _line(S1))
+    assert detect_format(path) == ("otlp_jsonl", [])
 
 
 def test_detection_of_a_missing_path_raises(tmp_path: Path) -> None:

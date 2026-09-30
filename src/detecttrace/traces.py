@@ -2,6 +2,7 @@
 
 import gzip
 import io
+import itertools
 import os
 import re
 import zlib
@@ -28,6 +29,9 @@ _READ_SIZE = 1 << 20
 _MAX_LINE_BYTES = 32 << 20
 _MAX_LINE_TEXT = f"{_MAX_LINE_BYTES >> 20} MiB"
 _SNIFF_SIZE = 64 * 1024
+# Enough to pass a few leading lines of another shape, such as metrics written to the same
+# file; each document is under _MAX_LINE_BYTES, so memory stays bounded.
+_MAX_SNIFFED_DOCUMENTS = 16
 _CONSOLE_CONTEXT = b'"context": {'
 _CONSOLE_TRACE_ID = b'"trace_id": "0x'
 _CONSOLE_DETAIL = (
@@ -113,25 +117,31 @@ def load_spans(path: Path, *, format: TraceFormat = "otlp_jsonl") -> tuple[list[
 def detect_format(path: Path) -> tuple[TraceFormat | None, list[Issue]]:
     """Name the format of the trace files at `path` from the first file with a known document.
 
-    Console exporter output gives no format and one CONSOLE_EXPORTER_OUTPUT issue. No format
-    and no issue means no file holds a document of a known shape. Only the first document of
-    each file is read (a one-document file is read whole), and files are tried in the order
-    load_spans reads them. Raises TraceFileError as load_spans does.
+    Files are tried in the order load_spans reads them, and up to _MAX_SNIFFED_DOCUMENTS
+    documents of each (a one-document file is read whole). With no format found, the issues
+    say why, as load_spans would: a console exporter file gives one CONSOLE_EXPORTER_OUTPUT
+    issue in place of its line issues, and files that cannot be read give theirs. No format
+    and no issue means no file holds a document of a known shape. With a format, no issues
+    are returned: load_spans reports them. Raises TraceFileError as load_spans does.
     """
-    for file_path, subject in _find_trace_files(path, []):
-        documents = _read_documents(file_path, subject, [])
-        first = next(documents, None)
-        documents.close()
-        if first is not None:
-            document, line_number = first
-            if isinstance(document, dict) and isinstance(document.get("resourceSpans"), list):
-                return ("otlp_json" if line_number is None else "otlp_jsonl"), []
-            if langfuse.is_langfuse_document(document):
-                return "langfuse", []
+    issues: list[Issue] = []
+    for file_path, subject in _find_trace_files(path, issues):
+        file_issues: list[Issue] = []
+        documents = _read_documents(file_path, subject, file_issues)
+        try:
+            for document, line_number in itertools.islice(documents, _MAX_SNIFFED_DOCUMENTS):
+                if isinstance(document, dict) and isinstance(document.get("resourceSpans"), list):
+                    return ("otlp_json" if line_number is None else "otlp_jsonl"), []
+                if langfuse.is_langfuse_document(document):
+                    return "langfuse", []
+        finally:
+            documents.close()
         # Sniffed only when the file holds no known document, as in load_spans.
         if _is_console_exporter_output(file_path):
-            return None, [Issue(IssueKind.CONSOLE_EXPORTER_OUTPUT, subject, _CONSOLE_DETAIL)]
-    return None, []
+            issues.append(Issue(IssueKind.CONSOLE_EXPORTER_OUTPUT, subject, _CONSOLE_DETAIL))
+        else:
+            issues.extend(file_issues)
+    return None, issues
 
 
 def _find_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]:

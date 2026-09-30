@@ -6,11 +6,11 @@ decides what to show, ask and write.
 
 import math
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from detecttrace import conventions
-from detecttrace.cases import build_trace_cases, classify_span
+from detecttrace.cases import build_trace_cases, classify_span, is_tool_arguments, is_tool_name
 from detecttrace.config import MappingConfig, OperationConfig, normalize_label
 from detecttrace.model import MAX_LABEL_LENGTH, Span, TraceCase, Verdict, VerdictRow
 from detecttrace.runconfig import TraceFormat
@@ -68,6 +68,8 @@ _SUFFIXES = {
 # check reads these two from the agent run's own attributes only; the others fall back to
 # the resource, so a key found only there is still readable.
 _ROOT_ONLY_FIELDS = ("case_id", "verdict")
+# (trace ID, span ID)
+_SpanKey = tuple[str, str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,11 +173,13 @@ def propose_init(
         prompt_version=fields["prompt_version"],
         tool_name=_propose_tool_field(
             _OPENINFERENCE_TOOL_NAME if is_openinference else _DEFAULTS.tool_name,
+            is_tool_name,
             is_openinference,
             tool_calls,
         ),
         tool_arguments=_propose_tool_field(
             _OPENINFERENCE_TOOL_ARGUMENTS if is_openinference else _DEFAULTS.tool_arguments,
+            is_tool_arguments,
             is_openinference,
             tool_calls,
         ),
@@ -232,11 +236,15 @@ def propose_init(
 
 
 def _propose_operation(spans: list[Span], notes: list[str]) -> OperationProposal:
-    if any(conventions.OPERATION_ATTRIBUTE in span.attributes for span in spans):
+    default = _DEFAULTS.operation
+    # A rule is proposed only when check would find agent runs under it: GenAI spans such as
+    # `chat` carry the operation attribute without making it the rule for agent runs.
+    agents = [span for span in spans if classify_span(span, default) == "agent"]
+    if any(span.attributes.get(default.attribute) == default.agent_value for span in agents):
         source = SOURCE_OPERATION_NAME
-    elif any(span.name.split(" ", 1)[0] == conventions.INVOKE_AGENT for span in spans):
+    elif agents:
         source = SOURCE_SPAN_NAMES
-    elif any(_OPENINFERENCE_KIND in span.attributes for span in spans):
+    elif any(classify_span(span, _OPENINFERENCE_OPERATION) == "agent" for span in spans):
         return OperationProposal(
             attribute=_OPENINFERENCE_OPERATION.attribute,
             agent_value=_OPENINFERENCE_OPERATION.agent_value,
@@ -247,10 +255,10 @@ def _propose_operation(spans: list[Span], notes: list[str]) -> OperationProposal
     else:
         source = SOURCE_DEFAULT
         notes.append(
-            f"no agent runs found: no span has {conventions.OPERATION_ATTRIBUTE}, "
-            f"an '{conventions.INVOKE_AGENT} ...' name, or {_OPENINFERENCE_KIND}"
+            f"no agent runs found: no span has {default.attribute} {default.agent_value}, "
+            f"an '{default.agent_value} ...' name, or {_OPENINFERENCE_KIND} "
+            f"{_OPENINFERENCE_OPERATION.agent_value}"
         )
-    default = _DEFAULTS.operation
     return OperationProposal(
         attribute=default.attribute,
         agent_value=default.agent_value,
@@ -261,40 +269,79 @@ def _propose_operation(spans: list[Span], notes: list[str]) -> OperationProposal
 
 
 def _find_agent_runs(spans: list[Span], operation: OperationConfig) -> list[Span]:
-    """Agent spans with no agent span above them: the spans check opens cases at."""
+    """The agent spans check would open cases at, whichever key the case ID is read from.
+
+    check opens a case at the first agent span on a path that has a case ID, so an
+    orchestrator agent above agents with case IDs is not a run of its own. An agent subtree
+    in which no agent has a candidate case ID is one run, at its topmost agent span: the run
+    check would report as missing its case ID.
+    """
     by_key = {(span.trace_id, span.span_id): span for span in spans}
     is_agent = {key: classify_span(span, operation) == "agent" for key, span in by_key.items()}
-    # Whether a span or one of its ancestors is an agent span; filled as the walks go.
-    has_agent: dict[tuple[str, str], bool] = {}
-
-    def has_agent_at_or_above(key: tuple[str, str] | None) -> bool:
-        path: list[tuple[str, str]] = []
-        on_path: set[tuple[str, str]] = set()
-        result = False
-        # Iterative, with a set for parent cycles: a deep or looping chain must not recurse.
-        while key is not None and key in by_key and key not in on_path:
-            if key in has_agent:
-                result = has_agent[key]
-                break
-            path.append(key)
-            on_path.add(key)
-            if is_agent[key]:
-                result = True
-                break
-            parent = by_key[key].parent_span_id
-            key = None if parent is None else (key[0], parent)
-        for visited in path:
-            has_agent[visited] = result
-        return result
+    is_keyed = {key: is_agent[key] and _has_case_id_candidate(by_key[key]) for key in by_key}
+    has_keyed_below: set[_SpanKey] = set()
+    for key, keyed in is_keyed.items():
+        parent = _parent_key(by_key[key])
+        # has_keyed_below holds every ancestor of a marked span, so a marked parent ends the
+        # walk; this also stops a parent cycle.
+        while keyed and parent in by_key and parent not in has_keyed_below:
+            has_keyed_below.add(parent)
+            parent = _parent_key(by_key[parent])
+    is_keyless_top = {
+        key: is_agent[key] and not is_keyed[key] and key not in has_keyed_below for key in by_key
+    }
+    has_keyed_above = _create_ancestor_check(by_key, is_keyed)
+    has_keyless_top_above = _create_ancestor_check(by_key, is_keyless_top)
 
     runs: list[Span] = []
     for key, span in by_key.items():
-        if not is_agent[key]:
-            continue
-        parent = span.parent_span_id
-        if parent is None or not has_agent_at_or_above((span.trace_id, parent)):
+        parent = _parent_key(span)
+        is_run_start = is_keyed[key] or (is_keyless_top[key] and not has_keyless_top_above(parent))
+        if is_run_start and not has_keyed_above(parent):
             runs.append(span)
     return runs
+
+
+def _parent_key(span: Span) -> _SpanKey | None:
+    parent = span.parent_span_id
+    return None if parent is None else (span.trace_id, parent)
+
+
+def _create_ancestor_check(
+    by_key: dict[_SpanKey, Span], flags: dict[_SpanKey, bool]
+) -> Callable[[_SpanKey | None], bool]:
+    """Return whether a span or one of its ancestors has its flag set."""
+    memo: dict[_SpanKey, bool] = {}
+
+    def check(key: _SpanKey | None) -> bool:
+        path: list[_SpanKey] = []
+        on_path: set[_SpanKey] = set()
+        result = False
+        # Iterative, with a set for parent cycles: a deep or looping chain must not recurse.
+        while key is not None and key in by_key and key not in on_path:
+            if key in memo:
+                result = memo[key]
+                break
+            path.append(key)
+            on_path.add(key)
+            if flags[key]:
+                result = True
+                break
+            key = _parent_key(by_key[key])
+        for visited in path:
+            memo[visited] = result
+        return result
+
+    return check
+
+
+def _has_case_id_candidate(span: Span) -> bool:
+    if _has_value(span, _DEFAULTS.case_id, is_root_only=True):
+        return True
+    suffixes = _SUFFIXES["case_id"]
+    return any(
+        _is_suffix_key(key, suffixes) and _is_text(value) for key, value in span.attributes.items()
+    )
 
 
 def _propose_field(
@@ -337,7 +384,6 @@ def _propose_field(
 def _count_suffix_matches(
     agent_runs: list[Span], suffixes: tuple[str, ...], is_root_only: bool
 ) -> Counter[str]:
-    dotted = tuple("." + suffix for suffix in suffixes)
     counts: Counter[str] = Counter()
     # Keys already judged, so thousands of distinct or huge keys cost one check each.
     usable: dict[str, bool] = {}
@@ -347,13 +393,16 @@ def _count_suffix_matches(
         for attributes in sources:
             for key, value in attributes.items():
                 if key not in usable:
-                    usable[key] = (key in suffixes or key.endswith(dotted)) and _is_writable_key(
-                        key
-                    )
+                    usable[key] = _is_suffix_key(key, suffixes)
                 if usable[key] and _is_text(value):
                     found.add(key)
         counts.update(found)
     return counts
+
+
+def _is_suffix_key(key: str, suffixes: tuple[str, ...]) -> bool:
+    is_match = key in suffixes or key.endswith(tuple("." + suffix for suffix in suffixes))
+    return is_match and _is_writable_key(key)
 
 
 def _is_writable_key(key: str) -> bool:
@@ -381,8 +430,13 @@ def _is_enough(covered: int, total: int) -> bool:
     return covered > 0 and covered * 2 >= total
 
 
-def _propose_tool_field(key: str, is_openinference: bool, tool_calls: list[Span]) -> FieldProposal:
-    covered = sum(1 for span in tool_calls if _is_text(span.attributes.get(key)))
+def _propose_tool_field(
+    key: str,
+    is_readable: Callable[[object], bool],
+    is_openinference: bool,
+    tool_calls: list[Span],
+) -> FieldProposal:
+    covered = sum(1 for span in tool_calls if is_readable(span.attributes.get(key)))
     source = SOURCE_OPENINFERENCE if is_openinference else SOURCE_DEFAULT
     return FieldProposal(key, source, covered, len(tool_calls))
 
@@ -420,21 +474,26 @@ def _cap(labels: list[str], side: str, notes: list[str]) -> tuple[str, ...]:
 def _group_by_class(
     trace_cases: list[TraceCase], verdict_rows: list[VerdictRow]
 ) -> tuple[dict[str, tuple[str, ...]], dict[str, int]]:
-    # As in the join, a case's class is its first verdict row's; the trace's only without one.
+    # As in check: a case without a verdict row is dropped (ROOT_WITHOUT_VERDICT), a case's
+    # class is its first verdict row's, and classes group by normalized name, shown in the
+    # spelling of the first case in case-ID order.
     class_by_case: dict[str, str] = {}
     for row in verdict_rows:
         class_by_case.setdefault(row.case_id, row.alert_class)
+    spellings: dict[str, str] = {}
     tools: dict[str, set[str]] = defaultdict(set)
     counts: Counter[str] = Counter()
-    for case in trace_cases:
-        alert_class = class_by_case.get(case.case_id, case.alert_class)
+    for case in sorted(trace_cases, key=lambda case: case.case_id):
+        alert_class = class_by_case.get(case.case_id)
         if alert_class is None:
             continue
-        counts[alert_class] += 1
-        tools[alert_class].update(call.tool_name for call in case.tool_calls if call.tool_name)
+        key = normalize_label(alert_class)
+        spellings.setdefault(key, alert_class)
+        counts[key] += 1
+        tools[key].update(call.tool_name for call in case.tool_calls if call.tool_name)
     return (
-        {name: tuple(sorted(tools[name])[:MAX_LISTED_TOOLS]) for name in sorted(counts)},
-        {name: counts[name] for name in sorted(counts)},
+        {spellings[key]: tuple(sorted(tools[key])[:MAX_LISTED_TOOLS]) for key in sorted(counts)},
+        {spellings[key]: counts[key] for key in sorted(counts)},
     )
 
 

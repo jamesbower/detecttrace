@@ -3,7 +3,7 @@
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, TypeGuard
 
 from detecttrace import conventions
 from detecttrace.config import MappingConfig, OperationConfig
@@ -202,15 +202,23 @@ def classify_span(span: Span, operation: OperationConfig) -> Literal["agent", "t
     return None
 
 
+def is_tool_name(value: object) -> TypeGuard[str]:
+    """Whether a tool name attribute holds a name; otherwise the span name is the fallback."""
+    return isinstance(value, str) and bool(value.strip())
+
+
+def is_tool_arguments(value: object) -> TypeGuard[str | dict[str, object]]:
+    """Whether a tool arguments attribute holds arguments that checklist rules can read."""
+    return isinstance(value, str | dict)
+
+
 def _to_tool_call(
     span: Span, mapping: MappingConfig, issues: list[Issue], reported_long: _ReportedLong
 ) -> ToolCall:
     subject = f"{span.trace_id}/{span.span_id}"
     raw_name = span.attributes.get(mapping.tool_name)
-    tool_name = ""
-    if isinstance(raw_name, str):
-        tool_name = raw_name.strip()
-    elif raw_name is not None:
+    tool_name = raw_name.strip() if is_tool_name(raw_name) else ""
+    if raw_name is not None and not isinstance(raw_name, str):
         issues.append(
             Issue(
                 IssueKind.INVALID_ATTRIBUTE,
@@ -226,7 +234,7 @@ def _to_tool_call(
         issues.append(Issue(IssueKind.MISSING_TOOL_NAME, subject))
     raw_arguments = span.attributes.get(mapping.tool_arguments)
     arguments: str | dict[str, object] | None = None
-    if isinstance(raw_arguments, str | dict):
+    if is_tool_arguments(raw_arguments):
         arguments = raw_arguments
     elif raw_arguments is not None:
         issues.append(

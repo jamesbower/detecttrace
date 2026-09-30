@@ -208,6 +208,35 @@ def test_a_nested_agent_is_not_a_separate_agent_run() -> None:
     assert propose([case(0, "DT-1"), nested]).mapping.case_id.total == 1
 
 
+def sub_agent(number: int, attributes: dict[str, object]) -> Span:
+    """An agent span under the orchestrator agent of trace 0."""
+    return make_span(
+        span_hex(10 + number),
+        span_hex(1),
+        name="invoke_agent triage",
+        trace_id=trace_id(0),
+        attributes={**AGENT, **attributes},
+    )
+
+
+def test_agents_with_a_case_id_under_an_orchestrator_are_the_agent_runs() -> None:
+    spans = [run(0, {})] + [
+        sub_agent(number, {"detecttrace.case_id": f"DT-{number}"}) for number in range(3)
+    ]
+    assert propose(spans).mapping.case_id == FieldProposal(
+        "detecttrace.case_id", SOURCE_DETECTTRACE, 3, 3
+    )
+
+
+def test_an_orchestrated_agent_without_a_case_id_is_an_agent_run() -> None:
+    spans = [run(0, {}), sub_agent(0, {"soc.case_id": "DT-0"}), sub_agent(1, {})]
+    assert propose(spans).agent_run_count == 2
+
+
+def test_an_agent_tree_without_a_case_id_is_one_agent_run() -> None:
+    assert propose([run(0, {}), sub_agent(0, {})]).agent_run_count == 1
+
+
 # Langfuse prompt version
 
 
@@ -281,6 +310,16 @@ def test_openinference_proposes_its_tool_attributes() -> None:
     assert (mapping.tool_name.value, mapping.tool_arguments.value) == ("tool.name", "input.value")
 
 
+def test_operation_name_on_non_agent_spans_does_not_hide_openinference() -> None:
+    spans = [
+        make_span(span_hex(1), attributes={"openinference.span.kind": "AGENT"}),
+        make_span(
+            span_hex(2), span_hex(1), name="chat", attributes={"gen_ai.operation.name": "chat"}
+        ),
+    ]
+    assert propose(spans).mapping.operation.source == SOURCE_OPENINFERENCE
+
+
 def test_no_operation_signal_finds_no_agent_runs() -> None:
     assert (
         propose(
@@ -293,6 +332,16 @@ def test_no_operation_signal_finds_no_agent_runs() -> None:
 def test_tool_name_coverage_counts_tool_calls() -> None:
     spans = [case(0, "DT-1"), tool(0, "get_signin_logs"), tool(0, "x", {"gen_ai.tool.name": ""})]
     assert propose(spans).mapping.tool_name == FieldProposal("gen_ai.tool.name", "default", 1, 2)
+
+
+def test_tool_argument_coverage_counts_object_arguments() -> None:
+    spans = [case(0, "DT-1"), tool(0, "scan", {"gen_ai.tool.call.arguments": {"ip": "192.0.2.1"}})]
+    assert propose(spans).mapping.tool_arguments.covered == 1
+
+
+def test_tool_name_coverage_skips_a_number() -> None:
+    spans = [case(0, "DT-1"), tool(0, "scan", {"gen_ai.tool.name": 7})]
+    assert propose(spans).mapping.tool_name.covered == 0
 
 
 # Fixtures
@@ -486,9 +535,9 @@ def test_tool_names_are_listed_per_alert_class() -> None:
     }
 
 
-def test_trace_alert_class_is_used_when_the_case_has_no_verdict() -> None:
-    spans = [case(0, "DT-0", **{"detecttrace.alert_class": "malware"}), tool(0, "scan")]
-    assert propose(spans, []).tool_names_by_class == {"malware": ("scan",)}
+def test_a_case_without_a_verdict_row_is_not_counted() -> None:
+    spans = [case(0, "DT-0", **{"detecttrace.alert_class": "malware"}), case(1, "DT-1")]
+    assert propose(spans, [row("DT-1")]).case_counts_by_class == {"impossible_travel": 1}
 
 
 def test_the_verdict_file_alert_class_wins_over_the_trace_one() -> None:
@@ -507,6 +556,12 @@ def test_cases_are_counted_per_alert_class() -> None:
     spans = [case(number, f"DT-{number}") for number in range(3)]
     rows = [row("DT-0"), row("DT-1"), row("DT-2", alert_class="phishing")]
     assert propose(spans, rows).case_counts_by_class == {"impossible_travel": 2, "phishing": 1}
+
+
+def test_alert_classes_differing_in_case_are_one_class() -> None:
+    spans = [case(0, "DT-0"), case(1, "DT-1")]
+    rows = [row("DT-0", alert_class="Phishing"), row("DT-1", alert_class="phishing")]
+    assert propose(spans, rows).case_counts_by_class == {"Phishing": 2}
 
 
 # Hostile input
