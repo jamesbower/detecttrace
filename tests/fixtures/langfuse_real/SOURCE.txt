@@ -1,0 +1,112 @@
+Langfuse real export fixtures
+=============================
+
+Captured 2026-09-30 from a local, self-hosted Langfuse started once with Docker
+Compose for this purpose, then torn down. All data is synthetic (example.com,
+documentation IP ranges).
+
+Versions
+--------
+Langfuse release v4.48.0 (health endpoint reported {"status":"OK","version":"4.48.0"}).
+Compose file: https://raw.githubusercontent.com/langfuse/langfuse/v4.48.0/docker-compose.yml
+  tag v4.48.0 = commit 0de9ccd64e0f9d35c1990fb6c851fa00530e7960 (also main on that date).
+Images (tag -> digest):
+  docker.langfuse.com/langfuse/langfuse:4         sha256:8c1b80ed7735be587974d603af0f6e0247b33d3b56c7d5ab9d2337aec313efa0
+  docker.langfuse.com/langfuse/langfuse-worker:4  sha256:9349b003a453326b3d2e2033eb94fe5ca9ee12ee237779c10984b9d3dfe0f8ed
+  clickhouse/clickhouse-server:25.12              sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6
+  cgr.dev/chainguard/minio:latest                 sha256:4692462f35d97d7e82c30371d82f057703c5d9489bcae726010594c812f2d285
+  redis:7                                         sha256:c6eabf748fc7a61dbb5a705c78bcf3d6377b1127a97d0ce965c11c44ba46896f
+  postgres:17                                     sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+Sender: opentelemetry-sdk 1.45.0, opentelemetry-exporter-otlp-proto-http 1.45.0.
+
+Compose changes: one line. The Redis host port mapping (loopback only) was changed
+from host port 6379 to 16379 because 6379 was already in use on the host.
+Environment (.env): TELEMETRY_ENABLED=false, LANGFUSE_S3_BATCH_EXPORT_ENABLED=true,
+headless init LANGFUSE_INIT_ORG_ID=org-local, LANGFUSE_INIT_PROJECT_ID=proj-local,
+LANGFUSE_INIT_PROJECT_PUBLIC_KEY=pk-lf-local, LANGFUSE_INIT_PROJECT_SECRET_KEY=sk-lf-local,
+LANGFUSE_INIT_USER_EMAIL=admin@example.com (plus org/project/user names and a password).
+The deployment ran in the default v4 write mode "events_only".
+
+Sending
+-------
+send_spans.py (in this directory) was run once from a scratch directory with
+  uv run --no-project --with opentelemetry-sdk --with opentelemetry-exporter-otlp-proto-http python send_spans.py
+It posts OTLP/HTTP protobuf to http://localhost:3000/api/public/otel/v1/traces with
+Basic auth pk-lf-local:sk-lf-local. 4 traces, 16 spans, every span exported.
+Span start times are fixed at 2026-09-30T08:0x:00Z; createdAt/updatedAt in the
+exports are the real ingestion times.
+
+Requests (Basic auth pk-lf-local:sk-lf-local; bodies saved byte-for-byte)
+--------------------------------------------------------------------------
+FIELDS = core,basic,time,io,metadata,model,usage,prompt,metrics,trace_context
+KEYS   = every metadata key seen in the first pass, comma-separated:
+  alert_class,attributes.detecttrace.alert_class,attributes.detecttrace.analyst_note,
+  attributes.detecttrace.case_id,attributes.detecttrace.mfa_satisfied,
+  attributes.detecttrace.prompt_version,attributes.detecttrace.result_count,
+  attributes.detecttrace.risk_score,attributes.detecttrace.source_ips,
+  attributes.detecttrace.verdict,attributes.error.type,attributes.gen_ai.agent.name,
+  attributes.gen_ai.operation.name,attributes.gen_ai.provider.name,
+  attributes.gen_ai.request.model,attributes.gen_ai.tool.call.id,
+  attributes.gen_ai.tool.name,attributes.gen_ai.tool.type,
+  attributes.gen_ai.usage.input_tokens,attributes.gen_ai.usage.output_tokens,case_id,
+  resourceAttributes.service.instance.id,resourceAttributes.service.name,
+  resourceAttributes.service.version,resourceAttributes.soc.team,
+  resourceAttributes.telemetry.sdk.language,resourceAttributes.telemetry.sdk.name,
+  resourceAttributes.telemetry.sdk.version,scope.name,scope.version,verdict
+Every paged request used limit=5 and followed meta.cursor until the response had
+no cursor (meta is {} on the last page). Pages 1-4 hold 5+5+5+1 rows.
+
+  v2_all_fields_page{1..4}.json                200
+    GET /api/public/v2/observations?limit=5&fields=FIELDS[&cursor=...]
+  v2_all_fields_expand_metadata_page{1..4}.json 200
+    GET /api/public/v2/observations?limit=5&fields=FIELDS&expandMetadata=KEYS[&cursor=...]
+    Byte-identical to v2_all_fields_*: when the io group is requested, metadata
+    comes back untruncated even without expandMetadata.
+  v2_no_io_page{1..4}.json                     200
+    GET /api/public/v2/observations?limit=5&fields=FIELDS minus io[&cursor=...]
+    Shows the 200-character metadata truncation (analyst_note on page 3).
+  v2_no_io_expand_metadata_page{1..4}.json     200
+    same with &expandMetadata=KEYS; full values.
+  legacy_traces_404.json                       404
+    GET /api/public/traces?limit=50
+  legacy_observations_404.json                 404
+    GET /api/public/observations?limit=50
+  Not saved (same 404 body): GET /api/public/traces/{traceId},
+  GET /api/public/observations/{observationId}, GET /api/public/sessions.
+  GET /api/public/integrations/blob-storage -> 403 (needs an organization-scoped key).
+
+Blob storage export (scheduled export to the bundled MinIO)
+-----------------------------------------------------------
+Available in OSS (entitlement "scheduled-blob-exports" is in the oss plan), but the
+public API (PUT /api/public/integrations/blob-storage) needs an organization-scoped
+API key, which headless init does not create. Instead the web app's own tRPC routes
+were called with a session from the init user (POST /api/auth/callback/credentials):
+  POST /api/trpc/blobStorageIntegration.update
+    {"json":{"projectId":"proj-local","type":"S3_COMPATIBLE","bucketName":"langfuse",
+     "endpoint":"http://minio:9000","region":"auto","accessKeyId":"minio",
+     "secretAccessKey":"miniosecret","prefix":"<blob-json2/|blob-jsonl/>",
+     "exportFrequency":"hourly","enabled":true,"forcePathStyle":true,
+     "fileType":"<JSON|JSONL>","exportMode":"FULL_HISTORY","compressed":false,
+     "exportSource":"EVENTS"}}
+    (tRPC names the source EVENTS; the public API calls it OBSERVATIONS_V2.
+     Default exportFieldGroups: core,basic,time,io,metadata,model,usage,prompt,
+     metrics,trace_context,tools.)
+  POST /api/trpc/blobStorageIntegration.runNow {"json":{"projectId":"proj-local"}}
+  POST /api/trpc/blobStorageIntegration.delete between the JSON and JSONL runs.
+Exports are windowed hourly by span start time; all 16 rows landed in the first
+window (08:01-09:01Z). Files read back with `mc cat` inside the MinIO container:
+  blob_observations_v2.json   <- blob-json2/proj-local/observations_v2/2026-09-30T09-01-00.json
+  blob_manifest_json.json     <- blob-json2/proj-local/manifests/2026-09-30T09-01-00.json
+  blob_scores.json            <- blob-json2/proj-local/scores/2026-09-30T09-01-00.json ("[]")
+  blob_observations_v2.jsonl  <- blob-jsonl/proj-local/observations_v2/2026-09-30T09-01-00.jsonl
+  blob_manifest_jsonl.json    <- blob-jsonl/proj-local/manifests/2026-09-30T09-01-00.json
+The JSON and JSONL files hold the same 16 rows. Later windows were empty and are
+not included.
+The UI-triggered batch export was not attempted.
+
+Sanitization
+------------
+None needed. The saved bodies were searched for the API keys, the host name, the
+user name, private IP ranges and e-mail addresses: only user1..4@example.com and
+documentation IPs occur. resourceAttributes.service.instance.id is a random UUID
+generated by the OpenTelemetry SDK. Files were renamed, never edited.

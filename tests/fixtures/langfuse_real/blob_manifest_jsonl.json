@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "projectId": "proj-local",
+  "exportSource": "EVENTS",
+  "window": {
+    "minTimestamp": "2026-09-30T08:01:00.000Z",
+    "maxTimestamp": "2026-09-30T09:01:00.000Z"
+  },
+  "maxTimestamp": "2026-09-30T09:01:00.000Z",
+  "createdAt": "2026-09-30T13:26:54.998Z",
+  "tables": [
+    "scores",
+    "observations_v2"
+  ],
+  "files": [
+    {
+      "key": "blob-jsonl/proj-local/scores/2026-09-30T09-01-00.jsonl",
+      "table": "scores",
+      "fileType": "JSONL",
+      "format": "jsonl-raw",
+      "compressed": false,
+      "contentType": "application/x-ndjson; charset=utf-8",
+      "sizeBytes": 0,
+      "rowCount": 0
+    },
+    {
+      "key": "blob-jsonl/proj-local/observations_v2/2026-09-30T09-01-00.jsonl",
+      "table": "observations_v2",
+      "fileType": "JSONL",
+      "format": "jsonl-raw",
+      "compressed": false,
+      "contentType": "application/x-ndjson; charset=utf-8",
+      "sizeBytes": 28882,
+      "rowCount": 16
+    }
+  ]
+}

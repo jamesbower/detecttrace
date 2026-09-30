@@ -21,7 +21,7 @@ from detecttrace.traces import load_spans
 DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 FIXTURE_ROOT = fixture_specs.FIXTURE_ROOT
 # Captured from the OpenTelemetry SDK, not generated.
-CAPTURED_FIXTURES = "console_exporter/"
+CAPTURED_FIXTURES = ("console_exporter/", "langfuse_real/")
 COMPRESSED_SUFFIXES = (".gz", ".zst")
 DOCUMENTATION_NETWORKS = tuple(
     ipaddress.ip_network(network)
