@@ -21,7 +21,7 @@ from builders import (
 )
 
 from detecttrace.model import IssueKind, Span
-from detecttrace.traces import TraceFileError, detect_format, load_spans
+from detecttrace.traces import _MAX_LINE_BYTES, TraceFileError, detect_format, load_spans
 
 S1 = span_hex(1)
 S2 = span_hex(2)
@@ -718,6 +718,32 @@ def test_too_large_document_is_reported(tmp_path: Path) -> None:
     ]
 
 
+def test_document_at_the_size_limit_loads_with_no_issue(tmp_path: Path) -> None:
+    path = _write_padded_document(tmp_path / "t.json", _MAX_LINE_BYTES)
+
+    _, issues = load_spans(path)
+
+    assert issues == []
+
+
+def test_document_one_byte_over_the_size_limit_is_reported(tmp_path: Path) -> None:
+    path = _write_padded_document(tmp_path / "t.json", _MAX_LINE_BYTES + 1)
+
+    _, issues = load_spans(path)
+
+    assert [(i.kind, i.detail) for i in issues] == [
+        (IssueKind.INVALID_FILE, "document is over 32 MiB")
+    ]
+
+
+def _write_padded_document(path: Path, size: int) -> Path:
+    # Pretty-printed, so its first line is `{` and the whole-document reader gets it; trailing
+    # spaces are still valid JSON and bring the file to exactly `size` bytes.
+    text = json.dumps(otlp_document([otlp_span(S1)]), indent=2).encode()
+    path.write_bytes(text + b" " * (size - len(text)))
+    return path
+
+
 @pytest.fixture(scope="module")
 def gzip_document_bomb(tmp_path_factory: pytest.TempPathFactory) -> Path:
     # Opens like a one-document file, so the whole-document reader gets the bomb.
@@ -730,6 +756,9 @@ def gzip_document_bomb(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return path
 
 
+# NOTE: the only test that catches a return to one `read(limit + 1)`, and only on Python 3.12
+# and later, where gzip holds its chunks and their joined copy at once; the exact-limit tests
+# don't measure memory. CI runs 3.12 and 3.13, so a revert still fails there.
 def test_gzip_document_bomb_loads_within_memory_budget(gzip_document_bomb: Path) -> None:
     assert _peak_bytes_while_loading(gzip_document_bomb) < MEMORY_BUDGET
 
