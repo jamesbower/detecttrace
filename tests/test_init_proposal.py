@@ -417,6 +417,13 @@ def test_a_managed_prompt_under_half_the_agent_runs_is_noted() -> None:
     )
 
 
+def test_a_managed_prompt_under_half_the_agent_runs_leaves_its_cases_unversioned() -> None:
+    # The probe built cases with the managed prompt's version; the proposal must give the
+    # cases of the mapping it proposes, which has no version.
+    proposal = propose(managed_cases(3, 1), trace_format="langfuse")
+    assert [case.prompt_version for case in proposal.trace_cases] == [None, None, None]
+
+
 def test_two_managed_prompt_versions_in_one_run_give_it_no_version() -> None:
     # check reports two versions under one agent run as a conflict and reads none.
     spans = [case(0, "DT-0"), generation(0, 1), generation(0, 2, index=1)]
