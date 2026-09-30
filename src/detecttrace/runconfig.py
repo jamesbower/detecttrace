@@ -9,7 +9,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StrictBool,
     StrictInt,
     ValidationError,
     field_validator,
@@ -73,8 +72,6 @@ class RunConfig(Config):
     checklists: Path | None = None
     output: Path = Path("detecttrace-dashboard.html")
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
-    # Validated now so a bad value fails early; it has no effect yet.
-    telemetry: StrictBool = False
 
     _check_path = field_validator("checklists", "output", mode="before")(_check_path)
 

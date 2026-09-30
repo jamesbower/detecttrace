@@ -36,7 +36,6 @@ checklists: ./checklists/
 output: ./detecttrace-dashboard.html
 dashboard:
   max_detail_cases: 2000
-telemetry: false
 """
 
 MINIMAL = "traces: {path: traces}\nverdicts: {path: verdicts.csv}\n"
@@ -159,8 +158,9 @@ def test_otlp_json_format_is_accepted(tmp_path: Path) -> None:
     assert config.traces.format == "otlp_json"
 
 
-def test_telemetry_true_is_accepted(tmp_path: Path) -> None:
-    assert _load(tmp_path, MINIMAL + "telemetry: true\n").telemetry is True
+def test_removed_telemetry_key_is_an_unknown_key(tmp_path: Path) -> None:
+    message = _load_error(tmp_path, MINIMAL + "telemetry: true\n")
+    assert "\n  telemetry: Extra inputs are not permitted" in message
 
 
 def test_unknown_key_names_the_key_and_the_file(tmp_path: Path) -> None:
@@ -211,10 +211,9 @@ def test_colliding_agent_label_map_keys_are_rejected(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("text", "reason"),
     [
-        (MINIMAL + "telemetry: false\ntelemetry: true\n", r"duplicate key 'telemetry' \(line 4\)"),
+        (MINIMAL + "output: a.html\noutput: b.html\n", r"duplicate key 'output' \(line 4\)"),
         ("traces: &t {path: t}\nverdicts: *t\n", "aliases are not allowed"),
         (MINIMAL + "output: !!python/object:os.system x\n", "could not determine a constructor"),
-        (MINIMAL + "telemetry: yes\n", "telemetry: Input should be a valid boolean"),
         (
             MINIMAL + "dashboard: {max_detail_cases: -1}\n",
             "max_detail_cases: Input should be greater",
@@ -222,7 +221,7 @@ def test_colliding_agent_label_map_keys_are_rejected(tmp_path: Path) -> None:
         ("- a\n- b\n", "expected a mapping with 'traces' and 'verdicts'"),
         ("", "expected a mapping with 'traces' and 'verdicts'"),
     ],
-    ids=["duplicate-key", "alias", "python-tag", "telemetry-yes", "negative-max", "list", "empty"],
+    ids=["duplicate-key", "alias", "python-tag", "negative-max", "list", "empty"],
 )
 def test_unusable_content_raises(tmp_path: Path, text: str, reason: str) -> None:
     with pytest.raises(ConfigFileError, match=rf"(?s)detecttrace\.yaml: .*{reason}"):
@@ -345,4 +344,4 @@ def test_tilde_inside_a_name_is_an_ordinary_name(tmp_path: Path) -> None:
 def test_run_config_is_frozen(tmp_path: Path) -> None:
     config = _load(tmp_path, MINIMAL)
     with pytest.raises(ValueError, match="frozen"):
-        config.telemetry = True  # type: ignore[misc]
+        config.output = Path("other.html")  # type: ignore[misc]
