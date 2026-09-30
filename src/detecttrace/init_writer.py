@@ -15,7 +15,7 @@ from pydantic import ValidationError
 
 from detecttrace.checklist import EXAMPLE_SUFFIX
 from detecttrace.config import MappingConfig, OperationConfig, normalize_label
-from detecttrace.init_proposal import REQUIRED_LABELS, FieldProposal, Proposal
+from detecttrace.init_proposal import REQUIRED_FIELDS, REQUIRED_LABELS, FieldProposal, Proposal
 from detecttrace.model import Verdict
 from detecttrace.runconfig import (
     MAX_CONFIG_BYTES,
@@ -65,7 +65,7 @@ SET_HELP = (
     "configuration file."
 )
 _NON_TEXT_KEYS = ("mapping.operation.span_name_fallback", "dashboard.max_detail_cases")
-_SATISFIES = {"mapping.case_id": "case_id", "mapping.verdict": "verdict"}
+_SATISFIES = {f"mapping.{name}": name for name in REQUIRED_FIELDS}
 _DEFAULT_MAPPING = MappingConfig()
 _DEFAULT_OUTPUT = "detecttrace-dashboard.html"
 _DEFAULT_MAX_DETAIL_CASES = DashboardConfig().max_detail_cases

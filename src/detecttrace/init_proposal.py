@@ -39,6 +39,9 @@ SOURCE_SPAN_NAMES = "span names"
 SOURCE_OPENINFERENCE = "OpenInference"
 SOURCE_SET = "set by you"
 
+# The mapping fields check cannot run without; with no mappable label, REQUIRED_LABELS is
+# missing too.
+REQUIRED_FIELDS = ("case_id", "verdict")
 REQUIRED_LABELS = "verdict labels"
 
 # Only spellings that mean the same verdict wherever they appear are mapped without asking:
@@ -153,7 +156,7 @@ class Proposal:
     case_counts_by_class: dict[str, int]
     traces_without_verdict: OrphanSummary
     verdicts_without_trace: OrphanSummary
-    missing_required: tuple[str, ...]  # "case_id", "verdict", REQUIRED_LABELS
+    missing_required: tuple[str, ...]  # from REQUIRED_FIELDS, then REQUIRED_LABELS
     notes: tuple[str, ...]
 
 
@@ -246,7 +249,7 @@ def propose_init(
         if label is not None and normalize_label(label) not in analyst_labels
     )
     agent_label_map, unmapped_agent = _auto_map(agent_only)
-    missing = [name for name in _ROOT_ONLY_FIELDS if getattr(proposed, name).value is None]
+    missing = [name for name in REQUIRED_FIELDS if getattr(proposed, name).value is None]
     if not label_map:
         missing.append(REQUIRED_LABELS)
 

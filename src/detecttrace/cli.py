@@ -34,6 +34,7 @@ from detecttrace import __version__
 from detecttrace.dashboard import is_dashboard_file, render_dashboard, write_dashboard
 from detecttrace.files import write_text_atomically
 from detecttrace.init_proposal import (
+    REQUIRED_FIELDS,
     REQUIRED_LABELS,
     FieldProposal,
     OrphanSummary,
@@ -666,7 +667,7 @@ def _echo_orphans(proposal: Proposal) -> None:
 
 def _describe_proposed_field(name: str, field: FieldProposal) -> str:
     if field.value is None:
-        return "not found" + (" (required)" if name in ("case_id", "verdict") else "")
+        return "not found" + (" (required)" if name in REQUIRED_FIELDS else "")
     unit = "tool calls" if name.startswith("tool_") else "agent runs"
     return (
         f"{to_terminal_text(field.value, limit=None)}, found on {field.covered:,} of "
@@ -744,8 +745,10 @@ def _ask_labels(draft: InitDraft) -> InitDraft:
 
 def _describe_missing(missing: tuple[str, ...]) -> str:
     fixes = {
-        "case_id": "case_id: set it with --set mapping.case_id=<attribute>",
-        "verdict": "verdict: set it with --set mapping.verdict=<attribute>",
+        **{
+            name: f"{name}: set it with --set mapping.{name}=<attribute>"
+            for name in REQUIRED_FIELDS
+        },
         REQUIRED_LABELS: (
             f"{REQUIRED_LABELS}: no verdict label could be mapped; map one with "
             "--set label_map.<label>=true_positive (or false_positive, benign)"
