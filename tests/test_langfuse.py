@@ -662,6 +662,25 @@ def test_a_row_without_input_or_output_among_rows_with_them_is_not_reported(
     assert load(tmp_path, [langfuse_row(S1), row])[1] == []
 
 
+def test_a_folder_notes_only_the_file_whose_rows_lack_input_and_output(tmp_path: Path) -> None:
+    without = langfuse_row(S2)
+    del without["input"], without["output"]
+    (tmp_path / "week1").mkdir()
+    (tmp_path / "week2").mkdir()
+    write_jsonl(tmp_path / "week1" / "rows.jsonl", [langfuse_row(S1)])
+    write_jsonl(tmp_path / "week2" / "rows.jsonl", [without])
+    assert load_spans(tmp_path, format="langfuse")[1] == [
+        Issue(IssueKind.LANGFUSE_WITHOUT_IO, "week2/rows.jsonl", "no row has input or output")
+    ]
+
+
+def test_a_file_whose_rows_all_lack_input_and_output_gets_one_note(tmp_path: Path) -> None:
+    rows = without_io([langfuse_row(S1), langfuse_row(S2, S1)])
+    assert load_lines(tmp_path, rows)[1] == [
+        Issue(IssueKind.LANGFUSE_WITHOUT_IO, "rows.jsonl", "no row has input or output")
+    ]
+
+
 def test_rows_with_null_input_and_output_are_not_reported(tmp_path: Path) -> None:
     assert load(tmp_path, [langfuse_row(S1, input=None, output=None)])[1] == []
 
@@ -797,14 +816,18 @@ def test_real_blob_export_is_read_without_issues(name: str) -> None:
     assert load_spans(REAL / name, format="langfuse")[1] == []
 
 
-def test_real_export_without_the_io_group_is_reported_once(tmp_path: Path) -> None:
+def test_real_export_without_the_io_group_is_reported_once_per_page(tmp_path: Path) -> None:
     _, issues = load_spans(copy_files(tmp_path, NO_IO_PAGES), format="langfuse")
-    assert kinds(issues) == [IssueKind.LANGFUSE_WITHOUT_IO]
+    assert [(issue.kind, issue.subject) for issue in issues] == [
+        (IssueKind.LANGFUSE_WITHOUT_IO, name) for name in NO_IO_PAGES
+    ]
 
 
-def test_real_export_with_one_page_without_the_io_group_is_not_reported(tmp_path: Path) -> None:
+def test_real_export_with_one_page_without_the_io_group_notes_that_page(tmp_path: Path) -> None:
     folder = copy_files(tmp_path, [*API_PAGES[:3], NO_IO_PAGES[3]])
-    assert load_spans(folder, format="langfuse")[1] == []
+    assert load_spans(folder, format="langfuse")[1] == [
+        Issue(IssueKind.LANGFUSE_WITHOUT_IO, NO_IO_PAGES[3], "no row has input or output")
+    ]
 
 
 def test_real_export_without_the_io_group_has_no_tool_arguments(tmp_path: Path) -> None:

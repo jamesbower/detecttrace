@@ -8,7 +8,7 @@ import re
 import zlib
 from collections.abc import Callable, Generator, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from detecttrace import langfuse, otlp
 from detecttrace.jsontext import Json, parse_json_text
@@ -57,12 +57,20 @@ class _MissingZstdError(Exception):
 # BadGzipFile covers a broken member header, including trailing bytes after the last member.
 _COMPRESSION_ERRORS = (EOFError, zlib.error, gzip.BadGzipFile, _CorruptZstdError)
 
-_ParseDocument = Callable[[Json, str, int | None, list[Issue]], Iterator[Span]]
+
+class _DocumentParser(Protocol):
+    def parse_document(
+        self, document: Json, subject: str, line_number: int | None, issues: list[Issue]
+    ) -> Iterator[Span]: ...
+
+    def finish(self, subject: str) -> list[Issue]: ...
+
+
 # Each document format has its own parser; the files are read the same way for all of them.
-_PARSERS: dict[TraceFormat, _ParseDocument] = {
-    "otlp_jsonl": otlp.parse_document,
-    "otlp_json": otlp.parse_document,
-    "langfuse": langfuse.parse_document,
+_PARSERS: dict[TraceFormat, Callable[[], _DocumentParser]] = {
+    "otlp_jsonl": otlp.OtlpParser,
+    "otlp_json": otlp.OtlpParser,
+    "langfuse": langfuse.LangfuseParser,
 }
 
 
@@ -83,20 +91,20 @@ def load_spans(
     Files are read in sorted path order and the first copy of a duplicate span wins,
     so the same input always gives the same spans. Invalid input is reported as an
     Issue; TraceFileError is raised only when there is nothing to read. `format` picks the
-    document parser; every format reads JSON lines and one-document files alike. `path_hint`
-    ends the error for a missing path or one with no trace files.
+    document parser, made new for each call; every format reads JSON lines and one-document
+    files alike, and the parser adds its own issues about each whole file when the file ends.
+    `path_hint` ends the error for a missing path or one with no trace files.
     """
     issues: list[Issue] = []
     trace_files = _find_trace_files(path, issues, path_hint)
-    parse_document = _PARSERS[format]
+    parser = _PARSERS[format]()
     spans: list[Span] = []
     seen: dict[tuple[str, str], Span] = {}
-    parsed_count = 0
     for file_path, subject in trace_files:
         file_issues: list[Issue] = []
         span_count = 0
         for document, line_number in _read_documents(file_path, subject, file_issues):
-            for span in parse_document(document, subject, line_number, file_issues):
+            for span in parser.parse_document(document, subject, line_number, file_issues):
                 span_count += 1
                 key = (span.trace_id, span.span_id)
                 first = seen.get(key)
@@ -112,14 +120,14 @@ def load_spans(
                     continue
                 seen[key] = span
                 spans.append(span)
+        file_issues.extend(parser.finish(subject))
         # Only a file with no OTLP spans is sniffed, so OTLP text quoting the marker is safe.
         if span_count == 0 and file_issues and _is_console_exporter_output(file_path):
             # One clear issue beats a line-by-line flood about a format we don't read.
             issues.append(Issue(IssueKind.CONSOLE_EXPORTER_OUTPUT, subject, _CONSOLE_DETAIL))
         else:
             issues.extend(file_issues)
-        parsed_count += span_count
-    return spans, _merge_rows_without_io(issues, parsed_count, path)
+    return spans, issues
 
 
 def detect_format(
@@ -161,19 +169,6 @@ def _find_trace_files(path: Path, issues: list[Issue], path_hint: str) -> list[t
     if not trace_files:
         raise TraceFileError(f"No trace files found under {path}. {path_hint}")
     return trace_files
-
-
-def _merge_rows_without_io(issues: list[Issue], parsed_count: int, path: Path) -> list[Issue]:
-    """Replace the Langfuse parser's per-row LANGFUSE_WITHOUT_IO issues with at most one.
-
-    An export made without the io field group has no row with input or output, so only
-    then is it noted. Duplicate rows count on both sides, so they never change the outcome.
-    """
-    kept = [issue for issue in issues if issue.kind is not IssueKind.LANGFUSE_WITHOUT_IO]
-    rows_without_io = len(issues) - len(kept)
-    if rows_without_io and rows_without_io == parsed_count:
-        kept.append(Issue(IssueKind.LANGFUSE_WITHOUT_IO, path.name, "no row has input or output"))
-    return kept
 
 
 def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]:

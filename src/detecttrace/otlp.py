@@ -17,24 +17,31 @@ _UINT64_LIMIT = 2**64
 T = TypeVar("T")
 
 
-def parse_document(
-    document: Json, subject: str, line_number: int | None, issues: list[Issue]
-) -> Iterator[Span]:
-    """Yield the valid spans of one OTLP JSON document, appending an Issue for each problem.
+class OtlpParser:
+    """Parses OTLP JSON documents; it keeps no state between documents or files."""
 
-    `subject` names the file and `line_number` the JSON line (None for a one-document file);
-    both go into the issues so a reader can find the bad input.
-    """
-    prefix = "" if line_number is None else f"line {line_number}: "
+    def parse_document(
+        self, document: Json, subject: str, line_number: int | None, issues: list[Issue]
+    ) -> Iterator[Span]:
+        """Yield the valid spans of one OTLP JSON document, appending an Issue for each problem.
 
-    def report(kind: IssueKind, detail: str) -> None:
-        issues.append(Issue(kind, subject, prefix + detail))
+        `subject` names the file and `line_number` the JSON line (None for a one-document
+        file); both go into the issues so a reader can find the bad input.
+        """
+        prefix = "" if line_number is None else f"line {line_number}: "
 
-    if not isinstance(document, dict) or not isinstance(document.get("resourceSpans"), list):
-        report(IssueKind.INVALID_FILE, "a document has no resourceSpans")
-        return
-    for index, resource_spans in enumerate(document["resourceSpans"]):
-        yield from _parse_resource_spans(resource_spans, f"resourceSpans[{index}]", report)
+        def report(kind: IssueKind, detail: str) -> None:
+            issues.append(Issue(kind, subject, prefix + detail))
+
+        if not isinstance(document, dict) or not isinstance(document.get("resourceSpans"), list):
+            report(IssueKind.INVALID_FILE, "a document has no resourceSpans")
+            return
+        for index, resource_spans in enumerate(document["resourceSpans"]):
+            yield from _parse_resource_spans(resource_spans, f"resourceSpans[{index}]", report)
+
+    def finish(self, subject: str) -> list[Issue]:
+        """End the file named `subject`; OTLP has no file-wide problems."""
+        return []
 
 
 def _parse_resource_spans(resource_spans: Json, where: str, report: Report) -> Iterator[Span]:

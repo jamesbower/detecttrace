@@ -40,46 +40,70 @@ _FIELD_ATTRIBUTES = (
 )
 
 
-def parse_document(
-    document: Json, subject: str, line_number: int | None, issues: list[Issue]
-) -> Iterator[Span]:
-    """Yield the valid spans of one Langfuse document, appending an Issue for each problem.
+class LangfuseParser:
+    """Parses the Langfuse documents of one load, file by file.
 
-    A document is an API page (an object with a `data` list of rows), a JSON array of rows
-    (the blob JSON export), or one row (a line of the blob JSONL export). Rows may use the
-    API's camelCase or the blob export's snake_case field names. `output`, the tool result,
-    is never read.
-
-    A row without `input` and `output` keys gets a LANGFUSE_WITHOUT_IO issue with no detail;
-    load_spans turns those into one note when no row of the input has either key.
+    Create one per load; call parse_document for each document of a file, then finish.
     """
-    prefix = "" if line_number is None else f"line {line_number}: "
 
-    def report(kind: IssueKind, detail: str) -> None:
-        issues.append(Issue(kind, subject, prefix + detail))
+    def __init__(self) -> None:
+        self._row_count = 0
+        self._has_io = False
 
-    if isinstance(document, list):
-        rows = _number_rows(document, "")
-    elif isinstance(document, dict) and "data" in document:
-        if not isinstance(document["data"], list):
-            report(IssueKind.INVALID_LANGFUSE_DOCUMENT, "data is not a list")
+    def parse_document(
+        self, document: Json, subject: str, line_number: int | None, issues: list[Issue]
+    ) -> Iterator[Span]:
+        """Yield the valid spans of one Langfuse document, appending an Issue for each problem.
+
+        A document is an API page (an object with a `data` list of rows), a JSON array of
+        rows (the blob JSON export), or one row (a line of the blob JSONL export). Rows may
+        use the API's camelCase or the blob export's snake_case field names. `output`, the
+        tool result, is never read.
+        """
+        prefix = "" if line_number is None else f"line {line_number}: "
+
+        def report(kind: IssueKind, detail: str) -> None:
+            issues.append(Issue(kind, subject, prefix + detail))
+
+        if isinstance(document, list):
+            rows = _number_rows(document, "")
+        elif isinstance(document, dict) and "data" in document:
+            if not isinstance(document["data"], list):
+                report(IssueKind.INVALID_LANGFUSE_DOCUMENT, "data is not a list")
+                return
+            rows = _number_rows(document["data"], "data")
+        elif isinstance(document, dict) and "resourceSpans" in document:
+            report(
+                IssueKind.INVALID_LANGFUSE_DOCUMENT,
+                "an OTLP document, not Langfuse rows; set traces.format to otlp_jsonl or otlp_json",
+            )
             return
-        rows = _number_rows(document["data"], "data")
-    elif isinstance(document, dict) and "resourceSpans" in document:
-        report(
-            IssueKind.INVALID_LANGFUSE_DOCUMENT,
-            "an OTLP document, not Langfuse rows; set traces.format to otlp_jsonl or otlp_json",
-        )
-        return
-    elif isinstance(document, dict):
-        rows = iter([("row", document)])
-    else:
-        report(IssueKind.INVALID_LANGFUSE_DOCUMENT, "a document is not an object or a list")
-        return
-    for where, row in rows:
-        span = _to_span(row, where, report)
-        if span is not None:
-            yield span
+        elif isinstance(document, dict):
+            rows = iter([("row", document)])
+        else:
+            report(IssueKind.INVALID_LANGFUSE_DOCUMENT, "a document is not an object or a list")
+            return
+        for where, row in rows:
+            span = _to_span(row, where, report)
+            if span is not None:
+                self._row_count += 1
+                # The field groups a user asked for decide which keys exist, so absence (not
+                # null) means the io group was left out: no tool arguments, and metadata may
+                # be cut.
+                self._has_io = self._has_io or "input" in row or "output" in row
+                yield span
+
+    def finish(self, subject: str) -> list[Issue]:
+        """End the file named `subject`: one LANGFUSE_WITHOUT_IO issue when it has rows and
+        none of them has an `input` or `output` key, as in an export made without the io
+        field group.
+        """
+        is_without_io = self._row_count > 0 and not self._has_io
+        self._row_count = 0
+        self._has_io = False
+        if is_without_io:
+            return [Issue(IssueKind.LANGFUSE_WITHOUT_IO, subject, "no row has input or output")]
+        return []
 
 
 def is_langfuse_document(document: Json) -> bool:
@@ -123,10 +147,6 @@ def _to_span(row: Json, where: str, report: Report) -> Span | None:
     except ValueError as error:
         report(IssueKind.INVALID_LANGFUSE_ROW, f"{where}: {error}")
         return None
-    if "input" not in row and "output" not in row:
-        # The field groups a user asked for decide which keys exist, so absence (not null)
-        # means the io group was left out: no tool arguments, and metadata may be cut.
-        report(IssueKind.LANGFUSE_WITHOUT_IO, "")
     row_type = _read_text(row, "type", where, report)
     name = _read_text(row, "name", where, report) or ""
     attributes, resource_attributes = _read_metadata(row.get("metadata"), where, report)
