@@ -25,7 +25,7 @@
   {
    "kind": "console_exporter_output",
    "subject": "console.json",
-   "detail": "this is OpenTelemetry console exporter output, not OTLP JSON; write traces with the Collector file exporter, or with FileSpanExporter (pip install detecttrace[otel])"
+   "detail": "this is OpenTelemetry console exporter output, not OTLP JSON; write traces with the Collector file exporter, or from the agent with FileSpanExporter: pip install detecttrace[otel], then add BatchSpanProcessor(FileSpanExporter(\"traces/{date}-{pid}.jsonl\")) to your TracerProvider"
   },
   {
    "kind": "verdict_without_root",

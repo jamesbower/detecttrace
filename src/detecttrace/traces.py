@@ -32,7 +32,9 @@ _CONSOLE_CONTEXT = b'"context": {'
 _CONSOLE_TRACE_ID = b'"trace_id": "0x'
 _CONSOLE_DETAIL = (
     "this is OpenTelemetry console exporter output, not OTLP JSON; write traces with "
-    "the Collector file exporter, or with FileSpanExporter (pip install detecttrace[otel])"
+    "the Collector file exporter, or from the agent with FileSpanExporter: "
+    "pip install detecttrace[otel], then add "
+    'BatchSpanProcessor(FileSpanExporter("traces/{date}-{pid}.jsonl")) to your TracerProvider'
 )
 _BOM = b"\xef\xbb\xbf"
 # A UTF-16 or UTF-32 BOM, or an ASCII character padded with NULs: JSON text starts with

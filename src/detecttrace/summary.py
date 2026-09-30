@@ -241,8 +241,11 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
     IssueKind.CONSOLE_EXPORTER_OUTPUT: (
         "trace file holds console exporter output, not OTLP JSON",
         "trace files hold console exporter output, not OTLP JSON",
-        "Write traces with the Collector file exporter, or with FileSpanExporter "
-        "(pip install detecttrace[otel]).",
+        # Doubled braces: hints go through str.format.
+        "Write traces with the Collector file exporter, or from the agent with "
+        "FileSpanExporter: pip install detecttrace[otel], then add "
+        'BatchSpanProcessor(FileSpanExporter("traces/{{date}}-{{pid}}.jsonl")) '
+        "to your TracerProvider.",
     ),
     IssueKind.UNSUPPORTED_COMPRESSION: (
         "trace file is zstd-compressed and was skipped",

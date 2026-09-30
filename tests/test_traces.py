@@ -752,7 +752,9 @@ def test_console_exporter_detail_points_to_file_exporters(tmp_path: Path) -> Non
 
     assert issues[0].detail == (
         "this is OpenTelemetry console exporter output, not OTLP JSON; write traces with "
-        "the Collector file exporter, or with FileSpanExporter (pip install detecttrace[otel])"
+        "the Collector file exporter, or from the agent with FileSpanExporter: "
+        "pip install detecttrace[otel], then add "
+        'BatchSpanProcessor(FileSpanExporter("traces/{date}-{pid}.jsonl")) to your TracerProvider'
     )
 
 

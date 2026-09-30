@@ -1,3 +1,4 @@
+import re
 import time
 
 import pytest
@@ -127,7 +128,14 @@ def test_every_kind_has_a_hint_sentence(kind: IssueKind) -> None:
 
 @pytest.mark.parametrize("kind", list(IssueKind))
 def test_every_kind_hint_renders_without_placeholders(kind: IssueKind) -> None:
-    assert "{" not in only_line([Issue(kind, "a.jsonl", "lookup_ip")]).hint
+    # Only the template fields: a hint may quote braces, such as a path template.
+    assert not re.search(r"\{(key|config)\}", only_line([Issue(kind, "a.jsonl", "lookup_ip")]).hint)
+
+
+def test_console_exporter_hint_shows_the_exporter_setup() -> None:
+    hint = only_line([Issue(IssueKind.CONSOLE_EXPORTER_OUTPUT, "a.json", "x")]).hint
+
+    assert 'BatchSpanProcessor(FileSpanExporter("traces/{date}-{pid}.jsonl"))' in hint
 
 
 @pytest.mark.parametrize("kind", list(IssueKind))
