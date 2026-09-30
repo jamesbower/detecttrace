@@ -26,7 +26,7 @@ A local command-line tool that turns traces and verdicts into a view that goes b
 - **Skipped steps by version.** How often each checklist step was skipped, per prompt or model version. For example: "MFA check skipped: 5% in v1, 45% in v2."
 - **Weekly trend.** Per alert class, split by version, with the number of cases each week.
 - **Honest uncertainty.** Every value carries its number of cases (n) and a 95% confidence interval. Small samples are marked as such.
-- **Case detail.** Each case with the agent verdict, the analyst verdict, checklist coverage, and its tool calls.
+- **Case detail.** Each case with the agent verdict, the analyst verdict and checklist coverage, and, for notable cases (dangerous closes, disagreements, failed calls, missed steps), its tool calls.
 - **Data notes.** Bad input is reported, not hidden: orphan traces and verdicts, duplicates, unmapped labels, and tool arguments that couldn't be read.
 
 It shows the numbers. It doesn't explain why a number changed, check whether the agent's conclusions are supported by its tool results, or fail builds. Results are labeled as self-reported.
@@ -98,7 +98,7 @@ uv run detecttrace check --config detecttrace.yaml
 | `--strict` | Exit with code 1 when any input is invalid. |
 | `--quiet` | Print nothing on success. Errors still go to stderr. |
 
-Exit codes: `0` when the dashboard was written, `1` for a configuration or input error, when no case could be scored, or for any invalid input with `--strict`, and `2` for an internal error.
+Exit codes: `0` when the dashboard was written, `1` for a configuration, input or usage error, an output file that can't or mustn't be replaced (see `--force`), when no case could be scored, or for any invalid input with `--strict`, and `2` for an internal error.
 
 You can also write the configuration by hand. Paths are relative to the file:
 
@@ -141,7 +141,7 @@ The OpenTelemetry SDK's console exporter doesn't write OTLP JSON. DetectTrace re
 
 **Verdicts.** A CSV with `case_id`, `alert_class`, and `verdict`. The label map converts your team's labels into three verdicts: `true_positive`, `false_positive`, and `benign`. Matching ignores case and extra spaces. Add `agent_label_map` if the agent uses different labels from the analysts. DetectTrace never guesses a label; unmapped labels are reported.
 
-**Checklists.** One YAML file per alert class, written by you from your own playbook. For example, from the demo:
+**Checklists.** One YAML file per alert class, written by you from your own playbook. For example, an excerpt from the demo:
 
 ```yaml
 alert_class: impossible_travel
@@ -166,7 +166,7 @@ An item is satisfied when the case has a successful call to that tool and every 
 
 ## Privacy
 
-Everything runs on your machine. DetectTrace makes no network calls and collects no usage statistics; the test suite fails if the package imports a network library or opens a connection. Tool results are never copied into the output. The dashboard does include case IDs, labels, tool names and tool arguments for the cases it details, so treat it like the traces it came from before you share it.
+Everything runs on your machine. DetectTrace makes no network calls and collects no usage statistics; the test suite fails if the package imports a network library or opens a connection. Tool results are never copied into the output. The dashboard does include every scored case's ID, alert class, prompt version and verdicts, plus the tool names and arguments of up to `dashboard.max_detail_cases` notable cases (2,000 by default), so treat it like the traces it came from before you share it.
 
 ## Development
 
