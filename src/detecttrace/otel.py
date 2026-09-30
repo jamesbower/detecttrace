@@ -95,19 +95,27 @@ class FileSpanExporter(SpanExporter):
             line = _to_line(spans)
         except (TypeError, ValueError, RecursionError) as error:
             with self._lock:
-                self._warn(f"could not encode spans for {self._template}: {error!r}")
+                warning = self._count_failure(
+                    f"could not encode spans for {self._template}: {error!r}"
+                )
+            _log(warning)
             return SpanExportResult.FAILURE
         with self._lock:
             if self._is_shut_down:
                 return SpanExportResult.FAILURE
-            path = self._resolve_path()
+            path = self._template
             try:
+                path = self._resolve_path()
                 self._write(path, line)
-            except OSError as error:
+            # ValueError and friends: a NUL in the path, or a clock that fails or is out of range.
+            except (OSError, ValueError, TypeError, OverflowError) as error:
+                # The file may end in a partial line; reopening it starts a new line first.
                 self._close()
-                self._warn(f"could not write spans to {path}: {error}")
-                return SpanExportResult.FAILURE
-        return SpanExportResult.SUCCESS
+                warning = self._count_failure(f"could not write spans to {path}: {error!r}")
+            else:
+                return SpanExportResult.SUCCESS
+        _log(warning)
+        return SpanExportResult.FAILURE
 
     def shutdown(self) -> None:
         """Close the file; later exports return FAILURE. Safe to call more than once."""
@@ -129,14 +137,16 @@ class FileSpanExporter(SpanExporter):
             # Unbuffered append: each line goes out in one write call, so on a local disk
             # processes sharing a file append whole lines, and a forked child inherits no
             # buffered data that it could write a second time.
-            self._file = Path(path).open("ab", buffering=0)  # noqa: SIM115 - kept open across exports
+            file = Path(path).open("a+b", buffering=0)  # noqa: SIM115 - kept open across exports
+            self._file = file
             self._file_path = path
-        view = memoryview(line)
-        while view:
-            written = self._file.write(view)
-            if not written:
-                raise OSError(f"wrote nothing of {len(view)} bytes")
-            view = view[written:]
+            # An earlier write that failed part way left a partial line; end it, so this
+            # line stays readable. Reading moves the position but appends still go to the end.
+            if file.seek(0, os.SEEK_END):
+                file.seek(-1, os.SEEK_END)
+                if file.read(1) != b"\n":
+                    _write_all(file, b"\n")
+        _write_all(self._file, line)
 
     def _close(self) -> None:
         file, self._file, self._file_path = self._file, None, None
@@ -145,22 +155,30 @@ class FileSpanExporter(SpanExporter):
             with contextlib.suppress(OSError):
                 file.close()
 
-    def _warn(self, message: str) -> None:
-        now = self._clock()
+    def _count_failure(self, message: str) -> str | None:
+        """Return the warning to log for this failure, or None while warnings are paced."""
+        now = self._now()
         # A clock that went backwards also warns, rather than staying silent until it catches up.
         if self._last_warning is not None and 0 <= now - self._last_warning < (
             _WARNING_INTERVAL_SECONDS
         ):
             self._suppressed += 1
-            return
+            return None
         if self._suppressed:
             plural = "" if self._suppressed == 1 else "s"
             message += (
                 f"; {self._suppressed} failed export{plural} suppressed since the last warning"
             )
-        _logger.warning("FileSpanExporter %s", message)
         self._last_warning = now
         self._suppressed = 0
+        return message
+
+    def _now(self) -> float:
+        try:
+            return float(self._clock())
+        except (TypeError, ValueError, OverflowError):
+            # A broken clock is one cause of the failures, so pace them by the system clock.
+            return time.time()
 
     def _reset_after_fork(self) -> None:
         # Another thread may have held the lock at the fork; the child gets a fresh one,
@@ -168,6 +186,21 @@ class FileSpanExporter(SpanExporter):
         self._lock = threading.Lock()
         self._file = None
         self._file_path = None
+
+
+def _write_all(file: io.FileIO, data: bytes) -> None:
+    view = memoryview(data)
+    while view:
+        written = file.write(view)
+        if not written:
+            raise OSError(f"wrote nothing of {len(view)} bytes")
+        view = view[written:]
+
+
+def _log(warning: str | None) -> None:
+    # Called with the lock released: a logging handler may export spans through this exporter.
+    if warning is not None:
+        _logger.warning("FileSpanExporter %s", warning)
 
 
 def _reset_in_child(ref: "weakref.ref[FileSpanExporter]") -> None:

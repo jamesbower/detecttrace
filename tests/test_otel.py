@@ -1,12 +1,17 @@
 """FileSpanExporter writes OTLP JSON lines that the trace reader reads back unchanged."""
 
+import contextlib
+import io
 import json
 import logging
 import os
+import signal
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Callable, Iterator, Mapping
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -37,6 +42,8 @@ RESOURCE = Resource({"service.name": "triage-agent", "service.version": "1.2.0"}
 SCOPE = InstrumentationScope("soc_agent.tracing", "0.4.0")
 MIDNIGHT = datetime(2026, 10, 1, tzinfo=UTC).timestamp()
 LOGGER_NAME = "detecttrace.otel"
+THREADS_PER_DAY = 4
+FORK_TIMEOUT_SECONDS = 10
 ROUND_TRIP_ATTRIBUTES: dict[str, Any] = {
     "text": "impossible travel",
     "count": -7,
@@ -430,29 +437,56 @@ def test_export_appends_to_an_existing_file(tmp_path: Path) -> None:
 # --- Threads, processes and dates ----------------------------------------------------------------
 
 
-def export_from_threads(path: Path, thread_count: int, spans_per_thread: int) -> None:
-    provider = TracerProvider()
-    provider.add_span_processor(SimpleSpanProcessor(FileSpanExporter(path)))
-    tracer = provider.get_tracer("t")
+def export_from_both_sides_of_midnight(exporter: FileSpanExporter, exports_per_thread: int) -> None:
+    """Export from threads whose clocks sit on either side of UTC midnight, all at once."""
+    # Large spans keep each write long, widening the window for a torn or misdirected line.
+    span = make_span(attributes={"payload": "x" * 5000})
+    start = threading.Barrier(THREADS_PER_DAY * 2)
 
     def work() -> None:
-        for index in range(spans_per_thread):
-            # Large spans make a torn or interleaved write likely if the lock were missing.
-            tracer.start_span(f"span {index}", attributes={"payload": "x" * 5000}).end()
+        start.wait()
+        for _ in range(exports_per_thread):
+            exporter.export([span])
 
-    threads = [threading.Thread(target=work) for _ in range(thread_count)]
+    threads = [
+        threading.Thread(target=work, name=f"{side}-{index}")
+        for side in ("before", "after")
+        for index in range(THREADS_PER_DAY)
+    ]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
 
 
-def test_threads_writing_at_once_give_whole_lines(tmp_path: Path) -> None:
-    path = tmp_path / "spans.jsonl"
-    export_from_threads(path, thread_count=8, spans_per_thread=200)
+def clock_by_thread() -> float:
+    """Just before midnight for "before-*" threads, just after it for the rest."""
+    is_before = threading.current_thread().name.startswith("before")
+    return MIDNIGHT - 1 if is_before else MIDNIGHT + 1
 
-    # json.loads fails on any interleaved or cut line.
-    assert len(span_names(path)) == 1600
+
+def count_spans(folder: Path) -> int:
+    # span_names parses every line, so a torn or interleaved line fails here.
+    return sum(len(span_names(path)) for path in sorted(folder.iterdir()))
+
+
+@pytest.fixture
+def frequent_thread_switches() -> Iterator[None]:
+    """Switch threads every microsecond instead of every 5 ms, so races show up reliably."""
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    yield
+    sys.setswitchinterval(interval)
+
+
+@pytest.mark.usefixtures("frequent_thread_switches")
+def test_threads_switching_files_at_midnight_lose_no_spans(tmp_path: Path) -> None:
+    # Every export switches files, so without the lock one thread closes or swaps the file
+    # another is writing, and that export raises or lands in the wrong day.
+    exporter = FileSpanExporter(tmp_path / "{date}.jsonl", clock=clock_by_thread)
+    export_from_both_sides_of_midnight(exporter, exports_per_thread=200)
+
+    assert count_spans(tmp_path) == THREADS_PER_DAY * 2 * 200
 
 
 def test_pid_placeholder_gives_each_process_its_own_file(
@@ -468,26 +502,71 @@ def test_pid_placeholder_gives_each_process_its_own_file(
 
 
 def fork_and_export(exporter: FileSpanExporter, name: str) -> int:
-    """Export one span from a forked child; return the child's pid once it has exited."""
+    """Export one span from a forked child; return its exit code, failing if it hangs."""
     child = os.fork()
     if child == 0:  # pragma: no cover - runs in the child process
-        result = exporter.export([make_span(name)])
-        os._exit(0 if result is SpanExportResult.SUCCESS else 1)
+        code = 1
+        try:
+            if exporter.export([make_span(name)]) is SpanExportResult.SUCCESS:
+                code = 0
+        finally:
+            os._exit(code)
+    deadline = time.monotonic() + FORK_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        pid, status = os.waitpid(child, os.WNOHANG)
+        if pid:
+            return os.waitstatus_to_exitcode(status)
+        time.sleep(0.01)
+    os.kill(child, signal.SIGKILL)
     os.waitpid(child, 0)
-    return child
+    pytest.fail(f"forked child did not exit within {FORK_TIMEOUT_SECONDS} s")
 
 
-@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
-def test_forked_child_writes_its_own_pid_file(tmp_path: Path) -> None:
-    exporter = FileSpanExporter(tmp_path / "{pid}.jsonl")
-    exporter.export([make_span("parent before fork")])
-    child = fork_and_export(exporter, "child")
-    exporter.export([make_span("parent after fork")])
+@contextlib.contextmanager
+def held_by_another_thread(lock: AbstractContextManager[Any]) -> Iterator[None]:
+    """Hold `lock` in a helper thread for the duration of the block."""
+    acquired = threading.Event()
+    release = threading.Event()
 
-    assert {path.name: span_names(path) for path in tmp_path.iterdir()} == {
-        f"{os.getpid()}.jsonl": ["parent before fork", "parent after fork"],
-        f"{child}.jsonl": ["child"],
-    }
+    def hold() -> None:
+        with lock:
+            acquired.set()
+            release.wait()
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    acquired.wait()
+    try:
+        yield
+    finally:
+        release.set()
+        thread.join()
+
+
+needs_fork = pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+
+
+@needs_fork
+def test_child_forked_while_another_thread_exports_can_export(tmp_path: Path) -> None:
+    exporter = FileSpanExporter(tmp_path / "spans.jsonl")
+    exporter.export([make_span("parent")])
+    # The fork copies the lock as held, by a thread the child does not have.
+    with held_by_another_thread(exporter._lock):
+        exit_code = fork_and_export(exporter, "child")
+
+    assert exit_code == 0
+
+
+@needs_fork
+def test_forked_child_opens_the_path_again_instead_of_the_inherited_file(tmp_path: Path) -> None:
+    path = tmp_path / "spans.jsonl"
+    exporter = FileSpanExporter(path)
+    exporter.export([make_span("parent")])
+    # A rotated file: the parent's open handle now points at the old name.
+    path.rename(tmp_path / "rotated.jsonl")
+    fork_and_export(exporter, "child")
+
+    assert span_names(path) == ["child"]
 
 
 def test_date_placeholder_switches_files_at_utc_midnight(tmp_path: Path) -> None:
@@ -600,6 +679,59 @@ def test_suppressed_count_restarts_after_each_warning(
     assert "failed export" not in caplog.records[-1].getMessage()
 
 
+def test_clock_that_raises_returns_failure(tmp_path: Path) -> None:
+    exporter = FileSpanExporter(tmp_path / "{date}.jsonl", clock=broken_clock)
+
+    assert exporter.export([make_span()]) is SpanExportResult.FAILURE
+
+
+def test_clock_that_raises_warns_once_a_minute(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    exporter = FileSpanExporter(tmp_path / "{date}.jsonl", clock=broken_clock)
+    exporter.export([make_span()])
+    exporter.export([make_span()])
+
+    assert len(caplog.records) == 1
+
+
+def broken_clock() -> float:
+    raise ValueError("clock is broken")
+
+
+def test_path_with_a_nul_byte_returns_failure(tmp_path: Path) -> None:
+    exporter = FileSpanExporter(tmp_path / "spans\x00.jsonl")
+
+    assert exporter.export([make_span()]) is SpanExportResult.FAILURE
+
+
+def test_log_handler_that_exports_does_not_deadlock(unwritable: Path) -> None:
+    exporter = FileSpanExporter(unwritable)
+    logger = logging.getLogger(LOGGER_NAME)
+    handler = _ExportingHandler(exporter)
+    logger.addHandler(handler)
+    # A daemon thread, so a deadlocked export cannot keep the test run from exiting.
+    thread = threading.Thread(target=exporter.export, args=([make_span()],), daemon=True)
+    try:
+        thread.start()
+        thread.join(timeout=5)
+    finally:
+        logger.removeHandler(handler)
+
+    assert not thread.is_alive()
+
+
+class _ExportingHandler(logging.Handler):
+    """Sends a span through the exporter for each record, as a log-to-trace bridge might."""
+
+    def __init__(self, exporter: FileSpanExporter) -> None:
+        super().__init__()
+        self.exporter = exporter
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.exporter.export([make_span("from the log handler")])
+
+
 def test_unencodable_attribute_returns_failure(tmp_path: Path) -> None:
     span = make_span(attributes={"k": object()})
 
@@ -633,6 +765,62 @@ def test_force_flush_returns_true(tmp_path: Path) -> None:
     exporter.export([make_span()])
 
     assert exporter.force_flush() is True
+
+
+# --- Partial lines --------------------------------------------------------------------------------
+
+PARTIAL_LINE = '{"resourceSpans":[{"scopeSpans'
+
+
+def clean_line(tmp_path: Path) -> str:
+    """The line one export of make_span() writes to an empty file, without its newline."""
+    path = tmp_path / "clean.jsonl"
+    FileSpanExporter(path).export([make_span()])
+    return path.read_text().removesuffix("\n")
+
+
+def test_export_after_a_partial_line_starts_a_new_line(tmp_path: Path) -> None:
+    expected = clean_line(tmp_path)
+    path = tmp_path / "spans.jsonl"
+    path.write_text(PARTIAL_LINE)
+    FileSpanExporter(path).export([make_span()])
+
+    assert path.read_text().splitlines() == [PARTIAL_LINE, expected]
+
+
+def test_export_after_a_short_then_failing_write_starts_a_new_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected = clean_line(tmp_path)
+    path = tmp_path / "spans.jsonl"
+    exporter = FileSpanExporter(path)
+    monkeypatch.setattr(Path, "open", _open_short_then_failing)
+    exporter.export([make_span()])
+    monkeypatch.undo()
+    exporter.export([make_span()])
+
+    assert path.read_text().splitlines()[-1] == expected
+
+
+def _open_short_then_failing(path: Path, mode: str, buffering: int) -> "_ShortThenFailingFile":
+    return _ShortThenFailingFile(io.FileIO(path, mode.replace("b", "")))
+
+
+class _ShortThenFailingFile:
+    """A file whose first write stores half its bytes and whose next write fails, as on a full disk."""
+
+    def __init__(self, file: io.FileIO) -> None:
+        self._file = file
+        self._writes = 0
+
+    def write(self, data: memoryview) -> int:
+        self._writes += 1
+        if self._writes > 1:
+            raise OSError("no space left on device")
+        return self._file.write(data[: len(data) // 2])
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._file, name)
 
 
 # --- Optional dependency ----------------------------------------------------------------------
