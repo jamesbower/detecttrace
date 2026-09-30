@@ -728,6 +728,21 @@ def test_first_success_after_suppressed_failures_reports_them(
     )
 
 
+def test_child_after_a_fork_does_not_report_the_parents_suppressed_failures(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    clock = FixedClock()
+    exporter = FileSpanExporter(tmp_path / "spans.jsonl", clock=clock)
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    clock.now += 10
+    exporter.export([make_span(attributes=UNENCODABLE)])
+    # The at-fork hook runs this in the child; the parent's failures are the parent's to report.
+    exporter._reset_after_fork()
+    exporter.export([make_span()])
+
+    assert len(caplog.records) == 1
+
+
 def test_success_after_an_unsuppressed_failure_logs_nothing(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -221,9 +221,11 @@ class FileSpanExporter(SpanExporter):
     def _reset_after_fork(self) -> None:
         # Another thread may have held the lock at the fork; the child gets a fresh one,
         # and drops the inherited file so it opens its own path at its next export.
+        # Failures counted before the fork belong to the parent, which reports them itself.
         self._lock = threading.Lock()
         self._file = None
         self._file_path = None
+        self._suppressed = 0
 
 
 def _open_regular_file(path: str) -> io.FileIO:
