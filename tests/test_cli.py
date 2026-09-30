@@ -1010,6 +1010,9 @@ def test_an_example_shows_its_subject_and_detail(tmp_path: Path) -> None:
     assert "\n    bad.jsonl: line 1\n" in result.stdout
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows file names cannot hold control characters"
+)
 def test_an_example_detail_is_escaped(tmp_path: Path) -> None:
     config_path = write_run_folder(tmp_path)
     (tmp_path / "traces" / "bad.jsonl").write_text("{}\n", encoding="utf-8")
