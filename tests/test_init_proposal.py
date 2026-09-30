@@ -7,6 +7,7 @@ from builders import make_span, span_hex
 from detecttrace.config import MappingConfig, OperationConfig
 from detecttrace.init_proposal import (
     SOURCE_DETECTTRACE,
+    SOURCE_LANGFUSE_MANAGED_PROMPT,
     SOURCE_LANGFUSE_PROMPT,
     SOURCE_OPENINFERENCE,
     SOURCE_SET,
@@ -25,6 +26,7 @@ from detecttrace.verdicts import read_verdicts
 FORMATS = Path(__file__).parent / "fixtures" / "formats"
 REAL = Path(__file__).parent / "fixtures" / "langfuse_real"
 REAL_API_PAGES = [f"v2_all_fields_page{number}.json" for number in (1, 2, 3, 4)]
+MANAGED_PROMPT_PAGES = [f"managed_prompt_v2_all_fields_page{number}.json" for number in (1, 2, 3)]
 AGENT: dict[str, object] = {"gen_ai.operation.name": "invoke_agent"}
 
 
@@ -115,6 +117,14 @@ def fixture_mapping(name: str) -> MappingConfig:
 @pytest.fixture
 def real_spans(tmp_path: Path) -> list[Span]:
     for name in REAL_API_PAGES:
+        shutil.copy(REAL / name, tmp_path / name)
+    spans, _ = load_spans(tmp_path, format="langfuse")
+    return spans
+
+
+@pytest.fixture
+def real_managed_prompt_spans(tmp_path: Path) -> list[Span]:
+    for name in MANAGED_PROMPT_PAGES:
         shutil.copy(REAL / name, tmp_path / name)
     spans, _ = load_spans(tmp_path, format="langfuse")
     return spans
@@ -303,6 +313,132 @@ def test_langfuse_prompt_version_is_only_a_suffix_match_for_otlp_input() -> None
 def test_langfuse_service_version_is_never_a_prompt_version() -> None:
     proposal = propose([run(0, {"langfuse.version": "0.9.0"})], trace_format="langfuse")
     assert proposal.mapping.prompt_version.value is None
+
+
+# Langfuse managed prompt, linked to a generation under the agent run
+
+
+def generation(number: int, version: object, index: int = 0) -> Span:
+    """A generation under run `number` linked to a managed prompt version, as Langfuse does."""
+    return make_span(
+        span_hex(50 + index),
+        span_hex(1),
+        name="chat example-model",
+        trace_id=trace_id(number),
+        start_ns=index,
+        attributes={"langfuse.prompt_name": "soc-triage", "langfuse.prompt_version": version},
+    )
+
+
+def managed_cases(total: int, versioned: int) -> list[Span]:
+    """`total` cases; the first `versioned` have a generation linked to prompt version 2."""
+    spans = [case(number, f"DT-{number}") for number in range(total)]
+    return spans + [generation(number, 2) for number in range(versioned)]
+
+
+def test_real_managed_prompt_capture_proposes_the_langfuse_version_below_the_agent_run(
+    real_managed_prompt_spans: list[Span],
+) -> None:
+    proposal = propose_init(real_managed_prompt_spans, "langfuse", [])
+    assert proposal.mapping.prompt_version == FieldProposal(
+        "langfuse.prompt_version", SOURCE_LANGFUSE_MANAGED_PROMPT, 3, 4
+    )
+
+
+def test_real_managed_prompt_capture_maps_with_the_descendant_lookup(
+    real_managed_prompt_spans: list[Span],
+) -> None:
+    proposal = propose_init(real_managed_prompt_spans, "langfuse", [])
+    assert proposal.mapping.to_mapping_config() == MappingConfig(
+        prompt_version="langfuse.prompt_version", prompt_version_lookup="descendant"
+    )
+
+
+def test_real_managed_prompt_blob_export_proposes_the_descendant_lookup() -> None:
+    spans, _ = load_spans(REAL / "managed_prompt_blob_observations_v2.jsonl", format="langfuse")
+    proposal = propose_init(spans, "langfuse", [])
+    assert proposal.mapping.prompt_version_lookup == "descendant"
+
+
+def test_an_agent_level_version_wins_over_a_managed_prompt() -> None:
+    spans = [case(0, "DT-0", **{"detecttrace.prompt_version": "v1"}), generation(0, 2)]
+    proposal = propose(spans, trace_format="langfuse")
+    assert proposal.mapping.prompt_version == FieldProposal(
+        "detecttrace.prompt_version", SOURCE_DETECTTRACE, 1, 1
+    )
+
+
+def test_an_agent_level_version_keeps_the_default_lookup() -> None:
+    spans = [case(0, "DT-0", **{"detecttrace.prompt_version": "v1"}), generation(0, 2)]
+    proposal = propose(spans, trace_format="langfuse")
+    assert proposal.mapping.prompt_version_lookup == "root_then_resource"
+
+
+def test_a_managed_prompt_on_half_the_agent_runs_is_proposed() -> None:
+    proposal = propose(managed_cases(4, 2), trace_format="langfuse")
+    assert proposal.mapping.prompt_version == FieldProposal(
+        "langfuse.prompt_version", SOURCE_LANGFUSE_MANAGED_PROMPT, 2, 4
+    )
+
+
+def test_a_managed_prompt_under_half_the_agent_runs_is_not_proposed() -> None:
+    proposal = propose(managed_cases(3, 1), trace_format="langfuse")
+    assert proposal.mapping.prompt_version.value is None
+
+
+def test_a_managed_prompt_under_half_the_agent_runs_keeps_the_default_lookup() -> None:
+    proposal = propose(managed_cases(3, 1), trace_format="langfuse")
+    assert proposal.mapping.prompt_version_lookup == "root_then_resource"
+
+
+def test_a_managed_prompt_under_half_the_agent_runs_is_noted() -> None:
+    proposal = propose(managed_cases(3, 1), trace_format="langfuse")
+    assert (
+        "prompt_version: langfuse.prompt_version gives a version under only 1 of 3 agent runs; "
+        "not proposed, since it must be on at least half" in proposal.notes
+    )
+
+
+def test_two_managed_prompt_versions_in_one_run_give_it_no_version() -> None:
+    # check reports two versions under one agent run as a conflict and reads none.
+    spans = [case(0, "DT-0"), generation(0, 1), generation(0, 2, index=1)]
+    proposal = propose(spans, trace_format="langfuse")
+    assert proposal.mapping.prompt_version.value is None
+
+
+def test_a_managed_prompt_is_not_read_below_the_agent_run_for_otlp_input() -> None:
+    proposal = propose(managed_cases(2, 2))
+    assert proposal.mapping.prompt_version.value is None
+
+
+def test_a_given_managed_prompt_mapping_keeps_its_source(
+    real_managed_prompt_spans: list[Span],
+) -> None:
+    mapping = MappingConfig(
+        alert_class="soc.kind",
+        prompt_version="langfuse.prompt_version",
+        prompt_version_lookup="descendant",
+    )
+    proposal = propose_init(real_managed_prompt_spans, "langfuse", [], mapping=mapping)
+    assert proposal.mapping.prompt_version.source == SOURCE_LANGFUSE_MANAGED_PROMPT
+
+
+def test_a_given_lookup_is_measured_as_set(real_managed_prompt_spans: list[Span]) -> None:
+    mapping = MappingConfig(prompt_version="langfuse.prompt_version")
+    proposal = propose_init(real_managed_prompt_spans, "langfuse", [], mapping=mapping)
+    assert proposal.mapping.prompt_version == FieldProposal(
+        "langfuse.prompt_version", SOURCE_SET, 0, 4
+    )
+
+
+def test_a_given_descendant_lookup_is_measured_below_the_agent_run() -> None:
+    mapping = MappingConfig(prompt_version="soc.prompt", prompt_version_lookup="descendant")
+    below = make_span(
+        span_hex(9), span_hex(1), trace_id=trace_id(0), attributes={"soc.prompt": "p"}
+    )
+    spans = [case(0, "DT-0"), below]
+    proposal = propose_init(spans, "otlp_jsonl", [], mapping=mapping)
+    assert proposal.mapping.prompt_version == FieldProposal("soc.prompt", SOURCE_SET, 1, 1)
 
 
 # Operation rule

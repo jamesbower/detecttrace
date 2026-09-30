@@ -13,6 +13,9 @@ def normalize_label(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
+PromptVersionLookup = Literal["root_then_resource", "descendant"]
+
+
 class OperationConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -29,7 +32,7 @@ class MappingConfig(BaseModel):
     alert_class: str = "detecttrace.alert_class"
     verdict: str = "detecttrace.verdict"
     prompt_version: str = "detecttrace.prompt_version"
-    prompt_version_lookup: Literal["root_then_resource", "descendant"] = "root_then_resource"
+    prompt_version_lookup: PromptVersionLookup = "root_then_resource"
     tool_name: str = conventions.TOOL_NAME
     tool_arguments: str = conventions.TOOL_CALL_ARGUMENTS
     operation: OperationConfig = Field(default_factory=OperationConfig)

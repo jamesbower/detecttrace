@@ -16,6 +16,7 @@ from detecttrace.verdicts import read_verdicts
 DEMO_DATA = Path(cli.__file__).parent / cli.DEMO_FOLDER
 FIXTURES = Path(__file__).parent / "fixtures"
 REAL_API_PAGES = [f"v2_all_fields_page{number}.json" for number in (1, 2, 3, 4)]
+MANAGED_PROMPT_PAGES = [f"managed_prompt_v2_all_fields_page{number}.json" for number in (1, 2, 3)]
 NO_TERMINAL = "init needs a terminal to ask questions. Run init in a terminal, or use --yes."
 VERDICTS = "case_id,alert_class,verdict\nDT-1,impossible_travel,TP\nDT-2,impossible_travel,FP\n"
 ESCAPE = "\x1b[31m"
@@ -71,6 +72,25 @@ def interactive(monkeypatch: pytest.MonkeyPatch) -> None:
 def demo_copy(tmp_path: Path) -> Path:
     shutil.copytree(DEMO_DATA / "traces", tmp_path / "traces")
     shutil.copy(DEMO_DATA / "verdicts.csv", tmp_path / "verdicts.csv")
+    return tmp_path
+
+
+@pytest.fixture
+def managed_prompt_copy(tmp_path: Path) -> Path:
+    """The real Langfuse capture with managed prompts, and a verdict for each of its cases."""
+    shutil.copytree(
+        FIXTURES / "langfuse_real",
+        tmp_path / "traces",
+        ignore=lambda _folder, names: [name for name in names if name not in MANAGED_PROMPT_PAGES],
+    )
+    (tmp_path / "verdicts.csv").write_text(
+        "case_id,alert_class,verdict\n"
+        "CASE-9101,impossible_travel,TP\n"
+        "CASE-9102,oauth_consent,benign\n"
+        "CASE-9103,impossible_travel,FP\n"
+        "CASE-9104,oauth_consent,TP\n",
+        encoding="utf-8",
+    )
     return tmp_path
 
 
@@ -847,6 +867,33 @@ def test_langfuse_real_capture_dry_run_detects_langfuse(tmp_path: Path) -> None:
     result = _init(tmp_path, "--yes", "--dry-run")
 
     assert next(yaml.safe_load_all(result.stdout))["traces"]["format"] == "langfuse"
+
+
+def test_langfuse_managed_prompt_capture_writes_the_descendant_lookup(
+    managed_prompt_copy: Path,
+) -> None:
+    result = _init(managed_prompt_copy, "--yes", "--dry-run")
+
+    assert next(yaml.safe_load_all(result.stdout))["mapping"] == {
+        "prompt_version": "langfuse.prompt_version",
+        "prompt_version_lookup": "descendant",
+    }
+
+
+def test_langfuse_managed_prompt_versions_reach_the_results(managed_prompt_copy: Path) -> None:
+    _init(managed_prompt_copy, "--yes")
+
+    _invoke(
+        "check",
+        "--config",
+        str(managed_prompt_copy / "detecttrace.yaml"),
+        "--json",
+        str(managed_prompt_copy / "results.json"),
+    )
+
+    results = yaml.safe_load((managed_prompt_copy / "results.json").read_text(encoding="utf-8"))
+    # CASE-9101 is on version 1, CASE-9102 and CASE-9103 on 2; CASE-9104 links no prompt.
+    assert results["totals"]["versions"] == [None, "1", "2"]
 
 
 def test_langfuse_without_tool_calls_prints_the_span_filter_hint(tmp_path: Path) -> None:

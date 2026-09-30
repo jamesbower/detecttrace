@@ -18,7 +18,12 @@ from detecttrace.cases import (
     is_tool_name,
     to_single_text,
 )
-from detecttrace.config import MappingConfig, OperationConfig, normalize_label
+from detecttrace.config import (
+    MappingConfig,
+    OperationConfig,
+    PromptVersionLookup,
+    normalize_label,
+)
 from detecttrace.model import (
     MAX_LABEL_LENGTH,
     Span,
@@ -31,6 +36,7 @@ from detecttrace.runconfig import TraceFormat
 
 SOURCE_DETECTTRACE = "detecttrace attribute"
 SOURCE_LANGFUSE_PROMPT = "Langfuse prompt version"
+SOURCE_LANGFUSE_MANAGED_PROMPT = "Langfuse managed prompt, on spans under the agent run"
 SOURCE_SUFFIX = "suffix match"
 SOURCE_DEFAULT = "default"
 SOURCE_NOT_FOUND = "not found"
@@ -114,6 +120,7 @@ class MappingProposal:
     tool_name: FieldProposal
     tool_arguments: FieldProposal
     operation: OperationProposal
+    prompt_version_lookup: PromptVersionLookup = "root_then_resource"
 
     def to_mapping_config(self) -> MappingConfig:
         """The mapping as configuration; a field with no proposal keeps its default key."""
@@ -122,6 +129,7 @@ class MappingProposal:
             alert_class=self.alert_class.value or _DEFAULTS.alert_class,
             verdict=self.verdict.value or _DEFAULTS.verdict,
             prompt_version=self.prompt_version.value or _DEFAULTS.prompt_version,
+            prompt_version_lookup=self.prompt_version_lookup,
             tool_name=self.tool_name.value or _DEFAULTS.tool_name,
             tool_arguments=self.tool_arguments.value or _DEFAULTS.tool_arguments,
             operation=OperationConfig(
@@ -177,6 +185,10 @@ def propose_init(
     least half of the agent runs; among suffix matches the most common wins, then the
     shortest, then the first in code-point order. The result is the same for the same input.
 
+    For Langfuse input with no prompt version found that way, langfuse.prompt_version (a
+    managed prompt linked to a generation) is proposed with the descendant lookup when
+    check, reading it that way, finds a version for at least half of the agent runs.
+
     With `mapping` (the user's edits), each key that differs from the one detected is
     proposed as given, with source SOURCE_SET and its coverage, and everything else (agent
     runs, cases, labels, tool names, orphans) is read through `mapping`.
@@ -202,8 +214,17 @@ def propose_init(
     tool_calls = [span for span in spans if classify_span(span, operation_config) == "tool"]
     fields = {
         name: _propose_or_measure_field(name, agent_runs, trace_format, mapping, notes)
-        for name in _SUFFIXES
+        for name in ("case_id", "alert_class", "verdict")
     }
+    prompt_version, prompt_version_lookup = _propose_or_measure_prompt_version(
+        spans,
+        agent_runs,
+        trace_format,
+        fields["case_id"].value,
+        operation_config,
+        mapping,
+        notes,
+    )
     is_openinference = operation.source == SOURCE_OPENINFERENCE
     tool_source = SOURCE_OPENINFERENCE if is_openinference else SOURCE_DEFAULT
     tool_name = _OPENINFERENCE_TOOL_NAME if is_openinference else _DEFAULTS.tool_name
@@ -212,7 +233,7 @@ def propose_init(
         case_id=fields["case_id"],
         alert_class=fields["alert_class"],
         verdict=fields["verdict"],
-        prompt_version=fields["prompt_version"],
+        prompt_version=prompt_version,
         tool_name=_propose_tool_field(
             *_choose_key(tool_name, tool_source, None if mapping is None else mapping.tool_name),
             is_tool_name,
@@ -228,6 +249,7 @@ def propose_init(
             tool_calls,
         ),
         operation=operation,
+        prompt_version_lookup=prompt_version_lookup,
     )
     if proposed.alert_class.value is None:
         notes.append(
@@ -375,6 +397,65 @@ def _propose_or_measure_field(
     is_root_only = name in _ROOT_ONLY_FIELDS
     covered = sum(1 for run in agent_runs if _has_value(run, given, is_root_only))
     return FieldProposal(given, SOURCE_SET, covered, len(agent_runs))
+
+
+def _propose_or_measure_prompt_version(
+    spans: list[Span],
+    agent_runs: list[Span],
+    trace_format: TraceFormat,
+    case_id_key: str | None,
+    operation: OperationConfig,
+    mapping: MappingConfig | None,
+    notes: list[str],
+) -> tuple[FieldProposal, PromptVersionLookup]:
+    field_notes: list[str] = []
+    total = len(agent_runs)
+    field = _propose_field("prompt_version", agent_runs, trace_format, field_notes)
+    lookup = _DEFAULTS.prompt_version_lookup
+    if field.value is None and trace_format == "langfuse" and case_id_key is not None:
+        # Langfuse links a managed prompt only to a generation, never to the agent run, so
+        # the version is read below the agent run exactly as check's descendant lookup does.
+        managed = MappingConfig(
+            case_id=case_id_key,
+            prompt_version=_LANGFUSE_PROMPT_VERSION,
+            prompt_version_lookup="descendant",
+            operation=operation,
+        )
+        covered = _count_versioned_cases(spans, managed)
+        if _is_enough(covered, total):
+            field = FieldProposal(
+                _LANGFUSE_PROMPT_VERSION, SOURCE_LANGFUSE_MANAGED_PROMPT, covered, total
+            )
+            lookup = "descendant"
+        elif covered:
+            field_notes.append(
+                f"prompt_version: {_LANGFUSE_PROMPT_VERSION} gives a version under only "
+                f"{covered:,} of {total:,} agent runs; not proposed, since it must be on "
+                "at least half"
+            )
+    # As in _propose_or_measure_field: the default key given back for a field not found is
+    # no change.
+    if mapping is None or (
+        mapping.prompt_version == (field.value or _DEFAULTS.prompt_version)
+        and mapping.prompt_version_lookup == lookup
+    ):
+        notes += field_notes
+        return field, lookup
+    if mapping.prompt_version_lookup == "descendant":
+        covered = _count_versioned_cases(spans, mapping)
+    else:
+        covered = sum(
+            1 for run in agent_runs if _has_value(run, mapping.prompt_version, is_root_only=False)
+        )
+    return (
+        FieldProposal(mapping.prompt_version, SOURCE_SET, covered, total),
+        mapping.prompt_version_lookup,
+    )
+
+
+def _count_versioned_cases(spans: list[Span], mapping: MappingConfig) -> int:
+    trace_cases, _ = build_trace_cases(spans, mapping)
+    return sum(1 for case in trace_cases if case.prompt_version is not None)
 
 
 def _propose_field(
