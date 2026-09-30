@@ -58,7 +58,8 @@ Changelog = "https://github.com/jamesbower/detecttrace/blob/main/CHANGELOG.md"
 detecttrace = "detecttrace.cli:app"
 
 [build-system]
-requires = ["uv_build>=0.8,<0.12"]
+# Exact, so a release build is reproducible: the sdist and wheel depend on the backend version.
+requires = ["uv_build==0.11.33"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
