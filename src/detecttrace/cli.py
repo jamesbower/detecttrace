@@ -31,23 +31,25 @@ import typer
 from typer.core import TyperGroup
 
 from detecttrace import __version__
+from detecttrace.checklist import EXAMPLE_SUFFIX
 from detecttrace.dashboard import is_dashboard_file, render_dashboard, write_dashboard
 from detecttrace.files import write_text_atomically
 from detecttrace.init_proposal import (
     REQUIRED_FIELDS,
     REQUIRED_LABELS,
-    FieldProposal,
     OrphanSummary,
     Proposal,
     propose_init,
 )
 from detecttrace.init_writer import (
+    FIELD_NAMES,
     SET_HELP,
     InitDraft,
     OverrideError,
     apply_overrides,
     check_round_trip,
     create_draft,
+    describe_field,
     find_set_trace_format,
     render_config_yaml,
     render_example_checklist,
@@ -76,8 +78,6 @@ DEMO_OUTPUT = Path("detecttrace-demo.html")
 SELF_REPORTED = "Self-reported. Not verified by DetectTrace."
 NOTHING_WRITTEN = "Nothing was written."
 NO_TERMINAL = "init needs a terminal to ask questions. Run init in a terminal, or use --yes."
-# The mapping fields init shows and asks about, in order; the operation rule is set with --set.
-INIT_FIELDS = ("case_id", "alert_class", "verdict", "prompt_version", "tool_name", "tool_arguments")
 _MAX_SHOWN_TOOLS = 10
 _LEAVE_UNMAPPED = ""
 _TRACES_HINT = "Check --traces."
@@ -463,7 +463,7 @@ def _init(options: _InitOptions) -> int:
             _echo_error(problem)
             return 1
 
-    traces_text = to_terminal_text(str(options.traces), limit=None)
+    traces_text = _to_path_text(options.traces)
     # A format set with --set is how the configuration will read the traces, so the proposal
     # reads them that way too.
     trace_format = find_set_trace_format(options.sets)
@@ -611,7 +611,7 @@ def _find_init_folder_problem(config_path: Path) -> str | None:
     folder = config_path.parent
     if folder.is_dir():
         return None
-    return f"Folder not found: {folder}. Create it or choose another --config."
+    return f"Folder not found: {_to_path_text(folder)}. Create it or choose another --config."
 
 
 def _find_init_target_problem(target: Path, *, is_force: bool) -> str | None:
@@ -619,10 +619,11 @@ def _find_init_target_problem(target: Path, *, is_force: bool) -> str | None:
     from a hand-edited one, so any existing file needs `--force`, and a folder is never
     replaced.
     """
+    target_text = _to_path_text(target)
     if target.is_dir():
-        return f"{target} is a folder; choose another path. --force never replaces a folder."
+        return f"{target_text} is a folder; choose another path. --force never replaces a folder."
     if not is_force and (target.exists() or target.is_symlink()):
-        return f"{target} exists; use --force to replace it. {NOTHING_WRITTEN}"
+        return f"{target_text} exists; use --force to replace it. {NOTHING_WRITTEN}"
     return None
 
 
@@ -638,8 +639,9 @@ def _echo_found(
         f"Verdicts: {verdict_row_count:,} rows."
     )
     echo("Mapping:")
-    for name in INIT_FIELDS:
-        echo(f"  {name}: {_describe_proposed_field(name, getattr(proposal.mapping, name))}")
+    for name in FIELD_NAMES:
+        field = getattr(proposal.mapping, name)
+        echo(f"  {name}: {describe_field(name, field, partial(to_terminal_text, limit=None))}")
     operation = proposal.mapping.operation
     echo(
         f"  operation: {to_terminal_text(operation.attribute, limit=None)} = "
@@ -693,16 +695,6 @@ def _echo_orphans(proposal: Proposal) -> None:
         typer.echo(_describe_orphans(title, orphans), err=True)
 
 
-def _describe_proposed_field(name: str, field: FieldProposal) -> str:
-    if field.value is None:
-        return "not found" + (" (required)" if name in REQUIRED_FIELDS else "")
-    unit = "tool calls" if name.startswith("tool_") else "agent runs"
-    return (
-        f"{to_terminal_text(field.value, limit=None)}, found on {field.covered:,} of "
-        f"{field.total:,} {unit} ({field.source})"
-    )
-
-
 def _describe_orphans(title: str, orphans: OrphanSummary) -> str:
     if not orphans.count:
         return f"{title}: 0"
@@ -715,7 +707,7 @@ def _describe_orphans(title: str, orphans: OrphanSummary) -> str:
 def _ask_mapping(draft: InitDraft, proposal: Proposal) -> InitDraft:
     typer.echo("Press Enter to keep each proposal, or type the attribute to use.", err=True)
     unchanged = proposal.mapping.to_mapping_config()
-    for name in INIT_FIELDS:
+    for name in FIELD_NAMES:
         is_required = name in draft.missing_required
         current = getattr(draft.mapping, name)
         # A field not found holds its default key, which the user never chose.
@@ -791,7 +783,7 @@ def _confirm_write(draft: InitDraft, config_path: Path, example_path: Path | Non
         typer.echo(text, err=True)
 
     echo("Summary:")
-    for name in INIT_FIELDS:
+    for name in FIELD_NAMES:
         echo(f"  {name}: {to_terminal_text(getattr(draft.mapping, name), limit=None)}")
     unmapped = len(draft.unmapped_analyst_labels) + len(draft.unmapped_agent_labels)
     echo(
@@ -821,8 +813,12 @@ def _write_init_files(
             target.parent.mkdir(parents=True, exist_ok=True)
             write_text_atomically(content, target)
         except OSError as error:
-            outcome = NOTHING_WRITTEN if not written else f"Only {written[0]} was written."
-            _echo_error(f"Could not write {target}: {error.strerror or error}. {outcome}")
+            outcome = (
+                NOTHING_WRITTEN if not written else f"Only {_to_path_text(written[0])} was written."
+            )
+            _echo_error(
+                f"Could not write {_to_path_text(target)}: {error.strerror or error}. {outcome}"
+            )
             return 1
         written.append(target)
     if options.is_quiet:
@@ -830,7 +826,7 @@ def _write_init_files(
     typer.echo(f"Wrote {' and '.join(_to_path_text(path) for path in written)}.")
     if len(written) > 1:
         example_path = written[0]
-        active = example_path.name.removesuffix(".example")
+        active = example_path.name.removesuffix(EXAMPLE_SUFFIX) + ".yaml"
         typer.echo(
             f"Next: edit {_to_path_text(example_path)} to keep only the calls the playbook "
             f"requires, rename it to {active}, then run {_to_check_command(config_path)}."

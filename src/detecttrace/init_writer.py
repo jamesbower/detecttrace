@@ -8,6 +8,7 @@ draft's values before writing it.
 import dataclasses
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path, PurePath
 from typing import Any, get_args
 
@@ -42,6 +43,9 @@ _MAPPING_FIELDS = (
     "tool_name",
     "tool_arguments",
 )
+# The mapping fields init shows and asks about, in order; the operation rule is set with --set.
+FIELD_NAMES = ("case_id", "alert_class", "verdict", "prompt_version", "tool_name", "tool_arguments")
+_TOOL_FIELDS = ("tool_name", "tool_arguments")
 _OPERATION_FIELDS = ("attribute", "agent_value", "tool_value", "span_name_fallback")
 _TRACE_FORMAT_KEY = "traces.format"
 _OTHER_KEYS = (
@@ -68,7 +72,7 @@ SET_HELP = (
 _NON_TEXT_KEYS = ("mapping.operation.span_name_fallback", "dashboard.max_detail_cases")
 _SATISFIES = {f"mapping.{name}": name for name in REQUIRED_FIELDS}
 _DEFAULT_MAPPING = MappingConfig()
-_DEFAULT_OUTPUT = "detecttrace-dashboard.html"
+_DEFAULT_OUTPUT = RunConfig.model_fields["output"].default.as_posix()
 _DEFAULT_MAX_DETAIL_CASES = DashboardConfig().max_detail_cases
 _WINDOWS_RESERVED = frozenset(
     ["con", "prn", "aux", "nul"]
@@ -142,12 +146,10 @@ def create_draft(
         missing_required=proposal.missing_required,
         agent_run_count=proposal.agent_run_count,
         coverage={
-            "case_id": _describe_field(mapping.case_id, "agent runs"),
-            "alert_class": _describe_field(mapping.alert_class, "agent runs"),
-            "verdict": _describe_field(mapping.verdict, "agent runs"),
-            "prompt_version": _describe_field(mapping.prompt_version, "agent runs"),
-            "tool_name": _describe_field(mapping.tool_name, "tool calls"),
-            "tool_arguments": _describe_field(mapping.tool_arguments, "tool calls"),
+            **{
+                name: describe_field(name, getattr(mapping, name), to_yaml_string)
+                for name in FIELD_NAMES
+            },
             "operation": (
                 f"{to_yaml_string(operation.attribute)}: agent runs "
                 f"{to_yaml_string(operation.agent_value)}, tool calls "
@@ -324,6 +326,19 @@ def render_example_checklist(alert_class: str, tool_names: tuple[str, ...], tool
     return "\n".join(lines) + "\n"
 
 
+def describe_field(name: str, field: FieldProposal, quote: Callable[[str], str]) -> str:
+    """How init found the key of mapping field `name`, with the key written by `quote`; the
+    same words in the terminal summary and in the configuration's header.
+    """
+    if field.value is None:
+        return "not found" + (" (required)" if name in REQUIRED_FIELDS else "")
+    unit = "tool calls" if name in _TOOL_FIELDS else "agent runs"
+    return (
+        f"{quote(field.value)}, found on {field.covered:,} of {field.total:,} {unit} "
+        f"({field.source})"
+    )
+
+
 def to_yaml_string(text: str) -> str:
     """`text` as a YAML 1.2 double-quoted scalar made of printable ASCII only.
 
@@ -348,15 +363,6 @@ def _to_relative_text(path: Path, folder: Path) -> str:
         # On Windows a path on another drive has no relative form.
         return path.absolute().as_posix()
     return PurePath(relative).as_posix()
-
-
-def _describe_field(field: FieldProposal, unit: str) -> str:
-    if field.value is None:
-        return f"not found ({field.source})"
-    return (
-        f"{to_yaml_string(field.value)} on {field.covered:,} of {field.total:,} {unit} "
-        f"({field.source})"
-    )
 
 
 def _apply_override(draft: InitDraft, text: str) -> InitDraft:

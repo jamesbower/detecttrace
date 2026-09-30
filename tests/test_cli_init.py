@@ -160,7 +160,7 @@ def test_yes_dry_run_exits_0(demo_copy: Path) -> None:
 def test_yes_dry_run_keeps_the_found_summary_off_stdout(demo_copy: Path) -> None:
     result = _init(demo_copy, "--yes", "--dry-run")
 
-    assert "found on 201 of 201 agent runs" not in result.stdout
+    assert "Traces: otlp_jsonl, 201 agent runs." not in result.stdout
 
 
 def test_found_summary_shows_each_field_with_its_coverage(demo_copy: Path) -> None:
@@ -563,7 +563,7 @@ def test_a_set_field_shows_its_coverage(tmp_path: Path) -> None:
 
     result = _init(tmp_path, "--yes", "--dry-run", "--set", "mapping.alert_class=soc.kind")
 
-    assert '#   alert_class: "soc.kind" on 1 of 2 agent runs (set by you)' in result.stdout
+    assert '#   alert_class: "soc.kind", found on 1 of 2 agent runs (set by you)' in result.stdout
 
 
 def test_a_set_mapping_keeps_the_labels_set_with_set(tmp_path: Path) -> None:

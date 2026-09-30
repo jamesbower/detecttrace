@@ -2,12 +2,12 @@
 # Run `detecttrace check` to build the dashboard.
 #
 # Found: otlp_json traces, 201 agent runs.
-#   case_id: "detecttrace.case_id" on 201 of 201 agent runs (detecttrace attribute)
-#   alert_class: "detecttrace.alert_class" on 201 of 201 agent runs (detecttrace attribute)
-#   verdict: "detecttrace.verdict" on 201 of 201 agent runs (detecttrace attribute)
-#   prompt_version: "detecttrace.prompt_version" on 201 of 201 agent runs (detecttrace attribute)
-#   tool_name: "gen_ai.tool.name" on 1,059 of 1,059 tool calls (default)
-#   tool_arguments: "gen_ai.tool.call.arguments" on 1,059 of 1,059 tool calls (default)
+#   case_id: "detecttrace.case_id", found on 201 of 201 agent runs (detecttrace attribute)
+#   alert_class: "detecttrace.alert_class", found on 201 of 201 agent runs (detecttrace attribute)
+#   verdict: "detecttrace.verdict", found on 201 of 201 agent runs (detecttrace attribute)
+#   prompt_version: "detecttrace.prompt_version", found on 201 of 201 agent runs (detecttrace attribute)
+#   tool_name: "gen_ai.tool.name", found on 1,059 of 1,059 tool calls (default)
+#   tool_arguments: "gen_ai.tool.call.arguments", found on 1,059 of 1,059 tool calls (default)
 #   operation: "gen_ai.operation.name": agent runs "invoke_agent", tool calls "execute_tool" (gen_ai.operation.name)
 #
 # checklists/impossible_travel.yaml.example is inactive until renamed to .yaml.

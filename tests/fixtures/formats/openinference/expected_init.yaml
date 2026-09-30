@@ -2,12 +2,12 @@
 # Run `detecttrace check` to build the dashboard.
 #
 # Found: otlp_jsonl traces, 201 agent runs.
-#   case_id: "soc.case.id" on 201 of 201 agent runs (suffix match)
-#   alert_class: "soc.alert.class" on 201 of 201 agent runs (suffix match)
-#   verdict: "soc.agent.verdict" on 201 of 201 agent runs (suffix match)
-#   prompt_version: "soc.prompt.version" on 201 of 201 agent runs (suffix match)
-#   tool_name: "tool.name" on 1,059 of 1,059 tool calls (OpenInference)
-#   tool_arguments: "input.value" on 1,059 of 1,059 tool calls (OpenInference)
+#   case_id: "soc.case.id", found on 201 of 201 agent runs (suffix match)
+#   alert_class: "soc.alert.class", found on 201 of 201 agent runs (suffix match)
+#   verdict: "soc.agent.verdict", found on 201 of 201 agent runs (suffix match)
+#   prompt_version: "soc.prompt.version", found on 201 of 201 agent runs (suffix match)
+#   tool_name: "tool.name", found on 1,059 of 1,059 tool calls (OpenInference)
+#   tool_arguments: "input.value", found on 1,059 of 1,059 tool calls (OpenInference)
 #   operation: "openinference.span.kind": agent runs "AGENT", tool calls "TOOL" (OpenInference)
 #
 # checklists/impossible_travel.yaml.example is inactive until renamed to .yaml.
