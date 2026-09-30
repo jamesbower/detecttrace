@@ -1,0 +1,190 @@
+name: Release
+
+# A version tag publishes to TestPyPI, installs and runs it from there, then publishes to
+# PyPI once someone approves the protected `pypi` environment. The manual run exists to
+# publish a pre-release (for example 0.1.0.dev0) without a tag.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to publish: TestPyPI only, or TestPyPI and then PyPI"
+        required: true
+        default: testpypi
+        type: choice
+        options: [testpypi, pypi]
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Read the project version and check it against the tag
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="$(uv version --short)"
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $REF_NAME does not match the project version $version (expected v$version)."
+            exit 1
+          fi
+          echo "Releasing version $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - run: uv build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  benchmark:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - run: uv sync --locked
+      - run: uv run pytest -m benchmark
+
+  publish-testpypi:
+    needs: [build, benchmark]
+    # The benchmark runs for tags only; a manual run goes on without it.
+    if: >-
+      !cancelled() && needs.build.result == 'success' &&
+      (needs.benchmark.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && needs.benchmark.result == 'skipped'))
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/detecttrace/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  smoke-testpypi:
+    needs: [build, publish-testpypi]
+    if: ${{ !cancelled() && needs.publish-testpypi.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Install the published version into a clean venv
+        working-directory: ${{ runner.temp }}
+        # Only detecttrace comes from TestPyPI; its dependencies come from PyPI, so a look-alike
+        # package on TestPyPI can't stand in for one. TestPyPI can take a minute to list a new
+        # upload, hence the retries.
+        run: |
+          uv venv smoke-venv --python 3.13
+          for attempt in 1 2 3 4 5 6; do
+            if uv pip install --python smoke-venv --no-deps --refresh \
+                --index-url https://test.pypi.org/simple/ "detecttrace==$VERSION"; then
+              break
+            fi
+            if [ "$attempt" = 6 ]; then
+              echo "::error::detecttrace $VERSION did not appear on TestPyPI."
+              exit 1
+            fi
+            sleep 30
+          done
+          uv pip install --python smoke-venv "detecttrace==$VERSION"
+      - name: Run the demo from an empty folder
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir demo
+          cd demo
+          cli="$RUNNER_TEMP/smoke-venv/bin/detecttrace"
+          test "$("$cli" --version)" = "detecttrace $VERSION"
+          "$cli" demo
+          test -s detecttrace-demo.html
+          grep -q "</html>" detecttrace-demo.html
+
+  publish-pypi:
+    needs: [build, smoke-testpypi]
+    if: >-
+      !cancelled() && needs.smoke-testpypi.result == 'success' &&
+      (github.event_name == 'push' || inputs.target == 'pypi')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/detecttrace/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+
+  github-release:
+    needs: [build, publish-pypi]
+    if: ${{ !cancelled() && needs.publish-pypi.result == 'success' && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - name: Take the release notes from the changelog
+        # Everything under "## [VERSION]" up to the next "## " heading or the link references.
+        run: |
+          awk -v heading="## [$VERSION]" '
+            index($0, "## ") == 1 { if (found) exit; found = (index($0, heading) == 1); next }
+            found && /^\[[^]]*\]: / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md"; then
+            echo "::error::CHANGELOG.md has no section for $VERSION."
+            exit 1
+          fi
+      - name: Create the GitHub release
+        run: |
+          prerelease=()
+          case "$VERSION" in *a*|*b*|*rc*|*dev*) prerelease=(--prerelease) ;; esac
+          gh release create "$TAG" dist/* --verify-tag --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" "${prerelease[@]}"
