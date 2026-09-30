@@ -300,9 +300,17 @@ def _load_document(file_path: Path) -> Json | None:
 def _read_document_bytes(file_path: Path) -> bytes | None:
     """Return the whole decompressed file, or None when it is over the size limit."""
     # NOTE: a one-document file is read whole; JSON lines is the format for large inputs.
+    # Read in chunks, not with one `read(limit + 1)`: from Python 3.12 gzip's read(n) holds its
+    # chunks and their joined copy at once, so an over-limit file would cost twice the limit.
+    chunks: list[bytes] = []
+    total = 0
     with _open_binary(file_path) as handle:
-        text = handle.read(_MAX_LINE_BYTES + 1)
-    return None if len(text) > _MAX_LINE_BYTES else text
+        while chunk := handle.read(_READ_SIZE):
+            total += len(chunk)
+            if total > _MAX_LINE_BYTES:
+                return None
+            chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _read_json_lines(
