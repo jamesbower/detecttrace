@@ -212,6 +212,18 @@ def test_missing_tool_name_points_at_the_mapping() -> None:
     )
 
 
+def test_invalid_attribute_hint_links_the_published_attribute_specification() -> None:
+    line = only_line([Issue(IssueKind.INVALID_ATTRIBUTE, "t/1")])
+    assert "https://github.com/jamesbower/detecttrace/blob/main/docs/attributes.md" in line.hint
+
+
+def test_nested_case_says_its_tool_calls_count_only_for_the_inner_case() -> None:
+    line = only_line([Issue(IssueKind.NESTED_CASE, "DT-2", "inside case DT-1")])
+    assert line.message == (
+        "1 case starts inside another case; the tool calls below it count only for the inner case."
+    )
+
+
 @pytest.mark.parametrize("kind", [IssueKind.INVALID_LINE, IssueKind.INVALID_FILE])
 def test_trace_input_hints_name_langfuse_exports_too(kind: IssueKind) -> None:
     assert "Langfuse" in only_line([Issue(kind, "x")]).hint

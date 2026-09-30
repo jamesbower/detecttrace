@@ -112,7 +112,10 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
     IssueKind.INVALID_ATTRIBUTE: (
         "attribute has a value that could not be used",
         "attributes have values that could not be used",
-        "Check the attribute types against the attribute specification in the README.",
+        # The URL sits mid-sentence so a terminal does not link the closing period with it.
+        "See the attribute specification at "
+        "https://github.com/jamesbower/detecttrace/blob/main/docs/attributes.md "
+        "for the type each attribute takes.",
     ),
     IssueKind.MISSING_TOOL_NAME: (
         "tool span has no tool name, so it satisfies no checklist item",
@@ -135,8 +138,9 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "Check that parent span IDs point to spans exported in the same trace.",
     ),
     IssueKind.NESTED_CASE: (
-        "case starts inside another case and is treated as a sub-agent",
-        "cases start inside another case and are treated as sub-agents",
+        # Also emitted for an outer case ID repeated deeper in, which the inner case owns.
+        "case starts inside another case; the tool calls below it count only for the inner case",
+        "cases start inside another case; the tool calls below them count only for the inner case",
         "Set the case ID only on the top-level " + _AGENT + " span of each case.",
     ),
     IssueKind.INCOMPLETE_TRACE: (
