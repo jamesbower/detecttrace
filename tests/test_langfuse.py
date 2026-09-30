@@ -825,7 +825,29 @@ def test_real_blob_export_keeps_metadata_values_as_strings() -> None:
     assert span.attributes["detecttrace.risk_score"] == "0.87"
 
 
-@pytest.mark.parametrize("name", ["blob_observations_v2.json", "blob_observations_v2.jsonl"])
+def test_real_managed_prompt_versions_are_on_generations_only() -> None:
+    spans, _ = load_spans(REAL / "managed_prompt_blob_observations_v2.jsonl", format="langfuse")
+    versions = sorted(
+        (span.name, span.attributes["langfuse.prompt_version"])
+        for span in spans
+        if "langfuse.prompt_version" in span.attributes
+    )
+    assert versions == [
+        ("chat example-model", 1),
+        ("chat example-model", 2),
+        ("chat example-model", 2),
+        ("chat example-model", 2),
+    ]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "blob_observations_v2.json",
+        "blob_observations_v2.jsonl",
+        "managed_prompt_blob_observations_v2.jsonl",
+    ],
+)
 def test_real_blob_export_is_read_without_issues(name: str) -> None:
     assert load_spans(REAL / name, format="langfuse")[1] == []
 
