@@ -522,8 +522,8 @@ def test_a_slice_with_dropped_resamples_gets_a_warning_note() -> None:
     assert (note.severity, note.count_text, note.message) == (
         "warning",
         "87",
-        "of 1,000 kappa resamples in impossible_travel, v1, were dropped because kappa was "
-        "undefined in them.",
+        "of 1,000 resamples for chance-corrected agreement in impossible_travel, v1, were "
+        "dropped because it was undefined in them.",
     )
 
 

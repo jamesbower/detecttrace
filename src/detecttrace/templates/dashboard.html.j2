@@ -117,7 +117,7 @@
 
 <section aria-labelledby="s-versions">
   <div class="sec-head"><span class="sec-num" aria-hidden="true">01</span><h2 id="s-versions">By alert class and version</h2>
-  <p class="lede">Evidence completeness, verdict agreement and kappa for each version, in the order each version first appeared, with n and 95% intervals. Wide intervals mean few cases.</p></div>
+  <p class="lede">Evidence completeness, verdict agreement and chance-corrected agreement for each version, in the order each version first appeared, with n and 95% intervals. Chance-corrected agreement is Cohen's kappa: 0 means no better than chance, 1 means perfect agreement. Wide intervals mean few cases.</p></div>
   <div class="stack">
 {% for cls in view.classes %}
 <article class="card" aria-labelledby="{{ cls.anchor }}-v-h">
@@ -126,7 +126,7 @@
   <div class="tbl-wrap" role="region" tabindex="0" aria-labelledby="{{ cls.anchor }}-v-cap">
   <table class="vt">
     <caption id="{{ cls.anchor }}-v-cap">{{ cls.name }}: metrics per version, in the order each version first appeared. Ranges are 95% intervals.</caption>
-    <thead><tr><th scope="col">Version</th><th scope="col" class="num">Cases</th><th scope="col">Evidence completeness</th><th scope="col">Verdict agreement</th><th scope="col">Cohen's kappa</th><th scope="col" class="num">Dangerous false closes</th></tr></thead>
+    <thead><tr><th scope="col">Version</th><th scope="col" class="num">Cases</th><th scope="col">Evidence completeness</th><th scope="col">Verdict agreement</th><th scope="col">Chance-corrected agreement (κ)</th><th scope="col" class="num">Dangerous false closes</th></tr></thead>
     <tbody>
 {% for row in cls.rows %}
     <tr{% set classes = (["all-row"] if row.is_all else []) + (["is-few"] if row.few_note else []) %}{% if classes %} class="{{ classes|join(' ') }}"{% endif %}><th scope="row">{% if row.is_all %}{{ row.label }}{% else %}{{ vkey(row.label, row.style) }}{% endif %}{% if row.few_note %}{{ few_note(row.few_note) }}{% endif %}</th><td class="num">{{ row.cases_text }}</td>{{ metric_cell(row.completeness, row.style, row.few_note) }}{{ metric_cell(row.agreement, row.style, row.few_note) }}{{ metric_cell(row.kappa, row.style, row.few_note) }}<td class="num">{% if row.is_dangerous %}<span class="dfc is-alarm">{{ warn_icon() }}{{ row.dangerous_text }}</span>{% else %}<span class="dfc is-zero">{{ row.dangerous_text }}</span>{% endif %}{% if row.tp_without_agent_text %}<span class="tp-note">{{ warn_icon() }}<span>{{ row.tp_without_agent_text }}</span></span>{% endif %}</td></tr>

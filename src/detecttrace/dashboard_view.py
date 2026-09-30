@@ -41,8 +41,8 @@ TP_WITHOUT_AGENT_HINT = (
     "Check that the agent emits a verdict on every case and that its labels are mapped."
 )
 DROPPED_RESAMPLES_HINT = (
-    "The kappa interval is built from the remaining resamples; more cases with both verdicts "
-    "make it steadier."
+    "The interval for chance-corrected agreement is built from the remaining resamples; more "
+    "cases with both verdicts make it steadier."
 )
 
 BANNER_TITLE = "Self-reported. Not verified by DetectTrace."
@@ -901,8 +901,8 @@ def _to_dropped_notes(class_data: Any, styles: Mapping[str, str]) -> tuple[NoteV
     return tuple(
         _create_warning_note(
             metrics["kappa"]["dropped_resamples"],
-            f"of {format_count(BOOTSTRAP_RESAMPLES)} kappa resamples in {name}, {label}, were "
-            "dropped because kappa was undefined in them.",
+            f"of {format_count(BOOTSTRAP_RESAMPLES)} resamples for chance-corrected agreement in "
+            f"{name}, {label}, were dropped because it was undefined in them.",
             DROPPED_RESAMPLES_HINT,
             (),
         )

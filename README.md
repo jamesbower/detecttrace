@@ -20,7 +20,7 @@ The most costly mistake is also the one agreement hides best: the agent closes a
 
 A local command-line tool that turns traces and verdicts into a view that goes beyond one agreement number.
 
-- **Verdict agreement with chance corrected.** Agreement rate and Cohen's kappa per alert class, with a 3 × 3 confusion matrix. Kappa shows when high agreement comes only from the base rate.
+- **Verdict agreement with chance corrected.** Agreement rate and Cohen's kappa per alert class, with a 3 × 3 confusion matrix. Kappa shows when high agreement comes only from the base rate. Chance-corrected agreement is Cohen's kappa: 0 means no better than chance, 1 means perfect agreement.
 - **Dangerous false closes.** Cases where the analyst said true positive and the agent said benign or false positive, as a count with the case IDs.
 - **Evidence completeness.** You write a short checklist of the tool calls your playbook requires for an alert class. DetectTrace checks each case's successful tool calls against it and reports the share of items satisfied, per case and per class. A step is reported as failed (the call errored), not called, or called with the wrong arguments.
 - **Skipped steps by version.** How often each checklist step was skipped, per prompt or model version. For example: "MFA check skipped: 5% in v1, 45% in v2."

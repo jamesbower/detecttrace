@@ -359,6 +359,15 @@ def test_a_class_without_a_checklist_says_so_instead_of_a_chart() -> None:
     assert figure.find(has_tag("p")).text() == "No checklist for this class."
 
 
+def test_the_kappa_column_is_headed_chance_corrected_agreement() -> None:
+    headers = section(demo_page(), "s-versions").find_all(has_tag("th"))
+    assert headers[4].text() == "Chance-corrected agreement (κ)"
+
+
+def test_cohens_kappa_is_named_once_in_the_lede() -> None:
+    assert demo_html().count("Cohen's kappa") == 1
+
+
 @pytest.mark.parametrize("name", FIXTURE_CONFIGS)
 def test_every_fixture_renders_a_page(name: str) -> None:
     assert render_dashboard(fixture_results(name)).startswith("<!DOCTYPE html>")
@@ -690,4 +699,6 @@ def test_a_low_coverage_line_carries_its_fix_hint() -> None:
 
 
 def test_dropped_kappa_resamples_get_a_data_note() -> None:
-    assert "87 of 1,000 kappa resamples in " in notes_text(dropped_resamples_page())
+    assert "87 of 1,000 resamples for chance-corrected agreement in " in notes_text(
+        dropped_resamples_page()
+    )
