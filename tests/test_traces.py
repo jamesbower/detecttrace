@@ -49,7 +49,9 @@ def _attribute_line(value: object) -> str:
 
 def test_reads_single_pretty_printed_document(tmp_path: Path) -> None:
     path = tmp_path / "trace.json"
-    path.write_text(json.dumps(otlp_document([otlp_span(S1), otlp_span(S2)]), indent=2))
+    path.write_text(
+        json.dumps(otlp_document([otlp_span(S1), otlp_span(S2)]), indent=2), encoding="utf-8"
+    )
 
     spans, _ = load_spans(path)
 
@@ -59,7 +61,9 @@ def test_reads_single_pretty_printed_document(tmp_path: Path) -> None:
 def test_reads_document_whose_first_line_opens_resource_spans(tmp_path: Path) -> None:
     text = json.dumps(otlp_document([otlp_span(S1)]), indent=2)
     path = tmp_path / "trace.json"
-    path.write_text('{ "resourceSpans": [' + text.split('"resourceSpans": [', 1)[1])
+    path.write_text(
+        '{ "resourceSpans": [' + text.split('"resourceSpans": [', 1)[1], encoding="utf-8"
+    )
 
     spans, _ = load_spans(path)
 
@@ -69,7 +73,9 @@ def test_reads_document_whose_first_line_opens_resource_spans(tmp_path: Path) ->
 @pytest.mark.parametrize("indent", [None, 2])
 def test_reads_file_starting_with_bom(tmp_path: Path, indent: int | None) -> None:
     path = tmp_path / "t.json"
-    path.write_text(BOM + json.dumps(otlp_document([otlp_span(S1)]), indent=indent) + "\n")
+    path.write_text(
+        BOM + json.dumps(otlp_document([otlp_span(S1)]), indent=indent) + "\n", encoding="utf-8"
+    )
 
     spans, _ = load_spans(path)
 
@@ -78,7 +84,7 @@ def test_reads_file_starting_with_bom(tmp_path: Path, indent: int | None) -> Non
 
 def test_document_that_is_not_json_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.json"
-    path.write_text("{\n garbage\n")
+    path.write_text("{\n garbage\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -242,7 +248,7 @@ def test_unreadable_file_detail_has_no_path(tmp_path: Path) -> None:
 
 def test_issue_subject_is_posix_path_relative_to_folder(tmp_path: Path) -> None:
     (tmp_path / "a").mkdir()
-    (tmp_path / "a" / "empty.jsonl").write_text("")
+    (tmp_path / "a" / "empty.jsonl").write_text("", encoding="utf-8")
 
     _, issues = load_spans(tmp_path)
 
@@ -251,7 +257,7 @@ def test_issue_subject_is_posix_path_relative_to_folder(tmp_path: Path) -> None:
 
 def test_issue_subject_for_single_file_is_its_name(tmp_path: Path) -> None:
     path = tmp_path / "empty.jsonl"
-    path.write_text("")
+    path.write_text("", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -272,8 +278,8 @@ def test_identical_duplicate_span_with_nan_attribute_is_reported_as_duplicate(
 ) -> None:
     # NaN never equals itself, so plain equality would call these copies conflicting.
     line = _attribute_line({"doubleValue": "NaN"}) + "\n"
-    (tmp_path / "a.jsonl").write_text(line)
-    (tmp_path / "b.jsonl").write_text(line)
+    (tmp_path / "a.jsonl").write_text(line, encoding="utf-8")
+    (tmp_path / "b.jsonl").write_text(line, encoding="utf-8")
 
     _, issues = load_spans(tmp_path)
 
@@ -291,7 +297,7 @@ def test_differing_duplicate_span_is_reported_as_conflicting(tmp_path: Path) -> 
 
 def test_empty_file_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "empty.jsonl"
-    path.write_text("")
+    path.write_text("", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -300,7 +306,7 @@ def test_empty_file_is_reported(tmp_path: Path) -> None:
 
 def test_truncated_last_line_keeps_earlier_lines(tmp_path: Path) -> None:
     path = write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S1)])])
-    with path.open("a") as handle:
+    with path.open("a", encoding="utf-8") as handle:
         handle.write('{"resourceSpans": [{"scopeSp')
 
     spans, _ = load_spans(path)
@@ -310,7 +316,7 @@ def test_truncated_last_line_keeps_earlier_lines(tmp_path: Path) -> None:
 
 def test_truncated_last_line_is_reported(tmp_path: Path) -> None:
     path = write_jsonl(tmp_path / "t.jsonl", [otlp_document([otlp_span(S1)])])
-    with path.open("a") as handle:
+    with path.open("a", encoding="utf-8") as handle:
         handle.write('{"resourceSpans": [{"scopeSp')
 
     _, issues = load_spans(path)
@@ -320,7 +326,7 @@ def test_truncated_last_line_is_reported(tmp_path: Path) -> None:
 
 def test_single_unfinished_line_is_reported_as_truncated(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text('{"resourceSpans": [{"scopeSp')
+    path.write_text('{"resourceSpans": [{"scopeSp', encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -329,7 +335,7 @@ def test_single_unfinished_line_is_reported_as_truncated(tmp_path: Path) -> None
 
 def test_invalid_middle_line_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(f"{_line(S1)}not json\n{_line(S2)}")
+    path.write_text(f"{_line(S1)}not json\n{_line(S2)}", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -338,7 +344,7 @@ def test_invalid_middle_line_is_reported(tmp_path: Path) -> None:
 
 def test_invalid_line_detail_names_line_number(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(f"{_line(S1)}not json\n{_line(S2)}")
+    path.write_text(f"{_line(S1)}not json\n{_line(S2)}", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -347,7 +353,7 @@ def test_invalid_line_detail_names_line_number(tmp_path: Path) -> None:
 
 def test_invalid_first_line_is_reported_as_invalid_line(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(f"garbage\n{_line(S1)}")
+    path.write_text(f"garbage\n{_line(S1)}", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -356,7 +362,7 @@ def test_invalid_first_line_is_reported_as_invalid_line(tmp_path: Path) -> None:
 
 def test_invalid_first_line_keeps_later_lines(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(f"garbage\n{_line(S1)}{_line(S2)}")
+    path.write_text(f"garbage\n{_line(S1)}{_line(S2)}", encoding="utf-8")
 
     spans, _ = load_spans(path)
 
@@ -365,7 +371,7 @@ def test_invalid_first_line_keeps_later_lines(tmp_path: Path) -> None:
 
 def test_invalid_first_line_opening_an_object_keeps_later_lines(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text('{"resourceSpans": [\n' + _line(S1) + _line(S2))
+    path.write_text('{"resourceSpans": [\n' + _line(S1) + _line(S2), encoding="utf-8")
 
     spans, _ = load_spans(path)
 
@@ -392,7 +398,7 @@ def test_line_that_is_not_utf8_keeps_other_lines(tmp_path: Path) -> None:
 
 def test_deeply_nested_line_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_line(S1) + "[" * 100_000 + "]" * 100_000 + "\n")
+    path.write_text(_line(S1) + "[" * 100_000 + "]" * 100_000 + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -401,7 +407,7 @@ def test_deeply_nested_line_is_reported(tmp_path: Path) -> None:
 
 def test_deeply_nested_document_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.json"
-    path.write_text("[\n" + "[" * 100_000 + "]" * 100_000 + "\n]\n")
+    path.write_text("[\n" + "[" * 100_000 + "]" * 100_000 + "\n]\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -529,7 +535,7 @@ def zstd_and_plain_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     # None in sys.modules makes `import zstandard` raise ImportError, as without the extra.
     monkeypatch.setitem(sys.modules, "zstandard", None)
     (tmp_path / "a.jsonl.zst").write_bytes(_zstd(_line(S1)))
-    (tmp_path / "b.jsonl").write_text(_line(S2))
+    (tmp_path / "b.jsonl").write_text(_line(S2), encoding="utf-8")
     return tmp_path
 
 
@@ -683,7 +689,7 @@ def test_gzip_bomb_is_reported_as_too_long_line(gzip_bomb: Path) -> None:
 def long_line_file(tmp_path: Path) -> Path:
     # Opens like a JSON object, so the one-document reader sees it before the line reader.
     path = tmp_path / "t.jsonl"
-    path.write_text('{"k": "' + "x" * (33 * MIB) + '"}\n' + _line(S2))
+    path.write_text('{"k": "' + "x" * (33 * MIB) + '"}\n' + _line(S2), encoding="utf-8")
     return path
 
 
@@ -703,7 +709,7 @@ def test_too_long_plain_line_keeps_later_lines(long_line_file: Path) -> None:
 
 def test_too_large_document_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.json"
-    path.write_text("{\n" + " " * (33 * MIB) + "}\n")
+    path.write_text("{\n" + " " * (33 * MIB) + "}\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -772,9 +778,9 @@ def test_gzip_console_exporter_output_is_reported_once(tmp_path: Path) -> None:
 
 def test_console_exporter_output_one_object_per_line_is_reported_once(tmp_path: Path) -> None:
     # Pretty-printed objects re-joined one per line would otherwise give one issue per line.
-    text = CONSOLE_OUTPUT.read_text().replace("\n", "").replace("}{", "}\n{") + "\n"
+    text = CONSOLE_OUTPUT.read_text(encoding="utf-8").replace("\n", "").replace("}{", "}\n{") + "\n"
     path = tmp_path / "console.jsonl"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -794,7 +800,7 @@ def test_otlp_mentioning_console_trace_id_loads_without_issues(tmp_path: Path) -
 
 def test_console_trace_id_without_context_object_is_not_console_output(tmp_path: Path) -> None:
     path = tmp_path / "t.log"
-    path.write_text('span "trace_id": "0x5b8aa5a2d2c872e8321cf37308d69df2"\n')
+    path.write_text('span "trace_id": "0x5b8aa5a2d2c872e8321cf37308d69df2"\n', encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -804,7 +810,7 @@ def test_console_trace_id_without_context_object_is_not_console_output(tmp_path:
 def test_console_sniff_reads_only_the_first_64_kib(tmp_path: Path) -> None:
     # 10 MB with the console marker only at the end: a sniff past 64 KiB would find it.
     path = tmp_path / "big.json"
-    path.write_text('{"context": ' * 850_000 + '{"trace_id": "0x1"}')
+    path.write_text('{"context": ' * 850_000 + '{"trace_id": "0x1"}', encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -822,7 +828,7 @@ def test_empty_folder_raises(tmp_path: Path) -> None:
 
 
 def test_folder_with_only_hidden_files_raises(tmp_path: Path) -> None:
-    (tmp_path / ".DS_Store").write_text("x")
+    (tmp_path / ".DS_Store").write_text("x", encoding="utf-8")
 
     with pytest.raises(TraceFileError, match=r"No trace files found"):
         load_spans(tmp_path)
@@ -927,7 +933,7 @@ def test_lone_surrogate_in_a_value_type_key_is_replaced_in_the_issue_detail(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_attribute_line({"k\ud800": "DT-1"}) + "\n")
+    path.write_text(_attribute_line({"k\ud800": "DT-1"}) + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -1001,7 +1007,7 @@ def test_console_exporter_output_has_no_format() -> None:
 
 def test_detects_a_pretty_printed_otlp_document(tmp_path: Path) -> None:
     path = tmp_path / "trace.json"
-    path.write_text(json.dumps(otlp_document([otlp_span(S1)]), indent=2))
+    path.write_text(json.dumps(otlp_document([otlp_span(S1)]), indent=2), encoding="utf-8")
     assert detect_format(path) == ("otlp_json", [])
 
 
@@ -1011,25 +1017,25 @@ def test_detects_a_legacy_langfuse_trace_as_langfuse(tmp_path: Path) -> None:
 
 
 def test_detection_skips_files_without_a_document(tmp_path: Path) -> None:
-    (tmp_path / "a.jsonl").write_text("not json\n")
+    (tmp_path / "a.jsonl").write_text("not json\n", encoding="utf-8")
     write_jsonl(tmp_path / "b.jsonl", [langfuse_row("r1")])
     assert detect_format(tmp_path) == ("langfuse", [])
 
 
 def test_detection_skips_files_of_an_unknown_shape(tmp_path: Path) -> None:
     write_jsonl(tmp_path / "a.jsonl", [{"unrelated": 1}])
-    (tmp_path / "b.jsonl").write_text(_line(S1))
+    (tmp_path / "b.jsonl").write_text(_line(S1), encoding="utf-8")
     assert detect_format(tmp_path) == ("otlp_jsonl", [])
 
 
 def test_detection_without_a_recognized_file_has_no_format(tmp_path: Path) -> None:
-    (tmp_path / "a.jsonl").write_text("[]\n")
+    (tmp_path / "a.jsonl").write_text("[]\n", encoding="utf-8")
     assert detect_format(tmp_path) == (None, [])
 
 
 def test_detection_reads_only_the_start_of_json_lines(tmp_path: Path) -> None:
     path = tmp_path / "traces.jsonl"
-    path.write_text(_line(S1) + "x" * (40 * MIB) + "\n")
+    path.write_text(_line(S1) + "x" * (40 * MIB) + "\n", encoding="utf-8")
     tracemalloc.start()
     try:
         detect_format(path)
@@ -1041,7 +1047,7 @@ def test_detection_reads_only_the_start_of_json_lines(tmp_path: Path) -> None:
 
 def test_detection_keeps_scanning_after_console_exporter_output(tmp_path: Path) -> None:
     shutil.copy(CONSOLE_OUTPUT, tmp_path / "0-console.json")
-    (tmp_path / "1-traces.jsonl").write_text(_line(S1))
+    (tmp_path / "1-traces.jsonl").write_text(_line(S1), encoding="utf-8")
     assert detect_format(tmp_path) == ("otlp_jsonl", [])
 
 
@@ -1057,7 +1063,7 @@ def test_detection_without_a_format_reports_zstd_without_extra(
 
 def test_detection_reads_past_a_first_line_of_another_shape(tmp_path: Path) -> None:
     path = tmp_path / "traces.jsonl"
-    path.write_text(json.dumps({"resourceMetrics": []}) + "\n" + _line(S1))
+    path.write_text(json.dumps({"resourceMetrics": []}) + "\n" + _line(S1), encoding="utf-8")
     assert detect_format(path) == ("otlp_jsonl", [])
 
 

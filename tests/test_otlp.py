@@ -233,7 +233,7 @@ def _attribute_line(value: object) -> str:
 )
 def test_malformed_shape_is_reported(tmp_path: Path, line: str, expected: IssueKind) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(line + "\n")
+    path.write_text(line + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -242,7 +242,7 @@ def test_malformed_shape_is_reported(tmp_path: Path, line: str, expected: IssueK
 
 def test_malformed_entry_detail_names_it(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text('{"resourceSpans": [{"scopeSpans": []}, 1]}\n')
+    path.write_text('{"resourceSpans": [{"scopeSpans": []}, 1]}\n', encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -267,7 +267,7 @@ def test_malformed_scope_spans_detail_names_problem(
     tmp_path: Path, line: str, expected: str
 ) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(line + "\n")
+    path.write_text(line + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -276,7 +276,7 @@ def test_malformed_scope_spans_detail_names_problem(
 
 def test_unknown_value_type_detail_names_keys(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_attribute_line({"stringvalue": "DT-1"}) + "\n")
+    path.write_text(_attribute_line({"stringvalue": "DT-1"}) + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -285,7 +285,7 @@ def test_unknown_value_type_detail_names_keys(tmp_path: Path) -> None:
 
 def test_negative_int_value_text_is_decoded(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_attribute_line({"intValue": "-12"}) + "\n")
+    path.write_text(_attribute_line({"intValue": "-12"}) + "\n", encoding="utf-8")
 
     spans, _ = load_spans(path)
 
@@ -294,7 +294,7 @@ def test_negative_int_value_text_is_decoded(tmp_path: Path) -> None:
 
 def test_non_string_name_becomes_empty(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_span_line(name=5) + "\n")
+    path.write_text(_span_line(name=5) + "\n", encoding="utf-8")
 
     spans, _ = load_spans(path)
 
@@ -303,7 +303,7 @@ def test_non_string_name_becomes_empty(tmp_path: Path) -> None:
 
 def test_non_string_name_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_span_line(name=5) + "\n")
+    path.write_text(_span_line(name=5) + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -347,7 +347,7 @@ def test_invalid_id_is_reported(tmp_path: Path, trace_id: str, span_id: str, par
 
 def test_non_string_id_is_reported(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_span_line(traceId=123) + "\n")
+    path.write_text(_span_line(traceId=123) + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -373,7 +373,7 @@ def test_short_hex_id_detail_has_no_base64_hint(tmp_path: Path) -> None:
 
 def test_invalid_span_detail_names_line_number(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_line(S1) + _span_line(spanId="a1") + "\n")
+    path.write_text(_line(S1) + _span_line(spanId="a1") + "\n", encoding="utf-8")
 
     _, issues = load_spans(path)
 
@@ -383,7 +383,9 @@ def test_invalid_span_detail_names_line_number(tmp_path: Path) -> None:
 @pytest.mark.parametrize("start", [True, 1.5, 1000.0, "1.5", "abc", -1, None, 2**64, str(2**64)])
 def test_invalid_start_time_is_reported(tmp_path: Path, start: object) -> None:
     path = tmp_path / "t.jsonl"
-    path.write_text(_span_line(startTimeUnixNano=start, endTimeUnixNano=start) + "\n")
+    path.write_text(
+        _span_line(startTimeUnixNano=start, endTimeUnixNano=start) + "\n", encoding="utf-8"
+    )
 
     _, issues = load_spans(path)
 
@@ -393,7 +395,9 @@ def test_invalid_start_time_is_reported(tmp_path: Path, start: object) -> None:
 def test_largest_unsigned_64_bit_time_is_accepted(tmp_path: Path) -> None:
     largest = str(2**64 - 1)
     path = tmp_path / "t.jsonl"
-    path.write_text(_span_line(startTimeUnixNano=largest, endTimeUnixNano=largest) + "\n")
+    path.write_text(
+        _span_line(startTimeUnixNano=largest, endTimeUnixNano=largest) + "\n", encoding="utf-8"
+    )
 
     spans, _ = load_spans(path)
 

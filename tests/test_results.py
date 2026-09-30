@@ -576,7 +576,9 @@ def load_planted_result_json(tmp_path: Path) -> str:
     )
     write_jsonl(tmp_path / "traces.jsonl", [document])
     verdict_path = tmp_path / "verdicts.csv"
-    verdict_path.write_text("case_id,alert_class,verdict\nDT-7,impossible_travel,TP\n")
+    verdict_path.write_text(
+        "case_id,alert_class,verdict\nDT-7,impossible_travel,TP\n", encoding="utf-8"
+    )
     config = Config(label_map={"TP": TP, "benign": BENIGN})
     spans, _ = load_spans(tmp_path / "traces.jsonl")
     trace_cases, _ = build_trace_cases(spans, config.mapping)

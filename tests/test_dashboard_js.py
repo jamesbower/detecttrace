@@ -15,7 +15,7 @@ def test_case_table_script_passes_its_node_tests() -> None:
         ["node", "--test", *test_files],
         cwd=_ROOT,
         capture_output=True,
-        text=True,
         check=False,
+        encoding="utf-8",
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr

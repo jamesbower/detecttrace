@@ -143,11 +143,12 @@ def export_one(tmp_path: Path, span: ReadableSpan) -> dict[str, Any]:
     exporter = FileSpanExporter(path)
     exporter.export([span])
     exporter.shutdown()
-    return json.loads(path.read_text())["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+    document = json.loads(path.read_text(encoding="utf-8"))
+    return document["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
 
 
 def read_documents(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text().splitlines()]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 def span_names(path: Path) -> list[str]:
@@ -276,7 +277,9 @@ def test_one_fixed_span_encodes_to_the_expected_line(tmp_path: Path) -> None:
     exporter = FileSpanExporter(path)
     exporter.export([span])
 
-    assert path.read_text() == json.dumps(EXPECTED_LINE, separators=(",", ":")) + "\n"
+    assert (
+        path.read_text(encoding="utf-8") == json.dumps(EXPECTED_LINE, separators=(",", ":")) + "\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -446,7 +449,7 @@ def test_one_export_writes_one_line(tmp_path: Path) -> None:
     exporter.export([make_span("a"), make_span("b")])
     exporter.export([make_span("c")])
 
-    assert len(path.read_text().splitlines()) == 2
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2
 
 
 def test_empty_export_writes_no_file(tmp_path: Path) -> None:
@@ -1019,16 +1022,16 @@ def clean_line(tmp_path: Path) -> str:
     """The line one export of make_span() writes to an empty file, without its newline."""
     path = tmp_path / "clean.jsonl"
     FileSpanExporter(path).export([make_span()])
-    return path.read_text().removesuffix("\n")
+    return path.read_text(encoding="utf-8").removesuffix("\n")
 
 
 def test_export_after_a_partial_line_starts_a_new_line(tmp_path: Path) -> None:
     expected = clean_line(tmp_path)
     path = tmp_path / "spans.jsonl"
-    path.write_text(PARTIAL_LINE)
+    path.write_text(PARTIAL_LINE, encoding="utf-8")
     FileSpanExporter(path).export([make_span()])
 
-    assert path.read_text().splitlines() == [PARTIAL_LINE, expected]
+    assert path.read_text(encoding="utf-8").splitlines() == [PARTIAL_LINE, expected]
 
 
 def test_export_after_a_short_then_failing_write_starts_a_new_line(
@@ -1042,7 +1045,7 @@ def test_export_after_a_short_then_failing_write_starts_a_new_line(
     monkeypatch.undo()
     exporter.export([make_span()])
 
-    assert path.read_text().splitlines()[-1] == expected
+    assert path.read_text(encoding="utf-8").splitlines()[-1] == expected
 
 
 def _open_short_then_failing(fd: int, mode: str, buffering: int) -> "_ShortThenFailingFile":
@@ -1073,7 +1076,10 @@ _BLOCK_SDK = "import sys; sys.modules['opentelemetry'] = None\n"
 
 def _run_python(code: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-c", _BLOCK_SDK + code], capture_output=True, text=True, check=False
+        [sys.executable, "-c", _BLOCK_SDK + code],
+        capture_output=True,
+        check=False,
+        encoding="utf-8",
     )
 
 

@@ -615,8 +615,8 @@ def test_python_m_detecttrace_prints_the_version() -> None:
     completed = subprocess.run(
         [sys.executable, "-m", "detecttrace", "--version"],
         capture_output=True,
-        text=True,
         check=False,
+        encoding="utf-8",
     )
 
     assert completed.stdout == f"detecttrace {__version__}\n"
