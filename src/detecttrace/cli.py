@@ -503,7 +503,7 @@ def _init(options: _InitOptions) -> int:
     if missing_tool_calls is not None:
         trace_issues.append(missing_tool_calls)
     if not options.is_quiet:
-        _echo_found(proposal, len(rows), summarize_issues(trace_issues + verdict_issues))
+        _echo_found(proposal, draft, len(rows), summarize_issues(trace_issues + verdict_issues))
 
     if is_interactive:
         try:
@@ -621,7 +621,10 @@ def _find_init_target_problem(target: Path, *, is_force: bool) -> str | None:
     return None
 
 
-def _echo_found(proposal: Proposal, verdict_row_count: int, problems: list[SummaryLine]) -> None:
+def _echo_found(
+    proposal: Proposal, draft: InitDraft, verdict_row_count: int, problems: list[SummaryLine]
+) -> None:
+
     def echo(text: str = "") -> None:
         typer.echo(text, err=True)
 
@@ -656,12 +659,13 @@ def _echo_found(proposal: Proposal, verdict_row_count: int, problems: list[Summa
             f"  {to_terminal_text(alert_class)} ({count:,} {noun}): "
             f"{', '.join(shown) if shown else '(no tool calls)'}"
         )
+    # From the draft, not the proposal, so labels mapped with --set show as mapped.
     for title, mapped, unmapped in (
-        ("Analyst labels:", proposal.label_map, proposal.unmapped_analyst_labels),
+        ("Analyst labels:", draft.label_map, draft.unmapped_analyst_labels),
         (
             "Agent labels not in the verdict file:",
-            proposal.agent_label_map,
-            proposal.unmapped_agent_labels,
+            draft.agent_label_map,
+            draft.unmapped_agent_labels,
         ),
     ):
         if mapped or unmapped:

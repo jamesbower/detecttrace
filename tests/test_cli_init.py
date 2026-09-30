@@ -220,6 +220,18 @@ def test_found_summary_shows_unmapped_labels(demo_copy: Path) -> None:
     assert "  Malicious: not mapped" in result.stderr
 
 
+def test_found_summary_shows_a_label_mapped_with_set(demo_copy: Path) -> None:
+    result = _init(demo_copy, "--yes", "--dry-run", "--set", "label_map.Malicious=true_positive")
+
+    assert "  Malicious: true_positive" in result.stderr
+
+
+def test_found_summary_does_not_call_a_label_mapped_with_set_unmapped(demo_copy: Path) -> None:
+    result = _init(demo_copy, "--yes", "--dry-run", "--set", "label_map.Malicious=true_positive")
+
+    assert "  Malicious: not mapped" not in result.stderr
+
+
 def test_yes_warns_about_labels_left_unmapped(demo_copy: Path) -> None:
     result = _init(demo_copy, "--yes", "--dry-run")
 
