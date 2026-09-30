@@ -224,6 +224,19 @@ def test_nested_case_says_its_tool_calls_count_only_for_the_inner_case() -> None
     )
 
 
+def test_nested_cases_say_the_tool_calls_below_them_count_only_for_the_inner_case() -> None:
+    line = only_line(
+        [
+            Issue(IssueKind.NESTED_CASE, "DT-2", "inside case DT-1"),
+            Issue(IssueKind.NESTED_CASE, "DT-3", "inside case DT-1"),
+        ]
+    )
+    assert line.message == (
+        "2 cases start inside another case; the tool calls below them count only for the "
+        "inner case."
+    )
+
+
 @pytest.mark.parametrize("kind", [IssueKind.INVALID_LINE, IssueKind.INVALID_FILE])
 def test_trace_input_hints_name_langfuse_exports_too(kind: IssueKind) -> None:
     assert "Langfuse" in only_line([Issue(kind, "x")]).hint
