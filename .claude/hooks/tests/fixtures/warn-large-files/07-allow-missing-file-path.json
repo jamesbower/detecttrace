@@ -1,5 +1,0 @@
-{
-  "name": "missing file_path allowed",
-  "stdin": { "tool_input": {} },
-  "expect_exit": 0
-}

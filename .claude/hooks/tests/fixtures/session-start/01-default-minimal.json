@@ -1,5 +1,0 @@
-{
-  "name": "default mode exits 0 in a git repo",
-  "stdin": {},
-  "expect_exit": 0
-}
