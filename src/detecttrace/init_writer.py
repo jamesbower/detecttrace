@@ -169,6 +169,36 @@ def apply_overrides(draft: InitDraft, sets: list[str]) -> InitDraft:
     return draft
 
 
+def set_label(draft: InitDraft, area: str, label: str, verdict: Verdict) -> InitDraft:
+    """Map `label` in `area` (label_map or agent_label_map), replacing other spellings of it.
+
+    Unlike `--set`, the label may contain any character, so a label read from the input
+    can always be mapped.
+    """
+    key = normalize_label(label)
+
+    def others(labels: dict[str, Verdict]) -> dict[str, Verdict]:
+        return {name: value for name, value in labels.items() if normalize_label(name) != key}
+
+    def still_unmapped(labels: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(name for name in labels if normalize_label(name) != key)
+
+    if area == "label_map":
+        return dataclasses.replace(
+            draft,
+            label_map={**others(draft.label_map), label: verdict},
+            unmapped_analyst_labels=still_unmapped(draft.unmapped_analyst_labels),
+            missing_required=tuple(
+                name for name in draft.missing_required if name != REQUIRED_LABELS
+            ),
+        )
+    return dataclasses.replace(
+        draft,
+        agent_label_map={**others(draft.agent_label_map), label: verdict},
+        unmapped_agent_labels=still_unmapped(draft.unmapped_agent_labels),
+    )
+
+
 def render_config_yaml(draft: InitDraft) -> str:
     """detecttrace.yaml as text: a header comment, then the keys in a fixed order.
 
@@ -340,7 +370,7 @@ def _apply_override(draft: InitDraft, text: str) -> InitDraft:
         raise OverrideError(f"--set {_to_comment_text(key)}: {problems}") from None
 
     if is_label_key:
-        return _set_label(draft, area, label, Verdict(value))
+        return set_label(draft, area, label, Verdict(value))
     missing = tuple(name for name in draft.missing_required if name != _SATISFIES.get(key))
     coverage = dict(draft.coverage)
     if key.startswith("mapping.operation."):
@@ -368,31 +398,6 @@ def _to_typed_value(value: str) -> object:
         return parse_yaml12(value, Path("--set"))
     except Yaml12Error:
         return value
-
-
-def _set_label(draft: InitDraft, area: str, label: str, verdict: Verdict) -> InitDraft:
-    key = normalize_label(label)
-
-    def others(labels: dict[str, Verdict]) -> dict[str, Verdict]:
-        return {name: value for name, value in labels.items() if normalize_label(name) != key}
-
-    def still_unmapped(labels: tuple[str, ...]) -> tuple[str, ...]:
-        return tuple(name for name in labels if normalize_label(name) != key)
-
-    if area == "label_map":
-        return dataclasses.replace(
-            draft,
-            label_map={**others(draft.label_map), label: verdict},
-            unmapped_analyst_labels=still_unmapped(draft.unmapped_analyst_labels),
-            missing_required=tuple(
-                name for name in draft.missing_required if name != REQUIRED_LABELS
-            ),
-        )
-    return dataclasses.replace(
-        draft,
-        agent_label_map={**others(draft.agent_label_map), label: verdict},
-        unmapped_agent_labels=still_unmapped(draft.unmapped_agent_labels),
-    )
 
 
 def _to_document(draft: InitDraft) -> dict[str, Any]:
