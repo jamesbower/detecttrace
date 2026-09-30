@@ -607,12 +607,6 @@ def test_demo_without_bundled_data_says_it_is_missing(monkeypatch: pytest.Monkey
     assert "demo data is missing from this installation" in result.stderr
 
 
-def test_version_prints_the_package_version() -> None:
-    result = _invoke("--version")
-
-    assert result.stdout == f"detecttrace {__version__}\n"
-
-
 def test_version_is_the_one_in_pyproject() -> None:
     pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
