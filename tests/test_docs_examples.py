@@ -16,6 +16,10 @@ ROOT = Path(__file__).parent.parent
 DOC_FILES = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
 # A fence may be indented, as in a list item; the closing fence has the same indent.
 _FENCE = re.compile(r"^( *)```(\w*)\n(.*?)^\1```$", re.MULTILINE | re.DOTALL)
+# Any fence line at any indent; fences alternate, so every other one opens a block.
+_FENCE_LINE = re.compile(r"^ *```(.*)$", re.MULTILINE)
+# Lowercase and spelled one way, so a block can't slip past the loaders as `yml` or `YAML`.
+FENCE_LANGUAGES = {"", "python", "sh", "text", "yaml"}
 
 
 @dataclass(frozen=True)
@@ -63,6 +67,21 @@ def _of_kind(kind: str) -> list[Block]:
 
 def _ids(blocks: list[Block]) -> list[str]:
     return [block.where for block in blocks]
+
+
+@pytest.mark.parametrize("path", DOC_FILES, ids=[path.name for path in DOC_FILES])
+def test_every_fence_names_an_allowed_language(path: Path) -> None:
+    languages = _FENCE_LINE.findall(path.read_text(encoding="utf-8"))[::2]
+
+    assert sorted(set(languages) - FENCE_LANGUAGES) == []
+
+
+@pytest.mark.parametrize("path", DOC_FILES, ids=[path.name for path in DOC_FILES])
+def test_every_fence_closes_at_its_own_indent(path: Path) -> None:
+    # A block the pattern misses, such as one closed at another indent, is never loaded.
+    text = path.read_text(encoding="utf-8")
+
+    assert len(_FENCE_LINE.findall(text)[::2]) == len(_FENCE.findall(text))
 
 
 def test_docs_hold_every_kind_of_example() -> None:
