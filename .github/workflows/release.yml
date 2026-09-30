@@ -58,6 +58,24 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.21"
+          python-version: "3.13"
+          enable-cache: false
+      - run: uv sync --locked
+      - run: uv run pytest
+        env:
+          PYTHONWARNDEFAULTENCODING: "1"
+
   benchmark:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -75,10 +93,10 @@ jobs:
       - run: uv run pytest -m benchmark
 
   publish-testpypi:
-    needs: [build, benchmark]
-    # The benchmark runs for tags only; a manual run goes on without it.
+    needs: [build, test, benchmark]
+    # The benchmark runs for tags only; a manual run goes on without it. The tests run for both.
     if: >-
-      !cancelled() && needs.build.result == 'success' &&
+      !cancelled() && needs.build.result == 'success' && needs.test.result == 'success' &&
       (needs.benchmark.result == 'success' ||
        (github.event_name == 'workflow_dispatch' && needs.benchmark.result == 'skipped'))
     runs-on: ubuntu-latest
