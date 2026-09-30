@@ -5,8 +5,8 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 from detecttrace import conventions
+from detecttrace.jsontext import Json, Report, parse_json_text
 from detecttrace.model import Issue, IssueKind, Span, to_short_label
-from detecttrace.otlp import Json, Report, parse_json_text
 
 _MAX_ID_LENGTH = 200
 _HEX_ID = re.compile(r"[0-9a-fA-F]+")

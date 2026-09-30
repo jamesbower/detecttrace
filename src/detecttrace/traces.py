@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from detecttrace import langfuse, otlp
+from detecttrace.jsontext import Json, parse_json_text
 from detecttrace.model import InputFileError, Issue, IssueKind, Span, describe_os_error
-from detecttrace.otlp import Json
 from detecttrace.runconfig import TraceFormat
 
 if TYPE_CHECKING:
@@ -286,7 +286,7 @@ def _read_one_document(
     except UnicodeDecodeError:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, "not UTF-8"))
         return
-    document = otlp.parse_json_text(text)
+    document = parse_json_text(text)
     if document is None:
         issues.append(Issue(IssueKind.INVALID_FILE, subject, "not valid JSON"))
         return
@@ -297,7 +297,7 @@ def _load_document(file_path: Path) -> Json | None:
     # A too-large file whose first line is not a whole document is read as JSON lines instead.
     data = _read_document_bytes(file_path)
     try:
-        return None if data is None else otlp.parse_json_text(data.decode("utf-8-sig"))
+        return None if data is None else parse_json_text(data.decode("utf-8-sig"))
     except UnicodeDecodeError:
         return None
 
@@ -453,4 +453,4 @@ def _parse_json_line(line: bytes) -> Json | None:
         text = line.decode("utf-8")
     except UnicodeDecodeError:
         return None
-    return otlp.parse_json_text(text)
+    return parse_json_text(text)
