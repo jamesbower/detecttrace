@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from detecttrace.dashboard import is_dashboard_file
 
 EXTRA_VERDICTS = "DT-7,impossible_travel,TP\nDT-8,impossible_travel,FP\nDT-9,impossible_travel,FP\nDT-10,impossible_travel,FP\n"
 DEMO_DATA = Path(cli.__file__).parent / cli.DEMO_FOLDER
+REPO_ROOT = Path(__file__).resolve().parents[1]
 INTERNAL_ERROR = "detecttrace: internal error (RuntimeError). Please report it.\n"
 # The smallest page detecttrace takes as its own: the doctype, then the generator marker in the head.
 EARLIER_PAGE = '<!DOCTYPE html>\n<head><meta name="generator" content="detecttrace 0.0.1"></head>\n'
@@ -611,6 +613,14 @@ def test_version_prints_the_package_version() -> None:
     assert result.stdout == f"detecttrace {__version__}\n"
 
 
+def test_version_is_the_one_in_pyproject() -> None:
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    result = _invoke("--version")
+
+    assert result.stdout == f"detecttrace {pyproject['project']['version']}\n"
+
+
 def test_python_m_detecttrace_prints_the_version() -> None:
     completed = subprocess.run(
         [sys.executable, "-m", "detecttrace", "--version"],
@@ -837,7 +847,7 @@ def test_the_output_is_checked_again_just_before_writing(
 ) -> None:
     config_path = write_run_folder(tmp_path)
     target = tmp_path / "dashboard.html"
-    real_run_check = cli.run_check
+    real_run_check = pipeline.run_check
 
     def run_then_create_a_file(*args: Any) -> pipeline.RunResult:
         result = real_run_check(*args)
@@ -976,7 +986,7 @@ def test_the_json_output_is_checked_again_just_before_writing(
 ) -> None:
     config_path = write_run_folder(tmp_path)
     target = tmp_path / "results.json"
-    real_run_check = cli.run_check
+    real_run_check = pipeline.run_check
 
     def run_then_create_a_file(*args: Any) -> pipeline.RunResult:
         result = real_run_check(*args)

@@ -1,3 +1,6 @@
 """DetectTrace POC: agent assurance from OpenTelemetry traces and analyst verdicts."""
 
-__version__ = "0.1.0.dev0"
+from importlib.metadata import version
+
+# pyproject.toml is the one place the version is written down.
+__version__ = version("detecttrace")

@@ -4,6 +4,34 @@ version = "0.1.0.dev0"
 description = "Agent assurance for AI SOC agents: compare agent traces with analyst verdicts."
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "James Bower" }]
+keywords = [
+    "ai-agents",
+    "evaluation",
+    "genai",
+    "langfuse",
+    "llm",
+    "observability",
+    "opentelemetry",
+    "security",
+    "soc",
+    "tracing",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
 requires-python = ">=3.11"
 dependencies = [
     "jinja2>=3.1",
@@ -20,12 +48,22 @@ otel = [
     "opentelemetry-sdk>=1.30,<2",
 ]
 
+[project.urls]
+Homepage = "https://detecttrace.ai"
+Source = "https://github.com/jamesbower/detecttrace"
+Issues = "https://github.com/jamesbower/detecttrace/issues"
+Changelog = "https://github.com/jamesbower/detecttrace/blob/main/CHANGELOG.md"
+
 [project.scripts]
 detecttrace = "detecttrace.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.8,<0.12"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The sdist carries only what builds the wheel plus the changelog: no tests, scripts or docs.
+source-include = ["CHANGELOG.md"]
 
 [tool.ruff]
 line-length = 100

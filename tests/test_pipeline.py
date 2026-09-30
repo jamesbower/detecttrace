@@ -234,7 +234,7 @@ def test_pausing_the_garbage_collector_leaves_the_demo_results_unchanged(
 ) -> None:
     config_path = DEMO_DIR / "detecttrace.yaml"
     paused = _run(config_path).results
-    monkeypatch.setattr(pipeline.gc, "disable", lambda: None)
+    monkeypatch.setattr(gc, "disable", lambda: None)
 
     unpaused = _run(config_path).results
 
