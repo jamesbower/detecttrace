@@ -2,12 +2,21 @@
 
 import gzip
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
 from detecttrace.model import Span
 
 TRACE_ID = "0af7651916cd43dd8448eb211c80319c"
+
+
+def make_fifo(path: Path) -> None:
+    """Create a named pipe; callers skip on Windows, which has no `os.mkfifo`."""
+    if sys.platform == "win32":
+        raise NotImplementedError("named pipes need POSIX")
+    os.mkfifo(path)
 
 
 def span_hex(n: int) -> str:

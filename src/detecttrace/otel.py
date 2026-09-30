@@ -21,6 +21,7 @@ import math
 import os
 import stat
 import string
+import sys
 import threading
 import time
 import weakref
@@ -46,7 +47,7 @@ _PLACEHOLDERS = frozenset({"pid", "date"})
 _WARNING_INTERVAL_SECONDS = 60.0
 # O_NOFOLLOW: a symlink planted at the path cannot redirect spans into another file.
 # O_NONBLOCK: opening a FIFO planted there returns at once instead of waiting for a reader.
-_O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
+_O_NONBLOCK = 0 if sys.platform == "win32" else os.O_NONBLOCK
 _OPEN_FLAGS = (
     os.O_RDWR
     | os.O_APPEND
@@ -99,7 +100,7 @@ class FileSpanExporter(SpanExporter):
         self._last_warning: float | None = None
         self._last_recovery: float | None = None
         self._suppressed = 0
-        if hasattr(os, "register_at_fork"):
+        if sys.platform != "win32":
             # A weak reference, so the hook never keeps a discarded exporter alive.
             this: weakref.ref[FileSpanExporter] = weakref.ref(self)
             os.register_at_fork(after_in_child=lambda: _reset_in_child(this))
@@ -234,7 +235,7 @@ def _open_regular_file(path: str) -> io.FileIO:
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise OSError(f"{path} is not a regular file")
-        if _O_NONBLOCK:
+        if sys.platform != "win32":
             os.set_blocking(fd, True)
         return os.fdopen(fd, "a+b", buffering=0)
     except BaseException:

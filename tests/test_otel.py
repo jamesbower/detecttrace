@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from builders import make_fifo
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import (
     Event,
@@ -532,6 +533,8 @@ def test_pid_placeholder_gives_each_process_its_own_file(
 
 def fork_and_export(exporter: FileSpanExporter, name: str) -> int:
     """Export one span from a forked child; return its exit code, failing if it hangs."""
+    if sys.platform == "win32":
+        raise NotImplementedError("os.fork needs POSIX")
     child = os.fork()
     if child == 0:  # pragma: no cover - runs in the child process
         code = 1
@@ -991,10 +994,10 @@ def test_symlink_at_the_path_warns(
     assert [r.name for r in caplog.records] == [LOGGER_NAME]
 
 
-@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs os.mkfifo")
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX named pipe")
 def test_fifo_at_the_path_returns_failure_without_blocking(tmp_path: Path) -> None:
     path = tmp_path / "spans.jsonl"
-    os.mkfifo(path)
+    make_fifo(path)
     exporter = FileSpanExporter(path)
     results: list[SpanExportResult] = []
     # A daemon thread, so an export blocked on the FIFO cannot keep the test run from exiting.

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from builders import make_fifo
 
 from detecttrace.checklist import (
     ArgRule,
@@ -260,9 +261,9 @@ def test_broken_symlink_raises(tmp_path: Path) -> None:
         load_checklists(tmp_path)
 
 
-@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX named pipe")
 def test_named_pipe_is_not_read(tmp_path: Path) -> None:
-    os.mkfifo(tmp_path / "c.yaml")
+    make_fifo(tmp_path / "c.yaml")
     with pytest.raises(ChecklistFileError, match=r"c\.yaml: not a regular file"):
         load_checklists(tmp_path)
 

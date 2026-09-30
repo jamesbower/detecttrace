@@ -7,7 +7,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from builders import case_root, otlp_document, otlp_span, span_hex, tool_span, write_jsonl
+from builders import (
+    case_root,
+    make_fifo,
+    otlp_document,
+    otlp_span,
+    span_hex,
+    tool_span,
+    write_jsonl,
+)
 from scale import SCALE_CHECKLISTS, make_scale_cases
 
 from detecttrace import __version__
@@ -802,6 +810,6 @@ def test_an_unreadable_file_cannot_be_checked(tmp_path: Path):
 @pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX named pipe")
 def test_a_named_pipe_is_not_recognized_and_not_opened(tmp_path: Path):
     path = tmp_path / "pipe.json"
-    os.mkfifo(path)
+    make_fifo(path)
 
     assert is_results_file(path) is False
