@@ -8,7 +8,8 @@ the behaviors to inject. The generator writes OTLP traces in the Collector file-
 layout (gzip-compressed JSON lines, one resourceSpans batch per line, rotated into a few
 files), the analyst verdict CSV, one checklist per class and a ready detecttrace.yaml.
 `--update-golden` also rewrites expected.json and expected.html (the dashboard) from a check
-run on the written files.
+run on the written files, and each trace format variant's expected_init.yaml from an
+`init --yes --dry-run` run on it.
 
 Output depends only on the scenario: randomness comes from `random.Random(seed).random()`
 alone, because other `random` helpers changed between Python versions; gzip is written with
@@ -40,6 +41,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_DIR = Path(__file__).resolve().parent / "scenarios"
 GOLDEN_NAME = "expected.json"
 GOLDEN_HTML_NAME = "expected.html"
+INIT_GOLDEN_NAME = "expected_init.yaml"
 STYLESHEET_PLACEHOLDER = "/* stylesheet */"
 SCRIPT_PLACEHOLDER = "/* script */"
 RESULTS_PLACEHOLDER = "{}"
@@ -245,7 +247,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--update-golden",
         action="store_true",
-        help=f"also rewrite {GOLDEN_NAME} and {GOLDEN_HTML_NAME}",
+        help=f"also rewrite {GOLDEN_NAME}, {GOLDEN_HTML_NAME} and {INIT_GOLDEN_NAME}",
     )
     args = parser.parse_args(argv)
     if args.scenario is None:
@@ -278,6 +280,8 @@ def _write_everything(should_update_golden: bool) -> list[Path]:
         paths.extend(fixture_specs.write_fixture(spec, fixture_specs.FIXTURE_ROOT))
         if should_update_golden:
             paths.append(fixture_specs.update_fixture_golden(spec, fixture_specs.FIXTURE_ROOT))
+            if spec.name in fixture_specs.INIT_VARIANTS:
+                paths.append(fixture_specs.update_init_golden(spec, fixture_specs.FIXTURE_ROOT))
     return paths
 
 

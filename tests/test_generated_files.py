@@ -280,7 +280,8 @@ def _list_generated(folder: Path) -> set[str]:
     return {
         name
         for name in _list_files(folder)
-        if Path(name).name not in (generate.GOLDEN_NAME, generate.GOLDEN_HTML_NAME)
+        if Path(name).name
+        not in (generate.GOLDEN_NAME, generate.GOLDEN_HTML_NAME, generate.INIT_GOLDEN_NAME)
         and not name.startswith(CAPTURED_FIXTURES)
     }
 

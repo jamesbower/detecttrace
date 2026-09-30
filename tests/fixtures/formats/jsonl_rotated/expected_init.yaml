@@ -1,0 +1,64 @@
+# Configuration written by `detecttrace init`. Paths are relative to this file.
+# Run `detecttrace check` to build the dashboard.
+#
+# Found: otlp_jsonl traces, 201 agent runs.
+#   case_id: "detecttrace.case_id" on 201 of 201 agent runs (detecttrace attribute)
+#   alert_class: "detecttrace.alert_class" on 201 of 201 agent runs (detecttrace attribute)
+#   verdict: "detecttrace.verdict" on 201 of 201 agent runs (detecttrace attribute)
+#   prompt_version: "detecttrace.prompt_version" on 201 of 201 agent runs (detecttrace attribute)
+#   tool_name: "gen_ai.tool.name" on 1,059 of 1,059 tool calls (default)
+#   tool_arguments: "gen_ai.tool.call.arguments" on 1,059 of 1,059 tool calls (default)
+#   operation: "gen_ai.operation.name": agent runs "invoke_agent", tool calls "execute_tool" (gen_ai.operation.name)
+#
+# checklists/impossible_travel.yaml.example is inactive until renamed to .yaml.
+# It lists every tool the agent called for "impossible_travel";
+# keep only the calls the playbook requires, then rename it.
+traces:
+  path: "traces"
+  format: "otlp_jsonl"
+verdicts:
+  path: "verdicts.csv"
+label_map:
+  "FP": "false_positive"
+  "TP": "true_positive"
+  # Analyst labels not mapped yet; check reports them as unmapped.
+  # Uncomment each and set true_positive, false_positive or benign.
+  # "Closed - Benign": ""
+  # "Malicious": ""
+agent_label_map:
+  "Benign": "benign"
+checklists: "checklists"
+output: "detecttrace-dashboard.html"
+# Where each value is read from. Commented keys use their default.
+# mapping:
+  # case_id: "detecttrace.case_id"
+  # alert_class: "detecttrace.alert_class"
+  # verdict: "detecttrace.verdict"
+  # prompt_version: "detecttrace.prompt_version"
+  # prompt_version_lookup: "root_then_resource"
+  # tool_name: "gen_ai.tool.name"
+  # tool_arguments: "gen_ai.tool.call.arguments"
+  # operation:
+    # attribute: "gen_ai.operation.name"
+    # agent_value: "invoke_agent"
+    # tool_value: "execute_tool"
+    # span_name_fallback: true
+--- # checklists/impossible_travel.yaml.example
+# Example checklist written by `detecttrace init`. It is inactive until renamed to impossible_travel.yaml.
+# It lists every tool the agent called for this alert class, so as written it would
+# score close to 100% evidence completeness. Keep only the calls the playbook
+# requires, add argument rules where a call must cover a range or a value, then rename.
+alert_class: "impossible_travel"
+items:
+  - id: "check_mfa_status"
+    tool: "check_mfa_status"
+  - id: "get_ip_reputation"
+    tool: "get_ip_reputation"
+  - id: "get_signin_logs"
+    tool: "get_signin_logs"
+  - id: "get_user_locations"
+    tool: "get_user_locations"
+  - id: "get_user_profile"
+    tool: "get_user_profile"
+  - id: "query_sentinel"
+    tool: "query_sentinel"

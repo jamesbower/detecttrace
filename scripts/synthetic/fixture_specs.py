@@ -40,6 +40,23 @@ class FixtureSpec:
 
 
 FIXTURES: list[FixtureSpec] = []
+# The trace format variants with an init golden file. Console exporter output is left out:
+# init rejects it, which a test checks.
+INIT_VARIANTS = tuple(
+    f"formats/{name}"
+    for name in (
+        "jsonl_rotated",
+        "gzip",
+        "zstd",
+        "single_document",
+        "openinference",
+        "no_operation_name",
+        "otlp_subset",
+        "file_span_exporter",
+        "langfuse",
+    )
+)
+_GOLDEN_NAMES = (generate.GOLDEN_NAME, generate.INIT_GOLDEN_NAME)
 
 
 def write_fixture(spec: FixtureSpec, root: Path) -> list[Path]:
@@ -48,7 +65,7 @@ def write_fixture(spec: FixtureSpec, root: Path) -> list[Path]:
     written = spec.write(folder)
     kept = {path.absolute() for path in written}
     for path in sorted(folder.rglob("*")):
-        if path.is_file() and path.name != generate.GOLDEN_NAME and path.absolute() not in kept:
+        if path.is_file() and path.name not in _GOLDEN_NAMES and path.absolute() not in kept:
             path.unlink()
     return sorted(written, key=lambda path: path.as_posix())
 
@@ -58,6 +75,42 @@ def update_fixture_golden(spec: FixtureSpec, root: Path) -> Path:
     return generate.write_text(
         folder / generate.GOLDEN_NAME, generate.to_golden_text(check_fixture(folder, spec.keep))
     )
+
+
+def update_init_golden(spec: FixtureSpec, root: Path) -> Path:
+    folder = root / spec.name
+    return generate.write_text(folder / generate.INIT_GOLDEN_NAME, run_init_dry_run(folder))
+
+
+def run_init_dry_run(folder: Path) -> str:
+    """What `init --yes --dry-run` prints on stdout for a fixture folder's traces and verdicts.
+
+    The printed paths are relative to the configuration file, so the output is the same
+    wherever the repository is.
+    """
+    # Imported here so writing fixtures never depends on the command line being importable.
+    from typer.testing import CliRunner
+
+    from detecttrace import cli
+
+    result = CliRunner().invoke(cli.app, to_init_arguments(folder))
+    if result.exit_code != 0:
+        raise RuntimeError(f"init exited {result.exit_code} on {folder}:\n{result.stderr}")
+    return result.stdout
+
+
+def to_init_arguments(folder: Path) -> list[str]:
+    return [
+        "init",
+        "--traces",
+        str(folder / "traces"),
+        "--verdicts",
+        str(folder / "verdicts.csv"),
+        "--config",
+        str(folder / CONFIG_NAME),
+        "--yes",
+        "--dry-run",
+    ]
 
 
 def check_fixture(folder: Path, keep: Sequence[str]) -> dict[str, object]:
