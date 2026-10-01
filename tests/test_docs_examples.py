@@ -40,6 +40,9 @@ def _classify(language: str, text: str) -> str:
         return "checklist"
     if re.search(r"^traces:", text, re.MULTILINE):
         return "config"
+    # A fragment that shows only the mapping section of a configuration.
+    if re.fullmatch(r"mapping:\n(?:[ #].*\n|\n)*", text):
+        return "mapping"
     return "unknown"
 
 
@@ -88,7 +91,7 @@ def test_docs_hold_every_kind_of_example() -> None:
     assert {block.kind for block in BLOCKS} >= {"config", "checklist", "collector", "python"}
 
 
-def test_every_yaml_example_is_a_config_checklist_or_collector_config() -> None:
+def test_every_yaml_example_is_a_config_mapping_checklist_or_collector_config() -> None:
     assert _ids(_of_kind("unknown")) == []
 
 
@@ -96,6 +99,20 @@ def test_every_yaml_example_is_a_config_checklist_or_collector_config() -> None:
 def test_config_example_loads(block: Block, tmp_path: Path) -> None:
     path = tmp_path / "detecttrace.yaml"
     path.write_text(block.text, encoding="utf-8")
+
+    config = load_run_config(path)
+
+    assert isinstance(config, RunConfig)
+
+
+# The smallest configuration a mapping fragment can sit in; the paths need not exist to load.
+_MINIMAL_CONFIG = "traces:\n  path: traces/\nverdicts:\n  path: verdicts.csv\n"
+
+
+@pytest.mark.parametrize("block", _of_kind("mapping"), ids=_ids(_of_kind("mapping")))
+def test_mapping_example_loads_in_a_minimal_config(block: Block, tmp_path: Path) -> None:
+    path = tmp_path / "detecttrace.yaml"
+    path.write_text(_MINIMAL_CONFIG + block.text, encoding="utf-8")
 
     config = load_run_config(path)
 
