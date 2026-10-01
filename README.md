@@ -141,6 +141,8 @@ The OpenTelemetry SDK's console exporter doesn't write OTLP JSON. DetectTrace re
 
 **Verdicts.** A CSV with `case_id`, `alert_class`, and `verdict`. The label map converts your team's labels into three verdicts: `true_positive`, `false_positive`, and `benign`. Matching ignores case and extra spaces. Add `agent_label_map` if the agent uses different labels from the analysts. DetectTrace never guesses a label; unmapped labels are reported.
 
+**Keep the analysts blind.** Every metric treats the analyst verdict as the truth, so how analysts reach it matters. If they can see the agent's verdict before they decide, they tend to agree with it, and agreement, chance-corrected agreement and dangerous false closes all look better than they are. During shadow mode, hide the agent's verdict until the analyst has decided. DetectTrace can't detect this bias in the data, so it can't correct for it afterwards.
+
 **Checklists.** One YAML file per alert class, written by you from your own playbook. For example, an excerpt from the demo:
 
 ```yaml

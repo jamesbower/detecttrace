@@ -33,6 +33,25 @@ Notes:
 
 Values longer than 200 characters are cut to 199 characters plus "…", and reported once. The verdict file's values are cut the same way, so a long case ID still joins.
 
+### Prompt and model together
+
+DetectTrace splits results by one version label, read from one attribute. It can't combine two attributes. To see prompt and model changes in the same view, set one label that carries both when the agent run starts:
+
+```python
+run.set_attribute("detecttrace.prompt_version", f"{prompt_version}+{model}")
+```
+
+`v2+model-a` and `v2+model-b` then show as two versions. Each combination is a separate version, so cases split thinner, and only the six versions with the most cases are shown per class. The rest are grouped as `other`.
+
+To split by model alone, map `prompt_version` to the attribute that holds the model:
+
+```yaml
+mapping:
+  prompt_version: gen_ai.request.model
+```
+
+If the model is set only on the spans below the agent run, add `prompt_version_lookup: descendant`. A run that used two different models then has no version, and it is reported.
+
 ## GenAI conventions
 
 DetectTrace reads these names from the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), pinned to semantic-conventions v1.41.1. Every name below is present from v1.38.0.
