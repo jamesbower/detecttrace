@@ -2,7 +2,7 @@
 
 Agent assurance for AI SOC agents. DetectTrace reads your agent's OpenTelemetry traces and your analysts' verdicts, then shows how the agent compares with the analysts, per alert class and per prompt version, and which investigation steps the agent skips.
 
-> **Status: in development.** `detecttrace demo` and `detecttrace check` run every check and write one offline HTML dashboard. `detecttrace init` proposes a configuration from your traces and verdicts. Traces can come from OTLP JSON files or a Langfuse export. The first PyPI release is being prepared.
+> **Status: in development.** `detecttrace demo` and `detecttrace check` run every check and write one self-contained HTML dashboard that opens without a network. `detecttrace init` proposes a configuration from your traces and verdicts. Traces can come from OTLP JSON files or a Langfuse export. `detecttrace serve` runs the same dashboard as a service for a team, fed by an OpenTelemetry Collector and a verdict API. The first PyPI release is being prepared.
 
 ## The problem
 
@@ -18,7 +18,7 @@ The most costly mistake is also the one agreement hides best: the agent closes a
 
 ## What the POC gives you
 
-A local command-line tool that turns traces and verdicts into a view that goes beyond one agreement number.
+A command-line tool that turns traces and verdicts into a view that goes beyond one agreement number. Run it on files, or as a service that your Collector feeds.
 
 - **Verdict agreement with chance corrected.** Agreement rate and Cohen's kappa per alert class, with a 3 × 3 confusion matrix. Kappa shows when high agreement comes only from the base rate. Chance-corrected agreement is Cohen's kappa: 0 means no better than chance, 1 means perfect agreement.
 - **Dangerous false closes.** Cases where the analyst said true positive and the agent said benign or false positive, as a count with the case IDs.
@@ -166,9 +166,13 @@ items:
 
 An item is satisfied when the case has a successful call to that tool and every argument rule passes. Argument rules: `equals`, `in`, `exists`, `matches`, `min`, `max`, `min_duration`, and `kql_min_ago`. Without a checklist, an alert class gets verdict metrics only. Files ending in `.yaml.example` are ignored, and `check` notes each one. Every rule, with examples, is in [docs/checklists.md](docs/checklists.md).
 
+## Run as a service
+
+`detecttrace serve` keeps the dashboard up to date for a team. Your OpenTelemetry Collector sends it spans over OTLP/HTTP, a verdict API takes analyst verdicts as JSON or CSV, and anyone with a read token opens the dashboard in a browser. It stores the data in SQLite and runs in a container built from this repository. Tokens, configuration, the Collector setup, every endpoint and the limits are in [docs/serve.md](docs/serve.md).
+
 ## Privacy
 
-Everything runs on your machine. DetectTrace makes no network calls and collects no usage statistics; the test suite fails if the package imports a network library or opens a connection. Tool results are never copied into the output. The dashboard does include every scored case's ID, alert class, prompt version and verdicts, plus the tool names and arguments of up to `dashboard.max_detail_cases` notable cases (2,000 by default), so treat it like the traces it came from before you share it.
+DetectTrace itself never sends data anywhere: no telemetry, no usage statistics, no update checks. `demo`, `check` and `init` read files and write one self-contained HTML page that opens without a network. `serve` listens on the network, stores spans and verdicts in a SQLite database, and shows the dashboard only to people with a read token; see [docs/serve.md](docs/serve.md#privacy). Tool results are never copied into the output, and `serve` drops them before anything is stored. The dashboard does include every scored case's ID, alert class, prompt version and verdicts, plus the tool names and arguments of up to `dashboard.max_detail_cases` notable cases (2,000 by default), so treat it like the traces it came from before you share it.
 
 ## Development
 

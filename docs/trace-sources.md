@@ -1,6 +1,6 @@
 # Trace sources
 
-DetectTrace reads trace files from disk. This page covers three ways to get them: an OpenTelemetry Collector, `FileSpanExporter` in your agent, and a Langfuse export. For the attributes your spans need, see [Trace attributes](attributes.md).
+`detecttrace check` reads trace files from disk. This page covers three ways to get them: an OpenTelemetry Collector, `FileSpanExporter` in your agent, and a Langfuse export. For the attributes your spans need, see [Trace attributes](attributes.md). To send spans straight from a Collector to `detecttrace serve` instead, see [Running as a service](serve.md#sending-spans-from-a-collector).
 
 | Source | `traces.format` | Point `traces.path` at |
 |---|---|---|
