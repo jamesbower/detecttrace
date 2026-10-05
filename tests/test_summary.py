@@ -272,6 +272,20 @@ def test_unmapped_agent_labels_group_by_label() -> None:
     assert [line.count for line in summarize_issues(issues)] == [2, 1]
 
 
+def test_counts_weigh_the_first_issues_and_the_rest_count_once() -> None:
+    issues = [
+        Issue(IssueKind.INVALID_SPAN, "ingest", "a"),
+        Issue(IssueKind.INVALID_SPAN, "ingest", "b"),
+        Issue(IssueKind.INVALID_SPAN, "ingest", "c"),
+    ]
+    assert [line.count for line in summarize_issues(issues, counts=[3, 4])] == [8]
+
+
+def test_more_counts_than_issues_is_refused() -> None:
+    with pytest.raises(ValueError, match="2 counts for 1 issues"):
+        summarize_issues([Issue(IssueKind.INVALID_SPAN, "ingest")], counts=[1, 1])
+
+
 def test_unknown_tools_group_by_tool() -> None:
     issues = [
         Issue(IssueKind.UNKNOWN_CHECKLIST_TOOL, "travel/mfa", "check_mfa"),

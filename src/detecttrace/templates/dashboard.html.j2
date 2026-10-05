@@ -90,6 +90,9 @@
 <body>
 <a class="skip-link" href="#main">Skip to the results</a>
 <div class="wrap">
+{% if served %}
+<div id="dt-serve" role="status" aria-live="polite" data-generation="{{ served.generation }}" data-updated-at="{{ served.updated_at }}"></div>
+{% endif %}
 
 <header class="top" aria-labelledby="page-title">
   <div>
@@ -305,9 +308,16 @@
 
 </main>
 
+{% if served %}
+<footer>Written by {{ generator }} on the server that runs detecttrace serve. Every 30 seconds the page asks that server whether newer results exist, and it makes no other network requests.</footer>
+{% else %}
 <footer>Written by {{ generator }}. Everything on this page was computed on your machine, and the page makes no network requests.</footer>
+{% endif %}
 </div>
 <script type="application/json" id="dt-results">{{ results_json }}</script>
 <script>{{ js }}</script>
+{% if served %}
+<script>{{ serve_js }}</script>
+{% endif %}
 </body>
 </html>

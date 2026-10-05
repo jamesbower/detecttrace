@@ -14,16 +14,18 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+import generate
 import pytest
 from builders import otlp_document, otlp_span, span_hex, write_jsonl
 from html_tree import Node, has_tag, parse_html
 
-from detecttrace.dashboard import render_dashboard
+from detecttrace.dashboard import ServedPage, render_dashboard
 from detecttrace.pipeline import run_check
 from detecttrace.runconfig import load_run_config
 from detecttrace.summary import to_visible_text
 
 DEMO_GOLDEN = Path(__file__).parent / "fixtures" / "demo" / "expected.json"
+DEMO_GOLDEN_HTML = Path(__file__).parent / "fixtures" / "demo" / generate.GOLDEN_HTML_NAME
 LINE_SEPARATOR = chr(0x2028)
 PARAGRAPH_SEPARATOR = chr(0x2029)
 ESCAPE = chr(0x1B)
@@ -340,3 +342,89 @@ def test_the_hashes_hold_for_a_hostile_page(hostile_page: Node) -> None:
     policy = hostile_page.find(has_tag("meta", **{"http-equiv": "Content-Security-Policy"}))
     script = hostile_page.find(lambda node: node.tag == "script" and "type" not in node.attrs)
     assert f"script-src '{to_hash(script.text())}'" in (policy.attrs["content"] or "")
+
+
+# Served mode
+
+SERVE_SCRIPT = (
+    Path(__file__).resolve().parent.parent / "src/detecttrace/templates/dashboard-serve.js"
+)
+SERVED = ServedPage(generation=7, updated_at="2026-10-05T12:00:00.000000Z")
+
+
+@cache
+def served_html() -> str:
+    return render_dashboard(json.loads(DEMO_GOLDEN.read_text(encoding="utf-8")), served=SERVED)
+
+
+@cache
+def served_page() -> Node:
+    return parse_html(served_html())
+
+
+def test_an_offline_page_is_byte_identical_to_the_golden_page() -> None:
+    page = render_dashboard(json.loads(DEMO_GOLDEN.read_text(encoding="utf-8")), served=None)
+    assert generate.normalize_dashboard(page) == DEMO_GOLDEN_HTML.read_text(encoding="utf-8")
+
+
+def test_a_served_page_allows_both_scripts_and_requests_to_its_own_server() -> None:
+    page = served_page()
+    style = page.find(has_tag("style")).text()
+    first, second = (
+        node.text()
+        for node in page.find_all(lambda node: node.tag == "script" and "type" not in node.attrs)
+    )
+    policy = page.find(has_tag("meta", **{"http-equiv": "Content-Security-Policy"})).attrs[
+        "content"
+    ]
+    assert policy == (
+        f"default-src 'none'; script-src '{to_hash(first)}' '{to_hash(second)}'; "
+        f"style-src '{to_hash(style)}'; img-src data:; connect-src 'self'; base-uri 'none'; "
+        "form-action 'none'"
+    )
+
+
+def test_a_served_page_adds_exactly_the_serve_script() -> None:
+    scripts = served_page().find_all(has_tag("script"))
+    assert [script.text() for script in scripts[2:]] == [SERVE_SCRIPT.read_text(encoding="utf-8")]
+
+
+def test_a_served_page_carries_its_generation() -> None:
+    region = served_page().find(has_tag("div", id="dt-serve"))
+    assert (region.attrs["data-generation"], region.attrs["data-updated-at"]) == (
+        "7",
+        "2026-10-05T12:00:00.000000Z",
+    )
+
+
+def test_a_served_page_does_not_claim_to_make_no_requests() -> None:
+    assert "makes no network requests" not in served_page().find(has_tag("footer")).text()
+
+
+def test_a_served_page_has_no_event_handler_attribute() -> None:
+    handlers = [
+        name for node in served_page().iter() for name in node.attrs if name.startswith("on")
+    ]
+    assert handlers == []
+
+
+def test_a_served_page_names_no_url_but_the_banner_link() -> None:
+    assert re.findall(r"(?:https?:)?//[\w.-]+", served_html()) == ["https://detecttrace.ai"]
+
+
+@pytest.mark.parametrize(
+    "sink",
+    [
+        "innerHTML",
+        "outerHTML",
+        "insertAdjacentHTML",
+        "document.write",
+        "eval(",
+        "Function(",
+        'setTimeout("',
+        'setAttribute("on',
+        ".onclick",
+    ],
+)
+def test_the_serve_script_uses_no_html_or_code_sink(sink: str) -> None:
+    assert sink not in SERVE_SCRIPT.read_text(encoding="utf-8")

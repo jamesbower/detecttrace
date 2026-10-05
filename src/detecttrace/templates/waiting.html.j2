@@ -1,0 +1,49 @@
+{#- The page detecttrace serve shows until a case can be scored. Autoescaped: every value is text.
+    Only the stylesheet and the script arrive as markup; they are the packaged files. -#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="generator" content="{{ generator }}">
+<title>DetectTrace POC dashboard</title>
+<style>{{ css }}</style>
+</head>
+<body>
+<div class="wrap">
+<div id="dt-serve" role="status" aria-live="polite" data-generation="{{ served.generation }}" data-updated-at="{{ served.updated_at }}"></div>
+
+<header class="top" aria-labelledby="page-title">
+  <div>
+    <p class="eyebrow">Self-reported agent evaluation</p>
+    <h1 id="page-title">DetectTrace <span>POC</span></h1>
+    <p class="tagline">Waiting for data. No case has both a settled trace and an analyst verdict yet, so there is nothing to score.</p>
+  </div>
+  <dl class="meta">
+    <dt>Spans received</dt><dd>{{ format_count(counts.span_count) }}</dd>
+    <dt>Cases settled</dt><dd>{{ format_count(counts.case_count) }}</dd>
+    <dt>Cases still settling</dt><dd>{{ format_count(counts.held_back_count) }}</dd>
+    <dt>Verdicts received</dt><dd>{{ format_count(counts.verdict_count) }}</dd>
+  </dl>
+</header>
+
+<main id="main" tabindex="-1">
+{% if notes %}
+<section aria-labelledby="s-notes">
+  <div class="sec-head"><h2 id="s-notes">Data notes</h2></div>
+  <ol class="notes">
+{% for note in notes %}
+<li><p class="note-msg">{{ note.message }}<span class="hint">{{ note.hint }}</span></p></li>
+{% endfor %}
+  </ol>
+</section>
+{% endif %}
+</main>
+
+<footer>Written by {{ generator }} on the server that runs detecttrace serve. Every 30 seconds the page asks that server whether newer results exist, and it makes no other network requests.</footer>
+</div>
+<script>{{ serve_js }}</script>
+</body>
+</html>
