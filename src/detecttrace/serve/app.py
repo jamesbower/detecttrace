@@ -36,6 +36,10 @@ _ROLES: tuple[Role, ...] = ("ingest", "verdicts", "read")
 MAX_CONCURRENT_WRITES = 4
 
 
+class _FailedAfterCommit(Exception):
+    """A store step failed after an earlier step of the same request had committed."""
+
+
 def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) -> FastAPI:
     """Build the app; `on_write` is called after every commit, a rejected body's issue too."""
     # No schema or docs pages: the API surface is not advertised to whoever can reach it.
@@ -177,6 +181,10 @@ async def _receive_verdicts(
         return _create_status_response(413, str(error))
     except verdict_api.UnsupportedMediaType as error:
         return _create_status_response(415, str(error))
+    except _FailedAfterCommit:
+        # The verdicts are stored even though the request failed, so the recompute must know.
+        on_write()
+        return _create_unavailable_response()
     except sqlite3.OperationalError:
         return _create_unavailable_response()
     if is_committed:
@@ -240,7 +248,12 @@ def _store_verdicts(
     if rows:
         store.put_verdicts(rows, token_name)
     if issues:
-        store.add_issues(issues)
+        try:
+            store.add_issues(issues)
+        except sqlite3.OperationalError as error:
+            if rows:
+                raise _FailedAfterCommit from error
+            raise
     return len(rows), rejected, bool(rows or issues)
 
 

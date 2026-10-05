@@ -236,3 +236,27 @@ def test_failed_write_asks_the_client_to_retry(
 ) -> None:
     monkeypatch.setattr(app_store, "put_verdicts", fail_with_locked_database)
     assert post_verdicts(client, json_body(item())).headers["Retry-After"] == "5"
+
+
+def test_failed_note_after_stored_verdicts_answers_503(
+    client: TestClient, app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_store, "add_issues", fail_with_locked_database)
+    response = post_verdicts(client, json_body(item(), item(LONG_CASE_ID)))
+    assert response.status_code == 503
+
+
+def test_failed_note_after_stored_verdicts_still_signals_the_write(
+    client: TestClient, app_store: Store, writes: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_store, "add_issues", fail_with_locked_database)
+    post_verdicts(client, json_body(item(), item(LONG_CASE_ID)))
+    assert writes == [1]
+
+
+def test_failed_note_without_stored_verdicts_signals_no_write(
+    client: TestClient, app_store: Store, writes: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_store, "add_issues", fail_with_locked_database)
+    post_verdicts(client, json_body(item(LONG_CASE_ID, "MAYBE")))
+    assert writes == []
