@@ -849,6 +849,23 @@ def test_read_only_store_cannot_write(store: Store, db_path: Path) -> None:
     reader.close()
 
 
+def test_read_only_store_is_not_writable(store: Store, db_path: Path) -> None:
+    reader = Store.open_read_only(db_path)
+
+    with pytest.raises(sqlite3.OperationalError):
+        reader.check_writable()
+    reader.close()
+
+
+def test_checking_writability_changes_no_data(store: Store) -> None:
+    store.add_spans([make_span()], [])
+    before = store.read_counts()
+
+    store.check_writable()
+
+    assert store.read_counts() == before
+
+
 # Files and durability
 
 

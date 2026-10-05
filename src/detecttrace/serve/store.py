@@ -270,6 +270,19 @@ class Store:
         with self._read() as connection:
             return _read_generation(connection)
 
+    def check_writable(self) -> None:
+        """Raise sqlite3.OperationalError unless a write could be made now; nothing changes."""
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                # BEGIN IMMEDIATE alone succeeds on a read-only file; a statement that writes
+                # does not.
+                self._connection.execute(
+                    "UPDATE meta SET value = value WHERE key = 'schema_version'"
+                )
+            finally:
+                _roll_back(self._connection)
+
     def close(self) -> None:
         with self._lock:
             self._connection.close()
