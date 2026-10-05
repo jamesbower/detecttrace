@@ -1,0 +1,13 @@
+{
+  "headers": {
+    "Accept-Encoding": "gzip",
+    "Authorization": "Bearer [redacted]",
+    "Content-Encoding": "gzip",
+    "Content-Length": "5384",
+    "Content-Type": "application/json",
+    "Host": "host.docker.internal:18080",
+    "User-Agent": "OpenTelemetry Collector Contrib/0.161.0 (linux/arm64)"
+  },
+  "method": "POST",
+  "path": "/json/v1/traces"
+}
