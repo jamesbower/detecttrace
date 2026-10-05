@@ -40,12 +40,7 @@ def read_verdicts(
     """
     try:
         with path.open(encoding="utf-8-sig", newline="") as handle:
-            # The limit is process-wide, so it is put back for any other csv user.
-            previous_limit = csv.field_size_limit(MAX_FIELD_CHARACTERS)
-            try:
-                return _read_rows(handle, path)
-            finally:
-                csv.field_size_limit(previous_limit)
+            return read_verdict_rows(handle, path.name, error_subject=str(path))
     except FileNotFoundError as error:
         raise VerdictFileError(f"Verdict file not found: {path}. {path_hint}") from error
     except UnicodeDecodeError as error:
@@ -56,22 +51,42 @@ def read_verdicts(
         ) from error
 
 
-def _read_rows(handle: TextIO, path: Path) -> tuple[list[VerdictRow], list[Issue]]:
+def read_verdict_rows(
+    handle: TextIO, subject: str, *, error_subject: str | None = None
+) -> tuple[list[VerdictRow], list[Issue]]:
+    """Read verdict rows from open CSV text; the file reader and the verdict API share these rules.
+
+    Issues name `subject` and the line, such as "verdicts.csv:7". A fatal CSV problem raises
+    VerdictFileError naming `error_subject`, which is `subject` unless given (a file's full path).
+    """
+    # The limit is process-wide, so it is put back for any other csv user.
+    previous_limit = csv.field_size_limit(MAX_FIELD_CHARACTERS)
+    try:
+        return _read_rows(handle, subject, error_subject or subject)
+    finally:
+        csv.field_size_limit(previous_limit)
+
+
+def _read_rows(
+    handle: TextIO, subject: str, error_subject: str
+) -> tuple[list[VerdictRow], list[Issue]]:
     reader = csv.reader(handle, strict=True)
     try:
         header = [name.strip() for name in next((row for row in reader if row), [])]
     except csv.Error as error:
-        raise VerdictFileError(f"{path} header could not be read as CSV: {error}.") from error
+        raise VerdictFileError(
+            f"{error_subject} header could not be read as CSV: {error}."
+        ) from error
     missing = [column for column in REQUIRED_COLUMNS if column not in header]
     if missing:
         raise VerdictFileError(
-            f"{path} is missing the column(s) {', '.join(missing)}. "
+            f"{error_subject} is missing the column(s) {', '.join(missing)}. "
             f"Required columns: {', '.join(REQUIRED_COLUMNS)}."
         )
     repeated = [column for column in REQUIRED_COLUMNS if header.count(column) > 1]
     if repeated:
         raise VerdictFileError(
-            f"{path} repeats the column(s) {', '.join(repeated)} in its header. Keep one of each."
+            f"{error_subject} repeats the column(s) {', '.join(repeated)} in its header. Keep one of each."
         )
     positions = [header.index(column) for column in REQUIRED_COLUMNS]
     rows: list[VerdictRow] = []
@@ -87,17 +102,17 @@ def _read_rows(handle: TextIO, path: Path) -> tuple[list[VerdictRow], list[Issue
             line_number = reader.line_num
             if line_number - previous_line == 1:
                 # On one physical line the reader drops the rest of it and resumes cleanly.
-                issues.append(_invalid_row(path, line_number, str(error)))
+                issues.append(_invalid_row(subject, line_number, str(error)))
                 continue
             # A quoted value left open to the end of the file swallowed everything after it,
             # so nothing is left to misread.
             if not handle.read(1):
-                issues.append(_merged_rows(path, previous_line, line_number))
+                issues.append(_merged_rows(subject, previous_line, line_number))
                 continue
             # Mid-file the reader would resume inside a quoted value, so what follows
             # cannot be trusted.
             raise VerdictFileError(
-                f"{path} could not be read as CSV at lines {previous_line + 1}"
+                f"{error_subject} could not be read as CSV at lines {previous_line + 1}"
                 f"\u2013{line_number}: {error}. Check for an unbalanced quote."
             ) from error
         if not fields:
@@ -109,12 +124,12 @@ def _read_rows(handle: TextIO, path: Path) -> tuple[list[VerdictRow], list[Issue
         # A line break in a required value means a quote ran on into the next rows; other
         # columns such as notes may hold quoted multi-line text.
         if any("\n" in value or "\r" in value for value in values):
-            issues.append(_merged_rows(path, previous_line, line_number))
+            issues.append(_merged_rows(subject, previous_line, line_number))
             continue
         if len(fields) > len(header):
             issues.append(
                 _invalid_row(
-                    path,
+                    subject,
                     line_number,
                     f"{len(fields) - len(header)} more fields than the header; "
                     "quote values that contain commas",
@@ -125,23 +140,23 @@ def _read_rows(handle: TextIO, path: Path) -> tuple[list[VerdictRow], list[Issue
         if not (case_id and alert_class and label):
             issues.append(
                 _invalid_row(
-                    path, line_number, "case_id, alert_class, and verdict must all have a value"
+                    subject, line_number, "case_id, alert_class, and verdict must all have a value"
                 )
             )
             continue
-        subject = f"{path.name}:{line_number}"
+        where = f"{subject}:{line_number}"
         rows.append(
             VerdictRow(
-                _shorten(case_id, "case_id", subject, issues, reported_long),
-                _shorten(alert_class, "alert_class", subject, issues, reported_long),
-                _shorten(label, "verdict", subject, issues, reported_long),
+                shorten_value(case_id, "case_id", where, issues, reported_long),
+                shorten_value(alert_class, "alert_class", where, issues, reported_long),
+                shorten_value(label, "verdict", where, issues, reported_long),
                 line_number,
             )
         )
     return rows, issues
 
 
-def _shorten(
+def shorten_value(
     value: str, column: str, subject: str, issues: list[Issue], reported: set[tuple[str, str]]
 ) -> str:
     short = to_short_label(value)
@@ -153,13 +168,13 @@ def _shorten(
     return short
 
 
-def _invalid_row(path: Path, line_number: int, detail: str) -> Issue:
-    return Issue(IssueKind.INVALID_VERDICT_ROW, f"{path.name}:{line_number}", detail)
+def _invalid_row(subject: str, line_number: int, detail: str) -> Issue:
+    return Issue(IssueKind.INVALID_VERDICT_ROW, f"{subject}:{line_number}", detail)
 
 
-def _merged_rows(path: Path, previous_line: int, line_number: int) -> Issue:
+def _merged_rows(subject: str, previous_line: int, line_number: int) -> Issue:
     return _invalid_row(
-        path,
+        subject,
         line_number,
         f"unbalanced quote; lines {previous_line + 1}\u2013{line_number} were read as one row",
     )

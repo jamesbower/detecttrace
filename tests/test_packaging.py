@@ -53,6 +53,7 @@ PACKAGE_FILES = {
     "detecttrace/serve/auth.py",
     "detecttrace/serve/config.py",
     "detecttrace/serve/store.py",
+    "detecttrace/serve/verdict_api.py",
     "detecttrace/stats.py",
     "detecttrace/summary.py",
     "detecttrace/templates/dashboard.css",
