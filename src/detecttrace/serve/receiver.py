@@ -1,6 +1,6 @@
 """Turn an OTLP/HTTP trace export request body into spans; no web framework involved.
 
-Only OTLP JSON is read, plain or gzip, as the Collector's `otlphttp` exporter sends it with
+Only OTLP JSON is read, plain or gzip, as the Collector's `otlp_http` exporter sends it with
 `encoding: json`. Tool results are dropped here, before anything is stored.
 """
 
@@ -21,7 +21,7 @@ MAX_GZIP_MEMBERS = 64
 
 _JSON_HINT = (
     "only OTLP JSON is accepted (Content-Type: application/json); set encoding: json on the "
-    "Collector's otlphttp exporter"
+    "Collector's otlp_http exporter"
 )
 _GZIP_INPUT_BYTES = 64 << 10
 _GZIP_OUTPUT_BYTES = 1 << 20

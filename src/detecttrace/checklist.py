@@ -202,16 +202,17 @@ class Checklist(BaseModel):
         return value
 
 
-def load_checklists(path: Path) -> dict[str, Checklist]:
+def load_checklists(path: Path, config_name: str = "detecttrace.yaml") -> dict[str, Checklist]:
     """Load every checklist at `path` (a file or a folder), keyed by the normalized alert class.
 
     A folder is read recursively in POSIX relative-path order; only *.yaml and *.yml (any case)
     files count, and hidden files and folders are skipped. An empty folder gives {}.
-    Any unusable file raises ChecklistFileError naming the file and the problem.
+    Any unusable file raises ChecklistFileError naming the file and the problem; a missing
+    `path` points at `config_name`, the file that set it.
     """
     if not path.exists():
         raise ChecklistFileError(
-            f"Checklist path not found: {path}. Check checklists in detecttrace.yaml."
+            f"Checklist path not found: {path}. Check checklists in {config_name}."
         )
     checklists: dict[str, Checklist] = {}
     sources: dict[str, str] = {}

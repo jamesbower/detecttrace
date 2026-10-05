@@ -92,7 +92,7 @@ def load_run_checklists(
     """
     if folder is None:
         return {}, []
-    checklists = load_checklists(folder)
+    checklists = load_checklists(folder, config_path.name)
     inactive = find_inactive_checklists(folder)
     # A folder holding only init's example checklists runs without checklists, with a note.
     if not checklists and not inactive:

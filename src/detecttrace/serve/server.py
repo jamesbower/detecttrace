@@ -21,6 +21,7 @@ from pathlib import Path
 from types import FrameType
 
 import uvicorn
+from starlette.types import ASGIApp
 
 from detecttrace.serve.app import create_app
 from detecttrace.serve.config import ServeConfig
@@ -82,20 +83,10 @@ def create_recompute_pool(
     )
 
 
-def _serve(
-    config: ServeConfig, store: Store, pool: "WorkerPool", announce: Callable[[str], None]
-) -> None:
-    coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
-    stop = threading.Event()
-    timer = threading.Thread(
-        target=tick_until_stopped,
-        args=(coordinator.tick, stop),
-        name="recompute",
-        daemon=True,
-    )
-    app = create_app(config, store, coordinator.notify_write, lambda: coordinator.status)
+def create_uvicorn_config(config: ServeConfig, app: ASGIApp) -> uvicorn.Config:
+    """The settings uvicorn runs `app` with; the certificate is not read until `load()`."""
     tls = config.serve.tls
-    uvicorn_config = uvicorn.Config(
+    return uvicorn.Config(
         app,
         host=config.serve.host,
         port=config.serve.port,
@@ -109,6 +100,21 @@ def _serve(
         timeout_graceful_shutdown=5,
         log_level="info",
     )
+
+
+def _serve(
+    config: ServeConfig, store: Store, pool: "WorkerPool", announce: Callable[[str], None]
+) -> None:
+    coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
+    stop = threading.Event()
+    timer = threading.Thread(
+        target=tick_until_stopped,
+        args=(coordinator.tick, stop),
+        name="recompute",
+        daemon=True,
+    )
+    app = create_app(config, store, coordinator.notify_write, lambda: coordinator.status)
+    uvicorn_config = create_uvicorn_config(config, app)
     try:
         # Loaded here rather than inside run, so a bad certificate is a message, not a
         # traceback from a half-started server.

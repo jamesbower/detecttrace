@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import uvicorn
 from typer.testing import CliRunner, Result
 
 import detecttrace.serve
@@ -25,7 +26,12 @@ from detecttrace import cli
 from detecttrace.serve import server
 from detecttrace.serve.config import load_serve_config
 from detecttrace.serve.recompute import RecomputeOutcome
-from detecttrace.serve.server import WorkerPool, create_recompute_pool, tick_until_stopped
+from detecttrace.serve.server import (
+    WorkerPool,
+    create_recompute_pool,
+    create_uvicorn_config,
+    tick_until_stopped,
+)
 from detecttrace.serve.store import Snapshot, Store
 from serve.served_process import (
     DEMO_FOLDER,
@@ -101,6 +107,14 @@ def create_empty_checklist_folder(folder: Path) -> Path:
     return config_path
 
 
+def create_missing_checklist_folder(folder: Path) -> Path:
+    config_path = write_serve_config(folder, find_free_port())
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["checklists"] = "no-such-folder"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    return config_path
+
+
 def create_invalid_config(folder: Path) -> Path:
     path = folder / "detecttrace-serve.yaml"
     path.write_text("serve: {}\n", encoding="utf-8")
@@ -129,6 +143,10 @@ FAILURES = [
     pytest.param(Failure(create_invalid_config, "invalid configuration"), id="invalid-config"),
     pytest.param(
         Failure(create_empty_checklist_folder, "No checklist files"), id="empty-checklist-folder"
+    ),
+    pytest.param(
+        Failure(create_missing_checklist_folder, "Check checklists in detecttrace-serve.yaml."),
+        id="missing-checklist-folder",
     ),
 ]
 
@@ -280,6 +298,26 @@ def test_a_run_uses_the_checklists_read_when_the_pool_was_created(
 ) -> None:
     outcome = pool_after_checklists_removed.submit().result()
     assert outcome.snapshot.generation == 0
+
+
+async def ignore_requests(scope: Any, receive: Any, send: Any) -> None:
+    """An ASGI app that is never called; the config tests only read the server's settings."""
+
+
+@pytest.fixture
+def uvicorn_config(tmp_path: Path) -> uvicorn.Config:
+    config_path = write_serve_config(tmp_path, find_free_port())
+    return create_uvicorn_config(load_serve_config(config_path), ignore_requests)
+
+
+def test_the_server_gives_requests_5_seconds_to_finish_on_stop(
+    uvicorn_config: uvicorn.Config,
+) -> None:
+    assert uvicorn_config.timeout_graceful_shutdown == 5
+
+
+def test_the_server_does_not_trust_forwarded_headers(uvicorn_config: uvicorn.Config) -> None:
+    assert uvicorn_config.proxy_headers is False
 
 
 def sleep_in_worker(marker: Path) -> RecomputeOutcome:

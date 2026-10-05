@@ -376,6 +376,10 @@ def test_protobuf_response_says_how_to_switch_to_json(client: TestClient) -> Non
     assert "encoding: json" in send_protobuf(client).json()["message"]
 
 
+def test_protobuf_response_names_the_current_exporter(client: TestClient) -> None:
+    assert "otlp_http exporter" in send_protobuf(client).json()["message"]
+
+
 def test_protobuf_request_stores_no_spans(client: TestClient, app_store: Store) -> None:
     send_protobuf(client)
     assert app_store.read_counts().span_count == 0
