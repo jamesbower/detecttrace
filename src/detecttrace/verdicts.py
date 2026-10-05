@@ -29,7 +29,8 @@ PATH_HINT = "Check verdicts.path in detecttrace.yaml."
 
 
 # csv.field_size_limit is process-wide: without the lock, a read in one thread could see the
-# limit another thread has just restored.
+# limit another thread has just restored. Never call read_verdict_rows while holding it: the
+# lock is not re-entrant.
 _FIELD_LIMIT_LOCK = threading.Lock()
 
 
@@ -108,10 +109,9 @@ def _read_rows(
     rows: list[VerdictRow] = []
     issues: list[Issue] = []
     reported_long: set[tuple[str, str]] = set()
+    invalid_rows = 0
     while True:
-        # Each shortening note adds one key to reported_long, so what is left are invalid rows.
-        counted = len(rows) + len(issues) - len(reported_long)
-        if max_rows is not None and counted > max_rows:
+        if max_rows is not None and len(rows) + invalid_rows > max_rows:
             raise VerdictRowLimitError(f"{error_subject} has more than {max_rows} rows.")
         previous_line = reader.line_num
         try:
@@ -122,11 +122,13 @@ def _read_rows(
             line_number = reader.line_num
             if line_number - previous_line == 1:
                 # On one physical line the reader drops the rest of it and resumes cleanly.
+                invalid_rows += 1
                 issues.append(_invalid_row(subject, line_number, str(error)))
                 continue
             # A quoted value left open to the end of the file swallowed everything after it,
             # so nothing is left to misread.
             if not handle.read(1):
+                invalid_rows += 1
                 issues.append(_merged_rows(subject, previous_line, line_number))
                 continue
             # Mid-file the reader would resume inside a quoted value, so what follows
@@ -144,9 +146,11 @@ def _read_rows(
         # A line break in a required value means a quote ran on into the next rows; other
         # columns such as notes may hold quoted multi-line text.
         if any("\n" in value or "\r" in value for value in values):
+            invalid_rows += 1
             issues.append(_merged_rows(subject, previous_line, line_number))
             continue
         if len(fields) > len(header):
+            invalid_rows += 1
             issues.append(
                 _invalid_row(
                     subject,
@@ -158,6 +162,7 @@ def _read_rows(
             continue
         case_id, alert_class, label = values
         if not (case_id and alert_class and label):
+            invalid_rows += 1
             issues.append(
                 _invalid_row(
                     subject, line_number, "case_id, alert_class, and verdict must all have a value"

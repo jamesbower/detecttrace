@@ -341,3 +341,12 @@ def test_parsing_a_large_field_in_many_threads_neither_rejects_it_nor_leaks_the_
         accepted = sum(pool.map(lambda _: parse_repeatedly(), range(8)))
 
     assert (accepted, csv.field_size_limit()) == (8 * 40, CSV_DEFAULT_FIELD_LIMIT)
+
+
+def test_csv_rows_at_the_limit_with_a_shortened_value_are_all_accepted() -> None:
+    long_id = f"{'x' * 500},a,TP\n"
+    lines = long_id + "".join(f"DT-{n},a,TP\n" for n in range(MAX_ROWS - 1))
+
+    rows, _, _ = parse_verdicts_body((CSV_HEADER + lines).encode(), CSV, CONFIG)
+
+    assert len(rows) == MAX_ROWS
