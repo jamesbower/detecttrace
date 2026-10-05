@@ -1,28 +1,42 @@
 """The HTTP app of `detecttrace serve`: token checks, the health check, OTLP/HTTP ingest,
-and the verdict API.
+the verdict API, and the read routes that serve the dashboard and its status.
 
 Error responses carry a google.rpc.Status body (`code`, `message`), the shape OTLP/HTTP
-clients expect. No response or error ever repeats the token a client sent.
+clients expect. No response or error ever repeats the token a client sent, and the access log
+records only the method, path, status, client address and duration of each request.
+
+`GET /api/status` answers `{"generation", "updated_at", "recompute_running", "last_error",
+"last_error_at", "held_back_cases", "span_count", "verdict_count", "last_ingest_at"}`. The
+generation and time are the stored snapshot's, so a page can tell whether reloading would show
+anything new; the counts are the stored input's. Times are ISO 8601 in UTC, or null.
 """
 
 import base64
+import logging
 import sqlite3
+import time
 from collections.abc import Callable, Mapping
 from typing import Annotated
 
 import anyio
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from detecttrace.config import Config
+from detecttrace.dashboard import ServedPage, WaitingCounts, render_waiting_page
 from detecttrace.model import IssueKind
 from detecttrace.serve import receiver, verdict_api
 from detecttrace.serve.auth import Role, find_token_name
 from detecttrace.serve.config import ServeConfig, TokenRoles
+from detecttrace.serve.recompute import RecomputeStatus, to_iso_time
 from detecttrace.serve.store import Store
+from detecttrace.summary import to_terminal_text
+
+access_logger = logging.getLogger("detecttrace.serve.access")
 
 # google.rpc.Code values for the HTTP statuses this app answers with.
 _STATUS_CODES = {400: 3, 401: 16, 403: 7, 404: 5, 405: 12, 413: 3, 415: 3, 503: 14}
@@ -37,23 +51,57 @@ MAX_CONCURRENT_INGESTS = 4
 MAX_CONCURRENT_VERDICT_POSTS = 2
 # A client that stops sending mid-body would otherwise hold its slot forever.
 BODY_READ_SECONDS = 30
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    # Pages and results hold investigation data, so no browser or proxy keeps a copy.
+    "Cache-Control": "no-store",
+}
+# Only what a meta policy can't say: the page's own policy, with its script hashes, stays in
+# the page, and a browser enforces both policies independently.
+PAGE_CSP = "frame-ancestors 'none'"
+_SECURITY_HEADER_ITEMS = {
+    name.lower().encode("latin-1"): value.encode("latin-1")
+    for name, value in SECURITY_HEADERS.items()
+}
+_IDLE_STATUS = RecomputeStatus(
+    is_running=False, last_error=None, last_error_at_ns=None, held_back_cases=0
+)
 
 
 class _FailedAfterCommit(Exception):
     """A store step failed after an earlier step of the same request had committed."""
 
 
-def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) -> FastAPI:
-    """Build the app; `on_write` is called after every commit, a rejected body's issue too."""
+def create_app(
+    config: ServeConfig,
+    store: Store,
+    on_write: Callable[[], None],
+    read_status: Callable[[], RecomputeStatus] = lambda: _IDLE_STATUS,
+) -> FastAPI:
+    """Build the app; `on_write` is called after every commit, a rejected body's issue too.
+
+    `read_status` gives the recompute's current state for `/api/status`.
+    """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it.
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    # The last one added runs outermost, so the log times the whole request.
+    app.add_middleware(_SecurityHeaders)
+    app.add_middleware(_AccessLog)
 
     @app.exception_handler(HTTPException)
     async def respond_with_status(request: Request, error: HTTPException) -> Response:
-        return _create_status_response(error.status_code, str(error.detail), error.headers)
+        response = _create_status_response(error.status_code, str(error.detail), error.headers)
+        if isinstance(error, _Unauthorized):
+            # One header per scheme: Chromium reads only the first challenge of a header, so
+            # "Bearer, Basic ..." in one header would never show the browser's sign-in prompt.
+            for challenge in error.challenges:
+                response.headers.append("WWW-Authenticate", challenge)
+        return response
 
     require_ingest = require_role(config.tokens, "ingest", allow_basic=False)
     require_verdicts = require_role(config.tokens, "verdicts", allow_basic=False)
+    require_read = require_role(config.tokens, "read", allow_basic=True)
     ingest_slots = anyio.Semaphore(MAX_CONCURRENT_INGESTS)
     verdict_slots = anyio.Semaphore(MAX_CONCURRENT_VERDICT_POSTS)
 
@@ -77,6 +125,37 @@ def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) 
         async with verdict_slots:
             return await _receive_verdicts(request, store, config, token_name, on_write)
 
+    @app.get("/", dependencies=[Depends(require_read)])
+    async def show_dashboard() -> Response:
+        try:
+            html = await run_in_threadpool(_read_page, store)
+        except sqlite3.OperationalError:
+            return _create_unreadable_response()
+        return HTMLResponse(html, headers={"Content-Security-Policy": PAGE_CSP})
+
+    @app.get("/api/status", dependencies=[Depends(require_read)])
+    async def show_status() -> Response:
+        try:
+            content = await run_in_threadpool(_read_status_content, store, read_status())
+        except sqlite3.OperationalError:
+            return _create_unreadable_response()
+        return JSONResponse(content)
+
+    @app.get("/api/results.json", dependencies=[Depends(require_read)])
+    async def show_results() -> Response:
+        try:
+            snapshot = await run_in_threadpool(store.read_snapshot)
+        except sqlite3.OperationalError:
+            return _create_unreadable_response()
+        if snapshot is None:
+            # 503, not 404: the results will exist once the first recompute finishes.
+            return _create_status_response(
+                503,
+                "no results yet; the first recompute has not finished, retry later",
+                {"Retry-After": _RETRY_AFTER_SECONDS},
+            )
+        return Response(snapshot.results_json, media_type="application/json")
+
     return app
 
 
@@ -88,18 +167,18 @@ def require_role(tokens: TokenRoles, role: Role, *, allow_basic: bool) -> Callab
     password is the token are also accepted, so a browser can sign in; the user is ignored.
     A missing or unknown token is 401; a known token of another role only is 403.
     """
-    challenge = 'Bearer, Basic realm="detecttrace"' if allow_basic else "Bearer"
+    challenges = ("Bearer", 'Basic realm="detecttrace"') if allow_basic else ("Bearer",)
 
     def check_token(request: Request) -> str:
         token = _read_token(request.headers.get("authorization"), allow_basic)
         if token is None:
-            raise _to_unauthorized(challenge)
+            raise _Unauthorized(challenges)
         name = find_token_name(token, getattr(tokens, role))
         if name is not None:
             return name
         if any(find_token_name(token, getattr(tokens, other)) for other in _ROLES):
             raise HTTPException(403, f"this token may not be used for {role}")
-        raise _to_unauthorized(challenge)
+        raise _Unauthorized(challenges)
 
     return check_token
 
@@ -124,10 +203,12 @@ def _read_token(authorization: str | None, allow_basic: bool) -> str | None:
     return None
 
 
-def _to_unauthorized(challenge: str) -> HTTPException:
-    return HTTPException(
-        401, "a valid access token is required", headers={"WWW-Authenticate": challenge}
-    )
+class _Unauthorized(HTTPException):
+    """A 401 that asks for a token with one WWW-Authenticate header per scheme."""
+
+    def __init__(self, challenges: tuple[str, ...]) -> None:
+        super().__init__(401, "a valid access token is required")
+        self.challenges = challenges
 
 
 async def _receive_traces(request: Request, store: Store, on_write: Callable[[], None]) -> Response:
@@ -272,6 +353,115 @@ def _store_verdicts(
                 raise _FailedAfterCommit from error
             raise
     return len(rows), rejected, bool(rows or issues)
+
+
+def _read_page(store: Store) -> str:
+    """The stored snapshot's page, or a waiting page until the first recompute has finished."""
+    snapshot = store.read_snapshot()
+    if snapshot is not None:
+        return snapshot.html
+    counts = store.read_counts()
+    # Generation 0 and no time: any first snapshot reads as newer, so the page offers a reload.
+    served = ServedPage(generation=0, updated_at="", held_back_cases=0)
+    waiting = WaitingCounts(
+        span_count=counts.span_count,
+        case_count=0,
+        held_back_count=0,
+        verdict_count=counts.verdict_count,
+    )
+    return render_waiting_page(waiting, [], served)
+
+
+def _read_status_content(store: Store, status: RecomputeStatus) -> dict[str, object]:
+    snapshot = store.read_snapshot()
+    counts = store.read_counts()
+    return {
+        "generation": 0 if snapshot is None else snapshot.generation,
+        "updated_at": None if snapshot is None else to_iso_time(snapshot.finished_at_ns),
+        "recompute_running": status.is_running,
+        "last_error": status.last_error,
+        "last_error_at": _to_optional_iso_time(status.last_error_at_ns),
+        "held_back_cases": status.held_back_cases,
+        "span_count": counts.span_count,
+        "verdict_count": counts.verdict_count,
+        "last_ingest_at": _to_optional_iso_time(counts.last_ingest_ns),
+    }
+
+
+def _to_optional_iso_time(time_ns: int | None) -> str | None:
+    return None if time_ns is None else to_iso_time(time_ns)
+
+
+class _SecurityHeaders:
+    """Adds SECURITY_HEADERS to every response, errors included."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = [
+                    (name, value)
+                    for name, value in message.get("headers", [])
+                    if name.lower() not in _SECURITY_HEADER_ITEMS
+                ]
+                headers.extend(_SECURITY_HEADER_ITEMS.items())
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self._app(scope, receive, send_with_headers)
+
+
+class _AccessLog:
+    """Logs one line per request: method, path, status, client address and duration.
+
+    Never the query string, headers or body: tokens travel in headers, and a careless client
+    may put one in the query.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        started = time.perf_counter()
+        # An exception before the response starts becomes a 500 further out.
+        status = 500
+
+        async def send_and_note_status(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        try:
+            await self._app(scope, receive, send_and_note_status)
+        finally:
+            client = scope.get("client")
+            access_logger.info(
+                "%s %s %d %s %.1fms",
+                scope["method"],
+                # Escaped: a percent-encoded line break would otherwise forge a log line.
+                to_terminal_text(scope["path"], limit=200),
+                status,
+                "-" if client is None else client[0],
+                (time.perf_counter() - started) * 1000,
+            )
+
+
+def _create_unreadable_response() -> JSONResponse:
+    return _create_status_response(
+        503,
+        "the database can't be read right now; retry later",
+        {"Retry-After": _RETRY_AFTER_SECONDS},
+    )
 
 
 def _create_unavailable_response() -> JSONResponse:
