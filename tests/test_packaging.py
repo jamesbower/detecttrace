@@ -63,6 +63,8 @@ PACKAGE_FILES = {
     "detecttrace/summary.py",
     "detecttrace/templates/dashboard-serve.js",
     "detecttrace/templates/dashboard.css",
+    "detecttrace/templates/dashboard.hashes.json",
+    "detecttrace/templates/dashboard.html",
     "detecttrace/templates/dashboard.html.j2",
     "detecttrace/templates/dashboard.js",
     "detecttrace/templates/waiting.html.j2",
