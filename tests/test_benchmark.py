@@ -3,7 +3,6 @@ import gzip
 import io
 import json
 import multiprocessing
-import resource
 import sqlite3
 import sys
 import time
@@ -286,6 +285,11 @@ def measure_snapshot(
 ) -> tuple[RecomputeOutcome, int]:
     """Run in the child: the snapshot and the child's peak memory in bytes."""
     outcome = compute_snapshot(database, settings, now_ns)
+    if sys.platform == "win32":
+        # Windows has no resource module, so peak memory is not measured there.
+        return outcome, 0
+    import resource
+
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     # macOS reports bytes, Linux kibibytes.
     return outcome, peak if sys.platform == "darwin" else peak * 1024

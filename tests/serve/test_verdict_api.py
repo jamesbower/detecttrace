@@ -105,7 +105,8 @@ def test_csv_with_an_unbalanced_quote_mid_file_is_invalid_with_the_file_readers_
     runaway = "x\n" * (MAX_FIELD_CHARACTERS // 2 + 1)
     text = f'{CSV_HEADER}DT-1,"{runaway}",TP\n'
     path = tmp_path / "verdicts.csv"
-    path.write_text(text, encoding="utf-8")
+    # newline="" keeps the bytes the API receives; Windows would otherwise write CRLF.
+    path.write_text(text, encoding="utf-8", newline="")
     with pytest.raises(VerdictFileError) as from_file:
         read_verdicts(path)
 
