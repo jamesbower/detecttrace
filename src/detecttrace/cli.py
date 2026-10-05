@@ -1,4 +1,4 @@
-"""The `detecttrace` command line: `init`, `check`, `demo`, `token` and `--version`.
+"""The `detecttrace` command line: `init`, `check`, `demo`, `serve`, `token` and `--version`.
 
 `init` reads sample traces and verdicts, proposes a configuration, asks about it in a
 terminal (or takes every proposal with `--yes`), and writes detecttrace.yaml with an
@@ -12,7 +12,8 @@ Exit codes: 0 when results were written and at least one case was scored, or whe
 wrote, printed, or was told not to write; 1 for input the run cannot use, a usage error, an
 output path that can't be written, no scored case, `--strict` with invalid input, and for
 `init` a missing required setting, an existing file without `--force`, or no terminal
-without `--yes`; 2 for an internal error.
+without `--yes`; 2 for an internal error. `serve` exits 0 when a signal stops it, and 1 when
+it can't start.
 """
 
 import io
@@ -62,9 +63,9 @@ from detecttrace.langfuse import find_missing_tool_calls
 from detecttrace.model import InputFileError, Issue, IssueKind, Span, Verdict, VerdictRow
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
-from detecttrace.runconfig import RunConfig, TraceFormat, load_run_config
+from detecttrace.runconfig import ConfigFileError, RunConfig, TraceFormat, load_run_config
 from detecttrace.serve.auth import Role, create_token, hash_token
-from detecttrace.serve.config import NAME_PATTERN
+from detecttrace.serve.config import NAME_PATTERN, load_serve_config
 from detecttrace.summary import (
     IssueExample,
     Severity,
@@ -88,6 +89,8 @@ _TRACES_HINT = "Check --traces."
 _VERDICTS_HINT = "Check --verdicts."
 _USAGE_ERROR_EXIT_CODE = 2
 _TOKEN_ROLES = get_args(Role)
+# The top-level packages of the [serve] extra; a base install has none of them.
+_SERVE_PACKAGES = frozenset({"fastapi", "starlette", "uvicorn"})
 
 
 class _UsageErrorExitsOne(TyperGroup):
@@ -229,6 +232,16 @@ def demo(
 
 
 @app.command()
+def serve(
+    config: Annotated[Path, typer.Option("--config", help="The serve configuration file.")] = Path(
+        "detecttrace-serve.yaml"
+    ),
+) -> None:
+    """Receive spans and verdicts over HTTP and serve the live dashboard until stopped."""
+    _exit_with(lambda: _serve(config))
+
+
+@app.command()
 def token(
     role: Annotated[
         str, typer.Option("--role", help="What the token may do: ingest, verdicts or read.")
@@ -272,6 +285,25 @@ def _check(
     return _run(
         config, config_path, targets, is_force=is_force, is_strict=is_strict, is_quiet=is_quiet
     )
+
+
+def _serve(config_path: Path) -> int:
+    try:
+        # Imported here: the web framework is an optional extra, and the other commands
+        # must work without it.
+        from detecttrace.serve import server
+    except ModuleNotFoundError as error:
+        if (error.name or "").partition(".")[0] not in _SERVE_PACKAGES:
+            raise
+        _echo_error('detecttrace serve needs the serve extra: pip install "detecttrace[serve]"')
+        return 1
+    try:
+        config = load_serve_config(config_path)
+        server.run_server(config, config_path, typer.echo)
+    except (ConfigFileError, server.StartupError) as error:
+        _echo_error(str(error))
+        return 1
+    return 0
 
 
 def _token(role: str, name: str) -> int:
