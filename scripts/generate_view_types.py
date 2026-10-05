@@ -48,6 +48,26 @@ def list_view_classes() -> list[type]:
     return ordered
 
 
+def to_typescript(annotation: object, owner: type) -> str:
+    """The TypeScript type of a field annotation; `owner` names the class in the error."""
+    if annotation in _SCALARS:
+        return _SCALARS[annotation]
+    if isinstance(annotation, type) and is_dataclass(annotation):
+        return annotation.__name__
+    origin, arguments = get_origin(annotation), get_args(annotation)
+    if origin is types.UnionType and type(None) in arguments:
+        rest = [argument for argument in arguments if argument is not type(None)]
+        if len(rest) == 1:
+            return f"{to_typescript(rest[0], owner)} | null"
+    if origin is tuple and len(arguments) == 2 and arguments[1] is Ellipsis:
+        return _to_array(arguments[0], owner)
+    if origin is list and len(arguments) == 1:
+        return _to_array(arguments[0], owner)
+    if origin is Mapping and len(arguments) == 2 and arguments[0] is str:
+        return f"Readonly<Record<string, {to_typescript(arguments[1], owner)}>>"
+    raise TypeError(f"{owner.__name__} has an annotation with no TypeScript form: {annotation!r}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate dashboard/src/view.d.ts.")
     parser.add_argument(
@@ -93,35 +113,15 @@ def _list_dataclasses(annotation: object) -> list[type]:
 def _render_type(view_class: type) -> str:
     hints = get_type_hints(view_class)
     lines = [
-        f"  readonly {field.name}: {_to_typescript(hints[field.name], view_class)};"
+        f"  readonly {field.name}: {to_typescript(hints[field.name], view_class)};"
         for field in fields(view_class)
     ]
     return f"export type {view_class.__name__} = {{\n" + "\n".join(lines) + "\n};\n"
 
 
-def _to_typescript(annotation: object, owner: type) -> str:
-    if annotation in _SCALARS:
-        return _SCALARS[annotation]
-    if isinstance(annotation, type) and is_dataclass(annotation):
-        return annotation.__name__
-    origin, arguments = get_origin(annotation), get_args(annotation)
-    if origin is types.UnionType and type(None) in arguments:
-        rest = [argument for argument in arguments if argument is not type(None)]
-        if len(rest) == 1:
-            return f"{_to_typescript(rest[0], owner)} | null"
-    if origin is tuple and len(arguments) == 2 and arguments[1] is Ellipsis:
-        return _to_array(arguments[0], owner)
-    if origin is list and len(arguments) == 1:
-        return _to_array(arguments[0], owner)
-    if origin is Mapping and len(arguments) == 2 and arguments[0] is str:
-        return f"Readonly<Record<string, {_to_typescript(arguments[1], owner)}>>"
-    raise TypeError(f"{owner.__name__} has an annotation with no TypeScript form: {annotation!r}")
-
-
 def _to_array(item: object, owner: type) -> str:
-    text = _to_typescript(item, owner)
-    # `number | null[]` would make only null an array, so a union item needs parentheses.
-    return f"readonly ({text})[]" if " | " in text else f"readonly {text}[]"
+    # The generic form needs no parentheses around a union item or a nested array.
+    return f"ReadonlyArray<{to_typescript(item, owner)}>"
 
 
 if __name__ == "__main__":

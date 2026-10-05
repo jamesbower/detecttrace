@@ -10,7 +10,7 @@ export type SourceView = {
 
 export type HeaderView = {
   readonly title: string;
-  readonly sources: readonly SourceView[];
+  readonly sources: ReadonlyArray<SourceView>;
   readonly cases_text: string;
   readonly period_text: string;
   readonly versions_text: string;
@@ -65,13 +65,13 @@ export type SkipCellView = {
 
 export type SkipRowView = {
   readonly item: string;
-  readonly cells: readonly SkipCellView[];
+  readonly cells: ReadonlyArray<SkipCellView>;
 };
 
 export type SkipTableView = {
   readonly steps_text: string;
-  readonly columns: readonly SkipColumnView[];
-  readonly rows: readonly SkipRowView[];
+  readonly columns: ReadonlyArray<SkipColumnView>;
+  readonly rows: ReadonlyArray<SkipRowView>;
   readonly empty_text: string | null;
 };
 
@@ -79,25 +79,25 @@ export type TrendLineView = {
   readonly style: string;
   readonly scope: string;
   readonly label: string;
-  readonly values: readonly (number | null)[];
-  readonly counts: readonly number[];
-  readonly few: readonly boolean[];
+  readonly values: ReadonlyArray<number | null>;
+  readonly counts: ReadonlyArray<number>;
+  readonly few: ReadonlyArray<boolean>;
 };
 
 export type TrendTableRowView = {
   readonly week: string;
-  readonly cells: readonly string[];
+  readonly cells: ReadonlyArray<string>;
 };
 
 export type TrendMetricView = {
   readonly title: string;
-  readonly lines: readonly TrendLineView[];
-  readonly table_rows: readonly TrendTableRowView[];
+  readonly lines: ReadonlyArray<TrendLineView>;
+  readonly table_rows: ReadonlyArray<TrendTableRowView>;
   readonly empty_text: string | null;
 };
 
 export type TrendView = {
-  readonly weeks: readonly string[];
+  readonly weeks: ReadonlyArray<string>;
   readonly period_text: string;
   readonly completeness: TrendMetricView;
   readonly agreement: TrendMetricView;
@@ -114,14 +114,14 @@ export type ConfusionCellView = {
 
 export type ConfusionRowView = {
   readonly label: string;
-  readonly cells: readonly ConfusionCellView[];
+  readonly cells: ReadonlyArray<ConfusionCellView>;
 };
 
 export type ConfusionView = {
   readonly n_text: string;
   readonly dangerous_text: string;
-  readonly column_labels: readonly string[];
-  readonly rows: readonly ConfusionRowView[];
+  readonly column_labels: ReadonlyArray<string>;
+  readonly rows: ReadonlyArray<ConfusionRowView>;
 };
 
 export type ClassView = {
@@ -130,7 +130,7 @@ export type ClassView = {
   readonly cases_text: string;
   readonly versions_text: string;
   readonly pooled_note: string | null;
-  readonly rows: readonly VersionRowView[];
+  readonly rows: ReadonlyArray<VersionRowView>;
   readonly skipped: SkipTableView;
   readonly trend: TrendView;
   readonly confusion: ConfusionView;
@@ -145,7 +145,7 @@ export type CasesView = {
   readonly total_text: string;
   readonly detail_count_text: string;
   readonly detail_sentence: string;
-  readonly class_filters: readonly ClassFilterView[];
+  readonly class_filters: ReadonlyArray<ClassFilterView>;
 };
 
 export type CoverageView = {
@@ -165,7 +165,7 @@ export type NoteView = {
   readonly count_text: string;
   readonly message: string;
   readonly hint: string;
-  readonly examples: readonly ExampleView[];
+  readonly examples: ReadonlyArray<ExampleView>;
   readonly more_text: string | null;
 };
 
@@ -176,11 +176,11 @@ export type LimitView = {
 
 export type DashboardView = {
   readonly header: HeaderView;
-  readonly classes: readonly ClassView[];
+  readonly classes: ReadonlyArray<ClassView>;
   readonly cases: CasesView;
-  readonly coverage: readonly CoverageView[];
-  readonly notes: readonly NoteView[];
-  readonly limits: readonly LimitView[];
+  readonly coverage: ReadonlyArray<CoverageView>;
+  readonly notes: ReadonlyArray<NoteView>;
+  readonly limits: ReadonlyArray<LimitView>;
 };
 
 export type View = { readonly view_version: ViewVersion } & DashboardView;

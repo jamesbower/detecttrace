@@ -888,6 +888,23 @@ def test_the_view_json_holds_no_raw_control_or_bidi_character(character: str) ->
     assert character not in json.dumps(to_view_json(view), ensure_ascii=False)
 
 
+@pytest.mark.parametrize("character", [chr(0x1B), chr(0x202E), chr(0x07)])
+def test_the_view_json_holds_no_raw_character_from_a_version_case_or_item(character: str) -> None:
+    version, case_id, item = (f"{name}{HOSTILE_TEXT}" for name in ("v", "C-", "item"))
+    entry = version_entry(version, items=(item,))
+    data = results(
+        [
+            class_data(
+                entries=[entry],
+                items=(item,),
+                overall=metrics(dangerous=(case_id,), without_agent=(case_id,)),
+            )
+        ]
+    )
+
+    assert character not in json.dumps(to_view_json(build_view(data)), ensure_ascii=False)
+
+
 def test_the_view_json_holds_the_visible_form_of_a_hostile_class_name() -> None:
     data: Any = to_view_json(build_view(results([class_data(alert_class=HOSTILE_TEXT)])))
 

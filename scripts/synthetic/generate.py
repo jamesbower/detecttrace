@@ -8,8 +8,8 @@ the behaviors to inject. The generator writes OTLP traces in the Collector file-
 layout (gzip-compressed JSON lines, one resourceSpans batch per line, rotated into a few
 files), the analyst verdict CSV, one checklist per class and a ready detecttrace.yaml.
 `--update-golden` also rewrites expected.json, expected.html (the dashboard) and
-expected-view.json (the dashboard's view model) from a check run on the written files, and each trace format variant's expected_init.yaml from an
-`init --yes --dry-run` run on it.
+expected-view.json (the dashboard's view model) from a check run on the written files, and
+each trace format variant's expected_init.yaml from an `init --yes --dry-run` run on it.
 
 Output depends only on the scenario: randomness comes from `random.Random(seed).random()`
 alone, because other `random` helpers changed between Python versions; gzip is written with
@@ -257,7 +257,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--update-golden",
         action="store_true",
-        help=f"also rewrite {GOLDEN_NAME}, {GOLDEN_HTML_NAME} and {INIT_GOLDEN_NAME}",
+        help=(
+            f"also rewrite {GOLDEN_NAME}, {GOLDEN_HTML_NAME}, {VIEW_GOLDEN_NAME} "
+            f"and {INIT_GOLDEN_NAME}"
+        ),
     )
     args = parser.parse_args(argv)
     if args.scenario is None:
