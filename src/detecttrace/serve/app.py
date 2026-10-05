@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
+from starlette.requests import ClientDisconnect
 
 from detecttrace.model import IssueKind
 from detecttrace.serve.auth import Role, find_token_name
@@ -115,7 +116,11 @@ def _to_unauthorized(challenge: str) -> HTTPException:
 
 
 async def _receive_traces(request: Request, store: Store, on_write: Callable[[], None]) -> Response:
-    body = await _read_limited_body(request)
+    try:
+        body = await _read_limited_body(request)
+    except ClientDisconnect:
+        # No one is left to read a response, so this only ends the request without a trace.
+        return Response(status_code=400)
     try:
         rejected, has_skipped_parts = await run_in_threadpool(
             _store_traces,

@@ -7,15 +7,18 @@ import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
 
+import anyio
 import httpx
 import pytest
 from builders import otlp_document, otlp_span, span_hex
 from fastapi.testclient import TestClient
+from starlette.types import Message, Scope
 
 from detecttrace.conventions import TOOL_CALL_RESULT
 from detecttrace.model import IssueKind
-from detecttrace.serve.app import MAX_CONCURRENT_INGESTS
+from detecttrace.serve.app import MAX_CONCURRENT_INGESTS, create_app
 from detecttrace.serve.receiver import (
     MAX_BODY_BYTES,
     MAX_GZIP_MEMBERS,
@@ -26,7 +29,7 @@ from detecttrace.serve.receiver import (
 )
 from detecttrace.serve.store import AddSpansResult, Store
 from detecttrace.traces import MAX_DOCUMENT_BYTES
-from serve.app_support import INGEST_TOKEN, READ_TOKEN, read_collector_request
+from serve.app_support import INGEST_TOKEN, READ_TOKEN, create_config, read_collector_request
 
 JSON = "application/json"
 
@@ -278,6 +281,16 @@ def test_gzip_members_are_read_in_turn() -> None:
     assert len(parse_traces_body(body, JSON, "gzip")[0]) == 1
 
 
+def test_exactly_max_gzip_members_are_accepted() -> None:
+    body = gzip.compress(VALID_BODY) + gzip.compress(b"") * (MAX_GZIP_MEMBERS - 1)
+    assert len(parse_traces_body(body, JSON, "gzip")[0]) == 1
+
+
+def test_gzip_member_without_its_trailer_ends_early() -> None:
+    with pytest.raises(InvalidBody, match="ends early"):
+        parse_traces_body(gzip.compress(VALID_BODY)[:-8], JSON, "gzip")
+
+
 def test_too_many_gzip_members_are_invalid() -> None:
     body = gzip.compress(VALID_BODY) + gzip.compress(b"") * MAX_GZIP_MEMBERS
     with pytest.raises(InvalidBody):
@@ -492,7 +505,7 @@ def test_concurrent_ingests_are_limited(
             # Hold every caller until all requests are inside at once. Under the limit that
             # never happens, so the first wait times out and releases everyone after it.
             condition.wait_for(
-                lambda: state["is_released"] or state["active"] == requests, timeout=2
+                lambda: state["is_released"] or state["active"] == requests, timeout=0.5
             )
             state["is_released"] = True
             condition.notify_all()
@@ -503,3 +516,36 @@ def test_concurrent_ingests_are_limited(
     with ThreadPoolExecutor(requests) as executor:
         list(executor.map(lambda _: Post(body=VALID_BODY).send(client), range(requests)))
     assert state["peak"] <= MAX_CONCURRENT_INGESTS
+
+
+def test_client_gone_before_sending_its_body_is_handled_quietly(
+    tmp_path: Path, app_store: Store
+) -> None:
+    app = create_app(create_config(tmp_path / "detecttrace.db"), app_store, lambda: None)
+    scope: Scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/v1/traces",
+        "raw_path": b"/v1/traces",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [
+            (b"authorization", f"Bearer {INGEST_TOKEN}".encode("ascii")),
+            (b"content-type", b"application/json"),
+        ],
+        "client": ("127.0.0.1", 50000),
+        "server": ("testserver", 80),
+    }
+    sent: list[Message] = []
+
+    async def receive() -> Message:
+        return {"type": "http.disconnect"}
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    anyio.run(app, scope, receive, send)
+    assert sent[0]["status"] == 400
