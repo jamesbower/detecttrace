@@ -80,7 +80,6 @@ from detecttrace.verdicts import read_verdicts
 
 DEMO_FOLDER = "demo_data"
 DEMO_OUTPUT = Path("detecttrace-demo.html")
-SELF_REPORTED = "Self-reported. Not verified by DetectTrace."
 NOTHING_WRITTEN = "Nothing was written."
 NO_TERMINAL = "init needs a terminal to ask questions. Run init in a terminal, or use --yes."
 _MAX_SHOWN_TOOLS = 10
@@ -426,7 +425,6 @@ def _run(
         _echo_summary(run, config_path.name, is_err=False)
         names = [to_terminal_text(str(path), limit=None) for path in written]
         typer.echo(f"Results written to {' and '.join(names)}.")
-        typer.echo(SELF_REPORTED)
     if is_strict and has_invalid_input(run.issues):
         if is_quiet:
             # Otherwise the only output would be an error that doesn't say what is invalid.

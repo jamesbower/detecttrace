@@ -29,7 +29,7 @@ A command-line tool that turns traces and verdicts into a view that goes beyond 
 - **Case detail.** Each case with the agent verdict, the analyst verdict and checklist coverage, and, for notable cases (dangerous closes, disagreements, failed calls, missed steps), its tool calls.
 - **Data notes.** Bad input is reported, not hidden: orphan traces and verdicts, duplicates, unmapped labels, and tool arguments that couldn't be read.
 
-It shows the numbers. It doesn't explain why a number changed, check whether the agent's conclusions are supported by its tool results, or fail builds. Results are labeled as self-reported.
+It shows the numbers. It doesn't explain why a number changed, check whether the agent's conclusions are supported by its tool results, or fail builds.
 
 ## Who it's for
 

@@ -68,7 +68,6 @@ FOCUS_PROBE = """() => {
   let name;
   if (el.matches(".skip-link")) name = "skip link";
   else if (el.matches(".cov-alert a")) name = "coverage link";
-  else if (el.matches(".banner a")) name = "banner link";
   else if (el.matches("#case-filters button")) name = "filter " + el.dataset.filter;
   else if (el.matches(".row-toggle")) {
     name = "row toggle " + Array.from(document.querySelectorAll(".row-toggle")).indexOf(el);
@@ -387,7 +386,6 @@ def test_tab_starts_at_the_skip_link(tab_walk: list[tuple[str, bool]]) -> None:
     [
         "skip link",
         "coverage link",
-        "banner link",
         *(f"filter {key}" for key in FILTER_KEYS),
         "row toggle 0",
         "show more",

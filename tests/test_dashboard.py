@@ -30,7 +30,6 @@ FIXTURE_CONFIGS = sorted(
 )
 PART_TITLES = [
     "header",
-    "banner",
     "By alert class and version",
     "Checklist steps the agent skipped",
     "Weekly trend",
@@ -39,11 +38,6 @@ PART_TITLES = [
     "Data notes",
     "What this dashboard does not tell you",
 ]
-BANNER_TEXT = (
-    "Self-reported. Not verified by DetectTrace. These numbers come from your own traces and "
-    "verdicts, computed on your machine. If you must show results to a client, a CISO, or an "
-    "auditor, you need verified results: detecttrace.ai"
-)
 
 
 @cache
@@ -80,8 +74,6 @@ def version_entry(class_index: int, version: str) -> Any:
 def part_title(node: Node) -> str | None:
     if node.tag == "header":
         return "header"
-    if node.tag == "aside" and "banner" in node.classes():
-        return "banner"
     return node.text() if node.tag == "h2" else None
 
 
@@ -146,14 +138,8 @@ def test_every_header_cell_has_a_scope() -> None:
     assert [cell.text() for cell in cells if cell.attrs.get("scope") not in ("col", "row")] == []
 
 
-def test_the_banner_text_is_exact() -> None:
-    banner = demo_page().find(lambda node: "banner" in node.classes())
-    assert " ".join(banner.text().split()) == BANNER_TEXT
-
-
-def test_the_banner_link_opens_without_referrer_or_opener() -> None:
-    link = demo_page().find(has_tag("a", href="https://detecttrace.ai"))
-    assert link.attrs["rel"] == "noopener noreferrer"
+def test_the_page_has_no_self_reported_text() -> None:
+    assert "self-reported" not in demo_page().text().lower()
 
 
 @pytest.mark.parametrize(("term", "text"), LIMITS)

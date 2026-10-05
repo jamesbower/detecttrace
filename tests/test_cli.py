@@ -81,10 +81,16 @@ def test_check_prints_one_line_per_class(tmp_path: Path) -> None:
     assert "impossible_travel: 3 cases; versions: v1" in result.stdout
 
 
-def test_check_ends_with_the_self_reported_note(tmp_path: Path) -> None:
+def test_check_output_has_no_self_reported_note(tmp_path: Path) -> None:
     result = _check(write_run_folder(tmp_path))
 
-    assert result.stdout.endswith("Self-reported. Not verified by DetectTrace.\n")
+    assert "self-reported" not in result.stdout.lower()
+
+
+def test_demo_output_has_no_self_reported_note(tmp_path: Path) -> None:
+    result = _invoke("demo", "--out", str(tmp_path / "demo.html"))
+
+    assert "self-reported" not in result.stdout.lower()
 
 
 def test_check_writes_to_out_when_given(tmp_path: Path) -> None:

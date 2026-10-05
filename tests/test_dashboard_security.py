@@ -286,20 +286,18 @@ def test_a_tool_result_never_appears(hostile: tuple[Any, str]) -> None:
 # No network
 
 
-def test_no_reference_leaves_the_page_but_the_banner_link(hostile_page: Node) -> None:
+def test_no_reference_leaves_the_page(hostile_page: Node) -> None:
     references = [
         value
         for node in hostile_page.iter()
         for name, value in node.attrs.items()
         if name in ("href", "src", "action", "srcset", "xlink:href") and value is not None
     ]
-    assert [value for value in references if not value.startswith("#")] == [
-        "https://detecttrace.ai"
-    ]
+    assert [value for value in references if not value.startswith("#")] == []
 
 
-def test_no_url_appears_but_the_banner_link(hostile: tuple[Any, str]) -> None:
-    assert re.findall(r"(?:https?:)?//[\w.-]+", hostile[1]) == ["https://detecttrace.ai"]
+def test_no_url_appears(hostile: tuple[Any, str]) -> None:
+    assert re.findall(r"(?:https?:)?//[\w.-]+", hostile[1]) == []
 
 
 @pytest.mark.parametrize("fragment", ["@import", "url(", "@font-face"])
@@ -433,8 +431,8 @@ def test_a_served_page_has_no_event_handler_attribute() -> None:
     assert handlers == []
 
 
-def test_a_served_page_names_no_url_but_the_banner_link() -> None:
-    assert re.findall(r"(?:https?:)?//[\w.-]+", served_html()) == ["https://detecttrace.ai"]
+def test_a_served_page_names_no_url() -> None:
+    assert re.findall(r"(?:https?:)?//[\w.-]+", served_html()) == []
 
 
 @pytest.mark.parametrize(

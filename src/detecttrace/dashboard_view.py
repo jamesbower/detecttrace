@@ -45,14 +45,6 @@ DROPPED_RESAMPLES_HINT = (
     "cases with both verdicts make it steadier."
 )
 
-BANNER_TITLE = "Self-reported. Not verified by DetectTrace."
-BANNER_TEXT = (
-    "These numbers come from your own traces and verdicts, computed on your machine. If you must "
-    "show results to a client, a CISO, or an auditor, you need verified results:"
-)
-BANNER_LINK_TEXT = "detecttrace.ai"
-BANNER_LINK_URL = "https://detecttrace.ai"
-
 LIMITS = (
     (
         "Why the numbers changed.",
@@ -100,14 +92,6 @@ class HeaderView:
     period_text: str  # "2026-W27 to 2026-W38 (12 weeks, UTC)"
     versions_text: str  # page order, then "(no version)"
     low_coverage_text: str | None  # set only when a side of the join is below half
-
-
-@dataclass(frozen=True, slots=True)
-class BannerView:
-    title: str
-    text: str
-    link_text: str
-    link_url: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,7 +282,6 @@ class LimitView:
 @dataclass(frozen=True, slots=True)
 class DashboardView:
     header: HeaderView
-    banner: BannerView
     classes: tuple[ClassView, ...]
     cases: CasesView
     coverage: tuple[CoverageView, ...]
@@ -336,7 +319,6 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
     totals = data["totals"]
     return DashboardView(
         header=_to_header(data, page_versions, has_no_version),
-        banner=BannerView(BANNER_TITLE, BANNER_TEXT, BANNER_LINK_TEXT, BANNER_LINK_URL),
         classes=tuple(
             _to_class_view(index, class_data, styles) for index, class_data in enumerate(classes)
         ),
