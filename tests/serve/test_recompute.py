@@ -1,6 +1,7 @@
 import json
 import multiprocessing
 import re
+import shutil
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ProcessPoolExecutor
 from pathlib import Path
@@ -9,8 +10,9 @@ from typing import Any
 import pytest
 import yaml
 from builders import case_root
-from html_tree import has_tag, parse_html
+from html_tree import has_tag, parse_html, read_terms
 
+from detecttrace.dashboard import ServedPage, WaitingCounts, render_waiting_page
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.pipeline import run_check
 from detecttrace.runconfig import load_run_config
@@ -935,6 +937,42 @@ def test_the_served_results_name_where_the_input_came_from(
     }
 
 
+def test_the_served_results_say_what_was_held_back(tmp_path: Path, boundary_store: Store) -> None:
+    results = results_at(tmp_path, boundary_store, CASE_END_NS + SETTLE_NS - 1)
+
+    assert results["served"] == {
+        "generation": boundary_store.generation(),
+        "settle_seconds": SETTLE_SECONDS,
+        "held_back_cases": 1,
+    }
+
+
+def test_the_dashboard_says_a_case_is_still_settling(tmp_path: Path, boundary_store: Store) -> None:
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db",
+        to_settings(write_serve_config(tmp_path)),
+        CASE_END_NS + SETTLE_NS - 1,
+    ).snapshot
+
+    assert "1 case still settling is not counted yet." in snapshot.html
+
+
+def test_the_served_results_name_a_nested_checklist_folder_as_written(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    folder = tmp_path / "rules" / "checklists"
+    folder.mkdir(parents=True)
+    shutil.copy(DEMO_DIR / "checklists" / "impossible_travel.yaml", folder)
+    config_path = write_serve_config(tmp_path, checklists="rules/checklists")
+    results = json.loads(
+        compute_snapshot(
+            tmp_path / "detecttrace.db", to_settings(config_path), LATE_NS
+        ).snapshot.results_json
+    )
+
+    assert results["source"]["checklists"] == "rules/checklists"
+
+
 def test_the_snapshot_carries_the_stores_generation(tmp_path: Path, boundary_store: Store) -> None:
     snapshot = compute_snapshot(
         tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
@@ -990,6 +1028,10 @@ def test_to_iso_time_keeps_microseconds_in_utc() -> None:
 
 # The waiting page
 
+UNMATCHED_VERDICT_HINT = (
+    "Check mapping.case_id in serve.yaml and that the traces cover the same cases."
+)
+
 
 def test_no_scorable_case_gives_waiting_results(tmp_path: Path, store: Store) -> None:
     add_case(store, 1, CASE_END_NS)
@@ -1021,6 +1063,41 @@ def test_the_waiting_page_shows_why_nothing_joined(tmp_path: Path, store: Store)
     ).snapshot
 
     assert "1 verdict has no matching trace." in snapshot.html
+
+
+def test_the_waiting_page_carries_the_stores_generation(tmp_path: Path, store: Store) -> None:
+    store.put_verdicts([VerdictRow("DT-9", "impossible_travel", "TP", 0)], "test")
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
+    ).snapshot
+
+    assert f'data-generation="{store.generation()}"' in snapshot.html
+
+
+def test_the_waiting_page_shows_each_notes_fix_hint(tmp_path: Path, store: Store) -> None:
+    store.put_verdicts([VerdictRow("DT-9", "impossible_travel", "TP", 0)], "test")
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
+    ).snapshot
+    hints = parse_html(snapshot.html).find_all(lambda node: "hint" in node.classes())
+
+    assert [hint.text() for hint in hints] == [UNMATCHED_VERDICT_HINT]
+
+
+@pytest.mark.parametrize(
+    ("label", "value"),
+    [
+        ("Spans received", "11"),
+        ("Cases settled", "2"),
+        ("Cases still settling", "3"),
+        ("Verdicts received", "5"),
+    ],
+)
+def test_the_waiting_page_shows_each_count_under_its_label(label: str, value: str) -> None:
+    counts = WaitingCounts(span_count=11, case_count=2, held_back_count=3, verdict_count=5)
+    html = render_waiting_page(counts, [], ServedPage(1, "", 0))
+
+    assert read_terms(parse_html(html).find(has_tag("dl", **{"class": "meta"})))[label] == value
 
 
 def test_the_waiting_page_checks_for_new_data(tmp_path: Path, store: Store) -> None:

@@ -78,8 +78,10 @@ def test_blank_value_is_rejected_after_stripping() -> None:
     assert rejected == [RejectedRow("verdicts[0]", "case_id must have a value")]
 
 
-def test_line_break_in_a_value_is_rejected() -> None:
-    _, rejected, _ = parse_verdicts_body(json_body(item(case_id="DT\n1")), JSON, CONFIG)
+@pytest.mark.parametrize("line_break", ["\n", "\r"])
+def test_line_break_in_a_value_is_rejected(line_break: str) -> None:
+    case_id = f"DT{line_break}1"
+    _, rejected, _ = parse_verdicts_body(json_body(item(case_id=case_id)), JSON, CONFIG)
 
     assert rejected == [RejectedRow("verdicts[0]", "case_id must not contain a line break")]
 

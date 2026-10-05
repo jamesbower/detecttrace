@@ -2,6 +2,7 @@ import base64
 import json
 import sqlite3
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import NoReturn
@@ -121,6 +122,30 @@ def test_verdict_is_stored(
 def test_utf_8_charset_is_accepted(client: TestClient, charset: str) -> None:
     response = post_verdicts(client, json_body(item()), f"{JSON}; charset={charset}")
     assert response.status_code == 200
+
+
+EXACT_BODY = json_body(item())
+
+
+def post_declared(client: TestClient) -> httpx.Response:
+    return post_verdicts(client, EXACT_BODY)
+
+
+def post_streamed(client: TestClient) -> httpx.Response:
+    # An iterator is sent chunked, with no Content-Length, so only the read counts the bytes.
+    headers = {"Content-Type": JSON, "Authorization": BEARER}
+    chunks = iter([EXACT_BODY[:10], EXACT_BODY[10:]])
+    return client.post("/api/verdicts", content=chunks, headers=headers)
+
+
+@pytest.mark.parametrize("post", [post_declared, post_streamed])
+def test_body_exactly_at_the_limit_is_accepted(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    post: Callable[[TestClient], httpx.Response],
+) -> None:
+    monkeypatch.setattr(verdict_api, "MAX_BODY_BYTES", len(EXACT_BODY))
+    assert post(client).status_code == 200
 
 
 @pytest.mark.parametrize(("body", "content_type"), VALID_FORMS)

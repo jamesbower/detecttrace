@@ -18,6 +18,7 @@ from starlette.types import Message
 
 from detecttrace.conventions import TOOL_CALL_RESULT
 from detecttrace.model import IssueKind
+from detecttrace.serve import receiver
 from detecttrace.serve.app import MAX_CONCURRENT_INGESTS, create_app
 from detecttrace.serve.receiver import (
     MAX_BODY_BYTES,
@@ -437,6 +438,31 @@ def test_body_over_the_limit_without_a_length_is_too_large(client: TestClient) -
     assert send_streamed_oversize(client).status_code == 413
 
 
+def test_body_over_the_limit_gets_an_invalid_argument_status_body(client: TestClient) -> None:
+    assert send_streamed_oversize(client).json()["code"] == 3
+
+
+def send_declared(client: TestClient, body: bytes) -> httpx.Response:
+    headers = {"Content-Type": JSON, "Authorization": f"Bearer {INGEST_TOKEN}"}
+    return client.post("/v1/traces", content=body, headers=headers)
+
+
+def send_streamed(client: TestClient, body: bytes) -> httpx.Response:
+    # An iterator is sent chunked, with no Content-Length, so only the read counts the bytes.
+    headers = {"Content-Type": JSON, "Authorization": f"Bearer {INGEST_TOKEN}"}
+    return client.post("/v1/traces", content=iter([body[:10], body[10:]]), headers=headers)
+
+
+@pytest.mark.parametrize("send", [send_declared, send_streamed])
+def test_body_exactly_at_the_limit_is_accepted(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    send: Callable[[TestClient, bytes], httpx.Response],
+) -> None:
+    monkeypatch.setattr(receiver, "MAX_BODY_BYTES", len(VALID_BODY))
+    assert send(client, VALID_BODY).status_code == 200
+
+
 def test_protobuf_request_is_unsupported(client: TestClient) -> None:
     assert send_protobuf(client).status_code == 415
 
@@ -514,7 +540,17 @@ def test_skipped_scope_is_a_partial_success_with_no_rejected_spans(client: TestC
 
 def test_skipped_scope_partial_success_explains_itself(client: TestClient) -> None:
     response = Post(body=SKIPPED_SCOPE_BODY).send(client)
-    assert response.json()["partialSuccess"]["errorMessage"]
+    assert response.json()["partialSuccess"]["errorMessage"] == (
+        "parts of the request that were not valid OTLP were skipped; "
+        "the dashboard's data notes list them"
+    )
+
+
+def test_rejected_span_partial_success_explains_itself(client: TestClient) -> None:
+    response = Post(body=ONE_BAD_SPAN_BODY).send(client)
+    assert response.json()["partialSuccess"]["errorMessage"] == (
+        "1 spans were not valid OTLP and were dropped; the dashboard's data notes list them"
+    )
 
 
 def test_rejected_count_ignores_skipped_scopes(client: TestClient) -> None:

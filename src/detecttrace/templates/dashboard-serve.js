@@ -65,15 +65,13 @@
     region.appendChild(box);
   }
 
-  function startPolling(region) {
-    var page = {
-      generation: Number(region.getAttribute("data-generation")),
-      updatedAt: region.getAttribute("data-updated-at")
-    };
+  // One check of the server's status. Returns a function that runs a check and gives a
+  // promise that always settles, so the caller can schedule the next one either way.
+  function createPoll(region, page, fetchStatus, warn) {
     var shownKey = barKey({ isNewData: false, errorText: null });
     var hasLoggedFailure = false;
-    function poll() {
-      fetch("/api/status", { credentials: "same-origin", cache: "no-store" })
+    return function poll() {
+      return fetchStatus()
         .then(function (response) {
           if (!response.ok) throw new Error("HTTP " + response.status);
           return response.json();
@@ -92,12 +90,27 @@
           // A server restart or a dropped network is routine; one console line per outage.
           if (!hasLoggedFailure) {
             hasLoggedFailure = true;
-            console.warn("detecttrace: could not check for newer results: " + String(error));
+            warn("detecttrace: could not check for newer results: " + String(error));
           }
-        })
-        .then(function () { setTimeout(poll, POLL_MS); });
+        });
+    };
+  }
+
+  function startPolling(region) {
+    var page = {
+      generation: Number(region.getAttribute("data-generation")),
+      updatedAt: region.getAttribute("data-updated-at")
+    };
+    var poll = createPoll(
+      region,
+      page,
+      function () { return fetch("/api/status", { credentials: "same-origin", cache: "no-store" }); },
+      function (text) { console.warn(text); }
+    );
+    function pollAndWait() {
+      poll().then(function () { setTimeout(pollAndWait, POLL_MS); });
     }
-    setTimeout(poll, POLL_MS);
+    setTimeout(pollAndWait, POLL_MS);
   }
 
   if (typeof document !== "undefined") {
@@ -111,7 +124,8 @@
       hasNewerResults: hasNewerResults,
       formatTime: formatTime,
       decideBar: decideBar,
-      barKey: barKey
+      barKey: barKey,
+      createPoll: createPoll
     };
   }
 })();

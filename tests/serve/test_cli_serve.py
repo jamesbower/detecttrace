@@ -24,7 +24,7 @@ from typer.testing import CliRunner, Result
 import detecttrace.serve
 from detecttrace import cli
 from detecttrace.serve import server
-from detecttrace.serve.config import load_serve_config
+from detecttrace.serve.config import ServeConfig, load_serve_config
 from detecttrace.serve.recompute import RecomputeOutcome
 from detecttrace.serve.server import (
     WorkerPool,
@@ -277,6 +277,24 @@ def test_a_busy_port_says_the_server_could_not_listen(
     start_on_busy_port: subprocess.CompletedProcess[str],
 ) -> None:
     assert "Error: Could not listen on 127.0.0.1:" in start_on_busy_port.stderr
+
+
+def load_config_with(folder: Path, **serve: object) -> ServeConfig:
+    config_path = write_serve_config(folder, 8443)
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["serve"].update(serve)
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    return load_serve_config(config_path)
+
+
+def test_the_start_line_names_https_when_tls_is_set(tmp_path: Path) -> None:
+    config = load_config_with(tmp_path, tls={"certfile": "cert.pem", "keyfile": "key.pem"})
+    assert server._to_listen_text(config) == "Serving on https://127.0.0.1:8443"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_the_start_line_brackets_an_ipv6_host(tmp_path: Path) -> None:
+    config = load_config_with(tmp_path, host="::1")
+    assert server._to_listen_text(config) == "Serving on http://[::1]:8443"  # pyright: ignore[reportPrivateUsage]
 
 
 class BrokenExecutor(Executor):

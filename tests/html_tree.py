@@ -50,6 +50,12 @@ def has_tag(tag: str, **attrs: str) -> Callable[[Node], bool]:
     return lambda node: node.tag == tag and all(node.attrs.get(k) == v for k, v in attrs.items())
 
 
+def read_terms(definitions: Node) -> dict[str, str]:
+    """A <dl>'s terms and their descriptions, as text, for a list of dt/dd pairs."""
+    cells = [child for child in definitions.children if isinstance(child, Node)]
+    return {term.text(): value.text() for term, value in zip(cells[::2], cells[1::2], strict=True)}
+
+
 class _TreeBuilder(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)

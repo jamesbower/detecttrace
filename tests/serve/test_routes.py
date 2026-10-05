@@ -11,6 +11,7 @@ from typing import NoReturn
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from html_tree import has_tag, parse_html, read_terms
 
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.serve.app import create_app
@@ -23,6 +24,8 @@ FINISHED_AT_NS = 1_791_201_600_123_456_789
 FINISHED_AT = "2026-10-05T12:00:00.123456Z"
 ERROR_AT_NS = 1_791_201_660_000_000_000
 ERROR_AT = "2026-10-05T12:01:00.000000Z"
+LAST_INGEST_NS = 1_791_201_540_000_001_000
+LAST_INGEST_AT = "2026-10-05T11:59:00.000001Z"
 SNAPSHOT = Snapshot(3, FINISHED_AT_NS, "<!DOCTYPE html><p>stored page</p>", '{"cases":[]}')
 STATUS = RecomputeStatus(
     is_running=True,
@@ -42,6 +45,14 @@ SECRET_QUERY = "query-secret-value"
 def to_basic(password: str) -> dict[str, str]:
     credentials = base64.b64encode(f"anyone:{password}".encode()).decode("ascii")
     return {"Authorization": f"Basic {credentials}"}
+
+
+@pytest.fixture
+def app_store(tmp_path: Path) -> Iterator[Store]:
+    """The app's store, with every write stamped LAST_INGEST_NS."""
+    opened = Store.open(tmp_path / "detecttrace.db", now_ns=lambda: LAST_INGEST_NS)
+    yield opened
+    opened.close()
 
 
 @pytest.fixture
@@ -117,6 +128,22 @@ def test_waiting_page_before_the_first_recompute_is_generation_zero(client: Test
     assert 'data-generation="0"' in client.get("/", headers=BEARER_READ).text
 
 
+def test_waiting_page_with_stored_input_before_the_first_recompute_is_generation_zero(
+    client: TestClient, app_store: Store
+) -> None:
+    # Any first snapshot must read as newer, whatever the input's generation.
+    app_store.add_issues([Issue(IssueKind.INVALID_FILE, "file-1")])
+    assert 'data-generation="0"' in client.get("/", headers=BEARER_READ).text
+
+
+def test_waiting_page_before_the_first_recompute_counts_the_stored_verdicts(
+    client: TestClient, app_store: Store
+) -> None:
+    app_store.put_verdicts([VerdictRow("DT-1", "phishing", "TP", 0)], "soar")
+    page = parse_html(client.get("/", headers=BEARER_READ).text)
+    assert read_terms(page.find(has_tag("dl", **{"class": "meta"})))["Verdicts received"] == "1"
+
+
 def test_status_generation_is_the_stored_snapshots(status_body: dict[str, object]) -> None:
     assert status_body["generation"] == 3
 
@@ -150,7 +177,7 @@ def test_status_reports_the_span_count(status_body: dict[str, object]) -> None:
 
 
 def test_status_reports_the_last_ingest_time(status_body: dict[str, object]) -> None:
-    assert isinstance(status_body["last_ingest_at"], str)
+    assert status_body["last_ingest_at"] == LAST_INGEST_AT
 
 
 def test_status_has_exactly_the_documented_fields(status_body: dict[str, object]) -> None:

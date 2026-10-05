@@ -111,3 +111,60 @@ test("reads a microsecond time where Date.parse takes at most milliseconds", (t)
   t.mock.method(Date, "parse", (text) => (/\.\d{4,}/.test(text) ? NaN : parse(text)));
   assert.equal(serve.formatTime("2026-10-05T12:34:56.123456Z"), "2026-10-05 12:34 UTC");
 });
+
+// A region that counts how often the bar is drawn, and a document that can build one.
+function createRegion() {
+  return {
+    firstChild: null,
+    drawCount: 0,
+    removeChild() { this.firstChild = null; },
+    appendChild(child) { this.firstChild = child; this.drawCount += 1; },
+  };
+}
+
+function createElement() {
+  return { appendChild() {}, addEventListener() {} };
+}
+
+function respondWith(body) {
+  return () => Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+}
+
+function failToConnect() {
+  return Promise.reject(new TypeError("Failed to fetch"));
+}
+
+test("logs one console line for an outage however many checks fail", async () => {
+  const warnings = [];
+  const poll = serve.createPoll(createRegion(), page, failToConnect, (text) => warnings.push(text));
+  await poll();
+  await poll();
+  assert.deepEqual(warnings, [
+    "detecttrace: could not check for newer results: TypeError: Failed to fetch",
+  ]);
+});
+
+test("logs a new outage again after a check succeeds", async () => {
+  const warnings = [];
+  const responses = [failToConnect, respondWith(status({})), failToConnect];
+  const poll = serve.createPoll(
+    createRegion(),
+    page,
+    () => responses.shift()(),
+    (text) => warnings.push(text),
+  );
+  await poll();
+  await poll();
+  await poll();
+  assert.equal(warnings.length, 2);
+});
+
+test("draws the bar once while the news stays the same", async (t) => {
+  globalThis.document = { createElement };
+  t.after(() => { delete globalThis.document; });
+  const region = createRegion();
+  const poll = serve.createPoll(region, page, respondWith(status({ generation: 8 })), () => {});
+  await poll();
+  await poll();
+  assert.equal(region.drawCount, 1);
+});
