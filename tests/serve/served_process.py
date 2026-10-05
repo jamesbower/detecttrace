@@ -42,6 +42,14 @@ class ServedProcess:
             self.base_url + path, headers={"Authorization": f"Bearer {READ_TOKEN}"}, timeout=10
         )
 
+    def post_traces(self, body: bytes) -> httpx.Response:
+        return httpx.post(
+            self.base_url + "/v1/traces",
+            content=body,
+            headers={"Authorization": f"Bearer {INGEST_TOKEN}", "Content-Type": "application/json"},
+            timeout=30,
+        )
+
     def post_verdicts_csv(self, text: str) -> httpx.Response:
         return httpx.post(
             self.base_url + "/api/verdicts",
@@ -149,3 +157,26 @@ def post_demo_data(served: ServedProcess) -> None:
                 client.post("/v1/traces", content=line).raise_for_status()
     csv_text = (DEMO_FOLDER / "verdicts.csv").read_text(encoding="utf-8")
     served.post_verdicts_csv(csv_text).raise_for_status()
+
+
+def split_demo_traces(spans_per_batch: int) -> list[bytes]:
+    """The demo spans as OTLP JSON bodies of at most `spans_per_batch` spans each.
+
+    Each batch keeps its spans' resource and scope, so it stores exactly those spans.
+    """
+    batches: list[bytes] = []
+    for path in sorted((DEMO_FOLDER / "traces").glob("*.jsonl.gz")):
+        for line in gzip.decompress(path.read_bytes()).splitlines():
+            for resource_spans in json.loads(line)["resourceSpans"]:
+                for scope_spans in resource_spans["scopeSpans"]:
+                    spans = scope_spans["spans"]
+                    for start in range(0, len(spans), spans_per_batch):
+                        scope_part = {
+                            **scope_spans,
+                            "spans": spans[start : start + spans_per_batch],
+                        }
+                        document = {
+                            "resourceSpans": [{**resource_spans, "scopeSpans": [scope_part]}]
+                        }
+                        batches.append(json.dumps(document).encode("utf-8"))
+    return batches
