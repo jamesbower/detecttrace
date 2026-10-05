@@ -6,6 +6,7 @@ the reader cannot recover from.
 """
 
 import csv
+import threading
 from pathlib import Path
 from typing import TextIO
 
@@ -27,8 +28,17 @@ MAX_FIELD_CHARACTERS = 4 << 20
 PATH_HINT = "Check verdicts.path in detecttrace.yaml."
 
 
+# csv.field_size_limit is process-wide: without the lock, a read in one thread could see the
+# limit another thread has just restored.
+_FIELD_LIMIT_LOCK = threading.Lock()
+
+
 class VerdictFileError(InputFileError):
     """The verdict file cannot be used at all: missing, unreadable, or its required columns are missing or repeated."""
+
+
+class VerdictRowLimitError(VerdictFileError):
+    """The input holds more rows than the caller allows."""
 
 
 def read_verdicts(
@@ -52,23 +62,29 @@ def read_verdicts(
 
 
 def read_verdict_rows(
-    handle: TextIO, subject: str, *, error_subject: str | None = None
+    handle: TextIO,
+    subject: str,
+    *,
+    error_subject: str | None = None,
+    max_rows: int | None = None,
 ) -> tuple[list[VerdictRow], list[Issue]]:
     """Read verdict rows from open CSV text; the file reader and the verdict API share these rules.
 
     Issues name `subject` and the line, such as "verdicts.csv:7". A fatal CSV problem raises
     VerdictFileError naming `error_subject`, which is `subject` unless given (a file's full path).
+    Reading stops with VerdictRowLimitError once rows plus invalid rows exceed `max_rows`.
     """
-    # The limit is process-wide, so it is put back for any other csv user.
-    previous_limit = csv.field_size_limit(MAX_FIELD_CHARACTERS)
-    try:
-        return _read_rows(handle, subject, error_subject or subject)
-    finally:
-        csv.field_size_limit(previous_limit)
+    with _FIELD_LIMIT_LOCK:
+        # Put back for any other csv user.
+        previous_limit = csv.field_size_limit(MAX_FIELD_CHARACTERS)
+        try:
+            return _read_rows(handle, subject, error_subject or subject, max_rows)
+        finally:
+            csv.field_size_limit(previous_limit)
 
 
 def _read_rows(
-    handle: TextIO, subject: str, error_subject: str
+    handle: TextIO, subject: str, error_subject: str, max_rows: int | None
 ) -> tuple[list[VerdictRow], list[Issue]]:
     reader = csv.reader(handle, strict=True)
     try:
@@ -93,6 +109,10 @@ def _read_rows(
     issues: list[Issue] = []
     reported_long: set[tuple[str, str]] = set()
     while True:
+        # Each shortening note adds one key to reported_long, so what is left are invalid rows.
+        counted = len(rows) + len(issues) - len(reported_long)
+        if max_rows is not None and counted > max_rows:
+            raise VerdictRowLimitError(f"{error_subject} has more than {max_rows} rows.")
         previous_line = reader.line_num
         try:
             fields = next(reader)

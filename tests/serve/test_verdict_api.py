@@ -1,4 +1,8 @@
+import csv
+import io
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -13,12 +17,21 @@ from detecttrace.serve.verdict_api import (
     UnsupportedMediaType,
     parse_verdicts_body,
 )
-from detecttrace.verdicts import MAX_FIELD_CHARACTERS, VerdictFileError, read_verdicts
+from detecttrace.verdicts import (
+    MAX_FIELD_CHARACTERS,
+    VerdictFileError,
+    VerdictRowLimitError,
+    read_verdict_rows,
+    read_verdicts,
+)
 
 CONFIG = Config(label_map={"TP": Verdict.TRUE_POSITIVE, "FP": Verdict.FALSE_POSITIVE})
 JSON = "application/json"
 CSV = "text/csv"
 CSV_HEADER = "case_id,alert_class,verdict\n"
+# The csv module's own default; asserting against it, not a value read mid-session, means a
+# limit leaked by an earlier test cannot hide a leak here.
+CSV_DEFAULT_FIELD_LIMIT = 128 * 1024
 
 
 def json_body(*items: object) -> bytes:
@@ -235,3 +248,96 @@ def test_json_and_csv_forms_of_the_same_rows_give_equal_rows() -> None:
     csv_rows, _, _ = parse_verdicts_body(from_csv, CSV, CONFIG)
 
     assert json_rows == csv_rows
+
+
+def test_csv_shortening_note_names_the_line_like_a_rejection_does() -> None:
+    body = (CSV_HEADER + f"DT-1,a,TP\n{'x' * 500},a,TP\n").encode()
+
+    _, _, issues = parse_verdicts_body(body, CSV, CONFIG)
+
+    assert [(issue.kind, issue.subject) for issue in issues] == [
+        (IssueKind.LONG_VERDICT_VALUE, "verdict API:line 3")
+    ]
+
+
+def test_json_over_long_alert_class_is_shortened() -> None:
+    bad = {**item(), "alert_class": "c" * 500}
+
+    rows, _, _ = parse_verdicts_body(json_body(bad), JSON, CONFIG)
+
+    assert len(rows[0].alert_class) == MAX_LABEL_LENGTH
+
+
+def test_json_with_a_byte_order_mark_is_invalid() -> None:
+    with pytest.raises(InvalidBody):
+        parse_verdicts_body(b"\xef\xbb\xbf" + json_body(item()), JSON, CONFIG)
+
+
+def test_more_than_the_row_limit_is_too_many_rows_even_when_labels_are_bad() -> None:
+    body = json_body(*[item(case_id=f"DT-{n}", verdict="maybe") for n in range(MAX_ROWS + 1)])
+
+    with pytest.raises(TooManyRows):
+        parse_verdicts_body(body, JSON, CONFIG)
+
+
+def test_csv_invalid_rows_count_toward_the_row_limit() -> None:
+    lines = "".join(f"DT-{n},a,\n" for n in range(MAX_ROWS + 1))
+
+    with pytest.raises(TooManyRows):
+        parse_verdicts_body((CSV_HEADER + lines).encode(), CSV, CONFIG)
+
+
+def test_rejections_come_back_in_body_order() -> None:
+    body = json_body(item("DT-1", "maybe"), {"case_id": "DT-2"})
+
+    _, rejected, _ = parse_verdicts_body(body, JSON, CONFIG)
+
+    assert [r.where for r in rejected] == ["verdicts[0]", "verdicts[1]"]
+
+
+def test_label_with_terminal_escapes_and_bidi_override_is_echoed_printable() -> None:
+    body = json_body(item(verdict="\x1b]52;c;aGk=\x07\u202eevil"))
+
+    _, rejected, _ = parse_verdicts_body(body, JSON, CONFIG)
+
+    assert [c for c in rejected[0].reason if ord(c) < 0x20 or c == "\u202e"] == []
+
+
+class CountingLines(io.StringIO):
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.read_count = 0
+
+    def __next__(self) -> str:
+        self.read_count += 1
+        return super().__next__()
+
+
+def test_reading_stops_soon_after_the_row_limit_is_passed() -> None:
+    lines = CountingLines(CSV_HEADER + "DT-1,a,TP\n" * 700_000)
+
+    with pytest.raises(VerdictRowLimitError):
+        read_verdict_rows(lines, "verdict API", max_rows=10)
+
+    assert lines.read_count <= 13
+
+
+def test_csv_field_limit_is_back_to_the_default_after_a_fatal_error() -> None:
+    with pytest.raises(InvalidBody):
+        parse_verdicts_body(b"case_id,alert_class\nDT-1,a\n", CSV, CONFIG)
+
+    assert csv.field_size_limit() == CSV_DEFAULT_FIELD_LIMIT
+
+
+def test_parsing_a_large_field_in_many_threads_neither_rejects_it_nor_leaks_the_limit() -> None:
+    body = (CSV_HEADER + f'DT-1,"{"x" * 300_000}",TP\n').encode()
+    start = threading.Barrier(8)
+
+    def parse_repeatedly() -> int:
+        start.wait()
+        return sum(len(parse_verdicts_body(body, CSV, CONFIG)[0]) for _ in range(40))
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        accepted = sum(pool.map(lambda _: parse_repeatedly(), range(8)))
+
+    assert (accepted, csv.field_size_limit()) == (8 * 40, CSV_DEFAULT_FIELD_LIMIT)

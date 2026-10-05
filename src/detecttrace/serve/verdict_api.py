@@ -11,9 +11,11 @@ from email.message import Message
 from detecttrace.config import Config
 from detecttrace.jsontext import parse_json_text
 from detecttrace.model import Issue, IssueKind, VerdictRow
+from detecttrace.summary import to_visible_text
 from detecttrace.verdicts import (
     REQUIRED_COLUMNS,
     VerdictFileError,
+    VerdictRowLimitError,
     read_verdict_rows,
     shorten_value,
 )
@@ -65,6 +67,7 @@ def parse_verdicts_body(
 
 @dataclass(frozen=True, slots=True)
 class _Candidate:
+    position: int  # the item index or the line, so rejections come back in body order
     where: str
     row: VerdictRow
 
@@ -113,7 +116,7 @@ def _read_json(text: str) -> tuple[list[_Candidate], list[tuple[int, RejectedRow
             shorten_value(value, column, subject, issues, reported_long)
             for column, value in zip(REQUIRED_COLUMNS, values, strict=True)
         )
-        candidates.append(_Candidate(where, VerdictRow(case_id, alert_class, label, 0)))
+        candidates.append(_Candidate(index, where, VerdictRow(case_id, alert_class, label, 0)))
     return candidates, rejected, issues
 
 
@@ -138,19 +141,23 @@ def _read_item(entry: object) -> tuple[list[str], str | None]:
 
 def _read_csv(text: str) -> tuple[list[_Candidate], list[tuple[int, RejectedRow]], list[Issue]]:
     try:
-        rows, issues = read_verdict_rows(io.StringIO(text, newline=""), SUBJECT)
+        rows, issues = read_verdict_rows(io.StringIO(text, newline=""), SUBJECT, max_rows=MAX_ROWS)
+    except VerdictRowLimitError as error:
+        raise TooManyRows(f"At most {MAX_ROWS} verdicts per request.") from error
     except VerdictFileError as error:
         raise InvalidBody(str(error)) from error
-    invalid = [issue for issue in issues if issue.kind is IssueKind.INVALID_VERDICT_ROW]
-    if len(rows) + len(invalid) > MAX_ROWS:
-        raise TooManyRows(f"At most {MAX_ROWS} verdicts per request.")
-    rejected = []
-    for issue in invalid:
+    rejected: list[tuple[int, RejectedRow]] = []
+    notes: list[Issue] = []
+    for issue in issues:
         line = int(issue.subject.rpartition(":")[2])
-        rejected.append((line, RejectedRow(f"line {line}", issue.detail)))
-    notes = [issue for issue in issues if issue.kind is not IssueKind.INVALID_VERDICT_ROW]
+        if issue.kind is IssueKind.INVALID_VERDICT_ROW:
+            rejected.append((line, RejectedRow(f"line {line}", issue.detail)))
+        else:
+            # Name the line as a rejection does, as the JSON form names its item.
+            notes.append(replace(issue, subject=f"{SUBJECT}:line {line}"))
     candidates = [
-        _Candidate(f"line {row.line_number}", replace(row, line_number=0)) for row in rows
+        _Candidate(row.line_number, f"line {row.line_number}", replace(row, line_number=0))
+        for row in rows
     ]
     return candidates, rejected, notes
 
@@ -163,16 +170,17 @@ def _accept(
 ) -> tuple[list[VerdictRow], list[RejectedRow], list[Issue]]:
     rows: list[VerdictRow] = []
     seen: set[str] = set()
-    rejections = [rejection for _, rejection in sorted(rejected, key=lambda pair: pair[0])]
+    rejections = list(rejected)
     for candidate in candidates:
         row = candidate.row
         if config.to_analyst_verdict(row.label) is None:
-            reason = f"verdict label '{row.label}' is not in label_map"
+            reason = f"verdict label '{to_visible_text(row.label)}' is not in label_map"
         elif row.case_id in seen:
             reason = "duplicate case_id in this request"
         else:
             seen.add(row.case_id)
             rows.append(row)
             continue
-        rejections.append(RejectedRow(candidate.where, reason))
-    return rows, rejections, issues
+        rejections.append((candidate.position, RejectedRow(candidate.where, reason)))
+    rejections.sort(key=lambda rejection: rejection[0])
+    return rows, [rejection for _, rejection in rejections], issues
