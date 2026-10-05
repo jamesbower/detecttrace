@@ -1,0 +1,68 @@
+# DetectTrace behind an OpenTelemetry Collector, on one host.
+#   cp deploy/detecttrace-serve.example.yaml deploy/detecttrace-serve.yaml   # then set the hashes
+#   (umask 077; printf 'DETECTTRACE_INGEST_TOKEN=%s\nCOLLECTOR_RECEIVER_TOKEN=%s\n' \
+#     '<the DetectTrace ingest token>' '<a long random token for your agents>' > .env)
+#   docker build -t detecttrace .
+#   docker compose up -d
+# Agents send OTLP/HTTP to the Collector on 127.0.0.1:4318 with the header
+# "Authorization: Bearer <COLLECTOR_RECEIVER_TOKEN>"; that token is not the ingest token,
+# which only the Collector holds. The dashboard is on http://127.0.0.1:4320 (Basic auth, any
+# user name, a read token as the password).
+# On Docker Engine older than 28, a port published on 127.0.0.1 can still be reached by other
+# hosts on the same network segment: use Docker 28 or later, or a host firewall.
+services:
+  detecttrace:
+    image: detecttrace
+    build: .
+    container_name: detecttrace
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # The server, its recompute worker and Python's helper processes need a handful.
+    pids_limit: 256
+    volumes:
+      # The database lives in the named volume. The configuration is bind-mounted read-only
+      # on top of it, so editing deploy/detecttrace-serve.yaml and restarting applies it, and
+      # its relative database path still resolves to /data/detecttrace.db in the volume.
+      - detecttrace-data:/data
+      - ./deploy/detecttrace-serve.yaml:/data/detecttrace-serve.yaml:ro
+    ports:
+      # Loopback only, because the server speaks plain HTTP here. Exposing it wider needs
+      # serve.tls or a TLS-terminating proxy in front.
+      - "127.0.0.1:4320:4320"
+    # On a stop, a recompute in progress finishes before the server exits. One took 12 s at
+    # 50,000 cases on a 4-CPU host, so Docker's default 10 s could kill it mid-run (the last
+    # dashboard survives, but the stop is not clean); 30 s leaves room for a slower host.
+    stop_grace_period: 30s
+    # The recompute worker peaks at about 1.5 GB at 50,000 cases; with the server beside it
+    # the container measured 1.8 GB, so 2 GB would leave too little headroom.
+    mem_limit: 3g
+
+  collector:
+    image: otel/opentelemetry-collector-contrib@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    # Above the memory_limiter's 400 MiB in deploy/collector.yaml, so the limiter refuses
+    # data before the kernel kills the process.
+    mem_limit: 512m
+    volumes:
+      - ./deploy/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    environment:
+      # Read from the shell or from .env next to this file.
+      DETECTTRACE_INGEST_TOKEN: ${DETECTTRACE_INGEST_TOKEN:?set DETECTTRACE_INGEST_TOKEN in .env}
+      COLLECTOR_RECEIVER_TOKEN: ${COLLECTOR_RECEIVER_TOKEN:?set COLLECTOR_RECEIVER_TOKEN in .env}
+    ports:
+      # The receiver demands COLLECTOR_RECEIVER_TOKEN; never publish it unauthenticated, since
+      # it forwards whatever it gets with the ingest token. Beyond loopback it also needs TLS.
+      - "127.0.0.1:4318:4318"
+    depends_on:
+      - detecttrace
+
+volumes:
+  detecttrace-data:

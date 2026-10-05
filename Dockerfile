@@ -9,10 +9,12 @@ WORKDIR /src
 COPY . .
 # pyproject.toml pins the build backend, so the wheel matches the one the release builds.
 RUN uv build --wheel --python /usr/local/bin/python3 --out-dir /dist \
-    && uv export --locked --no-dev --extra zstd --no-emit-project \
+    && uv export --locked --no-dev --extra serve --extra zstd --no-emit-project \
         --python /usr/local/bin/python3 -o /dist/requirements.txt
 
 FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
+# Log lines reach `docker logs` as they are written, not when a buffer fills.
+ENV PYTHONUNBUFFERED=1
 COPY --from=build /dist /tmp/dist
 # Dependencies come from uv.lock, hash-checked; the wheel then installs without resolving anything.
 RUN pip install --no-cache-dir --require-hashes -r /tmp/dist/requirements.txt \
@@ -25,5 +27,11 @@ RUN pip install --no-cache-dir --require-hashes -r /tmp/dist/requirements.txt \
 USER detecttrace
 WORKDIR /data
 VOLUME /data
+EXPOSE 4320
+# The slim image has no curl. It checks plain HTTP on the default port: a config that moves the
+# port or turns on TLS needs its own healthcheck.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4320/healthz', timeout=3)"]
+# Python runs as PID 1; uvicorn handles SIGTERM itself, so `docker stop` is a graceful stop.
 ENTRYPOINT ["detecttrace"]
-CMD ["--help"]
+CMD ["serve", "--config", "/data/detecttrace-serve.yaml"]

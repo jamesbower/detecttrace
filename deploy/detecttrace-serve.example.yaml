@@ -1,0 +1,34 @@
+# The serve configuration for the container. Copy it to deploy/detecttrace-serve.yaml (that
+# name is gitignored); compose.yaml mounts the copy read-only at /data/detecttrace-serve.yaml,
+# and relative paths below resolve against /data, the writable volume.
+serve:
+  database: detecttrace.db
+  # Every interface inside the container, so the published port reaches the server.
+  host: 0.0.0.0
+  port: 4320
+  # Plain HTTP is acceptable only because compose.yaml publishes the port on 127.0.0.1 and
+  # the Collector reaches it over the compose network. Anything wider needs serve.tls or a
+  # TLS-terminating proxy in front.
+  allow_plain_http: true
+  settle_seconds: 300
+
+# These hashes are placeholders that no token matches. Replace each one: run
+#   docker run --rm detecttrace token --role ingest --name collector
+# (and --role verdicts, --role read), paste the printed entry here and keep the token itself
+# somewhere safe; it is shown only once. The ingest token goes in .env as
+# DETECTTRACE_INGEST_TOKEN for the Collector (see the header of compose.yaml).
+tokens:
+  ingest:
+    - {name: "collector", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000001"}
+  verdicts:
+    - {name: "soar", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000002"}
+  read:
+    - {name: "analysts", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000003"}
+
+# Maps your analysts' and the agent's verdict labels to true_positive, false_positive or benign.
+label_map:
+  TP: true_positive
+  Malicious: true_positive
+  FP: false_positive
+  Benign: benign
+  Closed - Benign: benign
