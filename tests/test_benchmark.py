@@ -64,7 +64,7 @@ class EndToEndRun:
 class IngestRun:
     config_path: Path
     database: Path
-    statuses: set[int]
+    outcomes: set[tuple[int, int]]  # (status, rejected rows or partial successes) per request
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,13 +225,20 @@ def ingest_run(scale_folder: Path) -> IngestRun:
         f"(+ {len(requests) - span_requests} verdict requests): {elapsed:.1f} s, "
         f"{span_count / elapsed:.0f} spans/s, database {size / 1_000_000:.1f} MB"
     )
-    statuses = {response.status_code for response in requests}
-    return IngestRun(config_path, database, statuses)
+    # A 200 can still carry rejected rows or a partial success, so the body counts too.
+    outcomes = {
+        (
+            response.status_code,
+            len(response.json().get("rejected", [])) + ("partialSuccess" in response.json()),
+        )
+        for response in requests
+    }
+    return IngestRun(config_path, database, outcomes)
 
 
 @pytest.mark.benchmark
-def test_ingest_requests_all_succeed(ingest_run: IngestRun):
-    assert ingest_run.statuses == {200}
+def test_ingest_requests_all_succeed_without_rejections(ingest_run: IngestRun):
+    assert ingest_run.outcomes == {(200, 0)}
 
 
 @pytest.fixture(scope="module")
