@@ -309,8 +309,12 @@ class Store:
             self._connection.execute("BEGIN")
             try:
                 yield self._connection
-            finally:
-                self._connection.execute("COMMIT")
+            except BaseException:
+                # Not COMMIT: if the error ended the transaction, a COMMIT would fail and
+                # replace it.
+                _roll_back(self._connection)
+                raise
+            self._connection.execute("COMMIT")
 
 
 # Text-free integer form for SQLite, whose integers are signed 64-bit: OTLP times are unsigned,

@@ -28,12 +28,12 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from detecttrace.config import Config
 from detecttrace.dashboard import ServedPage, WaitingCounts, render_waiting_page
-from detecttrace.model import IssueKind
+from detecttrace.model import Issue, IssueKind
 from detecttrace.serve import receiver, verdict_api
 from detecttrace.serve.auth import Role, find_token_name
 from detecttrace.serve.config import ServeConfig, TokenRoles
 from detecttrace.serve.recompute import RecomputeStatus, to_iso_time
-from detecttrace.serve.store import Store
+from detecttrace.serve.store import INGEST_SUBJECT, Store
 from detecttrace.summary import to_terminal_text
 
 access_logger = logging.getLogger("detecttrace.serve.access")
@@ -83,8 +83,10 @@ def create_app(
 
     `read_status` gives the recompute's current state for `/api/status`.
     """
-    # No schema or docs pages: the API surface is not advertised to whoever can reach it.
-    app = _ServeApp(docs_url=None, redoc_url=None, openapi_url=None)
+    # No schema or docs pages: the API surface is not advertised to whoever can reach it. No
+    # trailing-slash redirect either: it is sent before any token check, and behind a TLS
+    # proxy its absolute URL would send the client to plain http.
+    app = _ServeApp(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
 
     @app.exception_handler(HTTPException)
     async def respond_with_status(request: Request, error: HTTPException) -> Response:
@@ -209,11 +211,20 @@ class _Unauthorized(HTTPException):
 
 
 async def _receive_traces(request: Request, store: Store, on_write: Callable[[], None]) -> Response:
-    body = await _read_limited_body(
-        request,
-        receiver.MAX_BODY_BYTES,
-        "lower send_batch_max_size in the Collector's batch processor",
-    )
+    try:
+        body = await _read_limited_body(
+            request,
+            receiver.MAX_BODY_BYTES,
+            "lower send_batch_max_size in the Collector's batch processor",
+        )
+    except _BodyTooLarge as error:
+        issue = Issue(IssueKind.INVALID_FILE, INGEST_SUBJECT, error.detail)
+        try:
+            await run_in_threadpool(store.add_issues, [issue])
+        except sqlite3.OperationalError:
+            return _create_unavailable_response()
+        on_write()
+        raise
     try:
         rejected, has_skipped_parts = await run_in_threadpool(
             _store_traces,
@@ -222,13 +233,15 @@ async def _receive_traces(request: Request, store: Store, on_write: Callable[[],
             request.headers.get("content-type"),
             request.headers.get("content-encoding"),
         )
+    # Each refusal's issue was committed, so the data notes can show it.
     except receiver.InvalidBody as error:
-        # Its issue was committed, so the data notes can show it.
         on_write()
         return _create_status_response(400, str(error))
     except receiver.PayloadTooLarge as error:
+        on_write()
         return _create_status_response(413, str(error))
     except receiver.UnsupportedMediaType as error:
+        on_write()
         return _create_status_response(415, str(error))
     except sqlite3.OperationalError:
         return _create_unavailable_response()
@@ -311,8 +324,15 @@ async def _read_limited_body(request: Request, max_bytes: int, hint: str) -> byt
     return b"".join(pieces)
 
 
-def _to_body_too_large(max_bytes: int, hint: str) -> HTTPException:
-    return HTTPException(413, f"the request body is over {max_bytes >> 20} MiB; {hint}")
+class _BodyTooLarge(HTTPException):
+    """A 413 for a body over a route's size limit, refused before it was all read."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(413, message)
+
+
+def _to_body_too_large(max_bytes: int, hint: str) -> _BodyTooLarge:
+    return _BodyTooLarge(f"the request body is over {max_bytes >> 20} MiB; {hint}")
 
 
 def _store_traces(
@@ -324,9 +344,13 @@ def _store_traces(
     """
     try:
         spans, issues, rejected = receiver.parse_traces_body(body, content_type, content_encoding)
+    # Recorded so the dashboard's data notes show that a sender is posting bad data; an
+    # exporter left on protobuf would otherwise lose every batch without a trace on the page.
     except receiver.InvalidBody as error:
-        # Recorded so the dashboard's data notes show that a sender is posting bad data.
         store.add_issues(error.issues)
+        raise
+    except (receiver.PayloadTooLarge, receiver.UnsupportedMediaType) as error:
+        store.add_issues([Issue(IssueKind.INVALID_FILE, INGEST_SUBJECT, str(error))])
         raise
     store.add_spans(spans, issues)
     return rejected, any(issue.kind is IssueKind.INVALID_FILE for issue in issues)

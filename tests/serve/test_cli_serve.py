@@ -15,7 +15,7 @@ from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 import uvicorn
@@ -211,6 +211,46 @@ def test_an_unrelated_missing_module_is_an_internal_error(
     start_with_unrelated_import_error: Result,
 ) -> None:
     assert start_with_unrelated_import_error.exit_code == 2
+
+
+def fail_with_locked_database(*args: object, **kwargs: object) -> NoReturn:
+    raise sqlite3.OperationalError("database is locked")
+
+
+@pytest.fixture
+def start_with_unreadable_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Result:
+    monkeypatch.setattr(Store, "read_snapshot", fail_with_locked_database)
+    config_path = write_serve_config(tmp_path, find_free_port())
+    return CliRunner().invoke(cli.app, ["serve", "--config", str(config_path)])
+
+
+def test_an_unreadable_database_at_startup_exits_1(start_with_unreadable_database: Result) -> None:
+    assert start_with_unreadable_database.exit_code == 1
+
+
+def test_an_unreadable_database_at_startup_names_the_database(
+    start_with_unreadable_database: Result,
+) -> None:
+    assert "detecttrace.db: database is locked." in start_with_unreadable_database.stderr
+
+
+def fail_unexpectedly(*args: object, **kwargs: object) -> NoReturn:
+    raise RuntimeError("the timer thread could not start")
+
+
+@pytest.fixture
+def crash_while_serving(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Result:
+    monkeypatch.setattr(server, "run_server", fail_unexpectedly)
+    config_path = write_serve_config(tmp_path, find_free_port())
+    return CliRunner().invoke(cli.app, ["serve", "--config", str(config_path)])
+
+
+def test_an_unexpected_serve_error_shows_its_message(crash_while_serving: Result) -> None:
+    assert "RuntimeError: the timer thread could not start" in crash_while_serving.stderr
+
+
+def test_an_unexpected_serve_error_shows_the_traceback(crash_while_serving: Result) -> None:
+    assert "Traceback (most recent call last)" in crash_while_serving.stderr
 
 
 @pytest.fixture

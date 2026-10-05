@@ -104,3 +104,10 @@ test("formats a time in UTC to the minute", () => {
 test("polls every 30 seconds", () => {
   assert.equal(serve.POLL_MS, 30000);
 });
+
+test("reads a microsecond time where Date.parse takes at most milliseconds", (t) => {
+  // Safari's Date.parse may refuse more than three fraction digits; the server sends six.
+  const parse = Date.parse;
+  t.mock.method(Date, "parse", (text) => (/\.\d{4,}/.test(text) ? NaN : parse(text)));
+  assert.equal(serve.formatTime("2026-10-05T12:34:56.123456Z"), "2026-10-05 12:34 UTC");
+});

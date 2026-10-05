@@ -921,6 +921,13 @@ def test_store_writes_again_after_a_failed_commit(store: Store) -> None:
     assert result.accepted == 1
 
 
+def test_an_error_inside_a_read_is_raised_as_itself(store: Store) -> None:
+    with pytest.raises(ValueError, match="read failed"), store._read() as connection:  # pyright: ignore[reportPrivateUsage]
+        # As a full disk or an I/O error can, the failure has already ended the transaction.
+        connection.execute("ROLLBACK")
+        raise ValueError("read failed")
+
+
 def test_store_writes_again_after_a_full_disk(store: Store) -> None:
     with pytest.raises(sqlite3.OperationalError):
         fill_until_full(store)

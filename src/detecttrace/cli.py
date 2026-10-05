@@ -238,7 +238,7 @@ def serve(
     ),
 ) -> None:
     """Receive spans and verdicts over HTTP and serve the live dashboard until stopped."""
-    _exit_with(lambda: _serve(config))
+    _exit_with(lambda: _serve(config), is_service=True)
 
 
 @app.command()
@@ -254,7 +254,7 @@ def token(
     _exit_with(lambda: _token(role, name))
 
 
-def _exit_with(body: Callable[[], int]) -> None:
+def _exit_with(body: Callable[[], int], *, is_service: bool = False) -> None:
     try:
         code = body()
     except InputFileError as error:
@@ -262,10 +262,19 @@ def _exit_with(body: Callable[[], int]) -> None:
         typer.echo(NOTHING_WRITTEN, err=True)
         code = 1
     except Exception as error:
-        typer.echo(
-            f"detecttrace: internal error ({type(error).__name__}). Please report it.", err=True
-        )
-        if os.environ.get("DETECTTRACE_DEBUG") == "1":
+        if is_service:
+            # A service's stderr is its log, often read long after the fact, so the cause
+            # and where it happened are written there in full.
+            typer.echo(
+                f"detecttrace: internal error ({type(error).__name__}: {error}). Please report it.",
+                err=True,
+            )
+        else:
+            typer.echo(
+                f"detecttrace: internal error ({type(error).__name__}). Please report it.",
+                err=True,
+            )
+        if is_service or os.environ.get("DETECTTRACE_DEBUG") == "1":
             typer.echo(traceback.format_exc(), err=True, nl=False)
         code = 2
     raise typer.Exit(code)

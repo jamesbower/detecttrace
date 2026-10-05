@@ -11,6 +11,7 @@ from detecttrace.conventions import TOOL_CALL_RESULT
 from detecttrace.jsontext import parse_json_text
 from detecttrace.model import Issue, IssueKind, Span
 from detecttrace.otlp import OtlpParser
+from detecttrace.serve.mediatype import to_media_type
 from detecttrace.serve.store import INGEST_SUBJECT
 from detecttrace.traces import MAX_DOCUMENT_BYTES
 
@@ -81,13 +82,11 @@ def parse_traces_body(
 def _check_content_type(content_type: str | None) -> None:
     if content_type is None:
         raise UnsupportedMediaType(f"the request has no Content-Type; {_JSON_HINT}")
-    media_type, *parameters = content_type.split(";")
-    if media_type.strip().lower() != "application/json":
+    media_type, is_utf8 = to_media_type(content_type)
+    if media_type != "application/json":
         raise UnsupportedMediaType(_JSON_HINT)
-    for parameter in parameters:
-        name, _, value = parameter.partition("=")
-        if name.strip().lower() == "charset" and value.strip().strip('"').lower() != "utf-8":
-            raise UnsupportedMediaType("OTLP JSON must be UTF-8; send charset=utf-8 or none")
+    if not is_utf8:
+        raise UnsupportedMediaType("OTLP JSON must be UTF-8; send charset=utf-8 or none")
 
 
 def _decode_content(body: bytes, content_encoding: str | None) -> bytes:

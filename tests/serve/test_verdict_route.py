@@ -117,6 +117,12 @@ def test_verdict_is_stored(
     assert app_store.read_inputs().verdict_rows == [STORED_ROW]
 
 
+@pytest.mark.parametrize("charset", ["utf-8", "utf8", '"UTF8"'])
+def test_utf_8_charset_is_accepted(client: TestClient, charset: str) -> None:
+    response = post_verdicts(client, json_body(item()), f"{JSON}; charset={charset}")
+    assert response.status_code == 200
+
+
 @pytest.mark.parametrize(("body", "content_type"), VALID_FORMS)
 def test_stored_verdict_is_acknowledged(client: TestClient, body: bytes, content_type: str) -> None:
     assert post_verdicts(client, body, content_type).json() == {"accepted": 1, "rejected": []}

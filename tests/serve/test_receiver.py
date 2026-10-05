@@ -1,12 +1,14 @@
 import functools
 import gzip
 import json
+import sqlite3
 import tracemalloc
 import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 import httpx
 import pytest
@@ -25,7 +27,7 @@ from detecttrace.serve.receiver import (
     UnsupportedMediaType,
     parse_traces_body,
 )
-from detecttrace.serve.store import AddSpansResult, Store
+from detecttrace.serve.store import INGEST_SUBJECT, AddSpansResult, Store
 from detecttrace.traces import MAX_DOCUMENT_BYTES
 from serve.app_support import (
     INGEST_TOKEN,
@@ -37,6 +39,10 @@ from serve.app_support import (
 )
 
 JSON = "application/json"
+
+
+def fail_with_locked_database(*args: object, **kwargs: object) -> NoReturn:
+    raise sqlite3.OperationalError("database is locked")
 
 
 def make_body(*spans: dict[str, object]) -> bytes:
@@ -133,20 +139,22 @@ INVALID_BODIES = [
     pytest.param(Post(body=DEEP_BODY), id="deep-nesting"),
     pytest.param(Post(body=b""), id="empty"),
 ]
+# Bodies refused unread or unparsed: only a data note is stored, so a Collector left on the
+# wrong encoding shows up on the dashboard.
+UNREADABLE_POSTS = [
+    ("no-content-type", Post(body=VALID_BODY, content_type=None), 415),
+    ("latin-1", Post(body=VALID_BODY, content_type="application/json; charset=latin-1"), 415),
+    ("brotli", Post(body=VALID_BODY, content_encoding="br"), 415),
+    ("gzip-bomb", Post(create_gzip_bomb, content_encoding="gzip"), 413),
+    ("over-16-mib", Post(body=b" " * (MAX_BODY_BYTES + 1)), 413),
+]
+UNREADABLE = [pytest.param(post, status, id=name) for name, post, status in UNREADABLE_POSTS]
 # Requests refused before anything is stored.
-REFUSED = [
-    pytest.param(Post(body=VALID_BODY, content_type=None), 415, id="no-content-type"),
-    pytest.param(
-        Post(body=VALID_BODY, content_type="application/json; charset=latin-1"),
-        415,
-        id="latin-1",
-    ),
-    pytest.param(Post(body=VALID_BODY, content_encoding="br"), 415, id="brotli"),
-    pytest.param(Post(create_gzip_bomb, content_encoding="gzip"), 413, id="gzip-bomb"),
-    pytest.param(Post(body=b" " * (MAX_BODY_BYTES + 1)), 413, id="over-16-mib"),
+UNAUTHORIZED = [
     pytest.param(Post(body=VALID_BODY, token=None), 401, id="no-token"),
     pytest.param(Post(body=VALID_BODY, token=READ_TOKEN), 403, id="read-token"),
 ]
+REFUSED = [*UNREADABLE, *UNAUTHORIZED]
 REJECTED = [
     *[pytest.param(param.values[0], 400, id=param.id) for param in INVALID_BODIES],
     *REFUSED,
@@ -328,12 +336,79 @@ def test_rejected_request_stores_no_spans(
     assert app_store.read_counts().span_count == 0
 
 
-@pytest.mark.parametrize(("post", "status"), REFUSED)
-def test_refused_request_does_not_signal_a_write(
+@pytest.mark.parametrize(("post", "status"), UNAUTHORIZED)
+def test_unauthorized_request_does_not_signal_a_write(
     client: TestClient, writes: list[int], post: Post, status: int
 ) -> None:
     post.send(client)
     assert writes == []
+
+
+@pytest.mark.parametrize(("post", "status"), UNAUTHORIZED)
+def test_unauthorized_request_records_no_issue(
+    client: TestClient, app_store: Store, post: Post, status: int
+) -> None:
+    post.send(client)
+    assert app_store.read_inputs().issues == []
+
+
+def send_streamed_oversize(client: TestClient) -> httpx.Response:
+    chunks = iter([b" " * (1 << 20)] * 17)
+    return client.post(
+        "/v1/traces",
+        content=chunks,
+        headers={"Content-Type": JSON, "Authorization": f"Bearer {INGEST_TOKEN}"},
+    )
+
+
+def send_declared_oversize(client: TestClient) -> httpx.Response:
+    headers = {
+        "Content-Type": JSON,
+        "Authorization": f"Bearer {INGEST_TOKEN}",
+        "Content-Length": str(MAX_BODY_BYTES + 1),
+    }
+    return client.post("/v1/traces", content=b"", headers=headers)
+
+
+UNREADABLE_SENDS = [
+    *[pytest.param(post.send, id=name) for name, post, _ in UNREADABLE_POSTS],
+    pytest.param(send_protobuf, id="protobuf"),
+    pytest.param(send_streamed_oversize, id="streamed-over-16-mib"),
+    pytest.param(send_declared_oversize, id="declared-over-16-mib"),
+]
+
+
+@pytest.mark.parametrize("send", UNREADABLE_SENDS)
+def test_unreadable_body_is_recorded_as_an_ingest_issue(
+    client: TestClient, app_store: Store, send: Callable[[TestClient], httpx.Response]
+) -> None:
+    send(client)
+    assert [
+        (stored.issue.kind, stored.issue.subject) for stored in app_store.read_inputs().issues
+    ] == [(IssueKind.INVALID_FILE, INGEST_SUBJECT)]
+
+
+@pytest.mark.parametrize("send", UNREADABLE_SENDS)
+def test_unreadable_body_signals_one_write_for_its_issue(
+    client: TestClient, writes: list[int], send: Callable[[TestClient], httpx.Response]
+) -> None:
+    send(client)
+    assert writes == [1]
+
+
+def test_repeated_protobuf_requests_are_counted_in_one_issue(
+    client: TestClient, app_store: Store
+) -> None:
+    send_protobuf(client)
+    send_protobuf(client)
+    assert [stored.count for stored in app_store.read_inputs().issues] == [2]
+
+
+def test_unrecordable_unreadable_body_answers_503(
+    client: TestClient, app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_store, "add_issues", fail_with_locked_database)
+    assert send_protobuf(client).status_code == 503
 
 
 @pytest.mark.parametrize("post", INVALID_BODIES)
@@ -359,13 +434,7 @@ def test_invalid_body_gets_a_status_body(client: TestClient) -> None:
 
 
 def test_body_over_the_limit_without_a_length_is_too_large(client: TestClient) -> None:
-    chunks = iter([b" " * (1 << 20)] * 17)
-    response = client.post(
-        "/v1/traces",
-        content=chunks,
-        headers={"Content-Type": JSON, "Authorization": f"Bearer {INGEST_TOKEN}"},
-    )
-    assert response.status_code == 413
+    assert send_streamed_oversize(client).status_code == 413
 
 
 def test_protobuf_request_is_unsupported(client: TestClient) -> None:
@@ -385,8 +454,9 @@ def test_protobuf_request_stores_no_spans(client: TestClient, app_store: Store) 
     assert app_store.read_counts().span_count == 0
 
 
-def test_utf_8_charset_is_accepted(client: TestClient) -> None:
-    post = Post(body=VALID_BODY, content_type="application/json; charset=utf-8")
+@pytest.mark.parametrize("charset", ["utf-8", "utf8", '"UTF8"'])
+def test_utf_8_charset_is_accepted(client: TestClient, charset: str) -> None:
+    post = Post(body=VALID_BODY, content_type=f"application/json; charset={charset}")
     assert post.send(client).status_code == 200
 
 
@@ -453,12 +523,7 @@ def test_rejected_count_ignores_skipped_scopes(client: TestClient) -> None:
 
 
 def test_declared_length_over_the_limit_is_refused_unread(client: TestClient) -> None:
-    headers = {
-        "Content-Type": JSON,
-        "Authorization": f"Bearer {INGEST_TOKEN}",
-        "Content-Length": str(MAX_BODY_BYTES + 1),
-    }
-    assert client.post("/v1/traces", content=b"", headers=headers).status_code == 413
+    assert send_declared_oversize(client).status_code == 413
 
 
 def test_partial_success_is_still_200(client: TestClient) -> None:

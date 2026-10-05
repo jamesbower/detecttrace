@@ -191,6 +191,13 @@ def test_status_needs_a_read_token(read_client: TestClient) -> None:
     assert read_client.get("/api/status").status_code == 401
 
 
+def test_a_trailing_slash_is_not_redirected(read_client: TestClient) -> None:
+    # A redirect is answered before any token check, and behind a TLS proxy it would point
+    # the client at plain http.
+    response = read_client.get("/api/status/", headers=BEARER_READ, follow_redirects=False)
+    assert response.status_code == 404
+
+
 def test_results_are_the_stored_json(read_client: TestClient) -> None:
     assert read_client.get("/api/results.json", headers=BEARER_READ).json() == json.loads(
         SNAPSHOT.results_json

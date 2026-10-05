@@ -7,8 +7,9 @@
   var NEW_DATA_TEXT = "New data is available.";
   var NO_TIME_TEXT = "an earlier update";
 
+  // The server sends microseconds; Safari's Date.parse may refuse more than three digits.
   function parseTime(text) {
-    var ms = typeof text === "string" ? Date.parse(text) : NaN;
+    var ms = typeof text === "string" ? Date.parse(text.replace(/(\.\d{3})\d+/, "$1")) : NaN;
     return isNaN(ms) ? null : ms;
   }
 

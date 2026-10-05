@@ -190,9 +190,12 @@ class RecomputeCoordinator:
     A write starts a `debounce_seconds` wait that each later write restarts, but a run starts
     no later than `max_wait_seconds` after the first write no run has covered yet, so steady
     ingest still refreshes the page. Writes during a run cause exactly one more run after it.
+    A write that changed nothing stored, such as a retried batch or an identical repost, causes
+    no run: the coordinator compares the store's generation with the one the last run read.
     When a run holds cases back, one more run follows when the first of them settles. A failed
-    run keeps the last snapshot and is not retried until the next write, and then no sooner
-    than 5 s after the failure, doubling with each failure in a row up to 300 s.
+    run keeps the last snapshot and is not retried until the next write that changes the input,
+    and then no sooner than 5 s after the failure, doubling with each failure in a row up to
+    300 s.
     """
 
     def __init__(
@@ -221,20 +224,25 @@ class RecomputeCoordinator:
         self._retry_at = 0.0
         self._last_error: str | None = None
         self._last_error_at_ns: int | None = None
-        self._held_back_cases = 0
+        # Counted so a tick can tell whether a write arrived while it read the generation.
+        self._write_count = 0
         snapshot = store.read_snapshot()
         generation = store.generation()
+        held_back_cases = None if snapshot is None else _read_held_back_cases(snapshot)
+        # The page served until the next run says this many are settling; the status agrees.
+        self._held_back_cases = held_back_cases or 0
         if snapshot is None or generation > snapshot.generation:
             # Nothing to wait out: the input was complete before the server started.
             self._last_write_at = clock() - debounce_seconds
             self._first_uncovered_write_at = self._last_write_at
-        elif snapshot is not None:
-            held_back_cases = _read_held_back_cases(snapshot)
+            # The input generation the last started run read, or the stored snapshot covers.
+            self._run_generation = -1
+        else:
+            self._run_generation = generation
             # Held-back cases may have settled while the server was down, and when is not
             # stored; an unreadable snapshot is replaced by a fresh one.
             if held_back_cases != 0:
                 self._settle_due_at = clock()
-            self._held_back_cases = held_back_cases or 0
 
     def notify_write(self) -> None:
         with self._lock:
@@ -242,6 +250,7 @@ class RecomputeCoordinator:
             if self._first_uncovered_write_at is None:
                 self._first_uncovered_write_at = now
             self._last_write_at = now
+            self._write_count += 1
 
     def tick(self) -> None:
         with self._lock:
@@ -258,8 +267,20 @@ class RecomputeCoordinator:
                 else:
                     self._record_failure(result)
         with self._lock:
-            if self._is_due(self._clock()):
-                self._start()
+            write_count = self._write_count
+        # Read outside the lock, so a request thread never waits on the database here.
+        generation = self._store.generation()
+        with self._lock:
+            now = self._clock()
+            if not self._is_due(now):
+                return
+            if generation > self._run_generation or self._is_settle_due(now):
+                self._start(generation)
+            elif self._write_count == write_count:
+                # Every write so far left the input as the last run read it: a retried batch,
+                # a repeated bad body or an identical repost. A write that arrived during the
+                # read may have changed it, so it is checked again on the next tick.
+                self._first_uncovered_write_at = None
 
     @property
     def status(self) -> RecomputeStatus:
@@ -308,11 +329,15 @@ class RecomputeCoordinator:
             or now - first_write_at >= self._max_wait_seconds
         ):
             return True
+        return self._is_settle_due(now)
+
+    def _is_settle_due(self, now: float) -> bool:
         return self._settle_due_at is not None and now >= self._settle_due_at
 
-    def _start(self) -> None:
+    def _start(self, generation: int) -> None:
         self._first_uncovered_write_at = None
-        if self._settle_due_at is not None and self._clock() >= self._settle_due_at:
+        self._run_generation = generation
+        if self._is_settle_due(self._clock()):
             self._settle_due_at = None
         try:
             self._future = self._submit()

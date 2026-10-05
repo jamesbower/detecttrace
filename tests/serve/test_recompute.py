@@ -1,7 +1,7 @@
 import json
 import multiprocessing
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -110,26 +110,39 @@ def coordinator(current_store: Store, clock: FakeClock, submit: FakeSubmit) -> R
     return RecomputeCoordinator(submit, current_store, clock, DEBOUNCE)
 
 
-def start_run(coordinator: RecomputeCoordinator, clock: FakeClock) -> None:
+def write_input(store: Store, coordinator: RecomputeCoordinator) -> None:
+    """Change the stored input and tell the coordinator, as a request that stores data does."""
+    detail = f"write {store.generation()}"
+    store.add_issues([Issue(IssueKind.INVALID_SPAN, INGEST_SUBJECT, detail)])
     coordinator.notify_write()
+
+
+def start_run(coordinator: RecomputeCoordinator, store: Store, clock: FakeClock) -> None:
+    write_input(store, coordinator)
     clock.advance(DEBOUNCE)
     coordinator.tick()
 
 
 def fail_runs(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit, count: int
+    coordinator: RecomputeCoordinator,
+    store: Store,
+    clock: FakeClock,
+    submit: FakeSubmit,
+    count: int,
 ) -> None:
     """Fail `count` runs in a row, each started by a write; the clock ends at the last failure."""
     for _ in range(count):
-        coordinator.notify_write()
+        write_input(store, coordinator)
         clock.advance(1_000)
         coordinator.tick()
         submit.fail()
         coordinator.tick()
 
 
-def succeed_run(coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit) -> None:
-    coordinator.notify_write()
+def succeed_run(
+    coordinator: RecomputeCoordinator, store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    write_input(store, coordinator)
     clock.advance(1_000)
     coordinator.tick()
     submit.succeed()
@@ -140,9 +153,9 @@ def succeed_run(coordinator: RecomputeCoordinator, clock: FakeClock, submit: Fak
 
 
 def test_no_run_starts_before_the_quiet_period(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    coordinator.notify_write()
+    write_input(current_store, coordinator)
     clock.advance(DEBOUNCE - 0.1)
     coordinator.tick()
 
@@ -150,19 +163,19 @@ def test_no_run_starts_before_the_quiet_period(
 
 
 def test_one_run_starts_after_the_quiet_period(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
 
     assert submit.count == 1
 
 
 def test_a_later_write_restarts_the_quiet_period(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    coordinator.notify_write()
+    write_input(current_store, coordinator)
     clock.advance(3)
-    coordinator.notify_write()
+    write_input(current_store, coordinator)
     clock.advance(3)
     coordinator.tick()
 
@@ -183,6 +196,7 @@ def test_nothing_runs_without_a_write(
 
 def run_start_times(
     coordinator: RecomputeCoordinator,
+    store: Store,
     clock: FakeClock,
     submit: FakeSubmit,
     seconds: int,
@@ -198,7 +212,7 @@ def run_start_times(
         elapsed = clock.now - first_write_at
         if starts and not submit.futures[-1].done() and elapsed - starts[-1] >= run_seconds:
             submit.succeed()
-        coordinator.notify_write()
+        write_input(store, coordinator)
         coordinator.tick()
         if submit.count > len(starts):
             starts.append(elapsed)
@@ -207,26 +221,26 @@ def run_start_times(
 
 
 def test_steady_writes_start_the_first_run_at_the_maximum_wait(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    starts = run_start_times(coordinator, clock, submit, 130)
+    starts = run_start_times(coordinator, current_store, clock, submit, 130)
 
     assert starts[0] == 60.0
 
 
 def test_steady_writes_start_the_next_run_a_maximum_wait_after_the_first_uncovered_write(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
     # The write at 60 s is covered by the run that starts in the same second; 61 s is next.
-    starts = run_start_times(coordinator, clock, submit, 130)
+    starts = run_start_times(coordinator, current_store, clock, submit, 130)
 
     assert starts == [60.0, 121.0]
 
 
 def test_a_run_longer_than_the_maximum_wait_is_followed_as_soon_as_it_finishes(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    starts = run_start_times(coordinator, clock, submit, 160, run_seconds=70)
+    starts = run_start_times(coordinator, current_store, clock, submit, 160, run_seconds=70)
 
     assert starts == [60.0, 130.0]
 
@@ -237,7 +251,7 @@ def test_a_single_write_still_runs_after_the_quiet_period_alone(
     coordinator = RecomputeCoordinator(
         submit, current_store, clock, DEBOUNCE, max_wait_seconds=1_000
     )
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
 
     assert submit.count == 1
 
@@ -246,10 +260,10 @@ def test_a_single_write_still_runs_after_the_quiet_period_alone(
 
 
 def test_no_second_run_starts_while_one_runs(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
-    coordinator.notify_write()
+    start_run(coordinator, current_store, clock)
+    write_input(current_store, coordinator)
     clock.advance(1_000)
     coordinator.tick()
 
@@ -257,11 +271,11 @@ def test_no_second_run_starts_while_one_runs(
 
 
 def test_writes_during_a_run_cause_one_more_run_after_it(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
-    coordinator.notify_write()
-    coordinator.notify_write()
+    start_run(coordinator, current_store, clock)
+    write_input(current_store, coordinator)
+    write_input(current_store, coordinator)
     clock.advance(DEBOUNCE)
     submit.succeed()
     coordinator.tick()
@@ -270,11 +284,11 @@ def test_writes_during_a_run_cause_one_more_run_after_it(
 
 
 def test_writes_during_a_run_cause_no_more_than_one_more_run(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
-    coordinator.notify_write()
-    coordinator.notify_write()
+    start_run(coordinator, current_store, clock)
+    write_input(current_store, coordinator)
+    write_input(current_store, coordinator)
     clock.advance(DEBOUNCE)
     submit.succeed()
     coordinator.tick()
@@ -286,9 +300,9 @@ def test_writes_during_a_run_cause_no_more_than_one_more_run(
 
 
 def test_a_run_without_writes_during_it_is_not_repeated(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
     submit.succeed()
     clock.advance(1_000)
     coordinator.tick()
@@ -298,21 +312,109 @@ def test_a_run_without_writes_during_it_is_not_repeated(
 
 
 def test_the_status_shows_a_run_in_progress(
-    coordinator: RecomputeCoordinator, clock: FakeClock
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock
 ) -> None:
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
 
     assert coordinator.status.is_running
 
 
 def test_the_status_shows_no_run_once_it_finished(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
     submit.succeed()
     coordinator.tick()
 
     assert coordinator.status == RecomputeStatus(False, None, None, 0)
+
+
+# Writes that change nothing stored
+
+STORED_SPAN = case_root("0000000000000001", "DT-1", verdict="TP", trace_id=f"{1:032x}")
+STORED_ISSUE = Issue(IssueKind.INVALID_FILE, INGEST_SUBJECT, "the request body is empty")
+STORED_VERDICT = VerdictRow("DT-1", "impossible_travel", "TP", 0)
+
+
+@pytest.fixture
+def covered(current_store: Store, clock: FakeClock, submit: FakeSubmit) -> RecomputeCoordinator:
+    """A coordinator whose last run covered a stored span, issue and verdict."""
+    coordinator = RecomputeCoordinator(submit, current_store, clock, DEBOUNCE)
+    current_store.add_spans([STORED_SPAN], [])
+    current_store.add_issues([STORED_ISSUE])
+    current_store.put_verdicts([STORED_VERDICT], "soar")
+    coordinator.notify_write()
+    clock.advance(DEBOUNCE)
+    coordinator.tick()
+    submit.succeed(generation=current_store.generation())
+    coordinator.tick()
+    return coordinator
+
+
+def retry_the_span_batch(store: Store) -> None:
+    store.add_spans([STORED_SPAN], [])
+
+
+def repeat_the_bad_body(store: Store) -> None:
+    store.add_issues([STORED_ISSUE])
+
+
+def repost_the_verdict(store: Store) -> None:
+    store.put_verdicts([STORED_VERDICT], "soar")
+
+
+@pytest.mark.parametrize("repeat", [retry_the_span_batch, repeat_the_bad_body, repost_the_verdict])
+def test_a_write_that_changes_nothing_stored_starts_no_run(
+    covered: RecomputeCoordinator,
+    current_store: Store,
+    clock: FakeClock,
+    submit: FakeSubmit,
+    repeat: Callable[[Store], None],
+) -> None:
+    repeat(current_store)
+    covered.notify_write()
+    clock.advance(1_000)
+    covered.tick()
+
+    assert submit.count == 1
+
+
+def test_a_write_that_changes_the_input_starts_one_run(
+    covered: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    current_store.put_verdicts([VerdictRow("DT-1", "impossible_travel", "FP", 0)], "soar")
+    covered.notify_write()
+    clock.advance(1_000)
+    covered.tick()
+    clock.advance(1_000)
+    covered.tick()
+
+    assert submit.count == 2
+
+
+def test_a_write_that_changed_nothing_does_not_shorten_the_next_quiet_period(
+    covered: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    repost_the_verdict(current_store)
+    covered.notify_write()
+    clock.advance(1_000)
+    covered.tick()
+    write_input(current_store, covered)
+    clock.advance(DEBOUNCE - 0.1)
+    covered.tick()
+
+    assert submit.count == 1
+
+
+def test_a_failed_run_is_not_retried_after_a_write_that_changed_nothing(
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    fail_runs(coordinator, current_store, clock, submit, 1)
+    coordinator.notify_write()
+    clock.advance(1_000)
+    coordinator.tick()
+
+    assert submit.count == 1
 
 
 # Saving the snapshot
@@ -321,7 +423,7 @@ def test_the_status_shows_no_run_once_it_finished(
 def test_a_finished_run_replaces_the_stored_snapshot(
     coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
     submit.succeed(generation=1, html="<p>new</p>")
     coordinator.tick()
 
@@ -333,7 +435,7 @@ def test_an_older_result_never_overwrites_a_newer_stored_snapshot(
 ) -> None:
     store.write_snapshot(Snapshot(5, 1, "<p>newer</p>", "{}"))
     coordinator = RecomputeCoordinator(submit, store, clock, DEBOUNCE)
-    start_run(coordinator, clock)
+    start_run(coordinator, store, clock)
     submit.succeed(generation=3, html="<p>older</p>")
     coordinator.tick()
 
@@ -346,7 +448,7 @@ def test_a_result_for_the_same_generation_replaces_the_snapshot(
     # A case that settles later is added without a write, so the generation stays.
     store.write_snapshot(Snapshot(5, 1, "<p>first</p>", "{}"))
     coordinator = RecomputeCoordinator(submit, store, clock, DEBOUNCE)
-    start_run(coordinator, clock)
+    start_run(coordinator, store, clock)
     submit.succeed(generation=5, html="<p>settled</p>")
     coordinator.tick()
 
@@ -357,9 +459,9 @@ def test_a_result_for_the_same_generation_replaces_the_snapshot(
 
 
 def test_a_failed_run_sets_the_last_error(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    fail_runs(coordinator, clock, submit, 1)
+    fail_runs(coordinator, current_store, clock, submit, 1)
 
     assert coordinator.status.last_error == "RuntimeError: boom"
 
@@ -368,7 +470,7 @@ def test_a_failed_run_records_when_it_failed(
     current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
     coordinator = RecomputeCoordinator(submit, current_store, clock, DEBOUNCE, now_ns=lambda: 1_234)
-    fail_runs(coordinator, clock, submit, 1)
+    fail_runs(coordinator, current_store, clock, submit, 1)
 
     assert coordinator.status.last_error_at_ns == 1_234
 
@@ -376,15 +478,15 @@ def test_a_failed_run_records_when_it_failed(
 def test_a_failed_run_keeps_the_old_snapshot(
     coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    fail_runs(coordinator, clock, submit, 1)
+    fail_runs(coordinator, current_store, clock, submit, 1)
 
     assert current_store.read_snapshot() == Snapshot(0, 1, "<p>old</p>", OLD_RESULTS)
 
 
 def test_a_failed_run_is_not_retried_without_a_write(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    fail_runs(coordinator, clock, submit, 1)
+    fail_runs(coordinator, current_store, clock, submit, 1)
     clock.advance(10_000)
     coordinator.tick()
 
@@ -397,13 +499,14 @@ BACKOFFS = [(1, 5.0), (2, 10.0), (3, 20.0), (4, 40.0), (6, 160.0), (7, 300.0), (
 @pytest.mark.parametrize(("failures", "backoff"), BACKOFFS)
 def test_a_retry_waits_out_the_backoff(
     coordinator: RecomputeCoordinator,
+    current_store: Store,
     clock: FakeClock,
     submit: FakeSubmit,
     failures: int,
     backoff: float,
 ) -> None:
-    fail_runs(coordinator, clock, submit, failures)
-    coordinator.notify_write()
+    fail_runs(coordinator, current_store, clock, submit, failures)
+    write_input(current_store, coordinator)
     clock.advance(backoff - 0.1)
     coordinator.tick()
 
@@ -413,13 +516,14 @@ def test_a_retry_waits_out_the_backoff(
 @pytest.mark.parametrize(("failures", "backoff"), BACKOFFS)
 def test_a_retry_runs_once_the_backoff_is_over(
     coordinator: RecomputeCoordinator,
+    current_store: Store,
     clock: FakeClock,
     submit: FakeSubmit,
     failures: int,
     backoff: float,
 ) -> None:
-    fail_runs(coordinator, clock, submit, failures)
-    coordinator.notify_write()
+    fail_runs(coordinator, current_store, clock, submit, failures)
+    write_input(current_store, coordinator)
     clock.advance(backoff)
     coordinator.tick()
 
@@ -427,21 +531,21 @@ def test_a_retry_runs_once_the_backoff_is_over(
 
 
 def test_a_success_after_a_failure_clears_the_last_error(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    fail_runs(coordinator, clock, submit, 1)
-    succeed_run(coordinator, clock, submit)
+    fail_runs(coordinator, current_store, clock, submit, 1)
+    succeed_run(coordinator, current_store, clock, submit)
 
     assert coordinator.status == RecomputeStatus(False, None, None, 0)
 
 
 def test_a_success_resets_the_backoff(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    fail_runs(coordinator, clock, submit, 3)
-    succeed_run(coordinator, clock, submit)
-    fail_runs(coordinator, clock, submit, 1)
-    coordinator.notify_write()
+    fail_runs(coordinator, current_store, clock, submit, 3)
+    succeed_run(coordinator, current_store, clock, submit)
+    fail_runs(coordinator, current_store, clock, submit, 1)
+    write_input(current_store, coordinator)
     clock.advance(5.0)
     coordinator.tick()
 
@@ -455,7 +559,7 @@ def test_a_submit_that_raises_counts_as_a_failed_run(
         raise RuntimeError("pool is broken")
 
     coordinator = RecomputeCoordinator(broken_submit, current_store, clock, DEBOUNCE)
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
 
     assert coordinator.status.last_error == "RuntimeError: pool is broken"
 
@@ -510,7 +614,7 @@ SETTLE_DUE_NS = 10 * 1_000_000_000
 def settling(current_store: Store, clock: FakeClock, submit: FakeSubmit) -> RecomputeCoordinator:
     """A coordinator whose first run held 2 cases back, the first settling at wall time 10 s."""
     coordinator = RecomputeCoordinator(submit, current_store, clock, DEBOUNCE, now_ns=lambda: 0)
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
     submit.succeed(held_back_cases=2, next_settle_at_ns=SETTLE_DUE_NS)
     coordinator.tick()
     return coordinator
@@ -539,9 +643,9 @@ def test_the_status_shows_how_many_cases_were_held_back(settling: RecomputeCoord
 
 
 def test_no_run_follows_when_nothing_is_held_back(
-    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    coordinator: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
     submit.succeed(next_settle_at_ns=None)
     coordinator.tick()
     clock.advance(10_000)
@@ -554,7 +658,7 @@ def test_a_settle_time_already_past_still_waits_a_second(
     current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
     coordinator = RecomputeCoordinator(submit, current_store, clock, DEBOUNCE, now_ns=lambda: 0)
-    start_run(coordinator, clock)
+    start_run(coordinator, current_store, clock)
     submit.succeed(held_back_cases=1, next_settle_at_ns=-SETTLE_DUE_NS)
     coordinator.tick()
 
@@ -562,10 +666,10 @@ def test_a_settle_time_already_past_still_waits_a_second(
 
 
 def test_a_failure_after_a_settle_was_scheduled_is_not_retried_without_a_write(
-    settling: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+    settling: RecomputeCoordinator, current_store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
     # The write-triggered run starts before the settle time and fails; the settle run is dropped.
-    settling.notify_write()
+    write_input(current_store, settling)
     clock.advance(DEBOUNCE)
     settling.tick()
     submit.fail()
@@ -625,6 +729,17 @@ def test_an_unreadable_snapshot_reports_no_held_back_cases(
     assert coordinator.status.held_back_cases == 0
 
 
+def test_startup_with_input_newer_than_the_snapshot_reports_its_held_back_cases(
+    store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    # The served page says the cases are settling; the status must agree before the next run.
+    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", '{"served": {"held_back_cases": 2}}'))
+    store.add_issues([Issue(IssueKind.INVALID_SPAN, INGEST_SUBJECT, "x")])
+    coordinator = RecomputeCoordinator(submit, store, clock, DEBOUNCE)
+
+    assert coordinator.status.held_back_cases == 2
+
+
 def tick_each_second(coordinator: RecomputeCoordinator, clock: FakeClock, seconds: int) -> None:
     for _ in range(seconds):
         clock.advance(1)
@@ -651,7 +766,7 @@ def test_a_case_ending_ahead_of_the_server_clock_is_scored_without_a_new_write(
         return future
 
     coordinator = RecomputeCoordinator(submit_now, store, clock, DEBOUNCE, now_ns=wall_ns)
-    start_run(coordinator, clock)
+    start_run(coordinator, store, clock)
     tick_each_second(coordinator, clock, 2 * SETTLE_SECONDS)
     snapshot = store.read_snapshot()
     results = json.loads(snapshot.results_json) if snapshot is not None else {}

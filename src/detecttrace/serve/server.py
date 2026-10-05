@@ -105,7 +105,10 @@ def create_uvicorn_config(config: ServeConfig, app: ASGIApp) -> uvicorn.Config:
 def _serve(
     config: ServeConfig, store: Store, pool: "WorkerPool", announce: Callable[[str], None]
 ) -> None:
-    coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
+    try:
+        coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
+    except sqlite3.Error as error:
+        raise StartupError(f"Can't read the database {config.serve.database}: {error}.") from None
     stop = threading.Event()
     timer = threading.Thread(
         target=tick_until_stopped,

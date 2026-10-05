@@ -6,11 +6,11 @@ checked by one rule. The JSON form applies the same per-value rules to each item
 
 import io
 from dataclasses import dataclass, replace
-from email.message import Message
 
 from detecttrace.config import Config
 from detecttrace.jsontext import parse_json_text
 from detecttrace.model import Issue, IssueKind, VerdictRow
+from detecttrace.serve.mediatype import to_media_type
 from detecttrace.summary import to_visible_text
 from detecttrace.verdicts import (
     REQUIRED_COLUMNS,
@@ -26,7 +26,6 @@ MAX_ROWS = 10_000
 # route enforces it while reading the body; this module only sees a body that fits.
 MAX_BODY_BYTES = 4 << 20
 SUBJECT = "verdict API"
-UTF8_CHARSETS = frozenset({"utf-8", "utf8"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,13 +74,10 @@ class _Candidate:
 def _is_json(content_type: str | None) -> bool:
     if not content_type:
         raise UnsupportedMediaType("Send application/json or text/csv.")
-    message = Message()
-    message["content-type"] = content_type
-    media_type = message.get_content_type()
-    charset = message.get_content_charset()
+    media_type, is_utf8 = to_media_type(content_type)
     if media_type not in ("application/json", "text/csv"):
         raise UnsupportedMediaType("Send application/json or text/csv.")
-    if charset is not None and charset not in UTF8_CHARSETS:
+    if not is_utf8:
         raise UnsupportedMediaType("The body must be UTF-8.")
     return media_type == "application/json"
 

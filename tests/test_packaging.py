@@ -53,6 +53,7 @@ PACKAGE_FILES = {
     "detecttrace/serve/app.py",
     "detecttrace/serve/auth.py",
     "detecttrace/serve/config.py",
+    "detecttrace/serve/mediatype.py",
     "detecttrace/serve/receiver.py",
     "detecttrace/serve/recompute.py",
     "detecttrace/serve/server.py",
