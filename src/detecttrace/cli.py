@@ -1,4 +1,4 @@
-"""The `detecttrace` command line: `init`, `check`, `demo` and `--version`.
+"""The `detecttrace` command line: `init`, `check`, `demo`, `token` and `--version`.
 
 `init` reads sample traces and verdicts, proposes a configuration, asks about it in a
 terminal (or takes every proposal with `--yes`), and writes detecttrace.yaml with an
@@ -17,6 +17,7 @@ without `--yes`; 2 for an internal error.
 
 import io
 import os
+import re
 import stat
 import sys
 import traceback
@@ -62,6 +63,8 @@ from detecttrace.model import InputFileError, Issue, IssueKind, Span, Verdict, V
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
 from detecttrace.runconfig import RunConfig, TraceFormat, load_run_config
+from detecttrace.serve.auth import create_token, hash_token
+from detecttrace.serve.config import NAME_PATTERN
 from detecttrace.summary import (
     IssueExample,
     Severity,
@@ -84,6 +87,7 @@ _LEAVE_UNMAPPED = ""
 _TRACES_HINT = "Check --traces."
 _VERDICTS_HINT = "Check --verdicts."
 _USAGE_ERROR_EXIT_CODE = 2
+_TOKEN_ROLES = ("ingest", "verdicts", "read")
 
 
 class _UsageErrorExitsOne(TyperGroup):
@@ -224,6 +228,19 @@ def demo(
     _exit_with(lambda: _demo(out, json, is_force=force, is_quiet=quiet))
 
 
+@app.command()
+def token(
+    role: Annotated[
+        str, typer.Option("--role", help="What the token may do: ingest, verdicts or read.")
+    ],
+    name: Annotated[
+        str, typer.Option("--name", help="A plain name for the token, shown in logs and audit.")
+    ],
+) -> None:
+    """Create an access token for `detecttrace serve` and the configuration entry for it."""
+    _exit_with(lambda: _token(role, name))
+
+
 def _exit_with(body: Callable[[], int]) -> None:
     try:
         code = body()
@@ -255,6 +272,21 @@ def _check(
     return _run(
         config, config_path, targets, is_force=is_force, is_strict=is_strict, is_quiet=is_quiet
     )
+
+
+def _token(role: str, name: str) -> int:
+    if role not in _TOKEN_ROLES:
+        _echo_error(f"--role must be one of {', '.join(_TOKEN_ROLES)}.")
+        return 1
+    if not re.fullmatch(NAME_PATTERN, name):
+        _echo_error("--name must be 1 to 64 letters, digits, '_', '.' or '-'.")
+        return 1
+    new_token = create_token()
+    typer.echo(new_token)
+    typer.echo("This token is shown only once; DetectTrace keeps just its hash.", err=True)
+    typer.echo(f"Add this under serve.tokens.{role} in the configuration:", err=True)
+    typer.echo(f'- {{name: {name}, hash: "{hash_token(new_token)}"}}')
+    return 0
 
 
 def _demo(out: Path | None, json_target: Path | None, *, is_force: bool, is_quiet: bool) -> int:

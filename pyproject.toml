@@ -47,6 +47,10 @@ zstd = [
 otel = [
     "opentelemetry-sdk>=1.30,<2",
 ]
+serve = [
+    "fastapi>=0.142.2",
+    "uvicorn>=0.54.0",
+]
 
 [project.urls]
 Homepage = "https://detecttrace.ai"
@@ -95,10 +99,13 @@ markers = [
 
 [dependency-groups]
 dev = [
+    "fastapi>=0.142.2",
+    "httpx>=0.28.1",
     "opentelemetry-sdk>=1.30,<2",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "ruff>=0.16.9",
     "types-pyyaml>=6.0.12.20260906",
+    "uvicorn>=0.54.0",
     "zstandard>=0.22",
 ]
