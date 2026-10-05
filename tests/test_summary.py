@@ -49,6 +49,7 @@ INVALID_INPUT_KINDS = [
     IssueKind.INVALID_LANGFUSE_ROW,
     IssueKind.LANGFUSE_METADATA_NOT_OBJECT,
     IssueKind.LEGACY_LANGFUSE_TRACE,
+    IssueKind.REFUSED_TRACE_REQUEST,
 ]
 WARNING_KINDS = [
     IssueKind.DUPLICATE_SPAN,
@@ -356,6 +357,60 @@ def test_long_example_subjects_are_kept_whole_for_the_results() -> None:
 def test_an_invalid_file_example_keeps_the_os_error() -> None:
     issue = Issue(IssueKind.INVALID_FILE, "a.jsonl", "Permission denied")
     assert only_line([issue]).examples == (IssueExample("a.jsonl", "Permission denied"),)
+
+
+PROTOBUF_REASON = "HTTP 415: only OTLP JSON is accepted"
+NO_TYPE_REASON = "HTTP 415: the request has no Content-Type"
+
+
+def refused(detail: str) -> Issue:
+    return Issue(IssueKind.REFUSED_TRACE_REQUEST, "OTLP/HTTP ingest", detail)
+
+
+def test_refused_trace_requests_are_counted_by_status() -> None:
+    line = only_line([refused(PROTOBUF_REASON), refused(NO_TYPE_REASON)])
+    assert line.message == "2 trace requests were refused with HTTP 415."
+
+
+def test_refused_trace_requests_of_each_status_get_their_own_line() -> None:
+    lines = summarize_issues([refused(PROTOBUF_REASON), refused("HTTP 413: too large")])
+    assert [line.message for line in lines] == [
+        "1 trace request was refused with HTTP 413.",
+        "1 trace request was refused with HTTP 415.",
+    ]
+
+
+def test_refused_trace_requests_keep_one_example_per_reason() -> None:
+    line = only_line([refused(PROTOBUF_REASON), refused(NO_TYPE_REASON), refused(PROTOBUF_REASON)])
+    assert line.examples == (
+        IssueExample("OTLP/HTTP ingest", PROTOBUF_REASON),
+        IssueExample("OTLP/HTTP ingest", NO_TYPE_REASON),
+    )
+
+
+@pytest.mark.parametrize(
+    ("detail", "hint"),
+    [
+        pytest.param(
+            PROTOBUF_REASON,
+            "Send OTLP JSON: set encoding: json on the Collector's otlp_http exporter, and "
+            "leave its compression as gzip or none.",
+            id="415",
+        ),
+        pytest.param(
+            "HTTP 413: too large",
+            "Lower send_batch_max_size in the Collector's batch processor.",
+            id="413",
+        ),
+        pytest.param(
+            "HTTP 400: the request body is not valid JSON",
+            "Fix the sender: each example says what was wrong with its request.",
+            id="400",
+        ),
+    ],
+)
+def test_refused_trace_requests_name_the_likely_fix(detail: str, hint: str) -> None:
+    assert only_line([refused(detail)]).hint == hint
 
 
 def test_a_rule_mismatch_example_keeps_its_description() -> None:

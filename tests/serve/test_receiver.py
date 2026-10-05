@@ -8,7 +8,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, cast
 
 import httpx
 import pytest
@@ -250,13 +250,6 @@ def test_invalid_body_is_rejected(post: Post) -> None:
         parse_traces_body(post.read_body(), JSON, post.content_encoding)
 
 
-@pytest.mark.parametrize("post", INVALID_BODIES)
-def test_invalid_body_carries_an_issue(post: Post) -> None:
-    with pytest.raises(InvalidBody) as caught:
-        parse_traces_body(post.read_body(), JSON, post.content_encoding)
-    assert caught.value.issues
-
-
 def test_tool_result_is_removed() -> None:
     spans, _, _ = parse_traces_body(TOOL_RESULT_BODY, JSON, None)
     assert TOOL_CALL_RESULT not in spans[0].attributes
@@ -386,7 +379,23 @@ def test_unreadable_body_is_recorded_as_an_ingest_issue(
     send(client)
     assert [
         (stored.issue.kind, stored.issue.subject) for stored in app_store.read_inputs().issues
-    ] == [(IssueKind.INVALID_FILE, INGEST_SUBJECT)]
+    ] == [(IssueKind.REFUSED_TRACE_REQUEST, INGEST_SUBJECT)]
+
+
+REFUSED_SENDS = [
+    *UNREADABLE_SENDS,
+    *[pytest.param(cast(Post, param.values[0]).send, id=param.id) for param in INVALID_BODIES],
+]
+
+
+@pytest.mark.parametrize("send", REFUSED_SENDS)
+def test_refused_request_note_gives_the_status_and_the_answer(
+    client: TestClient, app_store: Store, send: Callable[[TestClient], httpx.Response]
+) -> None:
+    response = send(client)
+    assert [stored.issue.detail for stored in app_store.read_inputs().issues] == [
+        f"HTTP {response.status_code}: {response.json()['message']}"
+    ]
 
 
 @pytest.mark.parametrize("send", UNREADABLE_SENDS)
@@ -426,7 +435,7 @@ def test_invalid_body_is_recorded_as_an_issue(
 ) -> None:
     post.send(client)
     assert [stored.issue.kind for stored in app_store.read_inputs().issues] == [
-        IssueKind.INVALID_FILE
+        IssueKind.REFUSED_TRACE_REQUEST
     ]
 
 

@@ -334,7 +334,9 @@ def test_the_status_shows_no_run_once_it_finished(
 # Writes that change nothing stored
 
 STORED_SPAN = case_root("0000000000000001", "DT-1", verdict="TP", trace_id=f"{1:032x}")
-STORED_ISSUE = Issue(IssueKind.INVALID_FILE, INGEST_SUBJECT, "the request body is empty")
+STORED_ISSUE = Issue(
+    IssueKind.REFUSED_TRACE_REQUEST, INGEST_SUBJECT, "HTTP 400: the request body is empty"
+)
 STORED_VERDICT = VerdictRow("DT-1", "impossible_travel", "TP", 0)
 
 

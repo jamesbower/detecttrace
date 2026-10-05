@@ -71,7 +71,7 @@ NOTE_KIND_CHANGES: dict[str, dict[str, str | None]] = {
     # An empty file holds no document, so nothing is sent.
     "edge/broken_files/empty_file": {"empty_file": None},
     # The cut-off line is sent as its own request, which is refused as invalid JSON.
-    "edge/broken_files/truncated_last_line": {"truncated_line": "invalid_file"},
+    "edge/broken_files/truncated_last_line": {"truncated_line": "refused_trace_request"},
     # The store takes an identical copy of a span for a client's retry, which is no problem.
     "edge/loading/same_span_in_two_files": {"duplicate_span": None},
 }

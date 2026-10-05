@@ -197,7 +197,7 @@ dashboard:
 
 ## Sending spans from a Collector
 
-Add an `otlp_http` exporter that points at the service. Older Collector releases call it `otlphttp`. It must send JSON: set `encoding: json`. The service doesn't read OTLP protobuf: it answers `415`, which the Collector doesn't retry, and lists the refused requests in the dashboard's data notes. The Collector's default gzip compression is fine.
+Add an `otlp_http` exporter that points at the service. Older Collector releases call it `otlphttp`. It must send JSON: set `encoding: json`. The service doesn't read OTLP protobuf: it answers `415`, which the Collector doesn't retry, and counts the refused requests in a `refused_trace_request` data note that says how to fix the exporter. The Collector's default gzip compression is fine.
 
 ```yaml
 receivers:
@@ -459,7 +459,7 @@ No answer ever repeats the token a client sent.
 
 | Status | When | Retry? |
 |---|---|---|
-| `400` | The body can't be read at all: not JSON, not an OTLP trace export, broken gzip or more than 64 gzip members, not UTF-8, a verdict body without a `verdicts` list, or a CSV without the required columns. A bad trace body is also listed in the data notes. | No. Fix the sender. |
+| `400` | The body can't be read at all: not JSON, not an OTLP trace export, broken gzip or more than 64 gzip members, not UTF-8, a verdict body without a `verdicts` list, or a CSV without the required columns. A refused trace request is also counted in the data notes. | No. Fix the sender. |
 | `401` | The token is missing or unknown. | No. Check the token. |
 | `403` | The token is valid but has another role. | No. Use a token of the right role. |
 | `413` | The body is over the size limit, or a verdict request has more than 10,000 rows. A refused trace request is also listed in the data notes. | No. Send smaller requests; for a Collector, lower `send_batch_max_size`. |
@@ -486,7 +486,7 @@ On the same spans and verdicts, the service gives the same results as `check`, w
 - **Unmapped verdict labels.** The verdict API rejects a row whose label isn't in `label_map`, so that case has no verdict and stays unscored, with a `root_without_verdict` data note. `check` scores such a case with an unknown analyst verdict and an `unmapped_analyst_label` note. Rejected rows are not stored: after you fix `label_map` and restart the service, send them again.
 - **A case's verdict can change.** A newer verdict for a case replaces the older one, which is kept in the database's history. `check` reports a case ID that appears twice in its CSV.
 - **Retried spans.** An identical copy of a stored span, as a client's retry sends, is dropped without a note. `check` notes a span that appears in more than one file.
-- **Broken requests.** A request that can't be read is refused with an error status, rather than read in part as `check` reads a file. A refused trace request (`400`, `413` or `415`) is also counted in the data notes. A refused verdict request isn't: the tool that sent it gets the reason in the answer.
+- **Broken requests.** A request that can't be read is refused with an error status, rather than read in part as `check` reads a file. A refused trace request (`400`, `413` or `415`) is also counted in a `refused_trace_request` data note, one line per status, with the answer the sender got as its example. A refused verdict request isn't: the tool that sent it gets the reason in the answer.
 - **Settling.** Cases are counted once their root span ended `settle_seconds` ago, and a case dated in the future gets a `future_case_end` note. `check` counts every case in its files.
 - **Sources.** The results name the endpoints, not files, and add a `served` block.
 

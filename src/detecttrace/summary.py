@@ -62,6 +62,7 @@ SEVERITY: Mapping[IssueKind, Severity] = {
     IssueKind.LANGFUSE_NO_TOOL_CALLS: _W,
     IssueKind.INACTIVE_CHECKLIST: _W,
     IssueKind.FUTURE_CASE_END: _W,
+    IssueKind.REFUSED_TRACE_REQUEST: _I,
 }
 
 _AGENT = conventions.INVOKE_AGENT
@@ -308,6 +309,19 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "Check that the clock of the host that runs the agent is synchronized, for example "
         "with NTP.",
     ),
+    # {key} is the status; the hint depends on it, see _REFUSED_REQUEST_HINTS.
+    IssueKind.REFUSED_TRACE_REQUEST: (
+        "trace request was refused with {key}",
+        "trace requests were refused with {key}",
+        "Fix the sender: each example says what was wrong with its request.",
+    ),
+}
+# The likely fix for a refused trace request, by status; a 400 has many causes, so the
+# examples, which carry the answer the sender got, say what to fix.
+_REFUSED_REQUEST_HINTS: Mapping[str, str] = {
+    "HTTP 413": "Lower send_batch_max_size in the Collector's batch processor.",
+    "HTTP 415": "Send OTLP JSON: set encoding: json on the Collector's otlp_http exporter, and "
+    "leave its compression as gzip or none.",
 }
 
 # Kinds whose Issue.detail is the grouping key itself, so repeating it per example adds nothing.
@@ -387,7 +401,7 @@ def summarize_issues(
             group = groups[group_key] = _Group()
         group.count += counts[index] if index < len(counts) else 1
         if len(group.examples) < _MAX_EXAMPLES and all(
-            example.subject != issue.subject for example in group.examples
+            not _is_same_example(example, issue) for example in group.examples
         ):
             detail = None if issue.kind in _KEY_IN_DETAIL else issue.detail or None
             group.examples.append(IssueExample(issue.subject, detail))
@@ -486,9 +500,18 @@ def coverage_lines(
     ]
 
 
+def _is_same_example(example: IssueExample, issue: Issue) -> bool:
+    # Refused requests all share one subject; their causes differ only in the detail.
+    if issue.kind is IssueKind.REFUSED_TRACE_REQUEST:
+        return example.detail == issue.detail
+    return example.subject == issue.subject
+
+
 def _to_group_key(issue: Issue) -> str:
     if issue.kind in _KEY_IN_DETAIL:
         return issue.detail
+    if issue.kind is IssueKind.REFUSED_TRACE_REQUEST:
+        return issue.detail.partition(":")[0]
     # A mismatch's detail describes one call; its subject is the checklist item to group by.
     if issue.kind is IssueKind.RULE_TYPE_MISMATCH:
         return issue.subject
@@ -511,6 +534,8 @@ def _to_count_prefix(count: int) -> str:
 
 
 def _render_hint(kind: IssueKind, key: str, config_name: str) -> str:
+    if kind is IssueKind.REFUSED_TRACE_REQUEST and key in _REFUSED_REQUEST_HINTS:
+        return _REFUSED_REQUEST_HINTS[key]
     return _TEMPLATES[kind][2].format(key=key, config=config_name)
 
 

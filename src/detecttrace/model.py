@@ -82,6 +82,9 @@ class IssueKind(StrEnum):
     INACTIVE_CHECKLIST = "inactive_checklist"
     # Only detecttrace serve reports this: it compares a case's end with its own clock.
     FUTURE_CASE_END = "future_case_end"
+    # Only detecttrace serve reports this: a trace request it refused, with the detail
+    # "HTTP <status>: <the message it answered>".
+    REFUSED_TRACE_REQUEST = "refused_trace_request"
 
 
 @dataclass(frozen=True, slots=True)

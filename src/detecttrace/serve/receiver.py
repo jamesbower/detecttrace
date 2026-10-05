@@ -37,11 +37,7 @@ class PayloadTooLarge(Exception):
 
 
 class InvalidBody(Exception):
-    """A body that holds no OTLP JSON trace export (HTTP 400); `issues` are for the data notes."""
-
-    def __init__(self, message: str, issues: list[Issue]) -> None:
-        super().__init__(message)
-        self.issues = issues
+    """A body that holds no OTLP JSON trace export (HTTP 400)."""
 
 
 def parse_traces_body(
@@ -73,7 +69,7 @@ def parse_traces_body(
     malformed = [issue for issue in issues if issue.kind is IssueKind.INVALID_FILE]
     if not spans and malformed:
         raise InvalidBody(
-            f"the request body is not an OTLP JSON trace export: {malformed[0].detail}", issues
+            f"the request body is not an OTLP JSON trace export: {malformed[0].detail}"
         )
     rejected = sum(issue.kind is IssueKind.INVALID_SPAN for issue in issues)
     return [_remove_tool_result(span) for span in spans], issues, rejected
@@ -149,7 +145,7 @@ def _to_payload_too_large() -> PayloadTooLarge:
 
 
 def _to_invalid_body(message: str) -> InvalidBody:
-    return InvalidBody(message, [Issue(IssueKind.INVALID_FILE, INGEST_SUBJECT, message)])
+    return InvalidBody(message)
 
 
 def _remove_tool_result(span: Span) -> Span:

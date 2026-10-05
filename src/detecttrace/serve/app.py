@@ -218,9 +218,8 @@ async def _receive_traces(request: Request, store: Store, on_write: Callable[[],
             "lower send_batch_max_size in the Collector's batch processor",
         )
     except _BodyTooLarge as error:
-        issue = Issue(IssueKind.INVALID_FILE, INGEST_SUBJECT, error.detail)
         try:
-            await run_in_threadpool(store.add_issues, [issue])
+            await run_in_threadpool(store.add_issues, [_to_refusal_issue(413, error.detail)])
         except sqlite3.OperationalError:
             return _create_unavailable_response()
         on_write()
@@ -347,13 +346,21 @@ def _store_traces(
     # Recorded so the dashboard's data notes show that a sender is posting bad data; an
     # exporter left on protobuf would otherwise lose every batch without a trace on the page.
     except receiver.InvalidBody as error:
-        store.add_issues(error.issues)
+        store.add_issues([_to_refusal_issue(400, str(error))])
         raise
-    except (receiver.PayloadTooLarge, receiver.UnsupportedMediaType) as error:
-        store.add_issues([Issue(IssueKind.INVALID_FILE, INGEST_SUBJECT, str(error))])
+    except receiver.PayloadTooLarge as error:
+        store.add_issues([_to_refusal_issue(413, str(error))])
+        raise
+    except receiver.UnsupportedMediaType as error:
+        store.add_issues([_to_refusal_issue(415, str(error))])
         raise
     store.add_spans(spans, issues)
     return rejected, any(issue.kind is IssueKind.INVALID_FILE for issue in issues)
+
+
+def _to_refusal_issue(status: int, message: str) -> Issue:
+    # The status leads the detail: the data notes count refusals by it and name its fix.
+    return Issue(IssueKind.REFUSED_TRACE_REQUEST, INGEST_SUBJECT, f"HTTP {status}: {message}")
 
 
 def _store_verdicts(
