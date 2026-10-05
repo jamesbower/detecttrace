@@ -17,6 +17,7 @@ COPY --from=build /dist /tmp/dist
 # Dependencies come from uv.lock, hash-checked; the wheel then installs without resolving anything.
 RUN pip install --no-cache-dir --require-hashes -r /tmp/dist/requirements.txt \
     && pip install --no-cache-dir --no-deps /tmp/dist/*.whl \
+    && pip check \
     && rm -rf /tmp/dist \
     && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin detecttrace \
     && mkdir /data \

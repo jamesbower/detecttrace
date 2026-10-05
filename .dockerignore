@@ -6,4 +6,7 @@
 !LICENSE
 !CHANGELOG.md
 !src/
+**/.DS_Store
+**/*.swp
+**/*~
 **/__pycache__/

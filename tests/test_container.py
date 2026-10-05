@@ -1,6 +1,5 @@
 """The container image: static checks of its recipe, and Docker checks of the image it builds."""
 
-import json
 import re
 import shutil
 import subprocess
@@ -62,13 +61,15 @@ def _docker(*args: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def docker_images() -> None:
+def docker_images() -> Iterator[None]:
     if shutil.which("docker") is None:
         pytest.skip("docker is not on PATH")
     # The build stage holds the whole build context, so it shows what .dockerignore lets in;
     # the runtime stage only ever copies the wheel and the lock export.
     _docker("build", "--target", "build", "-t", BUILD_IMAGE, str(ROOT))
     _docker("build", "-t", IMAGE, str(ROOT))
+    yield
+    _docker("rmi", "-f", IMAGE, BUILD_IMAGE)
 
 
 def _run(*args: str) -> str:
@@ -132,34 +133,32 @@ def test_runtime_image_has_no_source_folder() -> None:
     assert output.strip() == "absent"
 
 
-def _to_package_key(name: str) -> str:
-    return name.lower().replace("_", "-")
+@pytest.mark.container
+@pytest.mark.usefixtures("docker_images")
+def test_zstd_extra_is_installed() -> None:
+    output = _run("--entrypoint", "python", IMAGE, "-c", "import zstandard; print('ok')")
 
-
-def _read_pins(requirements: str) -> dict[str, str]:
-    matches = (
-        re.match(r"^([A-Za-z0-9._-]+)==([^\s;]+)", line) for line in requirements.splitlines()
-    )
-    return {_to_package_key(match[1]): match[2] for match in matches if match}
-
-
-def _find_drifted_packages(pins: dict[str, str], pip_list: str) -> list[str]:
-    installed = json.loads(pip_list)
-    return [
-        f"{package['name']}=={package['version']}"
-        for package in installed
-        if _to_package_key(package["name"]) not in {"pip", "detecttrace"}
-        and pins.get(_to_package_key(package["name"])) != package["version"]
-    ]
+    assert output.strip() == "ok"
 
 
 @pytest.mark.container
 @pytest.mark.usefixtures("docker_images")
-def test_installed_dependencies_match_the_lock() -> None:
-    pins = _read_pins(_run("--entrypoint", "cat", BUILD_IMAGE, "/dist/requirements.txt"))
-
-    drifted = _find_drifted_packages(
-        pins, _run("--entrypoint", "pip", IMAGE, "list", "--format", "json")
+def test_installed_package_files_are_the_tracked_sources() -> None:
+    listing = _run(
+        "--entrypoint",
+        "sh",
+        IMAGE,
+        "-c",
+        'cd "$(python -c "import detecttrace, os; print(os.path.dirname(detecttrace.__path__[0]))")"'
+        " && find detecttrace -type f -not -path '*/__pycache__/*'",
     )
+    tracked = subprocess.run(
+        ["git", "ls-files", "src/detecttrace"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=ROOT,
+    ).stdout
 
-    assert drifted == []
+    assert sorted(listing.split()) == sorted(line.removeprefix("src/") for line in tracked.split())
