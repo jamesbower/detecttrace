@@ -26,11 +26,11 @@ _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 _ZSTD_CHUNK_SIZE = 256
 _READ_SIZE = 1 << 20
 # Bounds memory for any one line or one-document file, compressed or not.
-_MAX_LINE_BYTES = 32 << 20
-_MAX_LINE_TEXT = f"{_MAX_LINE_BYTES >> 20} MiB"
+MAX_DOCUMENT_BYTES = 32 << 20
+_MAX_LINE_TEXT = f"{MAX_DOCUMENT_BYTES >> 20} MiB"
 _SNIFF_SIZE = 64 * 1024
 # Enough to pass a few leading lines of another shape, such as metrics written to the same
-# file; each document is under _MAX_LINE_BYTES, so memory stays bounded.
+# file; each document is under MAX_DOCUMENT_BYTES, so memory stays bounded.
 _MAX_SNIFFED_DOCUMENTS = 16
 _CONSOLE_CONTEXT = b'"context": {'
 _CONSOLE_TRACE_ID = b'"trace_id": "0x'
@@ -307,7 +307,7 @@ def _read_document_bytes(file_path: Path) -> bytes | None:
     with _open_binary(file_path) as handle:
         while chunk := handle.read(_READ_SIZE):
             total += len(chunk)
-            if total > _MAX_LINE_BYTES:
+            if total > MAX_DOCUMENT_BYTES:
                 return None
             chunks.append(chunk)
     return b"".join(chunks)
@@ -350,12 +350,12 @@ def _read_lines(handle: io.BufferedIOBase) -> Iterator[bytes | None]:
         size = len(line)
         while not line.endswith(b"\n") and (line := handle.readline(_READ_SIZE)):
             size += len(line)
-            if size > _MAX_LINE_BYTES:
+            if size > MAX_DOCUMENT_BYTES:
                 # Keep reading to the newline so the next line starts in the right place.
                 pieces.clear()
             else:
                 pieces.append(line)
-        yield b"".join(pieces) if size <= _MAX_LINE_BYTES else None
+        yield b"".join(pieces) if size <= MAX_DOCUMENT_BYTES else None
 
 
 def _open_binary(file_path: Path) -> io.BufferedIOBase:

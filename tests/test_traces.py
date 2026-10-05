@@ -21,7 +21,7 @@ from builders import (
 )
 
 from detecttrace.model import IssueKind, Span
-from detecttrace.traces import _MAX_LINE_BYTES, TraceFileError, detect_format, load_spans
+from detecttrace.traces import MAX_DOCUMENT_BYTES, TraceFileError, detect_format, load_spans
 
 S1 = span_hex(1)
 S2 = span_hex(2)
@@ -719,7 +719,7 @@ def test_too_large_document_is_reported(tmp_path: Path) -> None:
 
 
 def test_document_at_the_size_limit_loads_with_no_issue(tmp_path: Path) -> None:
-    path = _write_padded_document(tmp_path / "t.json", _MAX_LINE_BYTES)
+    path = _write_padded_document(tmp_path / "t.json", MAX_DOCUMENT_BYTES)
 
     _, issues = load_spans(path)
 
@@ -727,7 +727,7 @@ def test_document_at_the_size_limit_loads_with_no_issue(tmp_path: Path) -> None:
 
 
 def test_document_one_byte_over_the_size_limit_is_reported(tmp_path: Path) -> None:
-    path = _write_padded_document(tmp_path / "t.json", _MAX_LINE_BYTES + 1)
+    path = _write_padded_document(tmp_path / "t.json", MAX_DOCUMENT_BYTES + 1)
 
     _, issues = load_spans(path)
 
