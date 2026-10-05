@@ -267,6 +267,9 @@ class RecomputeCoordinator:
                 else:
                     self._record_failure(result)
         with self._lock:
+            # Nothing due, nothing read: an unreadable database is not reported every second.
+            if not self._is_due(self._clock()):
+                return
             write_count = self._write_count
         # Read outside the lock, so a request thread never waits on the database here.
         generation = self._store.generation()

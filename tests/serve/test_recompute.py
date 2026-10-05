@@ -5,7 +5,7 @@ import shutil
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ProcessPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -419,6 +419,58 @@ def test_a_failed_run_is_not_retried_after_a_write_that_changed_nothing(
     coordinator.tick()
 
     assert submit.count == 1
+
+
+class WatchedStore:
+    """A store that counts generation reads, and can write once in the middle of one."""
+
+    def __init__(self, store: Store) -> None:
+        self._store = store
+        self.generation_reads = 0
+        self.coordinator_to_write_for: RecomputeCoordinator | None = None
+
+    def generation(self) -> int:
+        self.generation_reads += 1
+        value = self._store.generation()
+        coordinator = self.coordinator_to_write_for
+        if coordinator is not None:
+            # A request commits and notifies after the tick read the generation.
+            self.coordinator_to_write_for = None
+            write_input(self._store, coordinator)
+        return value
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._store, name)
+
+
+def test_a_write_during_the_generation_read_still_starts_a_run(
+    current_store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    # A maximum wait as short as the quiet period, so the run is still due after that write.
+    watched = WatchedStore(current_store)
+    coordinator = RecomputeCoordinator(
+        submit, cast(Store, watched), clock, DEBOUNCE, max_wait_seconds=DEBOUNCE
+    )
+    coordinator.notify_write()
+    clock.advance(DEBOUNCE)
+    watched.coordinator_to_write_for = coordinator
+    coordinator.tick()
+    clock.advance(DEBOUNCE)
+    coordinator.tick()
+
+    assert submit.count == 1
+
+
+def test_an_idle_tick_reads_nothing_from_the_store(
+    current_store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    watched = WatchedStore(current_store)
+    coordinator = RecomputeCoordinator(submit, cast(Store, watched), clock, DEBOUNCE)
+    reads_at_startup = watched.generation_reads
+    clock.advance(1_000)
+    coordinator.tick()
+
+    assert watched.generation_reads == reads_at_startup
 
 
 # Saving the snapshot
