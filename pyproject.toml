@@ -83,13 +83,14 @@ extraPaths = ["tests", "scripts/synthetic"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts/synthetic"]
-addopts = "-m 'not benchmark and not browser'"
+addopts = "-m 'not benchmark and not browser and not container'"
 # With PYTHONWARNDEFAULTENCODING=1 (set in CI), text I/O without an explicit encoding fails
 # on every OS, not just on Windows where the locale default is not UTF-8.
 filterwarnings = ["error::EncodingWarning"]
 markers = [
     "benchmark: performance gates; run with `uv run pytest -m benchmark`",
     "browser: dashboard checks in a real browser; run by hand with `uv run pytest -m browser`",
+    "container: builds and runs the Docker image; run with `uv run pytest -m container`",
 ]
 
 [dependency-groups]
