@@ -35,6 +35,7 @@ from detecttrace.serve.store import Store, StoreIntegrityError, StoreVersionErro
 logger = logging.getLogger(__name__)
 
 TICK_SECONDS = 1.0
+_WORKER_EXIT_SECONDS = 5
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 
@@ -50,54 +51,84 @@ def run_server(config: ServeConfig, config_path: Path, announce: Callable[[str],
     that can't be used.
     """
     check_tls_files(config)
+    pool = create_recompute_pool(config, config_path)
+    try:
+        store = open_store(config.serve.database)
+        try:
+            _serve(config, store, pool, announce)
+        finally:
+            store.close()
+    finally:
+        # Only after the timer has stopped (in _serve), so no run can finish and write a
+        # snapshot while the worker is being terminated.
+        pool.shutdown()
+
+
+def create_recompute_pool(
+    config: ServeConfig,
+    config_path: Path,
+    create_executor: Callable[[], Executor] | None = None,
+) -> "WorkerPool":
+    """The worker pool, with the settings every run uses read once, here.
+
+    Raises ChecklistFileError for checklists that can't be used.
+    """
     settings = load_recompute_settings(config, config_path)
-    store = open_store(config.serve.database)
-    pool = WorkerPool(
-        _create_executor,
+    return WorkerPool(
+        _create_executor if create_executor is None else create_executor,
         lambda executor: executor.submit(
             compute_snapshot, config.serve.database, settings, time.time_ns()
         ),
     )
+
+
+def _serve(
+    config: ServeConfig, store: Store, pool: "WorkerPool", announce: Callable[[str], None]
+) -> None:
+    coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
+    stop = threading.Event()
+    timer = threading.Thread(
+        target=tick_until_stopped,
+        args=(coordinator.tick, stop),
+        name="recompute",
+        daemon=True,
+    )
+    app = create_app(config, store, coordinator.notify_write, lambda: coordinator.status)
+    tls = config.serve.tls
+    uvicorn_config = uvicorn.Config(
+        app,
+        host=config.serve.host,
+        port=config.serve.port,
+        ssl_certfile=None if tls is None else str(tls.certfile),
+        ssl_keyfile=None if tls is None else str(tls.keyfile),
+        access_log=False,
+        # The access log's client address is the peer's; X-Forwarded-For is not trusted
+        # until proxy support is added on purpose.
+        proxy_headers=False,
+        # A stalled upload could otherwise hold the stop for its whole 30 s body deadline.
+        timeout_graceful_shutdown=5,
+        log_level="info",
+    )
     try:
-        coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
-        stop = threading.Event()
-        timer = threading.Thread(
-            target=_tick_until_stopped, args=(coordinator, stop), name="recompute", daemon=True
-        )
-        app = create_app(config, store, coordinator.notify_write, lambda: coordinator.status)
-        tls = config.serve.tls
-        uvicorn_config = uvicorn.Config(
-            app,
-            host=config.serve.host,
-            port=config.serve.port,
-            ssl_certfile=None if tls is None else str(tls.certfile),
-            ssl_keyfile=None if tls is None else str(tls.keyfile),
-            access_log=False,
-            log_level="info",
-        )
-        try:
-            # Loaded here rather than inside run, so a bad certificate is a message, not a
-            # traceback from a half-started server.
-            uvicorn_config.load()
-        except OSError as error:
-            raise StartupError(f"Can't use the TLS certificate and key: {error}.") from None
-        server = _AnnouncingServer(uvicorn_config, lambda: announce(_to_listen_text(config)))
-        _start_logging()
-        timer.start()
-        try:
-            _run_until_signalled(server)
-        except SystemExit:
-            # uvicorn exits by itself, with its own code, when it can't listen; it has
-            # logged why already.
-            raise StartupError(
-                f"Could not listen on {_to_address(config)}; the error above says why."
-            ) from None
-        finally:
-            stop.set()
-            timer.join()
+        # Loaded here rather than inside run, so a bad certificate is a message, not a
+        # traceback from a half-started server.
+        uvicorn_config.load()
+    except OSError as error:
+        raise StartupError(f"Can't use the TLS certificate and key: {error}.") from None
+    server = _AnnouncingServer(uvicorn_config, lambda: announce(_to_listen_text(config)))
+    _start_logging()
+    timer.start()
+    try:
+        _run_until_signalled(server)
+    except SystemExit:
+        # uvicorn exits by itself, with its own code, when it can't listen; it has
+        # logged why already.
+        raise StartupError(
+            f"Could not listen on {_to_address(config)}; the error above says why."
+        ) from None
     finally:
-        pool.shutdown()
-        store.close()
+        stop.set()
+        timer.join()
 
 
 def check_tls_files(config: ServeConfig) -> None:
@@ -160,9 +191,21 @@ class WorkerPool:
                 return self._start(self._executor)
 
     def shutdown(self) -> None:
+        """Cancel queued runs and end the worker at once, even mid-run.
+
+        Waiting for a run could take longer than a container's stop grace period. Ending it is
+        safe because a run only reads the database; the caller stops the timer first, so no
+        half-done result is ever saved.
+        """
         with self._lock:
-            # A recompute in progress only reads the database, so waiting for it is safe.
-            self._executor.shutdown(cancel_futures=True)
+            # A private attribute, read before shutdown clears it: the executor has no public
+            # way to end a running call.
+            processes = list((getattr(self._executor, "_processes", None) or {}).values())
+            self._executor.shutdown(wait=False, cancel_futures=True)
+            for process in processes:
+                process.terminate()
+            for process in processes:
+                process.join(_WORKER_EXIT_SECONDS)
 
 
 def _create_executor() -> Executor:
@@ -170,10 +213,11 @@ def _create_executor() -> Executor:
     return ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
 
 
-def _tick_until_stopped(coordinator: RecomputeCoordinator, stop: threading.Event) -> None:
+def tick_until_stopped(tick: Callable[[], None], stop: threading.Event) -> None:
+    """Call `tick` every TICK_SECONDS until `stop` is set; a failing call is logged, not fatal."""
     while not stop.wait(TICK_SECONDS):
         try:
-            coordinator.tick()
+            tick()
         # The timer must outlive any one failure, or the page would never update again.
         except Exception:
             logger.exception("The recompute timer failed; it keeps running")

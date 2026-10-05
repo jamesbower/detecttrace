@@ -1,13 +1,17 @@
 """`detecttrace serve`: startup failures, the worker pool, and a real process end to end."""
 
 import json
+import multiprocessing
 import os
+import shutil
 import socket
 import sqlite3
 import subprocess
 import sys
+import threading
+import time
 from collections.abc import Callable, Iterator
-from concurrent.futures import Executor, Future
+from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,10 +22,13 @@ from typer.testing import CliRunner, Result
 
 import detecttrace.serve
 from detecttrace import cli
+from detecttrace.serve import server
+from detecttrace.serve.config import load_serve_config
 from detecttrace.serve.recompute import RecomputeOutcome
-from detecttrace.serve.server import WorkerPool
+from detecttrace.serve.server import WorkerPool, create_recompute_pool, tick_until_stopped
 from detecttrace.serve.store import Snapshot, Store
 from serve.served_process import (
+    DEMO_FOLDER,
     ServedProcess,
     find_free_port,
     post_demo_data,
@@ -175,6 +182,20 @@ def test_a_missing_serve_extra_says_how_to_install_it(start_without_extra: Resul
 
 
 @pytest.fixture
+def start_with_unrelated_import_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Result:
+    monkeypatch.setitem(sys.modules, "detecttrace.serve.server", None)
+    monkeypatch.delattr(detecttrace.serve, "server")
+    config_path = write_serve_config(tmp_path, find_free_port())
+    return CliRunner().invoke(cli.app, ["serve", "--config", str(config_path)])
+
+
+def test_an_unrelated_missing_module_is_an_internal_error(
+    start_with_unrelated_import_error: Result,
+) -> None:
+    assert start_with_unrelated_import_error.exit_code == 2
+
+
+@pytest.fixture
 def start_on_busy_port(tmp_path: Path) -> subprocess.CompletedProcess[str]:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as taken:
         taken.bind(("127.0.0.1", 0))
@@ -231,6 +252,111 @@ def test_a_broken_pool_is_replaced_and_the_run_submitted_again() -> None:
     executors: Iterator[Executor] = iter([BrokenExecutor(), InlineExecutor()])
     pool = WorkerPool(lambda: next(executors), start_run)
     assert pool.submit().result() == OUTCOME
+
+
+def test_a_second_broken_pool_is_reported_to_the_coordinator() -> None:
+    executors: Iterator[Executor] = iter([BrokenExecutor(), BrokenExecutor()])
+    pool = WorkerPool(lambda: next(executors), start_run)
+    with pytest.raises(BrokenProcessPool):
+        pool.submit()
+
+
+@pytest.fixture
+def pool_after_checklists_removed(tmp_path: Path) -> WorkerPool:
+    """A pool created with a checklist folder that was deleted before its run."""
+    Store.open(tmp_path / "detecttrace.db").close()
+    shutil.copytree(DEMO_FOLDER / "checklists", tmp_path / "checklists")
+    config_path = write_serve_config(tmp_path, find_free_port())
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["checklists"] = "checklists"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    pool = create_recompute_pool(load_serve_config(config_path), config_path, InlineExecutor)
+    shutil.rmtree(tmp_path / "checklists")
+    return pool
+
+
+def test_a_run_uses_the_checklists_read_when_the_pool_was_created(
+    pool_after_checklists_removed: WorkerPool,
+) -> None:
+    outcome = pool_after_checklists_removed.submit().result()
+    assert outcome.snapshot.generation == 0
+
+
+def sleep_in_worker(marker: Path) -> RecomputeOutcome:
+    """A run that outlasts any test: it notes its process ID, then sleeps."""
+    marker.write_text(str(os.getpid()), encoding="utf-8")
+    time.sleep(30)
+    raise AssertionError("the worker was not ended")
+
+
+@dataclass(frozen=True)
+class StoppedPool:
+    shutdown_seconds: float
+    worker_pid: int
+    queued: Future[RecomputeOutcome]
+
+
+@pytest.fixture
+def stopped_mid_run(tmp_path: Path) -> StoppedPool:
+    marker = tmp_path / "worker.pid"
+    context = multiprocessing.get_context("spawn")
+    pool = WorkerPool(
+        lambda: ProcessPoolExecutor(max_workers=1, mp_context=context),
+        lambda executor: executor.submit(sleep_in_worker, marker),
+    )
+    # The first runs; the next two fill the executor's call queue; the last waits its turn.
+    futures = [pool.submit() for _ in range(4)]
+    deadline = time.monotonic() + 30
+    while not marker.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    started = time.monotonic()
+    pool.shutdown()
+    return StoppedPool(
+        time.monotonic() - started, int(marker.read_text(encoding="utf-8")), futures[-1]
+    )
+
+
+@needs_posix
+def test_shutdown_ends_a_running_worker_quickly(stopped_mid_run: StoppedPool) -> None:
+    assert stopped_mid_run.shutdown_seconds < 2
+
+
+@needs_posix
+def test_shutdown_leaves_no_worker_process(stopped_mid_run: StoppedPool) -> None:
+    with pytest.raises(ProcessLookupError):
+        os.kill(stopped_mid_run.worker_pid, 0)
+
+
+@needs_posix
+def test_shutdown_cancels_a_queued_run(stopped_mid_run: StoppedPool) -> None:
+    assert stopped_mid_run.queued.cancelled()
+
+
+@pytest.fixture
+def ticks_after_a_failure(monkeypatch: pytest.MonkeyPatch) -> threading.Event:
+    monkeypatch.setattr(server, "TICK_SECONDS", 0.01)
+    calls: list[int] = []
+    second_tick = threading.Event()
+
+    def tick() -> None:
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("the first tick fails")
+        second_tick.set()
+
+    stop = threading.Event()
+    timer = threading.Thread(target=tick_until_stopped, args=(tick, stop), daemon=True)
+    timer.start()
+    second_tick.wait(5)
+    stop.set()
+    timer.join(5)
+    return second_tick
+
+
+def test_the_timer_keeps_ticking_after_a_failed_tick(
+    ticks_after_a_failure: threading.Event,
+) -> None:
+    assert ticks_after_a_failure.is_set()
 
 
 @dataclass(frozen=True)

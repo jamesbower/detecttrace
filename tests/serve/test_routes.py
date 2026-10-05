@@ -3,8 +3,10 @@
 import base64
 import json
 import logging
+import sqlite3
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import NoReturn
 
 import httpx
 import pytest
@@ -286,3 +288,54 @@ def test_access_log_escapes_a_line_break_in_the_path(
     with caplog.at_level(logging.INFO, logger="detecttrace.serve.access"):
         read_client.get("/a%0Afake", headers=BEARER_READ)
     assert "\nfake" not in caplog.text
+
+
+def fail_with_locked_database(*args: object, **kwargs: object) -> NoReturn:
+    raise sqlite3.OperationalError("database is locked")
+
+
+def fail_with_damaged_database(*args: object, **kwargs: object) -> NoReturn:
+    raise sqlite3.DatabaseError("database disk image is malformed")
+
+
+READ_PATHS = ["/", "/api/status", "/api/results.json"]
+
+
+@pytest.fixture(params=READ_PATHS)
+def locked_read(
+    request: pytest.FixtureRequest,
+    read_client: TestClient,
+    served_store: Store,
+    monkeypatch: pytest.MonkeyPatch,
+) -> httpx.Response:
+    monkeypatch.setattr(served_store, "read_snapshot", fail_with_locked_database)
+    return read_client.get(request.param, headers=BEARER_READ)
+
+
+def test_a_locked_database_makes_a_read_route_unavailable(locked_read: httpx.Response) -> None:
+    assert locked_read.status_code == 503
+
+
+def test_a_locked_database_asks_a_reader_to_retry(locked_read: httpx.Response) -> None:
+    assert locked_read.headers["Retry-After"] == "5"
+
+
+@pytest.fixture
+def crashed_response(
+    tmp_path: Path, served_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> httpx.Response:
+    monkeypatch.setattr(served_store, "read_snapshot", fail_with_damaged_database)
+    app = create_app(create_config(tmp_path / "detecttrace.db"), served_store, lambda: None)
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        return test_client.get("/api/status", headers=BEARER_READ)
+
+
+def test_an_unexpected_error_answers_500(crashed_response: httpx.Response) -> None:
+    assert crashed_response.status_code == 500
+
+
+@pytest.mark.parametrize(("name", "value"), SECURITY_HEADERS)
+def test_an_unexpected_error_still_carries_the_security_header(
+    crashed_response: httpx.Response, name: str, value: str
+) -> None:
+    assert crashed_response.headers.get_list(name) == [value]

@@ -84,10 +84,7 @@ def create_app(
     `read_status` gives the recompute's current state for `/api/status`.
     """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it.
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    # The last one added runs outermost, so the log times the whole request.
-    app.add_middleware(_SecurityHeaders)
-    app.add_middleware(_AccessLog)
+    app = _ServeApp(docs_url=None, redoc_url=None, openapi_url=None)
 
     @app.exception_handler(HTTPException)
     async def respond_with_status(request: Request, error: HTTPException) -> Response:
@@ -390,6 +387,17 @@ def _read_status_content(store: Store, status: RecomputeStatus) -> dict[str, obj
 
 def _to_optional_iso_time(time_ns: int | None) -> str | None:
     return None if time_ns is None else to_iso_time(time_ns)
+
+
+class _ServeApp(FastAPI):
+    """The app with the access log and the security headers outside its whole stack.
+
+    Middleware added the usual way runs inside the error handler, so the 500 it sends for an
+    unexpected exception would carry no security headers and never reach the log.
+    """
+
+    def build_middleware_stack(self) -> ASGIApp:
+        return _AccessLog(_SecurityHeaders(super().build_middleware_stack()))
 
 
 class _SecurityHeaders:
