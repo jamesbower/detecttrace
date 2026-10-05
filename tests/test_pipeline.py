@@ -1,18 +1,22 @@
 import gc
 import shutil
 from pathlib import Path
+from typing import cast
 
 import generate
 import pytest
 from builders import RUN_CONFIG, RUN_VERDICTS, run_trace, write_jsonl, write_run_folder
 
+from detecttrace.cases import build_trace_cases
+from detecttrace.checklist import load_checklists
 from detecttrace.dashboard import render_dashboard
 from detecttrace.model import IssueKind
-from detecttrace.pipeline import RunResult, run_check
+from detecttrace.pipeline import RunResult, run_check, run_stages
 from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
 from detecttrace.summary import JoinCoverage
-from detecttrace.traces import TraceFileError
+from detecttrace.traces import TraceFileError, load_spans
+from detecttrace.verdicts import read_verdicts
 
 DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 
@@ -238,6 +242,29 @@ def test_pausing_the_garbage_collector_leaves_the_demo_results_unchanged(
     unpaused = _run(config_path).results
 
     assert unpaused == paused
+
+
+def test_run_stages_on_separately_loaded_inputs_matches_run_check_on_the_demo() -> None:
+    config_path = DEMO_DIR / "detecttrace.yaml"
+    config = load_run_config(config_path)
+    expected = _run(config_path)
+    assert config.checklists is not None
+    spans, issues = load_spans(config.traces.path, format=config.traces.format)
+    trace_cases, case_issues = build_trace_cases(spans, config.mapping)
+    verdict_rows, verdict_issues = read_verdicts(config.verdicts.path)
+
+    actual = run_stages(
+        trace_cases,
+        verdict_rows,
+        load_checklists(config.checklists),
+        config.to_config(),
+        issues=[*issues, *case_issues, *verdict_issues],
+        source=cast("dict[str, str | None]", expected.results["source"]),
+        max_detail_cases=config.dashboard.max_detail_cases,
+        config_name=config_path.name,
+    )
+
+    assert actual.results == expected.results
 
 
 # Very long labels
