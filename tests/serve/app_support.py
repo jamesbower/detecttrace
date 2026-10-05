@@ -8,6 +8,7 @@ from detecttrace.serve.config import ServeConfig
 
 INGEST_TOKEN = create_token()
 VERDICTS_TOKEN = create_token()
+SECOND_VERDICTS_TOKEN = create_token()
 READ_TOKEN = create_token()
 COLLECTOR_ROOT = Path(__file__).parent.parent / "fixtures" / "collector_real"
 
@@ -16,9 +17,13 @@ def create_config(database: Path) -> ServeConfig:
     return ServeConfig.model_validate(
         {
             "serve": {"database": str(database)},
+            "label_map": {"TP": "true_positive", "FP": "false_positive"},
             "tokens": {
                 "ingest": [{"name": "collector", "hash": hash_token(INGEST_TOKEN)}],
-                "verdicts": [{"name": "soar", "hash": hash_token(VERDICTS_TOKEN)}],
+                "verdicts": [
+                    {"name": "soar", "hash": hash_token(VERDICTS_TOKEN)},
+                    {"name": "case-tool", "hash": hash_token(SECOND_VERDICTS_TOKEN)},
+                ],
                 "read": [{"name": "analysts", "hash": hash_token(READ_TOKEN)}],
             },
         }

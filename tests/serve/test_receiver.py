@@ -18,7 +18,7 @@ from starlette.types import Message, Scope
 
 from detecttrace.conventions import TOOL_CALL_RESULT
 from detecttrace.model import IssueKind
-from detecttrace.serve.app import MAX_CONCURRENT_INGESTS, create_app
+from detecttrace.serve.app import MAX_CONCURRENT_WRITES, create_app
 from detecttrace.serve.receiver import (
     MAX_BODY_BYTES,
     MAX_GZIP_MEMBERS,
@@ -493,7 +493,7 @@ def test_retried_request_leaves_the_generation_unchanged(
 def test_concurrent_ingests_are_limited(
     client: TestClient, app_store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    requests = MAX_CONCURRENT_INGESTS + 1
+    requests = MAX_CONCURRENT_WRITES + 1
     condition = threading.Condition()
     state = {"active": 0, "peak": 0, "is_released": False}
 
@@ -515,7 +515,7 @@ def test_concurrent_ingests_are_limited(
     monkeypatch.setattr(app_store, "add_spans", add_spans_together)
     with ThreadPoolExecutor(requests) as executor:
         list(executor.map(lambda _: Post(body=VALID_BODY).send(client), range(requests)))
-    assert state["peak"] <= MAX_CONCURRENT_INGESTS
+    assert state["peak"] <= MAX_CONCURRENT_WRITES
 
 
 def test_client_gone_before_sending_its_body_is_handled_quietly(
