@@ -1,15 +1,9 @@
-.git/
-.github/
-.venv/
-.claude/
-CLAUDE.md
-CLAUDE.local.md
-notes/
-tasks/
-docs/superpowers/
-.env
-dist/
-build/
+# An allow-list: a new local file can't reach the image until someone lists it here.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!CHANGELOG.md
+!src/
 **/__pycache__/
-.pytest_cache/
-.ruff_cache/
