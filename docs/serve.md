@@ -291,6 +291,8 @@ The body must be UTF-8. A newer verdict for a case replaces the current one; the
 
 **Partial success.** Rows are checked one by one. Good rows are stored even when others are rejected, and the answer is `200`. A row is rejected when a column is missing or empty, a value holds a line break, its label isn't in `label_map`, or its `case_id` already appeared earlier in the same request.
 
+**Always check `rejected`.** A `200` means at least one row was stored, not that every row was. A `label_map` that misses a label your analysts use can reject many rows while every answer is `200`. Log or alert on a non-empty `rejected` list in the tool that sends verdicts.
+
 ```sh
 curl https://detecttrace.example.com:4320/api/verdicts \
   -H "Authorization: Bearer $DETECTTRACE_VERDICTS_TOKEN" \
@@ -434,7 +436,15 @@ Settling compares the server's clock with the end time the agent reported. A cas
 | Verdict requests handled at once | 2; more wait their turn |
 | Time to receive one request body | 30 seconds, then 503 |
 
-- **Scale.** The service is designed and benchmarked for about 50,000 cases, the same as `check`.
+- **Scale.** The service is designed and benchmarked for about 50,000 cases, the same as `check`. On a benchmark of 50,000 cases with 814,814 spans:
+
+  | Measure | Value |
+  |---|---|
+  | Database size | about 410 MB, roughly 500 bytes per span |
+  | Peak memory of the recompute worker | about 1.5 GB |
+  | One recompute | 9 to 12 seconds on an 8-core laptop; 22 seconds with every core busy |
+  | Ingest | about 19,000 spans per second |
+
 - **One instance per database.** Run one service per database file. Two services on one file aren't supported.
 - **Local storage.** Keep the database on a local disk or a local container volume, not on a network file system such as NFS or SMB. SQLite's locking and durability depend on the local file system.
 
@@ -478,5 +488,5 @@ The page is served with `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-
 ## Operations
 
 - **Slow clients.** Each request must deliver its body within 30 seconds, but the web server has no other read timeout. On a network you don't trust, put a reverse proxy in front to protect the service from slow or idle connections.
-- **Memory.** A trace request near the size limit can use a few hundred MiB while it is parsed. At most 4 are parsed at once, which bounds the peak. Size the container's memory for that, plus the background recompute.
+- **Memory.** Give the container at least 2 GB of memory for about 50,000 cases. The recompute runs in a separate worker process and peaks at about 1.5 GB at that scale. A trace request near the size limit can also use a few hundred MiB while it is parsed; at most 4 are parsed at once, which bounds that part.
 - **Logs.** A failed recompute logs its full error, with the traceback; `/api/status` shows only the error type and message.
