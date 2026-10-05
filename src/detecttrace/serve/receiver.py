@@ -16,6 +16,8 @@ from detecttrace.traces import MAX_DOCUMENT_BYTES
 
 # As received, before decompression; the Collector's default batches are far smaller.
 MAX_BODY_BYTES = 16 << 20
+# Concatenated gzip members are valid gzip; the cap stops a body of thousands of empty ones.
+MAX_GZIP_MEMBERS = 64
 
 _JSON_HINT = (
     "only OTLP JSON is accepted (Content-Type: application/json); set encoding: json on the "
@@ -61,6 +63,9 @@ def parse_traces_body(
         raise _to_invalid_body("the request body is not UTF-8 text") from None
     document = parse_json_text(text)
     if document is None:
+        # parse_json_text also gives None for the JSON value null.
+        if text.strip() == "null":
+            raise _to_invalid_body("the request body is not a JSON object")
         raise _to_invalid_body("the request body is not valid JSON, or nests too deep")
     issues: list[Issue] = []
     spans = list(OtlpParser().parse_document(document, INGEST_SUBJECT, None, issues))
@@ -97,36 +102,43 @@ def _decode_content(body: bytes, content_encoding: str | None) -> bytes:
 
 
 def _decompress_gzip(body: bytes) -> bytes:
-    """Decompress one gzip member, stopping as soon as the output passes the document limit.
+    """Decompress every gzip member, stopping as soon as the output passes the document limit.
 
     Input goes in small slices so a hostile stream costs at most the limit plus one slice's
-    output, never its full decompressed size. Bytes after the member, including a second
-    member, are rejected: the Collector sends exactly one.
+    output, never its full decompressed size. All members share the one limit; more than
+    MAX_GZIP_MEMBERS is a malformed body (400), not a large one, since it may be tiny.
     """
-    decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
     pieces: list[bytes] = []
     total = 0
     position = 0
-    pending = b""
+    member_count = 0
     try:
-        while not decompressor.eof:
-            if not pending and position < len(body):
-                pending = body[position : position + _GZIP_INPUT_BYTES]
-                position += len(pending)
-            piece = decompressor.decompress(pending, _GZIP_OUTPUT_BYTES)
-            pending = decompressor.unconsumed_tail
-            if not piece and not pending and position >= len(body):
-                break
-            total += len(piece)
-            if total > MAX_DOCUMENT_BYTES:
-                raise _to_payload_too_large()
-            pieces.append(piece)
+        while member_count == 0 or position < len(body):
+            member_count += 1
+            if member_count > MAX_GZIP_MEMBERS:
+                raise _to_invalid_body(
+                    f"the gzip request body has more than {MAX_GZIP_MEMBERS} members"
+                )
+            decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            pending = b""
+            while not decompressor.eof:
+                if not pending and position < len(body):
+                    pending = body[position : position + _GZIP_INPUT_BYTES]
+                    position += len(pending)
+                piece = decompressor.decompress(pending, _GZIP_OUTPUT_BYTES)
+                pending = decompressor.unconsumed_tail
+                if not piece and not pending and position >= len(body):
+                    break
+                total += len(piece)
+                if total > MAX_DOCUMENT_BYTES:
+                    raise _to_payload_too_large()
+                pieces.append(piece)
+            if not decompressor.eof:
+                raise _to_invalid_body("the gzip request body ends early")
+            # The next member starts with the bytes this one did not use.
+            position -= len(decompressor.unused_data)
     except zlib.error:
         raise _to_invalid_body("the request body is not valid gzip") from None
-    if not decompressor.eof:
-        raise _to_invalid_body("the gzip request body ends early")
-    if decompressor.unused_data or position < len(body):
-        raise _to_invalid_body("the gzip request body has bytes after its end")
     return b"".join(pieces)
 
 

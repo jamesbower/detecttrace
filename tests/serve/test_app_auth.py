@@ -182,6 +182,11 @@ def test_bad_basic_credentials_are_unauthorized(
     assert response.status_code == 401
 
 
+def test_non_ascii_basic_credentials_are_unauthorized(basic_client: TestClient) -> None:
+    response = basic_client.get("/probe", headers={"Authorization": b"Basic \xe9\xe9\xe9\xe9"})
+    assert response.status_code == 401
+
+
 def test_read_route_challenge_offers_basic(basic_client: TestClient) -> None:
     response = basic_client.get("/probe")
     assert response.headers["WWW-Authenticate"] == 'Bearer, Basic realm="detecttrace"'

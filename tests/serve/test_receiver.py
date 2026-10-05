@@ -1,9 +1,11 @@
 import functools
 import gzip
 import json
+import threading
 import tracemalloc
 import zlib
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import httpx
@@ -13,14 +15,17 @@ from fastapi.testclient import TestClient
 
 from detecttrace.conventions import TOOL_CALL_RESULT
 from detecttrace.model import IssueKind
+from detecttrace.serve.app import MAX_CONCURRENT_INGESTS
 from detecttrace.serve.receiver import (
     MAX_BODY_BYTES,
+    MAX_GZIP_MEMBERS,
     InvalidBody,
     PayloadTooLarge,
     UnsupportedMediaType,
     parse_traces_body,
 )
-from detecttrace.serve.store import Store
+from detecttrace.serve.store import AddSpansResult, Store
+from detecttrace.traces import MAX_DOCUMENT_BYTES
 from serve.app_support import INGEST_TOKEN, READ_TOKEN, read_collector_request
 
 JSON = "application/json"
@@ -38,6 +43,32 @@ ONE_BAD_SPAN_BODY = make_body(
     otlp_span(span_hex(3)), otlp_span("not-a-span-id"), otlp_span(span_hex(4))
 )
 DEEP_BODY = ('{"a": ' + "[" * 10_000 + "]" * 10_000 + "}").encode("utf-8")
+# A null scope (a document-level problem) beside a valid one.
+SKIPPED_SCOPE_BODY = json.dumps(
+    {"resourceSpans": [{"scopeSpans": [None, {"spans": [otlp_span(span_hex(5))]}]}]}
+).encode("utf-8")
+# A null scope beside a scope with one invalid span and two valid ones.
+SKIPPED_SCOPE_AND_BAD_SPAN_BODY = json.dumps(
+    {
+        "resourceSpans": [
+            {
+                "scopeSpans": [
+                    None,
+                    {
+                        "spans": [
+                            otlp_span(span_hex(6)),
+                            otlp_span("not-a-span-id"),
+                            otlp_span(span_hex(7)),
+                        ]
+                    },
+                ]
+            }
+        ]
+    }
+).encode("utf-8")
+INVALID_UTF_8_VALUE_BODY = make_body(
+    otlp_span(span_hex(8), attributes={"gen_ai.tool.name": "PLACEHOLDER"})
+).replace(b"PLACEHOLDER", b"look\xffup")
 
 
 @functools.cache
@@ -85,14 +116,17 @@ INVALID_BODIES = [
     pytest.param(Post(read_truncated_gzip, content_encoding="gzip"), id="truncated-gzip"),
     pytest.param(Post(body="{}".encode("utf-16")), id="utf-16"),
     pytest.param(Post(body=b'{"resourceSpans": "\xff"}'), id="invalid-utf-8"),
+    pytest.param(Post(body=INVALID_UTF_8_VALUE_BODY), id="invalid-utf-8-in-a-value"),
+    pytest.param(Post(body=VALID_BODY.decode("utf-8").encode("utf-16")), id="utf-16-otlp"),
+    pytest.param(Post(body=b"null"), id="null"),
     pytest.param(Post(body=b'{"resourceSpans": ['), id="invalid-json"),
     pytest.param(Post(body=b"[]"), id="array"),
     pytest.param(Post(body=b"{}"), id="no-resource-spans"),
     pytest.param(Post(body=DEEP_BODY), id="deep-nesting"),
     pytest.param(Post(body=b""), id="empty"),
 ]
-REJECTED = [
-    *[pytest.param(param.values[0], 400, id=param.id) for param in INVALID_BODIES],
+# Requests refused before anything is stored.
+REFUSED = [
     pytest.param(Post(body=VALID_BODY, content_type=None), 415, id="no-content-type"),
     pytest.param(
         Post(body=VALID_BODY, content_type="application/json; charset=latin-1"),
@@ -104,6 +138,10 @@ REJECTED = [
     pytest.param(Post(body=b" " * (MAX_BODY_BYTES + 1)), 413, id="over-16-mib"),
     pytest.param(Post(body=VALID_BODY, token=None), 401, id="no-token"),
     pytest.param(Post(body=VALID_BODY, token=READ_TOKEN), 403, id="read-token"),
+]
+REJECTED = [
+    *[pytest.param(param.values[0], 400, id=param.id) for param in INVALID_BODIES],
+    *REFUSED,
 ]
 
 
@@ -225,6 +263,33 @@ def test_valid_spans_beside_an_invalid_one_are_kept() -> None:
     assert len(parse_traces_body(ONE_BAD_SPAN_BODY, JSON, None)[0]) == 2
 
 
+def test_null_body_is_named_as_not_an_object() -> None:
+    with pytest.raises(InvalidBody, match="not a JSON object"):
+        parse_traces_body(b"null", JSON, None)
+
+
+def test_spans_under_a_skipped_scope_are_not_counted_as_rejected() -> None:
+    assert parse_traces_body(SKIPPED_SCOPE_AND_BAD_SPAN_BODY, JSON, None)[2] == 1
+
+
+def test_gzip_members_are_read_in_turn() -> None:
+    middle = len(VALID_BODY) // 2
+    body = gzip.compress(VALID_BODY[:middle]) + gzip.compress(VALID_BODY[middle:])
+    assert len(parse_traces_body(body, JSON, "gzip")[0]) == 1
+
+
+def test_too_many_gzip_members_are_invalid() -> None:
+    body = gzip.compress(VALID_BODY) + gzip.compress(b"") * MAX_GZIP_MEMBERS
+    with pytest.raises(InvalidBody):
+        parse_traces_body(body, JSON, "gzip")
+
+
+def test_gzip_members_share_one_size_limit() -> None:
+    member = gzip.compress(b" " * (MAX_DOCUMENT_BYTES // 2 + 1))
+    with pytest.raises(PayloadTooLarge):
+        parse_traces_body(member + member, JSON, "gzip")
+
+
 def test_document_with_empty_resource_spans_is_accepted() -> None:
     assert parse_traces_body(b'{"resourceSpans": []}', JSON, None) == ([], [], 0)
 
@@ -245,12 +310,20 @@ def test_rejected_request_stores_no_spans(
     assert app_store.read_counts().span_count == 0
 
 
-@pytest.mark.parametrize(("post", "status"), REJECTED)
-def test_rejected_request_does_not_signal_a_write(
+@pytest.mark.parametrize(("post", "status"), REFUSED)
+def test_refused_request_does_not_signal_a_write(
     client: TestClient, writes: list[int], post: Post, status: int
 ) -> None:
     post.send(client)
     assert writes == []
+
+
+@pytest.mark.parametrize("post", INVALID_BODIES)
+def test_invalid_body_signals_one_write_for_its_issue(
+    client: TestClient, writes: list[int], post: Post
+) -> None:
+    post.send(client)
+    assert writes == [1]
 
 
 @pytest.mark.parametrize("post", INVALID_BODIES)
@@ -337,6 +410,35 @@ def test_one_invalid_span_is_a_partial_success(client: TestClient) -> None:
     assert response.json()["partialSuccess"]["rejectedSpans"] == 1
 
 
+def test_partial_success_signals_a_write(client: TestClient, writes: list[int]) -> None:
+    Post(body=ONE_BAD_SPAN_BODY).send(client)
+    assert writes == [1]
+
+
+def test_skipped_scope_is_a_partial_success_with_no_rejected_spans(client: TestClient) -> None:
+    response = Post(body=SKIPPED_SCOPE_BODY).send(client)
+    assert response.json()["partialSuccess"]["rejectedSpans"] == 0
+
+
+def test_skipped_scope_partial_success_explains_itself(client: TestClient) -> None:
+    response = Post(body=SKIPPED_SCOPE_BODY).send(client)
+    assert response.json()["partialSuccess"]["errorMessage"]
+
+
+def test_rejected_count_ignores_skipped_scopes(client: TestClient) -> None:
+    response = Post(body=SKIPPED_SCOPE_AND_BAD_SPAN_BODY).send(client)
+    assert response.json()["partialSuccess"]["rejectedSpans"] == 1
+
+
+def test_declared_length_over_the_limit_is_refused_unread(client: TestClient) -> None:
+    headers = {
+        "Content-Type": JSON,
+        "Authorization": f"Bearer {INGEST_TOKEN}",
+        "Content-Length": str(MAX_BODY_BYTES + 1),
+    }
+    assert client.post("/v1/traces", content=b"", headers=headers).status_code == 413
+
+
 def test_partial_success_is_still_200(client: TestClient) -> None:
     assert Post(body=ONE_BAD_SPAN_BODY).send(client).status_code == 200
 
@@ -373,3 +475,31 @@ def test_retried_request_leaves_the_generation_unchanged(
     generation = app_store.generation()
     client.post("/v1/traces", content=body, headers=headers)
     assert app_store.generation() == generation
+
+
+def test_concurrent_ingests_are_limited(
+    client: TestClient, app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requests = MAX_CONCURRENT_INGESTS + 1
+    condition = threading.Condition()
+    state = {"active": 0, "peak": 0, "is_released": False}
+
+    def add_spans_together(*args: object, **kwargs: object) -> AddSpansResult:
+        with condition:
+            state["active"] += 1
+            state["peak"] = max(state["peak"], state["active"])
+            condition.notify_all()
+            # Hold every caller until all requests are inside at once. Under the limit that
+            # never happens, so the first wait times out and releases everyone after it.
+            condition.wait_for(
+                lambda: state["is_released"] or state["active"] == requests, timeout=2
+            )
+            state["is_released"] = True
+            condition.notify_all()
+            state["active"] -= 1
+        return AddSpansResult(1, 0, 0)
+
+    monkeypatch.setattr(app_store, "add_spans", add_spans_together)
+    with ThreadPoolExecutor(requests) as executor:
+        list(executor.map(lambda _: Post(body=VALID_BODY).send(client), range(requests)))
+    assert state["peak"] <= MAX_CONCURRENT_INGESTS

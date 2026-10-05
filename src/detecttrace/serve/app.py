@@ -5,15 +5,16 @@ clients expect. No response or error ever repeats the token a client sent.
 """
 
 import base64
-import binascii
 import sqlite3
 from collections.abc import Callable, Mapping
 
+import anyio
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
+from detecttrace.model import IssueKind
 from detecttrace.serve.auth import Role, find_token_name
 from detecttrace.serve.config import ServeConfig, TokenRoles
 from detecttrace.serve.receiver import (
@@ -30,10 +31,13 @@ _STATUS_CODES = {400: 3, 401: 16, 403: 7, 404: 5, 405: 12, 413: 3, 415: 3, 503: 
 _UNKNOWN_CODE = 2
 _RETRY_AFTER_SECONDS = "5"
 _ROLES: tuple[Role, ...] = ("ingest", "verdicts", "read")
+# Each ingest holds up to 16 MiB of body and 32 MiB decompressed plus its spans, so a burst
+# of parallel batches is queued rather than allowed to exhaust a small container's memory.
+MAX_CONCURRENT_INGESTS = 4
 
 
 def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) -> FastAPI:
-    """Build the app; `on_write` is called after each accepted write has been committed."""
+    """Build the app; `on_write` is called after every commit, a rejected body's issue too."""
     # No schema or docs pages: the API surface is not advertised to whoever can reach it.
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -42,6 +46,7 @@ def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) 
         return _create_status_response(error.status_code, str(error.detail), error.headers)
 
     require_ingest = require_role(config.tokens, "ingest", allow_basic=False)
+    ingest_slots = anyio.Semaphore(MAX_CONCURRENT_INGESTS)
 
     @app.get("/healthz")
     async def check_health() -> Response:
@@ -53,39 +58,8 @@ def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) 
 
     @app.post("/v1/traces", dependencies=[Depends(require_ingest)])
     async def receive_traces(request: Request) -> Response:
-        body = await _read_limited_body(request)
-        try:
-            rejected = await run_in_threadpool(
-                _store_traces,
-                store,
-                body,
-                request.headers.get("content-type"),
-                request.headers.get("content-encoding"),
-            )
-        except InvalidBody as error:
-            return _create_status_response(400, str(error))
-        except PayloadTooLarge as error:
-            return _create_status_response(413, str(error))
-        except UnsupportedMediaType as error:
-            return _create_status_response(415, str(error))
-        except sqlite3.OperationalError:
-            return _create_status_response(
-                503,
-                "the database can't take writes right now; retry later",
-                {"Retry-After": _RETRY_AFTER_SECONDS},
-            )
-        on_write()
-        if not rejected:
-            return JSONResponse({})
-        return JSONResponse(
-            {
-                "partialSuccess": {
-                    "rejectedSpans": rejected,
-                    "errorMessage": f"{rejected} spans were not valid OTLP and were dropped; "
-                    "the dashboard's data notes list them",
-                }
-            }
-        )
+        async with ingest_slots:
+            return await _receive_traces(request, store, on_write)
 
     return app
 
@@ -126,7 +100,8 @@ def _read_token(authorization: str | None, allow_basic: bool) -> str | None:
     if scheme.lower() == "basic" and allow_basic:
         try:
             decoded = base64.b64decode(credentials, validate=True).decode("utf-8")
-        except (binascii.Error, UnicodeDecodeError):
+        # ValueError covers bad base64, non-ASCII input, and bytes that are not UTF-8.
+        except ValueError:
             return None
         _, colon, password = decoded.partition(":")
         return password if colon else None
@@ -137,6 +112,41 @@ def _to_unauthorized(challenge: str) -> HTTPException:
     return HTTPException(
         401, "a valid access token is required", headers={"WWW-Authenticate": challenge}
     )
+
+
+async def _receive_traces(request: Request, store: Store, on_write: Callable[[], None]) -> Response:
+    body = await _read_limited_body(request)
+    try:
+        rejected, has_skipped_parts = await run_in_threadpool(
+            _store_traces,
+            store,
+            body,
+            request.headers.get("content-type"),
+            request.headers.get("content-encoding"),
+        )
+    except InvalidBody as error:
+        # Its issue was committed, so the data notes can show it.
+        on_write()
+        return _create_status_response(400, str(error))
+    except PayloadTooLarge as error:
+        return _create_status_response(413, str(error))
+    except UnsupportedMediaType as error:
+        return _create_status_response(415, str(error))
+    except sqlite3.OperationalError:
+        return _create_status_response(
+            503,
+            "the database can't take writes right now; retry later",
+            {"Retry-After": _RETRY_AFTER_SECONDS},
+        )
+    on_write()
+    if not rejected and not has_skipped_parts:
+        return JSONResponse({})
+    # OTLP reads a partial success with 0 rejected spans and a message as a warning.
+    problems = [f"{rejected} spans were not valid OTLP and were dropped"] if rejected else []
+    if has_skipped_parts:
+        problems.append("parts of the request that were not valid OTLP were skipped")
+    message = "; ".join([*problems, "the dashboard's data notes list them"])
+    return JSONResponse({"partialSuccess": {"rejectedSpans": rejected, "errorMessage": message}})
 
 
 async def _read_limited_body(request: Request) -> bytes:
@@ -164,8 +174,11 @@ def _to_body_too_large() -> HTTPException:
 
 def _store_traces(
     store: Store, body: bytes, content_type: str | None, content_encoding: str | None
-) -> int:
-    """Parse and store one request; return the rejected span count. Runs in a worker thread."""
+) -> tuple[int, bool]:
+    """Parse and store one request; runs in a worker thread.
+
+    Return the rejected span count and whether document or scope parts were skipped.
+    """
     try:
         spans, issues, rejected = parse_traces_body(body, content_type, content_encoding)
     except InvalidBody as error:
@@ -173,7 +186,7 @@ def _store_traces(
         store.add_issues(error.issues)
         raise
     store.add_spans(spans, issues)
-    return rejected
+    return rejected, any(issue.kind is IssueKind.INVALID_FILE for issue in issues)
 
 
 def _create_status_response(
