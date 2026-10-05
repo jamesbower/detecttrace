@@ -89,3 +89,9 @@ def test_printed_entry_with_a_numeric_looking_name_loads_as_that_name(tmp_path: 
     )
 
     assert load_serve_config(config_path).tokens.read[0].name == "2026"
+
+
+def test_names_where_the_entry_goes_in_the_configuration() -> None:
+    result = _invoke("--role", "verdicts", "--name", "soar")
+
+    assert "Add this under tokens.verdicts in the configuration:" in result.stderr

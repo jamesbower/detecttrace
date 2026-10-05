@@ -1,7 +1,9 @@
 """Background recompute for `detecttrace serve`: the CLI's pipeline over the stored input.
 
 `compute_snapshot` runs in a worker process, so the CPU-bound pipeline never holds the
-server's GIL. `RecomputeCoordinator` lives in the server: request threads tell it about
+server's GIL. The configuration and checklists are read once, at startup, by
+`load_recompute_settings`, and sent to the worker with each run, so the recompute and the
+verdict API always apply the same label maps; an edit takes effect on restart. `RecomputeCoordinator` lives in the server: request threads tell it about
 writes, a timer thread calls `tick` every second, and it decides when the worker runs. No
 request ever waits for a recompute; a page reads the last finished snapshot.
 
@@ -28,10 +30,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from detecttrace.cases import build_trace_cases
+from detecttrace.checklist import Checklist
 from detecttrace.dashboard import ServedPage, WaitingCounts, render_dashboard, render_waiting_page
 from detecttrace.model import Issue, IssueKind
 from detecttrace.pipeline import load_run_checklists, run_stages, to_source
-from detecttrace.serve.config import load_serve_config
+from detecttrace.serve.config import ServeConfig
 from detecttrace.serve.store import Snapshot, Store
 
 logger = logging.getLogger(__name__)
@@ -50,13 +53,38 @@ class RecomputeOutcome:
     next_settle_at_ns: int | None  # wall-clock time the first held-back case settles
 
 
-def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> RecomputeOutcome:
+@dataclass(frozen=True, slots=True)
+class RecomputeSettings:
+    """What the server read at startup that every run uses; it is pickled to the worker."""
+
+    config: ServeConfig
+    checklists: dict[str, Checklist]
+    checklist_issues: list[Issue]
+    config_name: str  # the configuration file's name, as the page's source names it
+    checklist_source: str | None  # the checklist folder relative to the configuration
+
+
+def load_recompute_settings(config: ServeConfig, config_path: Path) -> RecomputeSettings:
+    """Load the checklists `config` names; raises ChecklistFileError when they can't be used."""
+    checklists, checklist_issues = load_run_checklists(config.checklists, config_path)
+    folder = config_path.absolute().parent
+    return RecomputeSettings(
+        config=config,
+        checklists=checklists,
+        checklist_issues=checklist_issues,
+        config_name=config_path.name,
+        checklist_source=None
+        if config.checklists is None
+        else to_source(config.checklists, folder),
+    )
+
+
+def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -> RecomputeOutcome:
     """Run in the worker process: read inputs, hold back unsettled cases, run the stages, render.
 
     `now_ns` is the cut-off for settling and the time the snapshot reports as its own.
     """
-    config = load_serve_config(config_path)
-    checklists, checklist_issues = load_run_checklists(config.checklists, config_path)
+    config = settings.config
     store = Store.open_read_only(database)
     try:
         inputs = store.read_inputs()
@@ -74,29 +102,28 @@ def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> Recomput
     # Stored issues first, in the order run_check would meet them: input, cases, checklists.
     issues: list[Issue] = [stored.issue for stored in inputs.issues]
     issues.extend(case_issues)
-    issues.extend(checklist_issues)
+    issues.extend(settings.checklist_issues)
     # Such a case waits more than a whole settle window, which only a clock ahead of ours explains.
     issues.extend(
         Issue(IssueKind.FUTURE_CASE_END, case.case_id)
         for case in held_back
         if case.end_ns - now_ns > settle_ns
     )
-    folder = config_path.absolute().parent
     source = {
         "traces": TRACES_SOURCE,
         "verdicts": VERDICTS_SOURCE,
-        "checklists": None if config.checklists is None else to_source(config.checklists, folder),
-        "config": config_path.name,
+        "checklists": settings.checklist_source,
+        "config": settings.config_name,
     }
     run = run_stages(
         settled,
         verdict_rows,
-        checklists,
+        settings.checklists,
         config,
         issues=issues,
         source=source,
         max_detail_cases=config.dashboard.max_detail_cases,
-        config_name=config_path.name,
+        config_name=settings.config_name,
         # One row per repeated issue in the store; counting it as one would hide a flood.
         issue_counts=[stored.count for stored in inputs.issues],
     )

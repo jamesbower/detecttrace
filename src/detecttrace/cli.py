@@ -63,7 +63,7 @@ from detecttrace.langfuse import find_missing_tool_calls
 from detecttrace.model import InputFileError, Issue, IssueKind, Span, Verdict, VerdictRow
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
-from detecttrace.runconfig import ConfigFileError, RunConfig, TraceFormat, load_run_config
+from detecttrace.runconfig import RunConfig, TraceFormat, load_run_config
 from detecttrace.serve.auth import Role, create_token, hash_token
 from detecttrace.serve.config import NAME_PATTERN, load_serve_config
 from detecttrace.summary import (
@@ -298,9 +298,11 @@ def _serve(config_path: Path) -> int:
         _echo_error('detecttrace serve needs the serve extra: pip install "detecttrace[serve]"')
         return 1
     try:
+        # Read once, here: the verdict API and every recompute use this copy, so an edit to
+        # the file takes effect on restart.
         config = load_serve_config(config_path)
         server.run_server(config, config_path, typer.echo)
-    except (ConfigFileError, server.StartupError) as error:
+    except (InputFileError, server.StartupError) as error:
         _echo_error(str(error))
         return 1
     return 0
@@ -316,7 +318,7 @@ def _token(role: str, name: str) -> int:
     new_token = create_token()
     typer.echo(new_token)
     typer.echo("This token is shown only once; DetectTrace keeps just its hash.", err=True)
-    typer.echo(f"Add this under serve.tokens.{role} in the configuration:", err=True)
+    typer.echo(f"Add this under tokens.{role} in the configuration:", err=True)
     typer.echo(f'- {{name: "{name}", hash: "{hash_token(new_token)}"}}')
     return 0
 

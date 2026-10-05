@@ -85,6 +85,15 @@ def create_corrupt_database(folder: Path) -> Path:
     return write_serve_config(folder, find_free_port())
 
 
+def create_empty_checklist_folder(folder: Path) -> Path:
+    config_path = write_serve_config(folder, find_free_port())
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    (folder / "checklists").mkdir()
+    config["checklists"] = "checklists"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    return config_path
+
+
 def create_invalid_config(folder: Path) -> Path:
     path = folder / "detecttrace-serve.yaml"
     path.write_text("serve: {}\n", encoding="utf-8")
@@ -111,6 +120,9 @@ FAILURES = [
     pytest.param(Failure(create_newer_database, "newer detecttrace"), id="newer-database"),
     pytest.param(Failure(create_corrupt_database, "damaged"), id="corrupt-database"),
     pytest.param(Failure(create_invalid_config, "invalid configuration"), id="invalid-config"),
+    pytest.param(
+        Failure(create_empty_checklist_folder, "No checklist files"), id="empty-checklist-folder"
+    ),
 ]
 
 

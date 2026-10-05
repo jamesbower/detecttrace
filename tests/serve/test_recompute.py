@@ -15,11 +15,14 @@ from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.pipeline import run_check
 from detecttrace.runconfig import load_run_config
 from detecttrace.serve.auth import hash_token
+from detecttrace.serve.config import load_serve_config
 from detecttrace.serve.recompute import (
     RecomputeCoordinator,
     RecomputeOutcome,
+    RecomputeSettings,
     RecomputeStatus,
     compute_snapshot,
+    load_recompute_settings,
     to_iso_time,
 )
 from detecttrace.serve.store import INGEST_SUBJECT, Snapshot, Store
@@ -642,7 +645,9 @@ def test_a_case_ending_ahead_of_the_server_clock_is_scored_without_a_new_write(
 
     def submit_now() -> Future[RecomputeOutcome]:
         future: Future[RecomputeOutcome] = Future()
-        future.set_result(compute_snapshot(tmp_path / "detecttrace.db", config_path, wall_ns()))
+        future.set_result(
+            compute_snapshot(tmp_path / "detecttrace.db", to_settings(config_path), wall_ns())
+        )
         return future
 
     coordinator = RecomputeCoordinator(submit_now, store, clock, DEBOUNCE, now_ns=wall_ns)
@@ -671,6 +676,10 @@ def write_serve_config(folder: Path, **changes: Any) -> Path:
     return path
 
 
+def to_settings(config_path: Path) -> RecomputeSettings:
+    return load_recompute_settings(load_serve_config(config_path), config_path)
+
+
 def add_case(store: Store, number: int, end_ns: int) -> None:
     case_id = f"DT-{number}"
     root = case_root(
@@ -687,7 +696,9 @@ def add_case(store: Store, number: int, end_ns: int) -> None:
 
 
 def results_at(tmp_path: Path, store: Store, now_ns: int) -> dict[str, Any]:
-    outcome = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), now_ns)
+    outcome = compute_snapshot(
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), now_ns
+    )
     return json.loads(outcome.snapshot.results_json)
 
 
@@ -729,7 +740,9 @@ def test_a_held_back_cases_verdict_is_held_back_too(tmp_path: Path, boundary_sto
 
 def next_settle_at(tmp_path: Path, now_ns: int) -> int | None:
     database = tmp_path / "detecttrace.db"
-    return compute_snapshot(database, write_serve_config(tmp_path), now_ns).next_settle_at_ns
+    return compute_snapshot(
+        database, to_settings(write_serve_config(tmp_path)), now_ns
+    ).next_settle_at_ns
 
 
 def test_the_outcome_says_when_the_held_back_case_settles(
@@ -780,7 +793,7 @@ def test_a_future_dated_case_gets_a_data_note_on_the_waiting_page(
 def test_the_waiting_page_shows_the_future_dated_case_note(tmp_path: Path, store: Store) -> None:
     add_case(store, 1, CASE_END_NS)
     database = tmp_path / "detecttrace.db"
-    outcome = compute_snapshot(database, write_serve_config(tmp_path), FUTURE_NOW_NS)
+    outcome = compute_snapshot(database, to_settings(write_serve_config(tmp_path)), FUTURE_NOW_NS)
 
     assert FUTURE_NOTE in parse_html(outcome.snapshot.html).find(has_tag("ol")).text()
 
@@ -809,7 +822,7 @@ def test_the_served_results_name_where_the_input_came_from(
 
 def test_the_snapshot_carries_the_stores_generation(tmp_path: Path, boundary_store: Store) -> None:
     snapshot = compute_snapshot(
-        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
     assert snapshot.generation == boundary_store.generation()
@@ -817,7 +830,7 @@ def test_the_snapshot_carries_the_stores_generation(tmp_path: Path, boundary_sto
 
 def test_the_page_carries_its_generation(tmp_path: Path, boundary_store: Store) -> None:
     snapshot = compute_snapshot(
-        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
     assert f'data-generation="{boundary_store.generation()}"' in snapshot.html
@@ -825,7 +838,7 @@ def test_the_page_carries_its_generation(tmp_path: Path, boundary_store: Store) 
 
 def test_the_page_carries_the_time_it_was_computed(tmp_path: Path, boundary_store: Store) -> None:
     snapshot = compute_snapshot(
-        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
     assert f'data-updated-at="{to_iso_time(LATE_NS)}"' in snapshot.html
@@ -841,6 +854,19 @@ def test_a_stored_issue_count_reaches_the_data_notes(tmp_path: Path, boundary_st
     assert [note["message"] for note in results["data_notes"]] == [
         "3 spans are malformed and were skipped."
     ]
+
+
+def test_a_run_uses_the_configuration_read_at_startup_not_the_file(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    config_path = write_serve_config(tmp_path)
+    settings = to_settings(config_path)
+    config_path.write_text("not: [a valid configuration", encoding="utf-8")
+    results = json.loads(
+        compute_snapshot(tmp_path / "detecttrace.db", settings, LATE_NS).snapshot.results_json
+    )
+
+    assert results["source"]["config"] == "serve.yaml"
 
 
 def test_to_iso_time_keeps_microseconds_in_utc() -> None:
@@ -867,7 +893,7 @@ def test_no_scorable_case_gives_waiting_results(tmp_path: Path, store: Store) ->
 
 def test_an_empty_store_gives_the_waiting_page(tmp_path: Path, store: Store) -> None:
     snapshot = compute_snapshot(
-        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
     assert "Waiting for data." in snapshot.html
@@ -876,7 +902,7 @@ def test_an_empty_store_gives_the_waiting_page(tmp_path: Path, store: Store) -> 
 def test_the_waiting_page_shows_why_nothing_joined(tmp_path: Path, store: Store) -> None:
     store.put_verdicts([VerdictRow("DT-9", "impossible_travel", "TP", 0)], "test")
     snapshot = compute_snapshot(
-        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
     assert "1 verdict has no matching trace." in snapshot.html
@@ -884,7 +910,7 @@ def test_the_waiting_page_shows_why_nothing_joined(tmp_path: Path, store: Store)
 
 def test_the_waiting_page_checks_for_new_data(tmp_path: Path, store: Store) -> None:
     snapshot = compute_snapshot(
-        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
     assert "connect-src 'self'" in snapshot.html
@@ -892,7 +918,7 @@ def test_the_waiting_page_checks_for_new_data(tmp_path: Path, store: Store) -> N
 
 def test_the_waiting_page_loads_nothing_from_elsewhere(tmp_path: Path, store: Store) -> None:
     snapshot = compute_snapshot(
-        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+        tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
     assert re.findall(r"(?:https?:)?//[\w.-]+", snapshot.html) == []
@@ -917,7 +943,7 @@ def test_a_spawned_worker_gives_the_clis_results_on_the_demo(tmp_path: Path) -> 
     context = multiprocessing.get_context("spawn")
     with ProcessPoolExecutor(max_workers=1, mp_context=context) as executor:
         outcome = executor.submit(
-            compute_snapshot, tmp_path / "detecttrace.db", config_path, 2**62
+            compute_snapshot, tmp_path / "detecttrace.db", to_settings(config_path), 2**62
         ).result(timeout=120)
     served = json.loads(outcome.snapshot.results_json)
     expected = run_check(

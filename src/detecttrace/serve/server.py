@@ -24,7 +24,12 @@ import uvicorn
 
 from detecttrace.serve.app import create_app
 from detecttrace.serve.config import ServeConfig
-from detecttrace.serve.recompute import RecomputeCoordinator, RecomputeOutcome, compute_snapshot
+from detecttrace.serve.recompute import (
+    RecomputeCoordinator,
+    RecomputeOutcome,
+    compute_snapshot,
+    load_recompute_settings,
+)
 from detecttrace.serve.store import Store, StoreIntegrityError, StoreVersionError
 
 logger = logging.getLogger(__name__)
@@ -41,14 +46,16 @@ def run_server(config: ServeConfig, config_path: Path, announce: Callable[[str],
     """Check, start and run the server until a signal stops it.
 
     `announce` gets the one line that says where the server listens, once it does. Raises
-    StartupError for a problem found before listening.
+    StartupError for a problem found before listening, and ChecklistFileError for checklists
+    that can't be used.
     """
     check_tls_files(config)
+    settings = load_recompute_settings(config, config_path)
     store = open_store(config.serve.database)
     pool = WorkerPool(
         _create_executor,
         lambda executor: executor.submit(
-            compute_snapshot, config.serve.database, config_path, time.time_ns()
+            compute_snapshot, config.serve.database, settings, time.time_ns()
         ),
     )
     try:
