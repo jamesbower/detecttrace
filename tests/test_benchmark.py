@@ -1,21 +1,43 @@
+import csv
+import gzip
+import io
+import json
+import multiprocessing
+import resource
+import sqlite3
+import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import closing
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
+from generate import to_yaml
 from scale import SCALE_CHECKLISTS, make_scale_cases, write_scale_dataset
+from serve.app_support import INGEST_TOKEN, VERDICTS_TOKEN, create_config
 
 from detecttrace import pipeline
 from detecttrace.dashboard import render_dashboard, write_dashboard
 from detecttrace.metrics import compute_metrics
 from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
+from detecttrace.serve.app import create_app
+from detecttrace.serve.config import load_serve_config
+from detecttrace.serve.recompute import RecomputeOutcome, compute_snapshot
+from detecttrace.serve.store import Store
 
 GATE_SECONDS = 20
 END_TO_END_GATE_SECONDS = 60
 RESULTS_GATE_BYTES = 10_000_000
 HTML_GATE_BYTES = 10_000_000
+SPANS_PER_REQUEST = 512
+VERDICTS_PER_REQUEST = 10_000
+# Year 2100 is after every case the scale dataset holds, so none is held back.
+FAR_FUTURE_NS = 4_102_444_800 * 1_000_000_000
 # The names run_check looks up in the pipeline module, timed one by one.
 STAGES = (
     "load_spans",
@@ -35,6 +57,21 @@ class EndToEndRun:
     html_bytes: int
     render_seconds: float
     write_seconds: float
+    case_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class IngestRun:
+    config_path: Path
+    database: Path
+    statuses: set[int]
+
+
+@dataclass(frozen=True, slots=True)
+class RecomputeRun:
+    seconds: float
+    peak_rss_bytes: int
+    outcome: RecomputeOutcome
 
 
 @pytest.mark.benchmark
@@ -50,11 +87,18 @@ def test_metrics_stage_meets_the_20_second_gate():
 
 
 @pytest.fixture(scope="module")
-def end_to_end_run(tmp_path_factory: pytest.TempPathFactory) -> EndToEndRun:
+def scale_folder(tmp_path_factory: pytest.TempPathFactory) -> Path:
     folder = tmp_path_factory.mktemp("scale")
     started = time.perf_counter()
-    config_path = write_scale_dataset(folder)
+    write_scale_dataset(folder)
     print(f"\ngenerated the dataset in {time.perf_counter() - started:.1f} s (not timed)")
+    return folder
+
+
+@pytest.fixture(scope="module")
+def end_to_end_run(scale_folder: Path) -> EndToEndRun:
+    folder = scale_folder
+    config_path = folder / "detecttrace.yaml"
     config = load_run_config(config_path)
     stage_seconds: dict[str, float] = {}
 
@@ -94,6 +138,7 @@ def end_to_end_run(tmp_path_factory: pytest.TempPathFactory) -> EndToEndRun:
         html_bytes=html_bytes,
         render_seconds=render_seconds,
         write_seconds=write_seconds,
+        case_count=result.case_count,
     )
 
 
@@ -115,6 +160,157 @@ def test_end_to_end_results_json_stays_under_10_mb(end_to_end_run: EndToEndRun):
 @pytest.mark.benchmark
 def test_end_to_end_dashboard_html_stays_under_10_mb(end_to_end_run: EndToEndRun):
     assert end_to_end_run.html_bytes <= HTML_GATE_BYTES
+
+
+@pytest.fixture(scope="module")
+def ingest_run(scale_folder: Path) -> IngestRun:
+    database = scale_folder / "serve" / "detecttrace.db"
+    database.parent.mkdir()
+    config_path = scale_folder / "serve" / "serve.yaml"
+    document = {
+        "serve": {"database": str(database), "settle_seconds": 0},
+        "label_map": {
+            "TP": "true_positive",
+            "Malicious": "true_positive",
+            "FP": "false_positive",
+            "Benign": "benign",
+            "Closed - Benign": "benign",
+        },
+        "checklists": str(scale_folder / "checklists"),
+        "tokens": create_config(database).tokens.model_dump(),
+    }
+    config_path.write_text(to_yaml(document), encoding="utf-8")
+    # The app reads the same file the worker does, so both see one label map.
+    config = load_serve_config(config_path)
+    requests = []
+    store = Store.open(database)
+    with TestClient(create_app(config, store, lambda: None)) as client:
+        started = time.perf_counter()
+        span_count = 0
+        for batch, count in _read_span_batches(scale_folder / "traces"):
+            span_count += count
+            requests.append(
+                client.post(
+                    "/v1/traces",
+                    content=gzip.compress(json.dumps(batch).encode("utf-8"), compresslevel=1),
+                    headers={
+                        "Authorization": f"Bearer {INGEST_TOKEN}",
+                        "Content-Type": "application/json",
+                        "Content-Encoding": "gzip",
+                    },
+                )
+            )
+        span_requests = len(requests)
+        for body in _read_verdict_bodies(scale_folder / "verdicts.csv"):
+            requests.append(
+                client.post(
+                    "/api/verdicts",
+                    content=body,
+                    headers={
+                        "Authorization": f"Bearer {VERDICTS_TOKEN}",
+                        "Content-Type": "text/csv",
+                    },
+                )
+            )
+        elapsed = time.perf_counter() - started
+    store.close()
+    # Fold the write-ahead log in so the size reported is the whole database.
+    with closing(sqlite3.connect(database)) as connection:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    size = sum(
+        path.stat().st_size for path in database.parent.glob("detecttrace.db*") if path.is_file()
+    )
+    print(
+        f"ingest: {span_count} spans in {span_requests} requests "
+        f"(+ {len(requests) - span_requests} verdict requests): {elapsed:.1f} s, "
+        f"{span_count / elapsed:.0f} spans/s, database {size / 1_000_000:.1f} MB"
+    )
+    statuses = {response.status_code for response in requests}
+    return IngestRun(config_path, database, statuses)
+
+
+@pytest.mark.benchmark
+def test_ingest_requests_all_succeed(ingest_run: IngestRun):
+    assert ingest_run.statuses == {200}
+
+
+@pytest.fixture(scope="module")
+def recompute_run(ingest_run: IngestRun) -> RecomputeRun:
+    # Spawn, not fork: the server's worker starts clean, and the peak RSS is its own.
+    context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=1, mp_context=context) as pool:
+        started = time.perf_counter()
+        outcome, peak_rss = pool.submit(
+            measure_snapshot, ingest_run.database, ingest_run.config_path, FAR_FUTURE_NS
+        ).result()
+        seconds = time.perf_counter() - started
+    print(
+        f"recompute in a spawned process: {seconds:.1f} s, peak RSS {peak_rss / 1_000_000:.0f} MB"
+    )
+    return RecomputeRun(seconds, peak_rss, outcome)
+
+
+@pytest.mark.benchmark
+def test_recompute_meets_the_60_second_gate(recompute_run: RecomputeRun):
+    assert recompute_run.seconds <= END_TO_END_GATE_SECONDS
+
+
+@pytest.mark.benchmark
+def test_recompute_scores_the_cases_check_scores(
+    recompute_run: RecomputeRun, end_to_end_run: EndToEndRun
+):
+    results = json.loads(recompute_run.outcome.snapshot.results_json)
+    assert results["totals"]["cases"] == end_to_end_run.case_count
+
+
+def measure_snapshot(
+    database: Path, config_path: Path, now_ns: int
+) -> tuple[RecomputeOutcome, int]:
+    """Run in the child: the snapshot and the child's peak memory in bytes."""
+    outcome = compute_snapshot(database, config_path, now_ns)
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # macOS reports bytes, Linux kibibytes.
+    return outcome, peak if sys.platform == "darwin" else peak * 1024
+
+
+def _read_span_batches(traces: Path) -> Iterator[tuple[dict[str, Any], int]]:
+    """Yield OTLP documents of at most SPANS_PER_REQUEST spans, each with its span count."""
+    groups: list[dict[str, Any]] = []
+    count = 0
+    for path in sorted(traces.glob("*.jsonl.gz"), key=lambda path: path.as_posix()):
+        with gzip.open(path, "rt", encoding="utf-8") as lines:
+            for line in lines:
+                for resource_spans in json.loads(line)["resourceSpans"]:
+                    for scope_spans in resource_spans["scopeSpans"]:
+                        spans = scope_spans["spans"]
+                        position = 0
+                        while position < len(spans):
+                            part = spans[position : position + SPANS_PER_REQUEST - count]
+                            position += len(part)
+                            count += len(part)
+                            groups.append(
+                                {
+                                    "resource": resource_spans["resource"],
+                                    "scopeSpans": [{**scope_spans, "spans": part}],
+                                }
+                            )
+                            if count == SPANS_PER_REQUEST:
+                                yield {"resourceSpans": groups}, count
+                                groups, count = [], 0
+    if groups:
+        yield {"resourceSpans": groups}, count
+
+
+def _read_verdict_bodies(path: Path) -> Iterator[bytes]:
+    with path.open(encoding="utf-8", newline="") as file:
+        reader = csv.reader(file)
+        header = next(reader)
+        rows = list(reader)
+    for start in range(0, len(rows), VERDICTS_PER_REQUEST):
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerows([header, *rows[start : start + VERDICTS_PER_REQUEST]])
+        yield buffer.getvalue().encode("utf-8")
 
 
 def _timed(
