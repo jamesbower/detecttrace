@@ -27,7 +27,12 @@ from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
 from detecttrace.serve.app import create_app
 from detecttrace.serve.config import load_serve_config
-from detecttrace.serve.recompute import RecomputeOutcome, compute_snapshot
+from detecttrace.serve.recompute import (
+    RecomputeOutcome,
+    RecomputeSettings,
+    compute_snapshot,
+    load_recompute_settings,
+)
 from detecttrace.serve.store import Store
 
 GATE_SECONDS = 20
@@ -248,7 +253,13 @@ def recompute_run(ingest_run: IngestRun) -> RecomputeRun:
     with ProcessPoolExecutor(max_workers=1, mp_context=context) as pool:
         started = time.perf_counter()
         outcome, peak_rss = pool.submit(
-            measure_snapshot, ingest_run.database, ingest_run.config_path, FAR_FUTURE_NS
+            measure_snapshot,
+            ingest_run.database,
+            # Loaded once in the parent and pickled to the worker, as the server does.
+            load_recompute_settings(
+                load_serve_config(ingest_run.config_path), ingest_run.config_path
+            ),
+            FAR_FUTURE_NS,
         ).result()
         seconds = time.perf_counter() - started
     print(
@@ -271,10 +282,10 @@ def test_recompute_scores_the_cases_check_scores(
 
 
 def measure_snapshot(
-    database: Path, config_path: Path, now_ns: int
+    database: Path, settings: RecomputeSettings, now_ns: int
 ) -> tuple[RecomputeOutcome, int]:
     """Run in the child: the snapshot and the child's peak memory in bytes."""
-    outcome = compute_snapshot(database, config_path, now_ns)
+    outcome = compute_snapshot(database, settings, now_ns)
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     # macOS reports bytes, Linux kibibytes.
     return outcome, peak if sys.platform == "darwin" else peak * 1024
