@@ -387,7 +387,7 @@ def _prepare_schema(connection: sqlite3.Connection) -> None:
         if version is None:
             for statement in _SCHEMA:
                 connection.execute(statement)
-        elif version > SCHEMA_VERSION:
+        elif version > SCHEMA_VERSION or not _has_upgrade_path(version):
             raise StoreVersionError(_describe_version(None, version))
         else:
             for from_version in range(version, SCHEMA_VERSION):
@@ -415,14 +415,20 @@ def _read_schema_version(connection: sqlite3.Connection) -> int | None:
     return None if has_meta is None else _read_meta_int(connection, "schema_version")
 
 
+def _has_upgrade_path(version: int) -> bool:
+    return all(step in _MIGRATIONS for step in range(version, SCHEMA_VERSION))
+
+
 def _describe_version(path: Path | None, version: int | None) -> str:
     where = "The database" if path is None else f"The database {path}"
     if version is None:
-        cause = "it holds no detecttrace data yet. Start detecttrace serve first."
-    elif version < SCHEMA_VERSION:
+        return f"{where} holds no detecttrace data yet. Start detecttrace serve on it first."
+    if version > SCHEMA_VERSION:
+        cause = "a newer detecttrace wrote it. Upgrade detecttrace to use it."
+    elif _has_upgrade_path(version):
         cause = "an older detecttrace wrote it. Start detecttrace serve once to upgrade it."
     else:
-        cause = "a newer detecttrace wrote it. Upgrade detecttrace to use it."
+        cause = "this detecttrace has no upgrade from it. Restore a backup or start a new file."
     return (
         f"{where} has schema version {version}, but this detecttrace reads schema version "
         f"{SCHEMA_VERSION}; {cause}"

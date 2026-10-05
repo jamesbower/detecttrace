@@ -487,6 +487,34 @@ def test_identical_verdict_repost_is_counted_as_stored(store: Store) -> None:
     assert stored == 1
 
 
+def test_repost_with_a_new_alert_class_replaces_the_verdict(store: Store) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
+    moved = VerdictRow("CASE-1", "Suspicious sign-in", "TP", 0)
+
+    store.put_verdicts([moved], "ops")
+
+    assert store.read_inputs().verdict_rows == [moved]
+
+
+def test_repost_with_a_new_alert_class_writes_history(store: Store, db_path: Path) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
+    store.put_verdicts([VerdictRow("CASE-1", "Suspicious sign-in", "TP", 0)], "ops")
+
+    with sqlite3.connect(db_path) as connection:
+        count = connection.execute("SELECT count(*) FROM verdict_history").fetchone()[0]
+
+    assert count == 1
+
+
+def test_mixed_verdict_batch_adds_one_to_generation(store: Store) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP"), make_verdict("CASE-2", "TP")], "analysts")
+    before = store.generation()
+
+    store.put_verdicts([make_verdict("CASE-1", "FP"), make_verdict("CASE-2", "TP")], "ops")
+
+    assert store.generation() == before + 1
+
+
 def test_failed_put_verdicts_leaves_history_unchanged(store: Store, db_path: Path) -> None:
     store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
     unbindable = VerdictRow("CASE-2", "Impossible travel", cast(str, {"not": "text"}), 0)
@@ -697,6 +725,38 @@ def test_new_file_gets_the_current_schema_version(store: Store, db_path: Path) -
     assert version == SCHEMA_VERSION == 1
 
 
+def test_file_from_an_unknown_older_version_is_refused(db_path: Path) -> None:
+    Store.open(db_path).close()
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("UPDATE meta SET value = 0 WHERE key = 'schema_version'")
+    connection.close()
+
+    with pytest.raises(StoreVersionError, match="no upgrade from it"):
+        Store.open(db_path)
+
+
+def create_foreign_database(db_path: Path) -> None:
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("CREATE TABLE other (id INTEGER)")
+    connection.close()
+
+
+def test_read_only_store_refuses_a_database_without_detecttrace_data(db_path: Path) -> None:
+    create_foreign_database(db_path)
+
+    with pytest.raises(StoreVersionError, match="holds no detecttrace data yet"):
+        Store.open_read_only(db_path)
+
+
+def test_database_without_detecttrace_data_names_no_version(db_path: Path) -> None:
+    create_foreign_database(db_path)
+
+    with pytest.raises(StoreVersionError) as raised:
+        Store.open_read_only(db_path)
+
+    assert "None" not in str(raised.value)
+
+
 def test_file_from_a_newer_version_is_refused(db_path: Path) -> None:
     Store.open(db_path).close()
     with sqlite3.connect(db_path) as connection:
@@ -825,6 +885,23 @@ def fill_until_full(store: Store) -> None:
 def test_full_disk_error_is_raised_as_itself(store: Store) -> None:
     with pytest.raises(sqlite3.OperationalError, match="full"):
         fill_until_full(store)
+
+
+def test_store_writes_again_after_a_failed_commit(store: Store) -> None:
+    connection = store._connection  # pyright: ignore[reportPrivateUsage]
+    with pytest.raises(sqlite3.IntegrityError), store._write() as now:  # pyright: ignore[reportPrivateUsage]
+        # Deferred, so the missing resource fails the COMMIT rather than the INSERT.
+        connection.execute("PRAGMA defer_foreign_keys = ON")
+        connection.execute(
+            "INSERT INTO spans (trace_id, span_id, parent_span_id, name, start_ns, end_ns,"
+            " is_error, attributes, resource_id, received_at_ns)"
+            " VALUES ('t', 's', NULL, 'n', 1, 2, 0, '{}', 999, ?)",
+            (now,),
+        )
+
+    result = store.add_spans([make_span()], [])
+
+    assert result.accepted == 1
 
 
 def test_store_writes_again_after_a_full_disk(store: Store) -> None:
