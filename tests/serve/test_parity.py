@@ -23,7 +23,7 @@ import gzip
 import importlib.util
 import io
 import json
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -77,6 +77,10 @@ NOTE_KIND_CHANGES: dict[str, dict[str, str | None]] = {
 }
 REJECTED_LABEL_FIXTURES = ("verdicts/unmapped_labels",)
 REPEATED_CASE_FIXTURES: tuple[str, ...] = ()
+# A demo verdict and the analyst's later change of mind; FP to TP changes the scores.
+ORIGINAL_VERDICT_LINE = "DT-IT-0002,impossible_travel,FP,2026-08-03T16:02:32Z"
+REPLACED_VERDICT_LINE = "DT-IT-0002,impossible_travel,TP,2026-08-03T16:02:32Z"
+REPLACED_VERDICT_CSV = f"case_id,alert_class,verdict,closed_at\n{REPLACED_VERDICT_LINE}\n"
 
 
 @dataclass(frozen=True)
@@ -166,6 +170,27 @@ def test_verdict_api_rejects_a_row_with_an_unmapped_label(tmp_path: Path) -> Non
     ]
 
 
+def test_a_replaced_verdict_gives_check_on_the_final_verdict(tmp_path: Path) -> None:
+    config_path = DEMO_FOLDER / CONFIG_NAME
+    run_config = load_run_config(config_path)
+    documents = list(read_trace_documents(run_config.traces.path))
+    served, _ = serve_fixture(
+        run_config, config_path, documents, tmp_path / "d.db", [REPLACED_VERDICT_CSV]
+    )
+    final_csv = tmp_path / "verdicts.csv"
+    final_csv.write_text(
+        run_config.verdicts.path.read_text(encoding="utf-8").replace(
+            ORIGINAL_VERDICT_LINE, REPLACED_VERDICT_LINE
+        ),
+        encoding="utf-8",
+    )
+    final_config = run_config.model_copy(
+        update={"verdicts": run_config.verdicts.model_copy(update={"path": final_csv})}
+    )
+    expected = run_check(final_config, config_path).results
+    assert normalize(served) == normalize(expected)
+
+
 def test_rejected_label_fixtures_are_those_with_unmapped_labels() -> None:
     assert [to_name(folder) for folder in FIXTURE_FOLDERS if has_unmapped_label(folder)] == list(
         REJECTED_LABEL_FIXTURES
@@ -220,11 +245,16 @@ def change_note_kinds(
 
 
 def serve_fixture(
-    run_config: RunConfig, config_path: Path, documents: list[bytes], database: Path
+    run_config: RunConfig,
+    config_path: Path,
+    documents: list[bytes],
+    database: Path,
+    later_verdicts: Sequence[str] = (),
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Post the documents and the verdict CSV; return the snapshot's results and the verdict reply.
 
-    The results are empty when nothing was posted, since there is no snapshot to take.
+    Each of `later_verdicts` is posted after the CSV, as its own request. The results are
+    empty when nothing was posted, since there is no snapshot to take.
     """
     config = to_serve_config(run_config, database)
     store = Store.open(database)
@@ -239,14 +269,19 @@ def serve_fixture(
                         "Content-Type": "application/json",
                     },
                 )
+            verdict_headers = {
+                "Authorization": f"Bearer {VERDICTS_TOKEN}",
+                "Content-Type": "text/csv; charset=utf-8",
+            }
             reply = client.post(
                 "/api/verdicts",
                 content=run_config.verdicts.path.read_bytes(),
-                headers={
-                    "Authorization": f"Bearer {VERDICTS_TOKEN}",
-                    "Content-Type": "text/csv; charset=utf-8",
-                },
+                headers=verdict_headers,
             ).json()
+            for text in later_verdicts:
+                client.post(
+                    "/api/verdicts", content=text.encode("utf-8"), headers=verdict_headers
+                ).raise_for_status()
     finally:
         store.close()
     if not documents:
