@@ -16,7 +16,7 @@ serve:
 #   docker run --rm detecttrace token --role ingest --name collector
 # (and --role verdicts, --role read), paste the printed entry here and keep the token itself
 # somewhere safe; it is shown only once. The ingest token goes in .env as
-# DETECTTRACE_INGEST_TOKEN for the Collector.
+# DETECTTRACE_INGEST_TOKEN for the Collector (see the header of compose.yaml).
 tokens:
   ingest:
     - {name: "collector", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000001"}

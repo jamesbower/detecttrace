@@ -209,10 +209,55 @@ def test_compose_pins_every_pulled_image_by_digest() -> None:
     assert [image for image in pulled if "@sha256:" not in image] == []
 
 
-def test_compose_runs_detecttrace_with_a_read_only_root() -> None:
-    service = _read_compose()["services"]["detecttrace"]
+@pytest.mark.parametrize("service", ["detecttrace", "collector"])
+def test_compose_runs_each_service_with_a_read_only_root(service: str) -> None:
+    settings = _read_compose()["services"][service]
 
-    assert service["read_only"] is True
+    assert settings["read_only"] is True
+
+
+@pytest.mark.parametrize("service", ["detecttrace", "collector"])
+def test_compose_drops_every_capability(service: str) -> None:
+    settings = _read_compose()["services"][service]
+
+    assert settings["cap_drop"] == ["ALL"]
+
+
+@pytest.mark.parametrize("service", ["detecttrace", "collector"])
+def test_compose_forbids_gaining_privileges(service: str) -> None:
+    settings = _read_compose()["services"][service]
+
+    assert "no-new-privileges:true" in settings["security_opt"]
+
+
+@pytest.mark.parametrize("service", ["detecttrace", "collector"])
+def test_compose_limits_processes(service: str) -> None:
+    settings = _read_compose()["services"][service]
+
+    assert isinstance(settings["pids_limit"], int)
+
+
+@pytest.mark.parametrize("service", ["detecttrace", "collector"])
+def test_compose_limits_memory(service: str) -> None:
+    settings = _read_compose()["services"][service]
+
+    assert isinstance(settings["mem_limit"], str)
+
+
+def _read_collector_config() -> dict[str, Any]:
+    return yaml.safe_load((ROOT / "deploy" / "collector.yaml").read_text(encoding="utf-8"))
+
+
+def test_collector_receiver_demands_a_bearer_token() -> None:
+    http = _read_collector_config()["receivers"]["otlp"]["protocols"]["http"]
+
+    assert http["auth"] == {"authenticator": "bearertokenauth"}
+
+
+def test_collector_limits_memory_before_anything_else() -> None:
+    pipeline = _read_collector_config()["service"]["pipelines"]["traces"]
+
+    assert pipeline["processors"][0] == "memory_limiter"
 
 
 # The demo traces hold this many spans, and the verdict file this many rows.
@@ -246,6 +291,7 @@ class _Served:
     backup_check: str
     stop_seconds: float
     stop_exit_code: str
+    unauthenticated_receiver_status: int
 
 
 @dataclass(frozen=True)
@@ -277,15 +323,22 @@ class _Stack:
 @pytest.fixture(scope="module")
 def served(docker_images: None, tmp_path_factory: pytest.TempPathFactory) -> Iterator[_Served]:
     tokens = {role: create_token() for role in ("ingest", "verdicts", "read")}
+    receiver_token = create_token()
     stack = _Stack(
         project=f"detecttrace-test-{RUN_ID}",
-        folder=_write_project(tmp_path_factory.mktemp("compose"), tokens),
+        folder=_write_project(tmp_path_factory.mktemp("compose"), tokens, receiver_token),
         container=f"detecttrace-test-{RUN_ID}",
         read_token=tokens["read"],
     )
     try:
         stack.compose("up", "-d", "--wait")
-        _send_demo_data(stack, tokens)
+        unauthenticated = httpx.post(
+            stack.url("collector", 4318) + "/v1/traces",
+            content=_read_demo_trace_lines()[0],
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+        )
+        _send_demo_data(stack, tokens, receiver_token)
         first = _wait_until_settled(stack)
         health = _docker("inspect", "-f", "{{.State.Health.Status}}", stack.container).strip()
         dashboard = stack.read("/")
@@ -310,12 +363,13 @@ def served(docker_images: None, tmp_path_factory: pytest.TempPathFactory) -> Ite
             backup_check=backup_check,
             stop_seconds=stop_seconds,
             stop_exit_code=exit_code,
+            unauthenticated_receiver_status=unauthenticated.status_code,
         )
     finally:
         stack.compose("down", "-v")
 
 
-def _write_project(folder: Path, tokens: dict[str, str]) -> Path:
+def _write_project(folder: Path, tokens: dict[str, str], receiver_token: str) -> Path:
     """A copy of compose.yaml and deploy/ that uses the test image, real tokens and free ports."""
     compose = _read_compose()
     detecttrace = compose["services"]["detecttrace"]
@@ -336,21 +390,34 @@ def _write_project(folder: Path, tokens: dict[str, str]) -> Path:
         for role, token in tokens.items()
     }
     (deploy / "detecttrace-serve.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
-    (folder / ".env").write_text(f"DETECTTRACE_INGEST_TOKEN={tokens['ingest']}\n", encoding="utf-8")
+    (folder / ".env").write_text(
+        f"DETECTTRACE_INGEST_TOKEN={tokens['ingest']}\nCOLLECTOR_RECEIVER_TOKEN={receiver_token}\n",
+        encoding="utf-8",
+    )
     return folder
 
 
-def _send_demo_data(stack: _Stack, tokens: dict[str, str]) -> None:
+def _read_demo_trace_lines() -> list[bytes]:
+    return [
+        line
+        for path in sorted((DEMO_FOLDER / "traces").glob("*.jsonl.gz"))
+        for line in gzip.decompress(path.read_bytes()).splitlines()
+    ]
+
+
+def _send_demo_data(stack: _Stack, tokens: dict[str, str], receiver_token: str) -> None:
     """Spans go through the Collector, as an agent's would; verdicts go straight to the API."""
     collector = stack.url("collector", 4318)
-    for path in sorted((DEMO_FOLDER / "traces").glob("*.jsonl.gz")):
-        for line in gzip.decompress(path.read_bytes()).splitlines():
-            httpx.post(
-                collector + "/v1/traces",
-                content=line,
-                headers={"Content-Type": "application/json"},
-                timeout=30,
-            ).raise_for_status()
+    for line in _read_demo_trace_lines():
+        httpx.post(
+            collector + "/v1/traces",
+            content=line,
+            headers={
+                "Authorization": f"Bearer {receiver_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        ).raise_for_status()
     httpx.post(
         stack.url("detecttrace", 4320) + "/api/verdicts",
         content=(DEMO_FOLDER / "verdicts.csv").read_bytes(),
@@ -392,6 +459,11 @@ def _is_complete(status: dict[str, Any]) -> bool:
         and status.get("generation", 0) > 0
         and status.get("recompute_running") is False
     )
+
+
+@pytest.mark.container
+def test_collector_refuses_spans_without_the_receiver_token(served: _Served) -> None:
+    assert served.unauthenticated_receiver_status == 401
 
 
 @pytest.mark.container

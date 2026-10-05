@@ -1,12 +1,25 @@
-# The OpenTelemetry Collector in compose.yaml: receives OTLP/HTTP on 4318 and forwards every
-# batch to DetectTrace as gzipped OTLP JSON, with the ingest token from the environment.
+# The OpenTelemetry Collector in compose.yaml: receives OTLP/HTTP on 4318 from agents that
+# present COLLECTOR_RECEIVER_TOKEN, and forwards every batch to DetectTrace as gzipped OTLP
+# JSON with the ingest token. Both tokens come from the environment.
+extensions:
+  bearertokenauth:
+    token: "${env:COLLECTOR_RECEIVER_TOKEN}"
+
 receivers:
   otlp:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
+        # Without it any local process could send spans that reach DetectTrace authenticated.
+        auth:
+          authenticator: bearertokenauth
 
 processors:
+  # First, so data is refused before a burst can exhaust the container's 512 MiB.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
   batch:
     timeout: 1s
 
@@ -21,8 +34,9 @@ exporters:
       enabled: true
 
 service:
+  extensions: [bearertokenauth]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlp_http/detecttrace]
