@@ -10,7 +10,7 @@ from builders import RUN_CONFIG, RUN_VERDICTS, run_trace, write_jsonl, write_run
 from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import load_checklists
 from detecttrace.dashboard import render_dashboard
-from detecttrace.model import IssueKind
+from detecttrace.model import Issue, IssueKind
 from detecttrace.pipeline import RunResult, run_check, run_stages
 from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
@@ -265,6 +265,51 @@ def test_run_stages_on_separately_loaded_inputs_matches_run_check_on_the_demo() 
     )
 
     assert actual.results == expected.results
+
+
+def _run_demo_stages(issues: list[Issue]) -> RunResult:
+    # An empty label map makes the join report unmapped labels, so the stages add issues of
+    # their own after the caller's.
+    config_path = DEMO_DIR / "detecttrace.yaml"
+    config = load_run_config(config_path)
+    assert config.checklists is not None
+    spans, _ = load_spans(config.traces.path, format=config.traces.format)
+    trace_cases, _ = build_trace_cases(spans, config.mapping)
+    verdict_rows, _ = read_verdicts(config.verdicts.path)
+    return run_stages(
+        trace_cases,
+        verdict_rows,
+        load_checklists(config.checklists),
+        config.to_config().model_copy(update={"label_map": {}}),
+        issues=issues,
+        source={"traces": None, "verdicts": None, "checklists": None, "config": config_path.name},
+        max_detail_cases=config.dashboard.max_detail_cases,
+        config_name=config_path.name,
+    )
+
+
+SENTINEL = Issue(IssueKind.INACTIVE_CHECKLIST, "x.yaml", "x")
+
+
+def test_run_stages_leaves_the_callers_issues_unchanged() -> None:
+    issues = [SENTINEL]
+
+    _run_demo_stages(issues)
+
+    assert issues == [SENTINEL]
+
+
+def test_run_stages_puts_the_callers_issues_first() -> None:
+    result = _run_demo_stages([SENTINEL])
+
+    assert result.issues[0] == SENTINEL
+
+
+def test_run_stages_summarizes_the_callers_issues_into_the_data_notes() -> None:
+    result = _run_demo_stages([SENTINEL])
+
+    notes = cast("list[dict[str, object]]", result.results["data_notes"])
+    assert "inactive_checklist" in [note["kind"] for note in notes]
 
 
 # Very long labels
