@@ -22,6 +22,8 @@ processors:
     spike_limit_mib: 100
   batch:
     timeout: 1s
+    # Keeps each request under DetectTrace's 16 MiB limit.
+    send_batch_max_size: 8192
 
 exporters:
   otlp_http/detecttrace:

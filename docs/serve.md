@@ -2,7 +2,7 @@
 
 `detecttrace serve` runs DetectTrace as a long-running service for a team. Your OpenTelemetry Collector sends it spans over OTLP/HTTP, your case management tool sends it analyst verdicts, and anyone with a read token opens the dashboard in a browser.
 
-It shows the same dashboard as `detecttrace check`, kept up to date as data arrives. It doesn't alert, page anyone, or explain why a number changed. It shows the numbers, as `check` does.
+It shows the same dashboard as `detecttrace check`, kept up to date as data arrives. It shows the numbers, as `check` does; it doesn't send alerts.
 
 ## Contents
 
@@ -103,6 +103,7 @@ It exits with code 1 and a short explanation when it can't start:
 - the database was written by a newer DetectTrace,
 - the database file is damaged or isn't a DetectTrace database,
 - the checklist folder doesn't exist, or holds no checklist file,
+- a checklist file is invalid or unreadable, or two files cover the same alert class,
 - the port is in use or can't be opened; the line logged before the error says why,
 - the `serve` extra isn't installed.
 
@@ -124,11 +125,11 @@ Create a token with `detecttrace token`:
 detecttrace token --role ingest --name collector-eu
 ```
 
-It prints the token once, on standard output, followed by the configuration entry for it:
+It prints the token once, on standard output, followed by the configuration entry for it. The output has this shape, with a real token and its hash:
 
 ```text
-yWd0Wv2l6Q0ZRk0bXvJ4dX7m8u4C3Pq1sN9eHf2aTgM
-- {name: "collector-eu", hash: "sha256:aeb227bb1460c85270ab38155320f69f39c276f66fc755b2dc2386134c262017"}
+<token>
+- {name: "collector-eu", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
 ```
 
 Copy the token into the tool that will use it, and the entry into the `tokens` section of the configuration, under its role. DetectTrace keeps only the SHA-256 hash, so a lost token can't be recovered: create a new one.
@@ -152,14 +153,14 @@ serve:
   port: 4320
   allow_plain_http: true       # TLS ends at a proxy on this host
   settle_seconds: 300
-tokens:
+tokens:                        # replace each with the entry `detecttrace token` prints
   ingest:
-    - {name: "collector-eu", hash: "sha256:aeb227bb1460c85270ab38155320f69f39c276f66fc755b2dc2386134c262017"}
+    - {name: "collector-eu", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000001"}
   verdicts:
-    - {name: "case-manager", hash: "sha256:c659e62a968ef077407869c4833e961f019827e9683b837e43306b93506e81ac"}
+    - {name: "case-manager", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000002"}
   read:
-    - {name: "soc-team", hash: "sha256:b76bca561f1edb847b12b05019b61e9a3a2e80f1c5655d1480e81aa92beb3b6b"}
-    - {name: "detection-eng", hash: "sha256:5e3dc8099b2e0061fac9d979863c08fc090ea88276d7cd2c6c4fa675df4d761e"}
+    - {name: "soc-team", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000003"}
+    - {name: "detection-eng", hash: "sha256:0000000000000000000000000000000000000000000000000000000000000004"}
 label_map:                     # your labels -> true_positive, false_positive, benign
   TP: true_positive
   FP: false_positive
@@ -245,7 +246,7 @@ Tokens and investigation data travel in every request, so the service refuses to
       keyfile: tls/detecttrace.example.com.key
   ```
 
-- **TLS at a reverse proxy.** Put a proxy such as nginx or Caddy in front, end TLS there, and set `serve.allow_plain_http: true`. Only do this when the plain HTTP hop can't be read by others: the proxy on the same host, or a private container network. The Compose setup does this: inside the container the service must listen on `0.0.0.0`, and Compose publishes the port on `127.0.0.1` only.
+- **TLS at a reverse proxy.** Put a proxy such as nginx or Caddy in front, end TLS there, and set `serve.allow_plain_http: true`. Only do this when the plain HTTP hop can't be read by others: the proxy on the same host, or a private container network. The Compose setup sets `allow_plain_http` without a proxy: inside the container the service listens on `0.0.0.0`, and Compose publishes its plain HTTP port on `127.0.0.1` only.
 
 ## Endpoints
 
@@ -441,11 +442,13 @@ Until the first recompute has finished, the answer is `503` with `Retry-After: 5
 
 ### Errors
 
-Every error answer has a small JSON body with a `code` and a `message`, the shape OTLP clients expect:
+Error answers have a small JSON body with a `code` and a `message`, the shape OTLP clients expect:
 
 ```json
 {"code": 16, "message": "a valid access token is required"}
 ```
+
+Two answers differ: a verdict request in which no row was accepted gets `422` with the `accepted` and `rejected` body shown above, and `/healthz` answers `503` with the plain text `unavailable`.
 
 No answer ever repeats the token a client sent.
 

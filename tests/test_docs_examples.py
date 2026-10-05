@@ -223,3 +223,17 @@ def test_collector_example_is_yaml(block: Block) -> None:
 @pytest.mark.parametrize("block", _of_kind("python"), ids=_ids(_of_kind("python")))
 def test_python_example_compiles(block: Block) -> None:
     assert isinstance(compile(block.text, block.where, "exec"), types.CodeType)
+
+
+# A hash in a public example must match no token, or copying the example would accept a token
+# anyone can read here.
+_HASH = re.compile(r"sha256:[0-9a-f]{64}")
+_PLACEHOLDER_HASH = re.compile(r"sha256:0{60}[0-9a-f]{4}")
+HASH_FILES = [*DOC_FILES, *sorted((ROOT / "deploy").glob("*"))]
+
+
+@pytest.mark.parametrize("path", HASH_FILES, ids=[path.name for path in HASH_FILES])
+def test_every_token_hash_is_a_placeholder(path: Path) -> None:
+    hashes = _HASH.findall(path.read_text(encoding="utf-8"))
+
+    assert [value for value in hashes if not _PLACEHOLDER_HASH.fullmatch(value)] == []
