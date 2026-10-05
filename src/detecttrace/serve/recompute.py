@@ -137,8 +137,9 @@ class RecomputeStatus:
 class RecomputeCoordinator:
     """Decides when the worker runs: after a quiet spell, one run at a time.
 
-    A write starts a `debounce_seconds` wait that each later write restarts. Writes during a
-    run cause exactly one more run after it. A failed run keeps the last snapshot and is not
+    A write starts a `debounce_seconds` wait that each later write restarts, but a run starts
+    no later than `max_wait_seconds` after the first write no run has covered yet, so steady
+    ingest still refreshes the page. Writes during a run cause exactly one more run after it. A failed run keeps the last snapshot and is not
     retried until the next write, and then no sooner than 5 s after the failure, doubling with
     each failure in a row up to 300 s. With `settle_seconds`, one more run follows that long
     after the last write, so cases held back as unsettled appear without waiting for new input.
@@ -151,6 +152,7 @@ class RecomputeCoordinator:
         clock: Callable[[], float],
         debounce_seconds: float = 5.0,
         *,
+        max_wait_seconds: float = 60.0,
         settle_seconds: float = 0.0,
         now_ns: Callable[[], int] = time.time_ns,
     ) -> None:
@@ -158,11 +160,13 @@ class RecomputeCoordinator:
         self._store = store
         self._clock = clock
         self._debounce_seconds = debounce_seconds
+        self._max_wait_seconds = max_wait_seconds
         self._settle_seconds = settle_seconds
         self._now_ns = now_ns
         self._lock = threading.Lock()
         self._future: Future[Snapshot] | None = None
-        self._has_pending_write = False
+        # None when every write so far is covered by a run that has started.
+        self._first_uncovered_write_at: float | None = None
         self._last_write_at = 0.0
         self._settle_due_at: float | None = None
         self._failure_count = 0
@@ -173,8 +177,8 @@ class RecomputeCoordinator:
         generation = store.generation()
         if snapshot is None or generation > snapshot.generation:
             # Nothing to wait out: the input was complete before the server started.
-            self._has_pending_write = True
             self._last_write_at = clock() - debounce_seconds
+            self._first_uncovered_write_at = self._last_write_at
         if generation > 0 and settle_seconds > 0:
             # The last snapshot may hold back cases that have settled while the server was down.
             self._settle_due_at = clock() + settle_seconds
@@ -182,7 +186,8 @@ class RecomputeCoordinator:
     def notify_write(self) -> None:
         with self._lock:
             now = self._clock()
-            self._has_pending_write = True
+            if self._first_uncovered_write_at is None:
+                self._first_uncovered_write_at = now
             self._last_write_at = now
             if self._settle_seconds > 0:
                 self._settle_due_at = now + self._settle_seconds
@@ -238,12 +243,16 @@ class RecomputeCoordinator:
     def _is_due(self, now: float) -> bool:
         if self._future is not None or now < self._retry_at:
             return False
-        if self._has_pending_write and now - self._last_write_at >= self._debounce_seconds:
+        first_write_at = self._first_uncovered_write_at
+        if first_write_at is not None and (
+            now - self._last_write_at >= self._debounce_seconds
+            or now - first_write_at >= self._max_wait_seconds
+        ):
             return True
         return self._settle_due_at is not None and now >= self._settle_due_at
 
     def _start(self) -> None:
-        self._has_pending_write = False
+        self._first_uncovered_write_at = None
         if self._settle_due_at is not None and self._clock() >= self._settle_due_at:
             self._settle_due_at = None
         try:

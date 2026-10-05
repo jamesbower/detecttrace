@@ -163,6 +163,70 @@ def test_nothing_runs_without_a_write(
     assert submit.count == 0
 
 
+# The maximum wait under steady ingest
+
+
+def run_start_times(
+    coordinator: RecomputeCoordinator,
+    clock: FakeClock,
+    submit: FakeSubmit,
+    seconds: int,
+    run_seconds: int = 0,
+) -> list[float]:
+    """Write and tick once a second for `seconds`; each run finishes `run_seconds` after it starts.
+
+    Returns when each run started, in seconds after the first write.
+    """
+    first_write_at = clock.now
+    starts: list[float] = []
+    for _ in range(seconds + 1):
+        elapsed = clock.now - first_write_at
+        if starts and not submit.futures[-1].done() and elapsed - starts[-1] >= run_seconds:
+            submit.succeed()
+        coordinator.notify_write()
+        coordinator.tick()
+        if submit.count > len(starts):
+            starts.append(elapsed)
+        clock.advance(1)
+    return starts
+
+
+def test_steady_writes_start_the_first_run_at_the_maximum_wait(
+    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    starts = run_start_times(coordinator, clock, submit, 130)
+
+    assert starts[0] == 60.0
+
+
+def test_steady_writes_start_the_next_run_a_maximum_wait_after_the_first_uncovered_write(
+    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    # The write at 60 s is covered by the run that starts in the same second; 61 s is next.
+    starts = run_start_times(coordinator, clock, submit, 130)
+
+    assert starts == [60.0, 121.0]
+
+
+def test_a_run_longer_than_the_maximum_wait_is_followed_as_soon_as_it_finishes(
+    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    starts = run_start_times(coordinator, clock, submit, 160, run_seconds=70)
+
+    assert starts == [60.0, 130.0]
+
+
+def test_a_single_write_still_runs_after_the_quiet_period_alone(
+    current_store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    coordinator = RecomputeCoordinator(
+        submit, current_store, clock, DEBOUNCE, max_wait_seconds=1_000
+    )
+    start_run(coordinator, clock)
+
+    assert submit.count == 1
+
+
 # Single flight and the rerun after a busy run
 
 
