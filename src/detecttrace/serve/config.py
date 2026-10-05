@@ -20,7 +20,7 @@ from detecttrace.runconfig import (
     MAX_CONFIG_BYTES,
     ConfigFileError,
     DashboardConfig,
-    _check_path,
+    check_path,
     describe_validation_error,
 )
 from detecttrace.yaml12 import Yaml12Error, load_yaml12
@@ -38,11 +38,18 @@ class TokenEntry(BaseModel):
 
 
 def _check_unique_names(entries: list[TokenEntry]) -> list[TokenEntry]:
-    seen: set[str] = set()
+    names: set[str] = set()
+    hashes: set[str] = set()
     for entry in entries:
-        if entry.name in seen:
+        if entry.name in names:
             raise ValueError(f"token name '{entry.name}' is used twice; names must be unique")
-        seen.add(entry.name)
+        if entry.hash in hashes:
+            raise ValueError(
+                f"token '{entry.name}' has the same hash as an earlier entry; "
+                "each token needs its own hash"
+            )
+        names.add(entry.name)
+        hashes.add(entry.hash)
     return entries
 
 
@@ -65,7 +72,7 @@ class TlsConfig(BaseModel):
     certfile: Path
     keyfile: Path
 
-    _check_path = field_validator("certfile", "keyfile", mode="before")(_check_path)
+    _check_path = field_validator("certfile", "keyfile", mode="before")(check_path)
 
 
 class ServeSection(BaseModel):
@@ -78,7 +85,7 @@ class ServeSection(BaseModel):
     allow_plain_http: StrictBool = False
     settle_seconds: StrictInt = Field(default=300, ge=0)
 
-    _check_path = field_validator("database", mode="before")(_check_path)
+    _check_path = field_validator("database", mode="before")(check_path)
 
     @model_validator(mode="after")
     def _require_tls_off_loopback(self) -> Self:
@@ -99,7 +106,7 @@ class ServeConfig(Config):
     serve: ServeSection
     tokens: TokenRoles
 
-    _check_path = field_validator("checklists", mode="before")(_check_path)
+    _check_path = field_validator("checklists", mode="before")(check_path)
 
 
 def load_serve_config(path: Path) -> ServeConfig:

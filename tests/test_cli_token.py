@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import yaml
 from typer.testing import CliRunner, Result
 
 from detecttrace import cli
 from detecttrace.serve.auth import hash_token
+from detecttrace.serve.config import load_serve_config
 
 
 def _invoke(*args: str) -> Result:
@@ -72,3 +75,17 @@ def test_bad_name_says_what_is_allowed() -> None:
 
 def test_missing_option_exits_one() -> None:
     assert _invoke("--role", "read").exit_code == 1
+
+
+def test_printed_entry_with_a_numeric_looking_name_loads_as_that_name(tmp_path: Path) -> None:
+    result = _invoke("--role", "read", "--name", "2026")
+    entry = _stdout_lines(result)[1]
+    other = '- {name: "other", hash: "sha256:' + "a" * 64 + '"}'
+    config_path = tmp_path / "serve.yaml"
+    config_path.write_text(
+        "serve: {database: x.db}\n"
+        f"tokens:\n  ingest:\n    {other}\n  verdicts:\n    {other}\n  read:\n    {entry}\n",
+        encoding="utf-8",
+    )
+
+    assert load_serve_config(config_path).tokens.read[0].name == "2026"

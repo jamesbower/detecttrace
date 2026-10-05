@@ -79,6 +79,12 @@ def test_relative_tls_files_resolve_against_the_config_folder(tmp_path: Path) ->
     assert config.serve.tls.keyfile == tmp_path.absolute() / "k.pem"
 
 
+def test_relative_tls_certfile_resolves_against_the_config_folder(tmp_path: Path) -> None:
+    config = _load(tmp_path, _with_serve(tls={"certfile": "c.pem", "keyfile": "k.pem"}))
+
+    assert config.serve.tls.certfile == tmp_path.absolute() / "c.pem"
+
+
 def test_relative_checklists_resolve_against_the_config_folder(tmp_path: Path) -> None:
     config = _load(tmp_path, _document(checklists="checklists.yaml"))
 
@@ -147,6 +153,14 @@ def test_unknown_top_level_key_is_rejected(tmp_path: Path) -> None:
 
 def test_unknown_serve_key_is_rejected(tmp_path: Path) -> None:
     assert "serve.surprise" in _error(tmp_path, _with_serve(surprise=1))
+
+
+def test_unknown_role_under_tokens_is_rejected(tmp_path: Path) -> None:
+    assert "tokens.admin" in _error(tmp_path, _with_tokens(admin=[_entry("root")]))
+
+
+def test_duplicate_hash_within_a_role_is_rejected(tmp_path: Path) -> None:
+    assert "same hash" in _error(tmp_path, _with_tokens(read=[_entry("team"), _entry("other")]))
 
 
 def test_unknown_token_entry_key_is_rejected(tmp_path: Path) -> None:

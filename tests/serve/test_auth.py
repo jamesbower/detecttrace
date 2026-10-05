@@ -1,11 +1,12 @@
 import hmac
 import re
 from collections.abc import Callable
+from typing import get_args
 
 import pytest
 
-from detecttrace.serve.auth import create_token, find_token_name, hash_token
-from detecttrace.serve.config import HASH_PATTERN, TokenEntry
+from detecttrace.serve.auth import Role, create_token, find_token_name, hash_token
+from detecttrace.serve.config import HASH_PATTERN, TokenEntry, TokenRoles
 
 INGEST = [TokenEntry(name="collector", hash=hash_token("ingest-secret"))]
 READ = [
@@ -57,3 +58,7 @@ def test_every_entry_is_compared_even_when_the_first_matches(
     find_token_name("read-secret", READ)
 
     assert len(calls) == len(READ)
+
+
+def test_roles_are_the_token_role_fields() -> None:
+    assert set(get_args(Role)) == set(TokenRoles.model_fields)

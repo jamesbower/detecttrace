@@ -27,7 +27,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 from importlib.resources import as_file, files
 from pathlib import Path, PurePath
-from typing import Annotated, Any, NoReturn
+from typing import Annotated, Any, NoReturn, get_args
 
 import typer
 from typer.core import TyperGroup
@@ -63,7 +63,7 @@ from detecttrace.model import InputFileError, Issue, IssueKind, Span, Verdict, V
 from detecttrace.pipeline import RunResult, run_check
 from detecttrace.results import is_results_file, write_results_json
 from detecttrace.runconfig import RunConfig, TraceFormat, load_run_config
-from detecttrace.serve.auth import create_token, hash_token
+from detecttrace.serve.auth import Role, create_token, hash_token
 from detecttrace.serve.config import NAME_PATTERN
 from detecttrace.summary import (
     IssueExample,
@@ -87,7 +87,7 @@ _LEAVE_UNMAPPED = ""
 _TRACES_HINT = "Check --traces."
 _VERDICTS_HINT = "Check --verdicts."
 _USAGE_ERROR_EXIT_CODE = 2
-_TOKEN_ROLES = ("ingest", "verdicts", "read")
+_TOKEN_ROLES = get_args(Role)
 
 
 class _UsageErrorExitsOne(TyperGroup):
@@ -285,7 +285,7 @@ def _token(role: str, name: str) -> int:
     typer.echo(new_token)
     typer.echo("This token is shown only once; DetectTrace keeps just its hash.", err=True)
     typer.echo(f"Add this under serve.tokens.{role} in the configuration:", err=True)
-    typer.echo(f'- {{name: {name}, hash: "{hash_token(new_token)}"}}')
+    typer.echo(f'- {{name: "{name}", hash: "{hash_token(new_token)}"}}')
     return 0
 
 

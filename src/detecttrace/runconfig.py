@@ -30,7 +30,7 @@ class ConfigFileError(InputFileError):
     """The configuration file cannot be used: missing, unreadable, or invalid."""
 
 
-def _check_path(value: object) -> object:
+def check_path(value: object) -> object:
     # Runs before conversion because Path("") silently becomes ".", the config folder.
     if isinstance(value, str):
         if not value.strip():
@@ -48,14 +48,14 @@ class TracesConfig(BaseModel):
     path: Path
     format: TraceFormat = "otlp_jsonl"
 
-    _check_path = field_validator("path", mode="before")(_check_path)
+    _check_path = field_validator("path", mode="before")(check_path)
 
 
 class VerdictsConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     path: Path
-    _check_path = field_validator("path", mode="before")(_check_path)
+    _check_path = field_validator("path", mode="before")(check_path)
 
 
 class DashboardConfig(BaseModel):
@@ -73,7 +73,7 @@ class RunConfig(Config):
     output: Path = Path("detecttrace-dashboard.html")
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
 
-    _check_path = field_validator("checklists", "output", mode="before")(_check_path)
+    _check_path = field_validator("checklists", "output", mode="before")(check_path)
 
     @field_validator("output", mode="before")
     @classmethod
