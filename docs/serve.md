@@ -7,6 +7,7 @@ It shows the same dashboard as `detecttrace check`, kept up to date as data arri
 ## Contents
 
 - [Install](#install)
+- [Starting and stopping](#starting-and-stopping)
 - [Tokens](#tokens)
 - [Configuration](#configuration)
 - [Sending spans from a Collector](#sending-spans-from-a-collector)
@@ -31,17 +32,53 @@ cd detecttrace
 docker build -t detecttrace .
 ```
 
-The image runs `detecttrace serve --config /data/detecttrace-serve.yaml` by default, as a non-root user. `/data` is a volume: it holds the configuration and the database. The service listens on port 4320.
+The image runs `detecttrace serve --config /data/detecttrace-serve.yaml` by default, as a non-root user. `/data` is a volume for the configuration and the database. The service listens on port 4320.
 
-`compose.yaml` in the repository starts the service with an OpenTelemetry Collector in front of it:
+The image has a health check that fetches `http://127.0.0.1:4320/healthz` inside the container. It assumes plain HTTP on port 4320. If you set `serve.tls` or another port, override the health check, for example with `healthcheck:` in `compose.yaml`.
 
-- The service keeps its data in a named volume, restarts unless you stop it, and runs with a read-only root file system.
-- Its port is published on `127.0.0.1:4320` only, so the dashboard is reachable from the host itself and nowhere else.
-- The Collector receives your agent's spans and forwards them to `http://detecttrace:4320` over the Compose network, with the ingest token from the `DETECTTRACE_INGEST_TOKEN` environment variable.
+### Compose
 
-```sh
-docker compose up -d
-```
+`compose.yaml` in the repository runs the service behind an OpenTelemetry Collector, on one host. After `docker build`:
+
+1. Copy the example configuration. The copy's name is ignored by git.
+
+   ```sh
+   cp deploy/detecttrace-serve.example.yaml deploy/detecttrace-serve.yaml
+   ```
+
+2. Create one token per role, and replace each placeholder hash in `deploy/detecttrace-serve.yaml` with the entry printed for it. The placeholders match no token, so until you replace them every request gets 401. Keep each token somewhere safe; it is shown only once.
+
+   ```sh
+   docker run --rm detecttrace token --role ingest --name collector
+   docker run --rm detecttrace token --role verdicts --name soar
+   docker run --rm detecttrace token --role read --name analysts
+   ```
+
+3. Create `.env` next to `compose.yaml`, readable by you only. It holds the ingest token from step 2, and a new token that your agents will use to reach the Collector:
+
+   ```sh
+   (umask 077; printf 'DETECTTRACE_INGEST_TOKEN=%s\nCOLLECTOR_RECEIVER_TOKEN=%s\n' \
+     '<the ingest token>' "$(openssl rand -base64 32)" > .env)
+   ```
+
+4. Start both services:
+
+   ```sh
+   docker compose up -d
+   ```
+
+What you get:
+
+- **The dashboard** is on `http://127.0.0.1:4320`. A browser asks for a user name and password: any user name, and a read token as the password.
+- **Agents send spans to the Collector** on `127.0.0.1:4318`, over OTLP/HTTP, with the header `Authorization: Bearer <COLLECTOR_RECEIVER_TOKEN>`. The Collector's receiver refuses a request without it. This is not the ingest token: only the Collector holds that.
+- **The Collector forwards every batch** to `http://detecttrace:4320` over the Compose network, with its `otlp_http` exporter, as gzipped OTLP JSON with the ingest token. Its settings are in `deploy/collector.yaml`.
+- **Never publish port 4318 beyond loopback** without the receiver token and TLS. The Collector forwards whatever it receives with the ingest token, so an open receiver lets anyone add spans to the dashboard.
+- **Both ports are published on `127.0.0.1` only.** On Docker Engine older than 28, other hosts on the same network segment can still reach a port published on `127.0.0.1`. Use Docker Engine 28 or later, or a host firewall.
+- **Hardening.** Both containers run with a read-only root file system, all capabilities dropped, `no-new-privileges`, and a process limit. The service keeps its data in the named volume `detecttrace-data`, and restarts unless you stop it.
+- **Memory.** The service's container is limited to 3 GiB (`mem_limit: 3g`). At 50,000 cases it peaked at 1.76 GiB, so 2 GiB would leave too little headroom. The Collector is limited to 512 MiB, and its `memory_limiter` refuses data before that.
+- **Stopping.** `stop_grace_period: 30s` gives the service more time than Docker's default 10 seconds; it normally stops well within that.
+- **Configuration changes.** The configuration is mounted read-only from `deploy/detecttrace-serve.yaml`. Edit it there, then run `docker compose restart detecttrace`.
+- **Checklists.** `compose.yaml` mounts none. To use them, mount their folder under `/data` as well, such as `./deploy/checklists:/data/checklists:ro`, and set `checklists: checklists/` in the configuration.
 
 ### Python package
 
@@ -54,15 +91,22 @@ detecttrace serve --config detecttrace-serve.yaml
 
 From a clone, `uv sync --extra serve` does the same.
 
-`--config` defaults to `detecttrace-serve.yaml`. On start, the service prints where it listens, such as `Serving on https://detecttrace.example.com:4320`. It stops cleanly on `SIGTERM`, which is what `docker stop` sends.
+## Starting and stopping
 
-It exits with code 1 and one line of explanation when it can't start:
+`--config` defaults to `detecttrace-serve.yaml`. Once the service listens, it prints where, such as `Serving on https://detecttrace.example.com:4320`, or `Serving on http://127.0.0.1:4320` without TLS.
 
-- the configuration is missing or invalid,
-- a TLS certificate or key file is missing or unreadable,
+It exits with code 1 and a short explanation when it can't start:
+
+- the configuration file is missing or invalid (each problem is listed on its own line),
+- a TLS certificate or key file is missing, unreadable, or not a valid certificate or key,
+- the database folder doesn't exist. The service creates the database file, but never its folder, so a typo in the path can't start an empty service somewhere else,
 - the database was written by a newer DetectTrace,
 - the database file is damaged or isn't a DetectTrace database,
+- the checklist folder doesn't exist, or holds no checklist file,
+- the port is in use or can't be opened; the line logged before the error says why,
 - the `serve` extra isn't installed.
+
+It stops cleanly on `SIGTERM`, which is what `docker stop` sends, and on `SIGINT` (Ctrl+C), and exits with code 0. It stops within seconds: requests in flight get up to 5 seconds to finish, and a recompute that is running is ended at once. That is safe, because a recompute only reads the database; the last finished dashboard stays, and the service recomputes on its next start.
 
 ## Tokens
 
@@ -84,7 +128,7 @@ It prints the token once, on standard output, followed by the configuration entr
 
 ```text
 yWd0Wv2l6Q0ZRk0bXvJ4dX7m8u4C3Pq1sN9eHf2aTgM
-- {name: "collector-eu", hash: "sha256:5cf60d6c8e5bb7e63e620e4da8070f93904018e82c9d63fa41d10147d17d7cf3"}
+- {name: "collector-eu", hash: "sha256:aeb227bb1460c85270ab38155320f69f39c276f66fc755b2dc2386134c262017"}
 ```
 
 Copy the token into the tool that will use it, and the entry into the `tokens` section of the configuration, under its role. DetectTrace keeps only the SHA-256 hash, so a lost token can't be recovered: create a new one.
@@ -93,24 +137,24 @@ Copy the token into the tool that will use it, and the entry into the `tokens` s
 - **Rotation.** Add an entry for the new token, restart the service, switch the tool to the new token, then remove the old entry and restart again.
 - **Wrong role.** A token of another role gets 403. An unknown or missing token gets 401.
 
-Tools send the token as `Authorization: Bearer <token>`. For the read routes, a browser can also sign in: it prompts for a user name and password, and the password is the read token. The user name is ignored.
+Tools send the token as `Authorization: Bearer <token>`. The read routes also accept Basic authentication, so a browser can sign in: it prompts for a user name and password, and the password is the read token. The user name is ignored. A 401 from a read route carries two `WWW-Authenticate` headers, `Bearer` and `Basic realm="detecttrace"`, which is what makes a browser show its sign-in prompt. The ingest and verdict routes take only `Bearer`.
 
 ## Configuration
 
 The service reads one YAML file. It holds the `serve` and `tokens` sections, plus the same `mapping`, `label_map`, `agent_label_map`, `checklists` and `dashboard` settings as `detecttrace.yaml`. It has no `traces`, `verdicts` or `output`: spans and verdicts arrive over the network, and the dashboard is served, not written.
 
-A complete example, for the container:
+A complete example:
 
 ```yaml
 serve:
-  database: detecttrace.db     # relative to this file: /data/detecttrace.db in the container
-  host: 0.0.0.0                # every interface inside the container
+  database: detecttrace.db     # relative to this file
+  host: 0.0.0.0                # every interface
   port: 4320
-  allow_plain_http: true       # TLS ends at a proxy, or the port stays on 127.0.0.1
+  allow_plain_http: true       # TLS ends at a proxy on this host
   settle_seconds: 300
 tokens:
   ingest:
-    - {name: "collector-eu", hash: "sha256:5cf60d6c8e5bb7e63e620e4da8070f93904018e82c9d63fa41d10147d17d7cf3"}
+    - {name: "collector-eu", hash: "sha256:aeb227bb1460c85270ab38155320f69f39c276f66fc755b2dc2386134c262017"}
   verdicts:
     - {name: "case-manager", hash: "sha256:c659e62a968ef077407869c4833e961f019827e9683b837e43306b93506e81ac"}
   read:
@@ -125,11 +169,13 @@ dashboard:
   max_detail_cases: 2000
 ```
 
+**Read once, at startup.** The configuration and the checklists are read when the service starts. Restart it after you change either. The verdict API and the dashboard therefore always use the same `label_map`.
+
 ### `serve`
 
 | Key | Default | What it does |
 |---|---|---|
-| `database` | required | The SQLite database file. Relative paths are relative to the configuration file. It is created if missing, readable and writable by its owner only (mode `0600`). |
+| `database` | required | The SQLite database file. Relative paths are relative to the configuration file. The file is created if missing, readable and writable by its owner only (mode `0600`). Its folder must already exist. |
 | `host` | `127.0.0.1` | The address to listen on. Anything other than a loopback address needs `tls` or `allow_plain_http`. |
 | `port` | `4320` | The port to listen on. |
 | `tls.certfile` | none | The TLS certificate chain, a PEM file. Relative to the configuration file. |
@@ -145,11 +191,9 @@ dashboard:
 
 `mapping`, `label_map`, `agent_label_map`, `checklists` and `dashboard.max_detail_cases` work as in `detecttrace.yaml`; see the [README](../README.md) and [Trace attributes](attributes.md). The verdict API rejects a row whose label isn't in `label_map`, so map every label your analysts use before you send verdicts.
 
-Restart the service after you change the configuration.
-
 ## Sending spans from a Collector
 
-Add an `otlphttp` exporter that points at the service. It must send JSON: set `encoding: json`. The service doesn't read OTLP protobuf. The Collector's default gzip compression is fine.
+Add an `otlp_http` exporter that points at the service. Older Collector releases call it `otlphttp`. It must send JSON: set `encoding: json`. The service doesn't read OTLP protobuf. The Collector's default gzip compression is fine.
 
 ```yaml
 receivers:
@@ -163,7 +207,7 @@ processors:
     send_batch_max_size: 8192
 
 exporters:
-  otlphttp/detecttrace:
+  otlp_http/detecttrace:
     endpoint: https://detecttrace.example.com:4320
     encoding: json
     headers:
@@ -174,20 +218,21 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/detecttrace]
+      exporters: [otlp_http/detecttrace]
 ```
 
 - **The token comes from the environment.** `${env:DETECTTRACE_INGEST_TOKEN}` is the Collector's syntax for an environment variable, so the token stays out of the file.
-- **Keep your existing backend.** Add `otlphttp/detecttrace` as a second exporter in the traces pipeline; your other exporters still get every span.
+- **Protect the receiver.** The Collector forwards whatever it receives with the ingest token. Unless only trusted processes can reach its receiver, require a token there too. `deploy/collector.yaml` does this with the `bearertokenauth` extension.
+- **Keep your existing backend.** Add `otlp_http/detecttrace` as a second exporter in the traces pipeline; your other exporters still get every span.
 - **Batch size.** `send_batch_max_size` keeps each request well under the [size limit](#limits). A request over it gets 413.
 - **Compression.** Leave `compression` unset (gzip) or set it to `none`. Other values, such as `zstd` or `snappy`, get 415.
-- **Retries.** The `otlphttp` exporter retries a 503 on its own, after the `Retry-After` the service sends. Sending the same batch twice is safe: a span already stored is ignored.
+- **Retries.** The exporter retries a 503 on its own, after the `Retry-After` the service sends. Sending the same batch twice is safe: a span already stored is ignored.
 
 The spans need the same attributes as for `check`; see [Trace attributes](attributes.md).
 
 ## TLS
 
-Tokens and investigation data travel in every request, so the service refuses to listen without TLS on anything but a loopback address (`127.0.0.1`, `::1` or `localhost`). There are two ways to listen beyond the host:
+Tokens and investigation data travel in every request, so the service refuses to listen without TLS on anything but a loopback address, such as `127.0.0.1`, `::1` or `localhost`. There are two ways to listen beyond the host:
 
 - **TLS in the service.** Set `serve.tls.certfile` and `serve.tls.keyfile`. The service then speaks HTTPS only.
 
@@ -200,7 +245,7 @@ Tokens and investigation data travel in every request, so the service refuses to
       keyfile: tls/detecttrace.example.com.key
   ```
 
-- **TLS at a reverse proxy.** Put a proxy such as nginx or Caddy in front, end TLS there, and set `serve.allow_plain_http: true`. Only do this when the plain HTTP hop can't be read by others: the proxy on the same host, or a private container network. The container example above does this: inside the container the service must listen on `0.0.0.0`, and Compose publishes the port on `127.0.0.1` only.
+- **TLS at a reverse proxy.** Put a proxy such as nginx or Caddy in front, end TLS there, and set `serve.allow_plain_http: true`. Only do this when the plain HTTP hop can't be read by others: the proxy on the same host, or a private container network. The Compose setup does this: inside the container the service must listen on `0.0.0.0`, and Compose publishes the port on `127.0.0.1` only.
 
 ## Endpoints
 
@@ -216,7 +261,7 @@ curl https://detecttrace.example.com:4320/healthz
 
 ### `POST /v1/traces`
 
-Role `ingest`. One OTLP JSON trace export request, as the Collector's `otlphttp` exporter sends it. `Content-Type` must be `application/json`; `Content-Encoding` may be `gzip`.
+Role `ingest`. One OTLP JSON trace export request, as the Collector's `otlp_http` exporter sends it. `Content-Type` must be `application/json`; `Content-Encoding` may be `gzip`.
 
 ```sh
 curl https://detecttrace.example.com:4320/v1/traces \
@@ -289,7 +334,7 @@ The answer counts the stored rows and lists the rejected ones:
 
 The body must be UTF-8. A newer verdict for a case replaces the current one; the replaced verdict is kept in the database's history, with the name of the token that sent it. Sending the same verdict again changes nothing, so retries are safe.
 
-**Partial success.** Rows are checked one by one. Good rows are stored even when others are rejected, and the answer is `200`. A row is rejected when a column is missing or empty, a value holds a line break, its label isn't in `label_map`, or its `case_id` already appeared earlier in the same request.
+**Partial success.** Rows are checked one by one. Good rows are stored even when others are rejected, and the answer is `200`. A row is rejected when a column is missing or empty, a value holds a line break, its label isn't in `label_map`, or its `case_id` already appeared earlier in the same request. A rejected row is not stored: after you fix the cause, send it again.
 
 **Always check `rejected`.** A `200` means at least one row was stored, not that every row was. A `label_map` that misses a label your analysts use can reject many rows while every answer is `200`. Log or alert on a non-empty `rejected` list in the tool that sends verdicts.
 
@@ -325,7 +370,7 @@ A rejected JSON row is named by its position, such as `verdicts[1]`; a rejected 
 
 ### `GET /`
 
-Role `read`. The dashboard, the same page `check` writes. Until at least one case can be scored, it is a short "waiting for data" page that counts the spans, cases and verdicts received so far and lists the data notes.
+Role `read`. The dashboard, the same page `check` writes. Until the first recompute has finished, and while no case can be scored, it is a short "waiting for data" page that counts the spans and verdicts received so far. Once a recompute has run, the waiting page also counts the cases and lists the data notes.
 
 Open it in a browser and enter the read token as the password, or fetch it:
 
@@ -355,13 +400,15 @@ Role `read`. The state of the service, as JSON:
 
 | Field | Meaning |
 |---|---|
-| `generation` | Goes up by one with every write that changed the stored data. |
-| `updated_at` | When the dashboard now served was computed. |
+| `generation` | The version of the stored data that the dashboard now served was computed from. It goes up by one with every write that changed the stored data. `0` before the first recompute. |
+| `updated_at` | When the dashboard now served was computed, or `null` before the first recompute. |
 | `recompute_running` | Whether a new dashboard is being computed. |
 | `last_error`, `last_error_at` | Why and when the last recompute failed, or `null`. The last good dashboard stays in place. |
 | `held_back_cases` | Cases still inside the settle window, not counted yet. |
 | `span_count`, `verdict_count` | Spans and verdicts stored. |
-| `last_ingest_at` | When stored data last changed. |
+| `last_ingest_at` | When stored data last changed, or `null` before the first write. |
+
+Times are ISO 8601 in UTC.
 
 ```sh
 curl https://detecttrace.example.com:4320/api/status \
@@ -376,7 +423,9 @@ Role `read`. The same results JSON that `check --json` writes, plus a `served` b
 {"served": {"generation": 42, "settle_seconds": 300, "held_back_cases": 3}}
 ```
 
-Like `check --json`, the format may change before 1.0. Before any case can be scored, it is a short waiting document instead:
+Like `check --json`, the format may change before 1.0.
+
+Until the first recompute has finished, the answer is `503` with `Retry-After: 5`. While no case can be scored, it is a short waiting document instead:
 
 ```json
 {
@@ -404,25 +453,36 @@ No answer ever repeats the token a client sent.
 
 | Status | When | Retry? |
 |---|---|---|
-| `400` | The body can't be read at all: not JSON, not an OTLP trace export, broken gzip, not UTF-8, a verdict body without a `verdicts` list, or a CSV without the required columns. A bad trace body is also listed in the data notes. | No. Fix the sender. |
+| `400` | The body can't be read at all: not JSON, not an OTLP trace export, broken gzip or more than 64 gzip members, not UTF-8, a verdict body without a `verdicts` list, or a CSV without the required columns. A bad trace body is also listed in the data notes. | No. Fix the sender. |
 | `401` | The token is missing or unknown. | No. Check the token. |
 | `403` | The token is valid but has another role. | No. Use a token of the right role. |
 | `413` | The body is over the size limit, or a verdict request has more than 10,000 rows. | No. Send smaller requests; for a Collector, lower `send_batch_max_size`. |
 | `415` | The `Content-Type` or `Content-Encoding` isn't accepted, such as OTLP protobuf or zstd. | No. Send JSON (traces) or JSON or CSV (verdicts), plain or gzip. |
 | `422` | A verdict request in which no row was accepted. The body lists each reason. | No. Fix the rows. |
-| `503` | The database can't take writes right now, or the body didn't arrive within 30 seconds. Comes with `Retry-After: 5`. | Yes, after the `Retry-After` delay. |
+| `503` | The database can't be read or written right now, the body didn't arrive within 30 seconds, or `/api/results.json` was asked for before the first recompute finished. Comes with `Retry-After: 5`. | Yes, after the `Retry-After` delay. |
 
 ## How the dashboard updates
 
 The service recomputes the dashboard in the background: 5 seconds after the last write, and at least once every 60 seconds while data keeps arriving. No request waits for it; the page always shows the last finished dashboard.
 
-**Settling.** A case counts once its agent run's root span ended `settle_seconds` ago (300 by default), because its tool calls and verdict may still be on their way. Its verdict waits with it. Until then it is held back, and the page and `/api/status` say how many cases are held back. Set `settle_seconds` to `0` to count every case at once.
+**Settling.** A case counts once its agent run's root span ended `settle_seconds` ago (300 by default), because its tool calls and verdict may still be on their way. Its verdict waits with it. Until then it is held back, and the page and `/api/status` say how many cases are held back. When the first held-back case settles, the service recomputes again, even without new data. Set `settle_seconds` to `0` to count every case at once.
 
-Settling compares the server's clock with the end time the agent reported. A case that ends more than `settle_seconds` in the server's future gets a data note: check that the clock of the host that runs your agent is synchronized, for example with NTP.
+Settling compares the server's clock with the end time the agent reported. A case that ends more than `settle_seconds` in the server's future gets a `future_case_end` data note: check that the clock of the host that runs your agent is synchronized, for example with NTP.
 
 **The page never reloads by itself.** When newer results exist, it shows a "New data is available" bar. Reload the page to see them.
 
 **When a recompute fails**, the last good dashboard stays in place, and `/api/status` shows the error. The service tries again on the next write, waiting at least 5 seconds after the failure, doubling with each failure in a row up to 5 minutes. The full error goes to the log.
+
+### How the served dashboard differs from `check`
+
+On the same spans and verdicts, the service gives the same results as `check`, with these differences:
+
+- **Unmapped verdict labels.** The verdict API rejects a row whose label isn't in `label_map`, so that case has no verdict and stays unscored, with a `root_without_verdict` data note. `check` scores such a case with an unknown analyst verdict and an `unmapped_analyst_label` note. Rejected rows are not stored: after you fix `label_map` and restart the service, send them again.
+- **A case's verdict can change.** A newer verdict for a case replaces the older one, which is kept in the database's history. `check` reports a case ID that appears twice in its CSV.
+- **Retried spans.** An identical copy of a stored span, as a client's retry sends, is dropped without a note. `check` notes a span that appears in more than one file.
+- **Broken requests.** A request that can't be read is refused with an error status, rather than read in part and reported as a note about a file, as `check` does.
+- **Settling.** Cases are counted once their root span ended `settle_seconds` ago, and a case dated in the future gets a `future_case_end` note. `check` counts every case in its files.
+- **Sources.** The results name the endpoints, not files, and add a `served` block.
 
 ## Limits
 
@@ -430,20 +490,21 @@ Settling compares the server's clock with the end time the agent reported. A cas
 |---|---|
 | Trace request body, as received | 16 MiB |
 | Trace request body, after gzip decompression | 32 MiB |
+| Gzip members in one trace request | 64 |
 | Verdict request body | 4 MiB |
 | Verdict rows per request | 10,000 |
 | Trace requests handled at once | 4; more wait their turn |
 | Verdict requests handled at once | 2; more wait their turn |
-| Time to receive one request body | 30 seconds, then 503 |
+| Time to receive one request body | 30 seconds, then 503 with `Retry-After` |
 
 - **Scale.** The service is designed and benchmarked for about 50,000 cases, the same as `check`. On a benchmark of 50,000 cases with 814,814 spans:
 
   | Measure | Value |
   |---|---|
+  | Ingest | about 18,500 spans per second |
   | Database size | about 410 MB, roughly 500 bytes per span |
+  | One recompute | about 12 seconds on an 8-core laptop; 22 seconds with every core busy |
   | Peak memory of the recompute worker | about 1.5 GB |
-  | One recompute | 9 to 12 seconds on an 8-core laptop; 22 seconds with every core busy |
-  | Ingest | about 19,000 spans per second |
 
 - **One instance per database.** Run one service per database file. Two services on one file aren't supported.
 - **Local storage.** Keep the database on a local disk or a local container volume, not on a network file system such as NFS or SMB. SQLite's locking and durability depend on the local file system.
@@ -466,10 +527,11 @@ Or make a compacted copy:
 sqlite3 detecttrace.db "VACUUM INTO 'backup.db'"
 ```
 
-The container image has no `sqlite3` program. There, use Python's backup from inside the container:
+The container image has no `sqlite3` program. There, use Python's backup from inside the container. It writes `backup.db` to the data volume, from where you can copy it out:
 
 ```sh
-docker exec detecttrace python -c "import sqlite3; sqlite3.connect('/data/detecttrace.db').backup(sqlite3.connect('/data/backup.db'))"
+docker exec detecttrace python -c "import sqlite3; source = sqlite3.connect('/data/detecttrace.db'); target = sqlite3.connect('/data/backup.db'); source.backup(target); target.close()"
+docker cp detecttrace:/data/backup.db ./detecttrace-backup.db
 ```
 
 To restore, stop the service, put the backup in place of the database file, and start the service again. A backup holds the same investigation data as the database; store it as carefully.
@@ -481,12 +543,13 @@ DetectTrace itself never sends data anywhere: no telemetry, no update checks. Th
 - **Tool results are dropped on arrival.** The `gen_ai.tool.call.result` attribute is removed from each span before it is stored, and it never reaches the database or the dashboard.
 - **Everything else is stored.** The database holds every other span attribute your agent sends, including tool arguments and any prompt or message content your instrumentation records, plus every verdict. Treat it like the traces it came from. It is created readable and writable by its owner only (mode `0600`).
 - **The dashboard** shows what the file from `check` shows: every scored case's ID, alert class, prompt version and verdicts, and the tool names and arguments of notable cases. Anyone with a read token can see it.
-- **Tokens** are stored only as hashes and never logged. The access log records the method, path, status, client address and duration of each request: never headers, bodies or query strings.
+- **Tokens** are stored only as hashes and never logged.
+- **The access log** records the method, path, status, client address and duration of each request: never headers, bodies or query strings. The client address is the one the connection comes from; `X-Forwarded-For` is ignored, so behind a reverse proxy the log shows the proxy's address.
 
-The page is served with `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, and a content security policy with `frame-ancestors 'none'`, so other sites can't frame it.
+Every response, errors included, carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, so no browser or proxy keeps a copy. The dashboard page also carries `Content-Security-Policy: frame-ancestors 'none'`, so other sites can't frame it.
 
 ## Operations
 
-- **Slow clients.** Each request must deliver its body within 30 seconds, but the web server has no other read timeout. On a network you don't trust, put a reverse proxy in front to protect the service from slow or idle connections.
-- **Memory.** Give the container at least 2 GB of memory for about 50,000 cases. The recompute runs in a separate worker process and peaks at about 1.5 GB at that scale. A trace request near the size limit can also use a few hundred MiB while it is parsed; at most 4 are parsed at once, which bounds that part.
-- **Logs.** A failed recompute logs its full error, with the traceback; `/api/status` shows only the error type and message.
+- **Slow clients.** Each request must deliver its body within 30 seconds, but the service sets no other read timeout. On a network you don't trust, put a reverse proxy in front to protect the service from slow or idle connections.
+- **Memory.** Allow 3 GiB for about 50,000 cases, as `compose.yaml` does. The recompute runs in a separate worker process and peaks at about 1.5 GB at that scale; the whole container peaked at 1.76 GiB. A trace request near the size limit can also use a few hundred MiB while it is parsed; at most 4 are parsed at once, which bounds that part.
+- **Logs.** The service logs to standard error. A failed recompute logs its full error, with the traceback; `/api/status` shows only the error type and message.

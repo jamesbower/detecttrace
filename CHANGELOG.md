@@ -17,10 +17,10 @@ The first release.
 - Verdict inputs: a CSV file of analyst verdicts, with label mapping to true positive, false positive and benign.
 - `FileSpanExporter` (the `otel` extra) writes your agent's OpenTelemetry spans straight to OTLP JSON Lines files, without a Collector.
 - Dashboard sections: results by alert class and version, checklist steps the agent skipped, a weekly trend, agent verdicts against analyst verdicts, cases, data notes, and what the dashboard does not tell you. Every value shows its number of cases and a 95% confidence interval.
-- `detecttrace serve` runs the dashboard as a long-running service for a team. It receives spans over OTLP/HTTP as JSON (plain or gzip) from an OpenTelemetry Collector's `otlphttp` exporter, stores them in SQLite, recomputes the dashboard in the background, and serves it to holders of a read token, along with `/api/status`, `/api/results.json` and an unauthenticated `/healthz`. Tool results are dropped on arrival.
+- `detecttrace serve` runs the dashboard as a long-running service for a team. It receives spans over OTLP/HTTP as JSON (plain or gzip) from an OpenTelemetry Collector's `otlp_http` exporter, stores them in SQLite, recomputes the dashboard in the background, and serves it to holders of a read token, along with `/api/status`, `/api/results.json` and an unauthenticated `/healthz`. Tool results are dropped on arrival.
 - A verdict API, `POST /api/verdicts`, takes analyst verdicts as JSON or CSV, up to 10,000 rows per request, with each rejected row and its reason in the answer.
 - `detecttrace token` creates an access token with the role `ingest`, `verdicts` or `read`, and prints the configuration entry that holds its hash.
-- A container image, built from the repository with `docker build`, and a `compose.yaml` that runs the service with an OpenTelemetry Collector.
+- A container image, built from the repository with `docker build`, and a `compose.yaml` that runs the service behind an OpenTelemetry Collector. The Collector's receiver requires its own bearer token, so only your agents can send it spans.
 
 ### Changed
 

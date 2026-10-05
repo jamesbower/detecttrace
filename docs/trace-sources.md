@@ -23,7 +23,7 @@ receivers:
       http:
 
 exporters:
-  otlphttp:
+  otlp_http:
     endpoint: https://otel.example.com
   file:
     path: /var/lib/otelcol/detecttrace/traces.jsonl
@@ -35,7 +35,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [otlphttp, file]
+      exporters: [otlp_http, file]
 ```
 
 - **Keep the default JSON format.** It writes one OTLP JSON export request per line, which is what DetectTrace reads. Don't set `format: proto` or `compression`: both produce files DetectTrace can't read. To save space, compress finished files afterwards with gzip or zstd; DetectTrace reads those.

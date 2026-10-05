@@ -168,7 +168,7 @@ An item is satisfied when the case has a successful call to that tool and every 
 
 ## Run as a service
 
-`detecttrace serve` keeps the dashboard up to date for a team. Your OpenTelemetry Collector sends it spans over OTLP/HTTP, a verdict API takes analyst verdicts as JSON or CSV, and anyone with a read token opens the dashboard in a browser. It stores the data in SQLite and runs in a container built from this repository. Tokens, configuration, the Collector setup, every endpoint and the limits are in [docs/serve.md](docs/serve.md).
+`detecttrace serve` keeps the dashboard up to date for a team. Your OpenTelemetry Collector sends it spans over OTLP/HTTP, a verdict API takes analyst verdicts as JSON or CSV, and anyone with a read token opens the dashboard in a browser. It stores the data in SQLite. A `compose.yaml` runs it in a container built from this repository, behind a Collector. Setup, tokens, configuration, every endpoint, the limits and how the served dashboard differs from `check` are in [docs/serve.md](docs/serve.md).
 
 ## Privacy
 

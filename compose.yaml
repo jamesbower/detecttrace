@@ -32,12 +32,11 @@ services:
       # Loopback only, because the server speaks plain HTTP here. Exposing it wider needs
       # serve.tls or a TLS-terminating proxy in front.
       - "127.0.0.1:4320:4320"
-    # On a stop, a recompute in progress finishes before the server exits. One took 12 s at
-    # 50,000 cases on a 4-CPU host, so Docker's default 10 s could kill it mid-run (the last
-    # dashboard survives, but the stop is not clean); 30 s leaves room for a slower host.
+    # On a stop, requests in flight get up to 5 s and a running recompute is ended at once (it
+    # only reads), so the server exits within seconds; 30 s leaves room for a slow host.
     stop_grace_period: 30s
     # The recompute worker peaks at about 1.5 GB at 50,000 cases; with the server beside it
-    # the container measured 1.8 GB, so 2 GB would leave too little headroom.
+    # the container peaked at 1.76 GiB, so 2 GiB would leave too little headroom.
     mem_limit: 3g
 
   collector:
