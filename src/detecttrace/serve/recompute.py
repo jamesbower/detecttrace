@@ -8,7 +8,9 @@ request ever waits for a recompute; a page reads the last finished snapshot.
 A case is held back while its root span ended less than `serve.settle_seconds` ago, because
 its tool spans and verdict may still be on their way; its verdict is held back with it, so it
 doesn't read as a verdict without a trace. The results of a served run carry a `served` entry
-with the generation, the settle window and how many cases were held back.
+with the generation, the settle window and how many cases were held back. Settling compares the
+server's clock with the end time the agent reported, so the worker also says when the first
+held-back case will settle, and the coordinator runs again then, with or without new input.
 
 With no case to score, the snapshot is a small waiting page, and its results JSON is
 `{"status": "waiting", "generation": ..., "span_count": ..., "case_count": ...,
@@ -41,7 +43,14 @@ MAX_BACKOFF_SECONDS = 300.0
 _NS_PER_SECOND = 1_000_000_000
 
 
-def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> Snapshot:
+@dataclass(frozen=True, slots=True)
+class RecomputeOutcome:
+    snapshot: Snapshot
+    held_back_cases: int
+    next_settle_at_ns: int | None  # wall-clock time the first held-back case settles
+
+
+def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> RecomputeOutcome:
     """Run in the worker process: read inputs, hold back unsettled cases, run the stages, render.
 
     `now_ns` is the cut-off for settling and the time the snapshot reports as its own.
@@ -56,7 +65,11 @@ def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> Snapshot
     trace_cases, case_issues = build_trace_cases(inputs.spans, config.mapping)
     settle_ns = config.serve.settle_seconds * _NS_PER_SECOND
     settled = [case for case in trace_cases if now_ns - case.end_ns >= settle_ns]
-    held_back_ids = {case.case_id for case in trace_cases} - {case.case_id for case in settled}
+    held_back = [case for case in trace_cases if now_ns - case.end_ns < settle_ns]
+    held_back_ids = {case.case_id for case in held_back}
+    next_settle_at_ns = min((case.end_ns for case in held_back), default=None)
+    if next_settle_at_ns is not None:
+        next_settle_at_ns += settle_ns
     verdict_rows = [row for row in inputs.verdict_rows if row.case_id not in held_back_ids]
     # Stored issues first, in the order run_check would meet them: input, cases, checklists.
     issues: list[Issue] = [stored.issue for stored in inputs.issues]
@@ -81,13 +94,14 @@ def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> Snapshot
         # One row per repeated issue in the store; counting it as one would hide a flood.
         issue_counts=[stored.count for stored in inputs.issues],
     )
-    served = ServedPage(inputs.generation, to_iso_time(now_ns))
+    served = ServedPage(inputs.generation, to_iso_time(now_ns), len(held_back_ids))
     if run.case_count == 0:
         counts = WaitingCounts(
             span_count=len(inputs.spans),
             case_count=len(settled),
             held_back_count=len(held_back_ids),
-            verdict_count=len(verdict_rows),
+            # Everything stored, held back or not: this line answers "did my verdicts arrive?".
+            verdict_count=len(inputs.verdict_rows),
         )
         waiting = {
             "status": "waiting",
@@ -98,12 +112,13 @@ def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> Snapshot
             "verdict_count": counts.verdict_count,
             "data_notes": [line.message for line in run.summary],
         }
-        return Snapshot(
+        snapshot = Snapshot(
             generation=inputs.generation,
             finished_at_ns=now_ns,
             html=render_waiting_page(counts, run.summary, served),
             results_json=_to_json(waiting),
         )
+        return RecomputeOutcome(snapshot, len(held_back_ids), next_settle_at_ns)
     results = {
         **run.results,
         "served": {
@@ -112,12 +127,13 @@ def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> Snapshot
             "held_back_cases": len(held_back_ids),
         },
     }
-    return Snapshot(
+    snapshot = Snapshot(
         generation=inputs.generation,
         finished_at_ns=now_ns,
         html=render_dashboard(results, served=served),
         results_json=_to_json(results),
     )
+    return RecomputeOutcome(snapshot, len(held_back_ids), next_settle_at_ns)
 
 
 def to_iso_time(time_ns: int) -> str:
@@ -132,6 +148,7 @@ class RecomputeStatus:
     is_running: bool
     last_error: str | None  # exception type and message; the traceback goes to the log
     last_error_at_ns: int | None
+    held_back_cases: int  # in the last snapshot; cases still inside the settle window
 
 
 class RecomputeCoordinator:
@@ -139,21 +156,20 @@ class RecomputeCoordinator:
 
     A write starts a `debounce_seconds` wait that each later write restarts, but a run starts
     no later than `max_wait_seconds` after the first write no run has covered yet, so steady
-    ingest still refreshes the page. Writes during a run cause exactly one more run after it. A failed run keeps the last snapshot and is not
-    retried until the next write, and then no sooner than 5 s after the failure, doubling with
-    each failure in a row up to 300 s. With `settle_seconds`, one more run follows that long
-    after the last write, so cases held back as unsettled appear without waiting for new input.
+    ingest still refreshes the page. Writes during a run cause exactly one more run after it.
+    When a run holds cases back, one more run follows when the first of them settles. A failed
+    run keeps the last snapshot and is not retried until the next write, and then no sooner
+    than 5 s after the failure, doubling with each failure in a row up to 300 s.
     """
 
     def __init__(
         self,
-        submit: Callable[[], Future[Snapshot]],
+        submit: Callable[[], Future[RecomputeOutcome]],
         store: Store,
         clock: Callable[[], float],
         debounce_seconds: float = 5.0,
         *,
         max_wait_seconds: float = 60.0,
-        settle_seconds: float = 0.0,
         now_ns: Callable[[], int] = time.time_ns,
     ) -> None:
         self._submit = submit
@@ -161,10 +177,9 @@ class RecomputeCoordinator:
         self._clock = clock
         self._debounce_seconds = debounce_seconds
         self._max_wait_seconds = max_wait_seconds
-        self._settle_seconds = settle_seconds
         self._now_ns = now_ns
         self._lock = threading.Lock()
-        self._future: Future[Snapshot] | None = None
+        self._future: Future[RecomputeOutcome] | None = None
         # None when every write so far is covered by a run that has started.
         self._first_uncovered_write_at: float | None = None
         self._last_write_at = 0.0
@@ -173,15 +188,18 @@ class RecomputeCoordinator:
         self._retry_at = 0.0
         self._last_error: str | None = None
         self._last_error_at_ns: int | None = None
+        self._held_back_cases = 0
         snapshot = store.read_snapshot()
         generation = store.generation()
         if snapshot is None or generation > snapshot.generation:
             # Nothing to wait out: the input was complete before the server started.
             self._last_write_at = clock() - debounce_seconds
             self._first_uncovered_write_at = self._last_write_at
-        if generation > 0 and settle_seconds > 0:
-            # The last snapshot may hold back cases that have settled while the server was down.
-            self._settle_due_at = clock() + settle_seconds
+        elif snapshot is not None:
+            self._held_back_cases = _read_held_back_cases(snapshot)
+            if self._held_back_cases:
+                # They may have settled while the server was down; when exactly is not stored.
+                self._settle_due_at = clock()
 
     def notify_write(self) -> None:
         with self._lock:
@@ -189,8 +207,6 @@ class RecomputeCoordinator:
             if self._first_uncovered_write_at is None:
                 self._first_uncovered_write_at = now
             self._last_write_at = now
-            if self._settle_seconds > 0:
-                self._settle_due_at = now + self._settle_seconds
 
     def tick(self) -> None:
         with self._lock:
@@ -199,10 +215,13 @@ class RecomputeCoordinator:
             if not future.done():
                 return
             # Saved outside the lock, so request threads never wait on the snapshot write.
-            error = self._save(future)
+            result = self._save(future)
             with self._lock:
                 self._future = None
-                self._record(error)
+                if isinstance(result, RecomputeOutcome):
+                    self._record_success(result)
+                else:
+                    self._record_failure(result)
         with self._lock:
             if self._is_due(self._clock()):
                 self._start()
@@ -211,26 +230,31 @@ class RecomputeCoordinator:
     def status(self) -> RecomputeStatus:
         with self._lock:
             return RecomputeStatus(
-                self._future is not None, self._last_error, self._last_error_at_ns
+                self._future is not None,
+                self._last_error,
+                self._last_error_at_ns,
+                self._held_back_cases,
             )
 
-    def _save(self, future: Future[Snapshot]) -> BaseException | None:
+    def _save(self, future: Future[RecomputeOutcome]) -> RecomputeOutcome | Exception:
         try:
-            snapshot = future.result()
+            outcome = future.result()
             stored = self._store.read_snapshot()
             # Equal is newer too: the same input, recomputed after more cases settled.
-            if stored is None or snapshot.generation >= stored.generation:
-                self._store.write_snapshot(snapshot)
+            if stored is None or outcome.snapshot.generation >= stored.generation:
+                self._store.write_snapshot(outcome.snapshot)
         except Exception as error:
             return error
-        return None
+        return outcome
 
-    def _record(self, error: BaseException | None) -> None:
-        if error is None:
-            self._failure_count = 0
-            self._last_error = None
-            self._last_error_at_ns = None
-            return
+    def _record_success(self, outcome: RecomputeOutcome) -> None:
+        self._failure_count = 0
+        self._last_error = None
+        self._last_error_at_ns = None
+        self._held_back_cases = outcome.held_back_cases
+        self._settle_due_at = self._to_settle_due_at(outcome.next_settle_at_ns)
+
+    def _record_failure(self, error: Exception) -> None:
         logger.error("Recomputing the dashboard failed; keeping the last one", exc_info=error)
         self._failure_count += 1
         backoff = min(FIRST_BACKOFF_SECONDS * 2 ** (self._failure_count - 1), MAX_BACKOFF_SECONDS)
@@ -258,7 +282,20 @@ class RecomputeCoordinator:
         try:
             self._future = self._submit()
         except Exception as error:
-            self._record(error)
+            self._record_failure(error)
+
+    def _to_settle_due_at(self, next_settle_at_ns: int | None) -> float | None:
+        if next_settle_at_ns is None:
+            return None
+        wait_seconds = (next_settle_at_ns - self._now_ns()) / _NS_PER_SECOND
+        # At least a second, so a case on the boundary can't make the coordinator spin.
+        return self._clock() + max(1.0, wait_seconds)
+
+
+def _read_held_back_cases(snapshot: Snapshot) -> int:
+    results = json.loads(snapshot.results_json)
+    served = results.get("served", {})
+    return results.get("held_back_count", served.get("held_back_cases", 0))
 
 
 def _to_json(value: object) -> str:

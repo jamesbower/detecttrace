@@ -349,7 +349,7 @@ def test_the_hashes_hold_for_a_hostile_page(hostile_page: Node) -> None:
 SERVE_SCRIPT = (
     Path(__file__).resolve().parent.parent / "src/detecttrace/templates/dashboard-serve.js"
 )
-SERVED = ServedPage(generation=7, updated_at="2026-10-05T12:00:00.000000Z")
+SERVED = ServedPage(generation=7, updated_at="2026-10-05T12:00:00.000000Z", held_back_cases=0)
 
 
 @cache
@@ -395,6 +395,31 @@ def test_a_served_page_carries_its_generation() -> None:
         "7",
         "2026-10-05T12:00:00.000000Z",
     )
+
+
+def served_meta_text(held_back_cases: int) -> str:
+    served = ServedPage(7, "2026-10-05T12:00:00.000000Z", held_back_cases)
+    page = parse_html(
+        render_dashboard(json.loads(DEMO_GOLDEN.read_text(encoding="utf-8")), served=served)
+    )
+    return page.find(lambda node: node.tag == "dl" and "meta" in node.classes()).text()
+
+
+@pytest.mark.parametrize(
+    ("held_back_cases", "line"),
+    [
+        (1, "Still settling1 case still settling is not counted yet."),
+        (1234, "Still settling1,234 cases still settling are not counted yet."),
+    ],
+)
+def test_a_served_page_says_how_many_cases_are_still_settling(
+    held_back_cases: int, line: str
+) -> None:
+    assert line in served_meta_text(held_back_cases)
+
+
+def test_a_served_page_with_nothing_settling_does_not_mention_settling() -> None:
+    assert "settling" not in served_meta_text(0)
 
 
 def test_a_served_page_does_not_claim_to_make_no_requests() -> None:

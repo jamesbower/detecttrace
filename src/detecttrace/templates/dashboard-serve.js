@@ -33,7 +33,7 @@
     return {
       isNewData: hasNewerResults(status, page),
       errorText: typeof status.last_error === "string" && status.last_error !== ""
-        ? "Showing data from " + formatTime(status.updated_at) + "; the last update failed."
+        ? "Showing data from " + formatTime(page.updatedAt) + "; the last update failed."
         : null
     };
   }

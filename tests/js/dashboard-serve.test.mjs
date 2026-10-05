@@ -48,17 +48,31 @@ test("offers no reload when the status has no generation", () => {
   assert.equal(serve.decideBar(status({ generation: "8" }), page).isNewData, false);
 });
 
-test("says the last update failed and when the shown data is from", () => {
+test("says the last update failed and when the page's own data is from", () => {
+  // The server's newer snapshot is not what the reader sees until they reload.
+  const newer = status({ last_error: "RuntimeError: boom", updated_at: "2026-10-05T13:30:00Z" });
   assert.equal(
-    serve.decideBar(status({ last_error: "RuntimeError: boom" }), page).errorText,
+    serve.decideBar(newer, page).errorText,
     "Showing data from 2026-10-05 12:00 UTC; the last update failed.",
   );
 });
 
-test("says the last update failed without a time when none is known", () => {
+test("says the last update failed without a time when the page has none", () => {
   assert.equal(
-    serve.decideBar(status({ last_error: "RuntimeError: boom", updated_at: null }), page).errorText,
+    serve.decideBar(status({ last_error: "RuntimeError: boom" }), { generation: 7, updatedAt: null })
+      .errorText,
     "Showing data from an earlier update; the last update failed.",
+  );
+});
+
+test("treats an empty error as no error", () => {
+  assert.equal(serve.decideBar(status({ last_error: "" }), page).errorText, null);
+});
+
+test("gives bars that differ only by the error different keys", () => {
+  assert.notEqual(
+    serve.barKey(serve.decideBar(status({ last_error: "RuntimeError: boom" }), page)),
+    serve.barKey(serve.decideBar(status({}), page)),
   );
 });
 

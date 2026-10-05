@@ -106,6 +106,9 @@
   <dl class="meta">
     <dt>Data source</dt><dd>{% for source in view.header.sources %}<span class="src mono">{{ source.name }}: {{ source.path }}</span>{% endfor %}</dd>
     <dt>Cases</dt><dd>{{ view.header.cases_text }}</dd>
+{% if settling_text %}
+    <dt>Still settling</dt><dd>{{ settling_text }}</dd>
+{% endif %}
     <dt>Period</dt><dd>{{ view.header.period_text }}</dd>
     <dt>Versions found</dt><dd>{{ view.header.versions_text }}</dd>
   </dl>

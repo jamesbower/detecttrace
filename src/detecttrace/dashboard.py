@@ -55,6 +55,7 @@ class ServedPage:
 
     generation: int  # the stored input's generation the page was computed from
     updated_at: str  # when it was computed, ISO 8601 in UTC, as the status route reports it
+    held_back_cases: int  # cases still inside the settle window, so not counted on the page
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +109,7 @@ def render_dashboard(results: Mapping[str, object], *, served: ServedPage | None
         results_json=Markup(to_script_json(results)),
         served=served,
         serve_js=None if serve_js is None else Markup(serve_js),
+        settling_text=None if served is None else _to_settling_text(served.held_back_cases),
     )
 
 
@@ -184,6 +186,14 @@ def _create_environment() -> Environment:
 def _format_coordinate(value: float) -> str:
     # One decimal, as the chart geometry is rounded; also hides float noise such as 252.00000000000003.
     return f"{value:.1f}"
+
+
+def _to_settling_text(count: int) -> str | None:
+    if count == 0:
+        return None
+    if count == 1:
+        return "1 case still settling is not counted yet."
+    return f"{format_count(count)} cases still settling are not counted yet."
 
 
 def _to_csp(css: str, scripts: Sequence[str], *, can_connect: bool) -> str:

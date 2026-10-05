@@ -16,6 +16,7 @@ from detecttrace.runconfig import load_run_config
 from detecttrace.serve.auth import hash_token
 from detecttrace.serve.recompute import (
     RecomputeCoordinator,
+    RecomputeOutcome,
     RecomputeStatus,
     compute_snapshot,
     to_iso_time,
@@ -48,10 +49,10 @@ class FakeSubmit:
     """Hands out futures the test completes by hand, and remembers each one."""
 
     def __init__(self) -> None:
-        self.futures: list[Future[Snapshot]] = []
+        self.futures: list[Future[RecomputeOutcome]] = []
 
-    def __call__(self) -> Future[Snapshot]:
-        future: Future[Snapshot] = Future()
+    def __call__(self) -> Future[RecomputeOutcome]:
+        future: Future[RecomputeOutcome] = Future()
         self.futures.append(future)
         return future
 
@@ -59,8 +60,16 @@ class FakeSubmit:
     def count(self) -> int:
         return len(self.futures)
 
-    def succeed(self, generation: int = 1, html: str = "<p>new</p>") -> None:
-        self.futures[-1].set_result(Snapshot(generation, 2, html, "{}"))
+    def succeed(
+        self,
+        generation: int = 1,
+        html: str = "<p>new</p>",
+        *,
+        held_back_cases: int = 0,
+        next_settle_at_ns: int | None = None,
+    ) -> None:
+        snapshot = Snapshot(generation, 2, html, "{}")
+        self.futures[-1].set_result(RecomputeOutcome(snapshot, held_back_cases, next_settle_at_ns))
 
     def fail(self) -> None:
         self.futures[-1].set_exception(RuntimeError("boom"))
@@ -297,7 +306,7 @@ def test_the_status_shows_no_run_once_it_finished(
     submit.succeed()
     coordinator.tick()
 
-    assert coordinator.status == RecomputeStatus(False, None, None)
+    assert coordinator.status == RecomputeStatus(False, None, None, 0)
 
 
 # Saving the snapshot
@@ -417,7 +426,7 @@ def test_a_success_after_a_failure_clears_the_last_error(
     fail_runs(coordinator, clock, submit, 1)
     succeed_run(coordinator, clock, submit)
 
-    assert coordinator.status == RecomputeStatus(False, None, None)
+    assert coordinator.status == RecomputeStatus(False, None, None, 0)
 
 
 def test_a_success_resets_the_backoff(
@@ -436,7 +445,7 @@ def test_a_success_resets_the_backoff(
 def test_a_submit_that_raises_counts_as_a_failed_run(
     current_store: Store, clock: FakeClock
 ) -> None:
-    def broken_submit() -> Future[Snapshot]:
+    def broken_submit() -> Future[RecomputeOutcome]:
         raise RuntimeError("pool is broken")
 
     coordinator = RecomputeCoordinator(broken_submit, current_store, clock, DEBOUNCE)
@@ -486,37 +495,128 @@ def test_startup_with_a_current_snapshot_schedules_nothing(
     assert submit.count == 0
 
 
-# The run after the settle window
+# The run when held-back cases settle
+
+SETTLE_DUE_NS = 10 * 1_000_000_000
 
 
-def test_a_run_follows_the_settle_window_after_the_last_write(
-    current_store: Store, clock: FakeClock, submit: FakeSubmit
-) -> None:
-    coordinator = RecomputeCoordinator(
-        submit, current_store, clock, DEBOUNCE, settle_seconds=SETTLE_SECONDS
-    )
+@pytest.fixture
+def settling(current_store: Store, clock: FakeClock, submit: FakeSubmit) -> RecomputeCoordinator:
+    """A coordinator whose first run held 2 cases back, the first settling at wall time 10 s."""
+    coordinator = RecomputeCoordinator(submit, current_store, clock, DEBOUNCE, now_ns=lambda: 0)
     start_run(coordinator, clock)
-    submit.succeed()
+    submit.succeed(held_back_cases=2, next_settle_at_ns=SETTLE_DUE_NS)
     coordinator.tick()
-    clock.advance(SETTLE_SECONDS)
-    coordinator.tick()
+    return coordinator
+
+
+def test_a_run_follows_when_the_first_held_back_case_settles(
+    settling: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    clock.advance(10)
+    settling.tick()
 
     assert submit.count == 2
 
 
-def test_no_run_follows_before_the_settle_window_ends(
-    current_store: Store, clock: FakeClock, submit: FakeSubmit
+def test_no_run_follows_before_the_first_held_back_case_settles(
+    settling: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    coordinator = RecomputeCoordinator(
-        submit, current_store, clock, DEBOUNCE, settle_seconds=SETTLE_SECONDS
-    )
+    clock.advance(9.9)
+    settling.tick()
+
+    assert submit.count == 1
+
+
+def test_the_status_shows_how_many_cases_were_held_back(settling: RecomputeCoordinator) -> None:
+    assert settling.status.held_back_cases == 2
+
+
+def test_no_run_follows_when_nothing_is_held_back(
+    coordinator: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+) -> None:
     start_run(coordinator, clock)
-    submit.succeed()
+    submit.succeed(next_settle_at_ns=None)
     coordinator.tick()
-    clock.advance(SETTLE_SECONDS - DEBOUNCE - 0.1)
+    clock.advance(10_000)
     coordinator.tick()
 
     assert submit.count == 1
+
+
+def test_a_settle_time_already_past_still_waits_a_second(
+    current_store: Store, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    coordinator = RecomputeCoordinator(submit, current_store, clock, DEBOUNCE, now_ns=lambda: 0)
+    start_run(coordinator, clock)
+    submit.succeed(held_back_cases=1, next_settle_at_ns=-SETTLE_DUE_NS)
+    coordinator.tick()
+
+    assert submit.count == 1
+
+
+def test_a_failure_after_a_settle_was_scheduled_is_not_retried_without_a_write(
+    settling: RecomputeCoordinator, clock: FakeClock, submit: FakeSubmit
+) -> None:
+    # The write-triggered run starts before the settle time and fails; the settle run is dropped.
+    settling.notify_write()
+    clock.advance(DEBOUNCE)
+    settling.tick()
+    submit.fail()
+    settling.tick()
+    clock.advance(10_000)
+    settling.tick()
+
+    assert submit.count == 2
+
+
+@pytest.mark.parametrize(
+    "results_json",
+    [
+        pytest.param('{"served": {"held_back_cases": 2}}', id="dashboard"),
+        pytest.param('{"status": "waiting", "held_back_count": 1}', id="waiting"),
+    ],
+)
+def test_startup_with_held_back_cases_in_the_snapshot_schedules_a_run(
+    store: Store, clock: FakeClock, submit: FakeSubmit, results_json: str
+) -> None:
+    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", results_json))
+    coordinator = RecomputeCoordinator(submit, store, clock, DEBOUNCE)
+    coordinator.tick()
+
+    assert submit.count == 1
+
+
+def tick_each_second(coordinator: RecomputeCoordinator, clock: FakeClock, seconds: int) -> None:
+    for _ in range(seconds):
+        clock.advance(1)
+        coordinator.tick()
+
+
+def test_a_case_ending_ahead_of_the_server_clock_is_scored_without_a_new_write(
+    tmp_path: Path, store: Store, clock: FakeClock
+) -> None:
+    # The agent's clock runs 2 s ahead of the server's, so its case ends "in the future".
+    add_case(store, 1, CASE_END_NS)
+    store.write_snapshot(Snapshot(store.generation(), 1, "<p>old</p>", "{}"))
+    config_path = write_serve_config(tmp_path)
+    started_at = clock.now
+
+    def wall_ns() -> int:
+        return CASE_END_NS - 2 * 1_000_000_000 + round((clock.now - started_at) * 1e9)
+
+    def submit_now() -> Future[RecomputeOutcome]:
+        future: Future[RecomputeOutcome] = Future()
+        future.set_result(compute_snapshot(tmp_path / "detecttrace.db", config_path, wall_ns()))
+        return future
+
+    coordinator = RecomputeCoordinator(submit_now, store, clock, DEBOUNCE, now_ns=wall_ns)
+    start_run(coordinator, clock)
+    tick_each_second(coordinator, clock, 2 * SETTLE_SECONDS)
+    snapshot = store.read_snapshot()
+    results = json.loads(snapshot.results_json) if snapshot is not None else {}
+
+    assert results["case_rows"]["columns"]["case_id"] == ["DT-1"]
 
 
 # compute_snapshot
@@ -552,8 +652,8 @@ def add_case(store: Store, number: int, end_ns: int) -> None:
 
 
 def results_at(tmp_path: Path, store: Store, now_ns: int) -> dict[str, Any]:
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), now_ns)
-    return json.loads(snapshot.results_json)
+    outcome = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), now_ns)
+    return json.loads(outcome.snapshot.results_json)
 
 
 @pytest.fixture
@@ -606,19 +706,25 @@ def test_the_served_results_name_where_the_input_came_from(
 
 
 def test_the_snapshot_carries_the_stores_generation(tmp_path: Path, boundary_store: Store) -> None:
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS)
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+    ).snapshot
 
     assert snapshot.generation == boundary_store.generation()
 
 
 def test_the_page_carries_its_generation(tmp_path: Path, boundary_store: Store) -> None:
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS)
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+    ).snapshot
 
     assert f'data-generation="{boundary_store.generation()}"' in snapshot.html
 
 
 def test_the_page_carries_the_time_it_was_computed(tmp_path: Path, boundary_store: Store) -> None:
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS)
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+    ).snapshot
 
     assert f'data-updated-at="{to_iso_time(LATE_NS)}"' in snapshot.html
 
@@ -652,32 +758,40 @@ def test_no_scorable_case_gives_waiting_results(tmp_path: Path, store: Store) ->
         "span_count": 1,
         "case_count": 0,
         "held_back_count": 1,
-        "verdict_count": 0,
+        "verdict_count": 1,
         "data_notes": [],
     }
 
 
 def test_an_empty_store_gives_the_waiting_page(tmp_path: Path, store: Store) -> None:
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS)
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+    ).snapshot
 
     assert "Waiting for data." in snapshot.html
 
 
 def test_the_waiting_page_shows_why_nothing_joined(tmp_path: Path, store: Store) -> None:
     store.put_verdicts([VerdictRow("DT-9", "impossible_travel", "TP", 0)], "test")
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS)
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+    ).snapshot
 
     assert "1 verdict has no matching trace." in snapshot.html
 
 
 def test_the_waiting_page_checks_for_new_data(tmp_path: Path, store: Store) -> None:
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS)
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+    ).snapshot
 
     assert "connect-src 'self'" in snapshot.html
 
 
 def test_the_waiting_page_loads_nothing_from_elsewhere(tmp_path: Path, store: Store) -> None:
-    snapshot = compute_snapshot(tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS)
+    snapshot = compute_snapshot(
+        tmp_path / "detecttrace.db", write_serve_config(tmp_path), LATE_NS
+    ).snapshot
 
     assert re.findall(r"(?:https?:)?//[\w.-]+", snapshot.html) == []
 
@@ -700,10 +814,10 @@ def test_a_spawned_worker_gives_the_clis_results_on_the_demo(tmp_path: Path) -> 
     )
     context = multiprocessing.get_context("spawn")
     with ProcessPoolExecutor(max_workers=1, mp_context=context) as executor:
-        snapshot = executor.submit(
+        outcome = executor.submit(
             compute_snapshot, tmp_path / "detecttrace.db", config_path, 2**62
         ).result(timeout=120)
-    served = json.loads(snapshot.results_json)
+    served = json.loads(outcome.snapshot.results_json)
     expected = run_check(
         load_run_config(DEMO_DIR / "detecttrace.yaml"), DEMO_DIR / "detecttrace.yaml"
     ).results
