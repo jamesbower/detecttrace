@@ -1,17 +1,27 @@
 import base64
 import json
 import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import NoReturn
 
 import httpx
 import pytest
+from builders import otlp_document, otlp_span, span_hex
 from fastapi.testclient import TestClient
 
 from detecttrace.model import MAX_LABEL_LENGTH, VerdictRow
 from detecttrace.serve import verdict_api
+from detecttrace.serve.app import MAX_CONCURRENT_INGESTS, MAX_CONCURRENT_VERDICT_POSTS
 from detecttrace.serve.store import Store
-from serve.app_support import INGEST_TOKEN, READ_TOKEN, SECOND_VERDICTS_TOKEN, VERDICTS_TOKEN
+from serve.app_support import (
+    INGEST_TOKEN,
+    READ_TOKEN,
+    SECOND_VERDICTS_TOKEN,
+    VERDICTS_TOKEN,
+    ConcurrencyProbe,
+)
 
 JSON = "application/json"
 CSV = "text/csv"
@@ -45,6 +55,13 @@ def to_basic(password: str) -> str:
 
 def fail_with_locked_database(*args: object, **kwargs: object) -> NoReturn:
     raise sqlite3.OperationalError("database is locked")
+
+
+def read_current(database: Path) -> list[tuple[str, str, str]]:
+    with sqlite3.connect(database) as connection:
+        return connection.execute(
+            "SELECT case_id, label, token_name FROM verdicts ORDER BY case_id"
+        ).fetchall()
 
 
 def read_history(database: Path) -> list[tuple[str, str, str]]:
@@ -81,9 +98,15 @@ REFUSED = [
 ]
 # Bodies whose every row is rejected.
 NONE_ACCEPTED = [
-    pytest.param(json_body(), id="empty-list"),
-    pytest.param(json_body(item(verdict="MAYBE")), id="unmapped-label"),
+    pytest.param(json_body(), JSON, id="empty-list"),
+    pytest.param(CSV_HEADER.encode("utf-8"), CSV, id="header-only-csv"),
+    pytest.param(json_body(item(verdict="MAYBE")), JSON, id="unmapped-label"),
 ]
+EMPTY_BODIES = [
+    pytest.param(json_body(), JSON, id="empty-list"),
+    pytest.param(CSV_HEADER.encode("utf-8"), CSV, id="header-only-csv"),
+]
+TRACE_BODY = json.dumps(otlp_document([otlp_span(span_hex(1))])).encode("utf-8")
 
 
 @pytest.mark.parametrize(("body", "content_type"), VALID_FORMS)
@@ -116,24 +139,26 @@ def test_mixed_body_lists_each_rejection_with_where_and_why(client: TestClient) 
     ]
 
 
-@pytest.mark.parametrize("body", NONE_ACCEPTED)
-def test_body_with_no_accepted_row_is_unprocessable(client: TestClient, body: bytes) -> None:
-    assert post_verdicts(client, body).status_code == 422
-
-
-@pytest.mark.parametrize("body", NONE_ACCEPTED)
-def test_body_with_no_accepted_row_stores_nothing(
-    client: TestClient, app_store: Store, body: bytes
+@pytest.mark.parametrize(("body", "content_type"), NONE_ACCEPTED)
+def test_body_with_no_accepted_row_is_unprocessable(
+    client: TestClient, body: bytes, content_type: str
 ) -> None:
-    post_verdicts(client, body)
+    assert post_verdicts(client, body, content_type).status_code == 422
+
+
+@pytest.mark.parametrize(("body", "content_type"), NONE_ACCEPTED)
+def test_body_with_no_accepted_row_stores_nothing(
+    client: TestClient, app_store: Store, body: bytes, content_type: str
+) -> None:
+    post_verdicts(client, body, content_type)
     assert app_store.generation() == 0
 
 
-@pytest.mark.parametrize("body", NONE_ACCEPTED)
+@pytest.mark.parametrize(("body", "content_type"), NONE_ACCEPTED)
 def test_body_with_no_accepted_row_signals_no_write(
-    client: TestClient, writes: list[int], body: bytes
+    client: TestClient, writes: list[int], body: bytes, content_type: str
 ) -> None:
-    post_verdicts(client, body)
+    post_verdicts(client, body, content_type)
     assert writes == []
 
 
@@ -260,3 +285,65 @@ def test_failed_note_without_stored_verdicts_signals_no_write(
     monkeypatch.setattr(app_store, "add_issues", fail_with_locked_database)
     post_verdicts(client, json_body(item(LONG_CASE_ID, "MAYBE")))
     assert writes == []
+
+
+@pytest.mark.parametrize(("body", "content_type"), EMPTY_BODIES)
+def test_body_without_rows_says_so(client: TestClient, body: bytes, content_type: str) -> None:
+    assert post_verdicts(client, body, content_type).json()["rejected"] == [
+        {"where": "body", "reason": "the request has no verdict rows"}
+    ]
+
+
+def test_replacing_verdict_records_the_new_token_name(client: TestClient, tmp_path: Path) -> None:
+    post_verdicts(client, json_body(item()))
+    post_verdicts(
+        client, json_body(item(verdict="FP")), authorization=f"Bearer {SECOND_VERDICTS_TOKEN}"
+    )
+    assert read_current(tmp_path / "detecttrace.db") == [("DT-1", "FP", "case-tool")]
+
+
+def test_concurrent_verdict_posts_are_limited(
+    client: TestClient, app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requests = MAX_CONCURRENT_VERDICT_POSTS + 1
+    probe = ConcurrencyProbe(requests, 1)
+    monkeypatch.setattr(app_store, "put_verdicts", probe)
+    with ThreadPoolExecutor(requests) as executor:
+        list(executor.map(lambda _: post_verdicts(client, json_body(item())), range(requests)))
+    assert probe.peak <= MAX_CONCURRENT_VERDICT_POSTS
+
+
+def test_held_verdict_posts_do_not_stall_span_ingest(
+    client: TestClient, app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    condition = threading.Condition()
+    release = threading.Event()
+    inside = [0]
+
+    def hold(*args: object, **kwargs: object) -> int:
+        with condition:
+            inside[0] += 1
+            condition.notify_all()
+        release.wait(timeout=10)
+        return 1
+
+    monkeypatch.setattr(app_store, "put_verdicts", hold)
+    posts = MAX_CONCURRENT_INGESTS
+    with ThreadPoolExecutor(posts + 1) as executor:
+        try:
+            for _ in range(posts):
+                executor.submit(post_verdicts, client, json_body(item()))
+            # Give every verdict post the chance to take a slot; with shared slots they
+            # would take all of the ingest ones.
+            with condition:
+                condition.wait_for(lambda: inside[0] >= posts, timeout=0.5)
+            trace = executor.submit(
+                client.post,
+                "/v1/traces",
+                content=TRACE_BODY,
+                headers={"Content-Type": JSON, "Authorization": f"Bearer {INGEST_TOKEN}"},
+            )
+            status = trace.result(timeout=2).status_code
+        finally:
+            release.set()
+    assert status == 200

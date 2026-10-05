@@ -5,12 +5,15 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, NoReturn
 
+import anyio
 import httpx
 import pytest
 from builders import otlp_document, otlp_span, span_hex
 from fastapi import Depends
 from fastapi.testclient import TestClient
+from starlette.types import Message
 
+from detecttrace.serve import app as app_module
 from detecttrace.serve.app import create_app, require_role
 from detecttrace.serve.store import Store
 from serve.app_support import (
@@ -18,6 +21,7 @@ from serve.app_support import (
     READ_TOKEN,
     VERDICTS_TOKEN,
     create_config,
+    run_raw_request,
 )
 
 BODY_HEADERS = {"Content-Type": "application/json"}
@@ -190,3 +194,85 @@ def test_non_ascii_basic_credentials_are_unauthorized(basic_client: TestClient) 
 def test_read_route_challenge_offers_basic(basic_client: TestClient) -> None:
     response = basic_client.get("/probe")
     assert response.headers["WWW-Authenticate"] == 'Bearer, Basic realm="detecttrace"'
+
+
+STALLED_ROUTES = [
+    pytest.param("/v1/traces", INGEST_TOKEN, id="traces"),
+    pytest.param("/api/verdicts", VERDICTS_TOKEN, id="verdicts"),
+]
+
+
+def send_stalled_body(
+    tmp_path: Path,
+    app_store: Store,
+    writes: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    token: str,
+) -> list[Message]:
+    """Post a body whose first piece arrives and whose rest never does."""
+    monkeypatch.setattr(app_module, "BODY_READ_SECONDS", 0.05)
+    app = create_app(
+        create_config(tmp_path / "detecttrace.db"), app_store, lambda: writes.append(1)
+    )
+    pieces: list[Message] = [{"type": "http.request", "body": b"{", "more_body": True}]
+
+    async def receive() -> Message:
+        if pieces:
+            return pieces.pop()
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    return run_raw_request(app, path, token, receive)
+
+
+@pytest.mark.parametrize(("path", "token"), STALLED_ROUTES)
+def test_stalled_body_answers_503(
+    tmp_path: Path,
+    app_store: Store,
+    writes: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    token: str,
+) -> None:
+    sent = send_stalled_body(tmp_path, app_store, writes, monkeypatch, path, token)
+    assert sent[0]["status"] == 503
+
+
+@pytest.mark.parametrize(("path", "token"), STALLED_ROUTES)
+def test_stalled_body_asks_the_client_to_retry(
+    tmp_path: Path,
+    app_store: Store,
+    writes: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    token: str,
+) -> None:
+    sent = send_stalled_body(tmp_path, app_store, writes, monkeypatch, path, token)
+    assert (b"retry-after", b"5") in sent[0]["headers"]
+
+
+@pytest.mark.parametrize(("path", "token"), STALLED_ROUTES)
+def test_stalled_body_signals_no_write(
+    tmp_path: Path,
+    app_store: Store,
+    writes: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    token: str,
+) -> None:
+    send_stalled_body(tmp_path, app_store, writes, monkeypatch, path, token)
+    assert writes == []
+
+
+@pytest.mark.parametrize(("path", "token"), STALLED_ROUTES)
+def test_stalled_body_stores_nothing(
+    tmp_path: Path,
+    app_store: Store,
+    writes: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    token: str,
+) -> None:
+    send_stalled_body(tmp_path, app_store, writes, monkeypatch, path, token)
+    assert app_store.generation() == 0

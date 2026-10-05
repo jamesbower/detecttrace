@@ -30,10 +30,13 @@ _UNKNOWN_CODE = 2
 _RETRY_AFTER_SECONDS = "5"
 _ROLES: tuple[Role, ...] = ("ingest", "verdicts", "read")
 # A span batch holds up to 16 MiB of body and 32 MiB decompressed plus its spans, so a burst
-# of parallel writes is queued rather than allowed to exhaust a small container's memory.
-# Verdict posts share the slots: every write waits for the one store lock anyway, so a
-# second pool would add memory without adding throughput.
-MAX_CONCURRENT_WRITES = 4
+# of parallel batches is queued rather than allowed to exhaust a small container's memory.
+MAX_CONCURRENT_INGESTS = 4
+# Verdict posts come from human tooling and get their own, smaller limit, so slow uploads
+# there can never take the slots span ingest needs.
+MAX_CONCURRENT_VERDICT_POSTS = 2
+# A client that stops sending mid-body would otherwise hold its slot forever.
+BODY_READ_SECONDS = 30
 
 
 class _FailedAfterCommit(Exception):
@@ -51,7 +54,8 @@ def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) 
 
     require_ingest = require_role(config.tokens, "ingest", allow_basic=False)
     require_verdicts = require_role(config.tokens, "verdicts", allow_basic=False)
-    write_slots = anyio.Semaphore(MAX_CONCURRENT_WRITES)
+    ingest_slots = anyio.Semaphore(MAX_CONCURRENT_INGESTS)
+    verdict_slots = anyio.Semaphore(MAX_CONCURRENT_VERDICT_POSTS)
 
     @app.get("/healthz")
     async def check_health() -> Response:
@@ -63,14 +67,14 @@ def create_app(config: ServeConfig, store: Store, on_write: Callable[[], None]) 
 
     @app.post("/v1/traces", dependencies=[Depends(require_ingest)])
     async def receive_traces(request: Request) -> Response:
-        async with write_slots:
+        async with ingest_slots:
             return await _receive_traces(request, store, on_write)
 
     @app.post("/api/verdicts")
     async def receive_verdicts(
         request: Request, token_name: Annotated[str, Depends(require_verdicts)]
     ) -> Response:
-        async with write_slots:
+        async with verdict_slots:
             return await _receive_verdicts(request, store, config, token_name, on_write)
 
     return app
@@ -189,6 +193,8 @@ async def _receive_verdicts(
         return _create_unavailable_response()
     if is_committed:
         on_write()
+    if not accepted and not rejected:
+        rejected = [verdict_api.RejectedRow("body", "the request has no verdict rows")]
     # Reasons come from the parser, which already makes echoed input printable and short.
     content = {
         "accepted": accepted,
@@ -198,18 +204,29 @@ async def _receive_verdicts(
 
 
 async def _read_limited_body(request: Request, max_bytes: int, hint: str) -> bytes:
-    """Read the body, refusing it with 413 as soon as it is known to pass `max_bytes`."""
+    """Read the body, refusing it with 413 as soon as it is known to pass `max_bytes`.
+
+    A body not fully received within BODY_READ_SECONDS is refused with 503, which OTLP
+    clients retry.
+    """
     declared = request.headers.get("content-length", "")
     if declared.isascii() and declared.isdigit() and int(declared) > max_bytes:
         raise _to_body_too_large(max_bytes, hint)
     pieces: list[bytes] = []
     total = 0
     try:
-        async for piece in request.stream():
-            total += len(piece)
-            if total > max_bytes:
-                raise _to_body_too_large(max_bytes, hint)
-            pieces.append(piece)
+        with anyio.fail_after(BODY_READ_SECONDS):
+            async for piece in request.stream():
+                total += len(piece)
+                if total > max_bytes:
+                    raise _to_body_too_large(max_bytes, hint)
+                pieces.append(piece)
+    except TimeoutError:
+        raise HTTPException(
+            503,
+            f"the request body did not arrive within {BODY_READ_SECONDS} seconds; retry later",
+            headers={"Retry-After": _RETRY_AFTER_SECONDS},
+        ) from None
     except ClientDisconnect:
         # No one is left to read the answer; this only ends the request without a traceback.
         raise HTTPException(400, "the client closed the connection") from None

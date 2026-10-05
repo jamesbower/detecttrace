@@ -1,7 +1,6 @@
 import functools
 import gzip
 import json
-import threading
 import tracemalloc
 import zlib
 from collections.abc import Callable
@@ -9,16 +8,15 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-import anyio
 import httpx
 import pytest
 from builders import otlp_document, otlp_span, span_hex
 from fastapi.testclient import TestClient
-from starlette.types import Message, Scope
+from starlette.types import Message
 
 from detecttrace.conventions import TOOL_CALL_RESULT
 from detecttrace.model import IssueKind
-from detecttrace.serve.app import MAX_CONCURRENT_WRITES, create_app
+from detecttrace.serve.app import MAX_CONCURRENT_INGESTS, create_app
 from detecttrace.serve.receiver import (
     MAX_BODY_BYTES,
     MAX_GZIP_MEMBERS,
@@ -29,7 +27,14 @@ from detecttrace.serve.receiver import (
 )
 from detecttrace.serve.store import AddSpansResult, Store
 from detecttrace.traces import MAX_DOCUMENT_BYTES
-from serve.app_support import INGEST_TOKEN, READ_TOKEN, create_config, read_collector_request
+from serve.app_support import (
+    INGEST_TOKEN,
+    READ_TOKEN,
+    ConcurrencyProbe,
+    create_config,
+    read_collector_request,
+    run_raw_request,
+)
 
 JSON = "application/json"
 
@@ -493,59 +498,21 @@ def test_retried_request_leaves_the_generation_unchanged(
 def test_concurrent_ingests_are_limited(
     client: TestClient, app_store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    requests = MAX_CONCURRENT_WRITES + 1
-    condition = threading.Condition()
-    state = {"active": 0, "peak": 0, "is_released": False}
-
-    def add_spans_together(*args: object, **kwargs: object) -> AddSpansResult:
-        with condition:
-            state["active"] += 1
-            state["peak"] = max(state["peak"], state["active"])
-            condition.notify_all()
-            # Hold every caller until all requests are inside at once. Under the limit that
-            # never happens, so the first wait times out and releases everyone after it.
-            condition.wait_for(
-                lambda: state["is_released"] or state["active"] == requests, timeout=0.5
-            )
-            state["is_released"] = True
-            condition.notify_all()
-            state["active"] -= 1
-        return AddSpansResult(1, 0, 0)
-
-    monkeypatch.setattr(app_store, "add_spans", add_spans_together)
+    requests = MAX_CONCURRENT_INGESTS + 1
+    probe = ConcurrencyProbe(requests, AddSpansResult(1, 0, 0))
+    monkeypatch.setattr(app_store, "add_spans", probe)
     with ThreadPoolExecutor(requests) as executor:
         list(executor.map(lambda _: Post(body=VALID_BODY).send(client), range(requests)))
-    assert state["peak"] <= MAX_CONCURRENT_WRITES
+    assert probe.peak <= MAX_CONCURRENT_INGESTS
 
 
 def test_client_gone_before_sending_its_body_is_handled_quietly(
     tmp_path: Path, app_store: Store
 ) -> None:
     app = create_app(create_config(tmp_path / "detecttrace.db"), app_store, lambda: None)
-    scope: Scope = {
-        "type": "http",
-        "asgi": {"version": "3.0"},
-        "http_version": "1.1",
-        "method": "POST",
-        "scheme": "http",
-        "path": "/v1/traces",
-        "raw_path": b"/v1/traces",
-        "query_string": b"",
-        "root_path": "",
-        "headers": [
-            (b"authorization", f"Bearer {INGEST_TOKEN}".encode("ascii")),
-            (b"content-type", b"application/json"),
-        ],
-        "client": ("127.0.0.1", 50000),
-        "server": ("testserver", 80),
-    }
-    sent: list[Message] = []
 
     async def receive() -> Message:
         return {"type": "http.disconnect"}
 
-    async def send(message: Message) -> None:
-        sent.append(message)
-
-    anyio.run(app, scope, receive, send)
+    sent = run_raw_request(app, "/v1/traces", INGEST_TOKEN, receive)
     assert sent[0]["status"] == 400
