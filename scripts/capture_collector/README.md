@@ -20,4 +20,7 @@ Records what an OpenTelemetry Collector `otlphttp` exporter sends, for the fixtu
 4. Wait a few seconds for the batch to flush. `out/` now holds `NNN_json.*` and
    `NNN_proto.*` files: a `.body` (raw bytes) and a `.json` (method, path, headers; the
    `Authorization` value is redacted).
-5. Clean up: `docker rm -f collector-capture`, then stop the recorder.
+5. To keep a request as a fixture, copy its `.body` under a name that says its format
+   (`name.json.gz` for a gzipped JSON body, `name.pb.gz` for gzipped protobuf) and its `.json`
+   as `name.headers.json`. The fixture tests decode files by suffix.
+6. Clean up: `docker rm -f collector-capture`, then stop the recorder.

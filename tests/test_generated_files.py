@@ -20,8 +20,8 @@ from detecttrace.traces import load_spans
 
 DEMO_DIR = generate.REPO_ROOT / "src" / "detecttrace" / "demo_data"
 FIXTURE_ROOT = fixture_specs.FIXTURE_ROOT
-# Captured from the OpenTelemetry SDK, not generated.
-CAPTURED_FIXTURES = ("console_exporter/", "langfuse_real/")
+# Captured from real tools, not generated.
+CAPTURED_FIXTURES = ("collector_real/", "console_exporter/", "langfuse_real/")
 COMPRESSED_SUFFIXES = (".gz", ".zst")
 DOCUMENTATION_NETWORKS = tuple(
     ipaddress.ip_network(network)
@@ -67,7 +67,8 @@ def regenerated_fixtures(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def generated_text(request: pytest.FixtureRequest) -> str:
     """Every committed file of the demo or of the fixtures as one text, compressed files decoded."""
     folder = DEMO_DIR if request.param == "demo" else FIXTURE_ROOT
-    return "\n".join(_read_decoded(folder, _list_files(folder)).values())
+    # Lossy decoding keeps the strings inside captured protobuf bodies in the scan.
+    return "\n".join(_read_decoded(folder, _list_files(folder), errors="replace").values())
 
 
 def test_regenerating_writes_the_same_file_names(generated: tuple[Path, float]) -> None:
@@ -294,9 +295,9 @@ def _read_plain(folder: Path, names: set[str]) -> dict[str, bytes]:
     }
 
 
-def _read_decoded(folder: Path, names: set[str]) -> dict[str, str]:
+def _read_decoded(folder: Path, names: set[str], errors: str = "strict") -> dict[str, str]:
     """The files as text, compressed ones decoded; compressed bytes can differ between builds."""
-    return {name: _decode(folder / name).decode("utf-8") for name in names}
+    return {name: _decode(folder / name).decode("utf-8", errors) for name in names}
 
 
 def _decode(path: Path) -> bytes:

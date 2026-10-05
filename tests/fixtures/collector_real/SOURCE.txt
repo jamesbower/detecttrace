@@ -37,18 +37,19 @@ Line A (traces-2026-08-18T00-57-52.000.jsonl.gz) was posted alone; 4 seconds lat
 B (traces-2026-09-03T09-30-00.000.jsonl.gz) and C (traces.jsonl.gz) were posted back to
 back. All three answered 200. A has 68 spans, B 64, C 62.
 
-Requests (bodies saved byte-for-byte, still compressed as sent; *.headers.json holds the
+Requests (bodies saved byte-for-byte, still compressed as sent, renamed from the
+recorder's NNN_<label>.body to carry their format: .json.gz and .pb.gz; *.headers.json holds the
 method, path and headers, with the authorization value redacted by record.py)
 --------------------------------------------------------------------------------
-  json_gzip_1.body      POST /json/v1/traces  Content-Encoding gzip  5384 bytes
+  json_gzip_1.json.gz   POST /json/v1/traces  Content-Encoding gzip  5384 bytes
                         decompresses to 52450 bytes: line A as one resourceSpans entry
                         (68 spans)
-  json_gzip_2.body      POST /json/v1/traces  Content-Encoding gzip  9115 bytes
+  json_gzip_2.json.gz   POST /json/v1/traces  Content-Encoding gzip  9115 bytes
                         decompresses to 97583 bytes: lines B and C merged into one
                         request (2 resourceSpans entries, 126 spans)
-  protobuf_gzip_1.body  POST /proto/v1/traces  Content-Type application/x-protobuf,
+  protobuf_gzip_1.pb.gz POST /proto/v1/traces  Content-Type application/x-protobuf,
                         Content-Encoding gzip  5702 bytes; the protobuf twin of
-                        json_gzip_1 (use it for the unsupported-media-type test)
+                        json_gzip_1.json.gz (use it for the unsupported-media-type test)
 The recorder answered every request 200 with body {} and Content-Type application/json.
 
 Sanitization
