@@ -22,6 +22,7 @@ from detecttrace.serve.store import (
     StoreCounts,
     StoreIntegrityError,
     StoreVersionError,
+    _is_corruption,  # pyright: ignore[reportPrivateUsage]
 )
 from detecttrace.traces import load_spans
 
@@ -354,6 +355,54 @@ def test_retried_identical_batch_leaves_generation_unchanged(store: Store) -> No
     assert store.generation() == before
 
 
+def test_retried_batch_with_a_parser_issue_leaves_generation_unchanged(store: Store) -> None:
+    issue = Issue(IssueKind.INVALID_ATTRIBUTE, "OTLP/HTTP ingest", "attribute has no key")
+    store.add_spans([make_span()], [issue])
+    before = store.generation()
+
+    store.add_spans([make_span()], [issue])
+
+    assert store.generation() == before
+
+
+def test_retried_batch_with_a_conflict_leaves_generation_unchanged(store: Store) -> None:
+    store.add_spans([make_span(attributes={"a": 1})], [])
+    store.add_spans([make_span(attributes={"a": 2})], [])
+    before = store.generation()
+
+    store.add_spans([make_span(attributes={"a": 2})], [])
+
+    assert store.generation() == before
+
+
+def test_retried_batch_still_counts_its_issue_again(store: Store) -> None:
+    issue = Issue(IssueKind.INVALID_ATTRIBUTE, "OTLP/HTTP ingest", "attribute has no key")
+    store.add_spans([], [issue])
+    store.add_spans([], [issue])
+
+    assert store.read_inputs().issues[0].count == 2
+
+
+def test_new_issue_after_a_repeated_one_adds_one_to_generation(store: Store) -> None:
+    repeated = Issue(IssueKind.INVALID_SPAN, "OTLP/HTTP ingest", "span has no trace ID")
+    store.add_spans([], [repeated])
+    before = store.generation()
+
+    store.add_spans([], [repeated, Issue(IssueKind.INVALID_SPAN, "OTLP/HTTP ingest", "other")])
+
+    assert store.generation() == before + 1
+
+
+def test_repeated_add_issues_leaves_generation_unchanged(store: Store) -> None:
+    issue = Issue(IssueKind.INVALID_SPAN, "OTLP/HTTP ingest", "span has no trace ID")
+    store.add_issues([issue])
+    before = store.generation()
+
+    store.add_issues([issue])
+
+    assert store.generation() == before
+
+
 # Verdicts
 
 
@@ -399,6 +448,43 @@ def test_replacing_verdict_keeps_the_new_token_name(store: Store, db_path: Path)
         token_name = connection.execute("SELECT token_name FROM verdicts").fetchone()[0]
 
     assert token_name == "ops"
+
+
+def test_identical_verdict_repost_adds_no_history(store: Store, db_path: Path) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "ops")
+
+    with sqlite3.connect(db_path) as connection:
+        count = connection.execute("SELECT count(*) FROM verdict_history").fetchone()[0]
+
+    assert count == 0
+
+
+def test_identical_verdict_repost_leaves_generation_unchanged(store: Store) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
+    before = store.generation()
+
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "ops")
+
+    assert store.generation() == before
+
+
+def test_identical_verdict_repost_keeps_the_first_token_name(store: Store, db_path: Path) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "ops")
+
+    with sqlite3.connect(db_path) as connection:
+        token_name = connection.execute("SELECT token_name FROM verdicts").fetchone()[0]
+
+    assert token_name == "analysts"
+
+
+def test_identical_verdict_repost_is_counted_as_stored(store: Store) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
+
+    stored = store.put_verdicts([make_verdict("CASE-1", "TP")], "ops")
+
+    assert stored == 1
 
 
 def test_failed_put_verdicts_leaves_history_unchanged(store: Store, db_path: Path) -> None:
@@ -623,9 +709,13 @@ def test_file_from_a_newer_version_is_refused(db_path: Path) -> None:
 
 def test_corrupted_file_is_refused_with_restore_advice(db_path: Path) -> None:
     create_populated_file(db_path)
-    garbage = random.Random(7).randbytes(4096)
+    with sqlite3.connect(db_path) as connection:
+        page_size = connection.execute("PRAGMA page_size").fetchone()[0]
+    connection.close()
+    garbage = random.Random(7).randbytes(page_size)
+    # A data page near the end: opening never reads it, so only quick_check can catch it.
     with db_path.open("r+b") as file:
-        file.seek(8192)
+        file.seek(db_path.stat().st_size - 2 * page_size)
         file.write(garbage)
 
     with pytest.raises(StoreIntegrityError, match=r"\.backup"):
@@ -644,6 +734,38 @@ def test_integrity_error_names_the_file(db_path: Path) -> None:
 
     with pytest.raises(StoreIntegrityError, match=r"detecttrace\.db"):
         Store.open(db_path)
+
+
+def error_with_code(code: int) -> sqlite3.DatabaseError:
+    error = sqlite3.DatabaseError("simulated")
+    error.sqlite_errorcode = code
+    return error
+
+
+@pytest.mark.parametrize(
+    ("code", "is_corruption"),
+    [
+        pytest.param(sqlite3.SQLITE_CORRUPT, True, id="corrupt"),
+        pytest.param(sqlite3.SQLITE_CORRUPT | (1 << 8), True, id="corrupt-extended"),
+        pytest.param(sqlite3.SQLITE_NOTADB, True, id="not-a-database"),
+        pytest.param(sqlite3.SQLITE_BUSY, False, id="busy"),
+        pytest.param(sqlite3.SQLITE_BUSY | (2 << 8), False, id="busy-extended"),
+        pytest.param(sqlite3.SQLITE_FULL, False, id="full"),
+    ],
+)
+def test_error_code_classification(code: int, is_corruption: bool) -> None:
+    assert _is_corruption(error_with_code(code)) is is_corruption
+
+
+@pytest.mark.parametrize("version", [0, 2])
+def test_read_only_store_refuses_another_schema_version(db_path: Path, version: int) -> None:
+    Store.open(db_path).close()
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("UPDATE meta SET value = ? WHERE key = 'schema_version'", (version,))
+    connection.close()
+
+    with pytest.raises(StoreVersionError, match=f"version {version}"):
+        Store.open_read_only(db_path)
 
 
 # Read-only access
@@ -679,6 +801,40 @@ def test_commits_wait_for_the_disk(store: Store) -> None:
     connection = store._connection  # pyright: ignore[reportPrivateUsage]
 
     assert connection.execute("PRAGMA synchronous").fetchone()[0] == 2
+
+
+def test_busy_timeout_is_set(store: Store) -> None:
+    connection = store._connection  # pyright: ignore[reportPrivateUsage]
+
+    assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+
+
+def test_foreign_keys_are_enforced(store: Store) -> None:
+    connection = store._connection  # pyright: ignore[reportPrivateUsage]
+
+    assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+
+def fill_until_full(store: Store) -> None:
+    connection = store._connection  # pyright: ignore[reportPrivateUsage]
+    page_count = connection.execute("PRAGMA page_count").fetchone()[0]
+    connection.execute(f"PRAGMA max_page_count = {page_count + 1}")
+    store.add_spans([make_span(attributes={"payload": "x" * 200_000})], [])
+
+
+def test_full_disk_error_is_raised_as_itself(store: Store) -> None:
+    with pytest.raises(sqlite3.OperationalError, match="full"):
+        fill_until_full(store)
+
+
+def test_store_writes_again_after_a_full_disk(store: Store) -> None:
+    with pytest.raises(sqlite3.OperationalError):
+        fill_until_full(store)
+    store._connection.execute("PRAGMA max_page_count = 1073741823")  # pyright: ignore[reportPrivateUsage]
+
+    result = store.add_spans([make_span("00000000000000b1")], [])
+
+    assert result.accepted == 1
 
 
 def test_journal_is_write_ahead(store: Store) -> None:

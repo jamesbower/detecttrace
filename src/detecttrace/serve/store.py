@@ -95,14 +95,16 @@ class Store:
         connection = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
         try:
             _set_pragmas(connection)
-            _check_integrity(connection)
+            problems = _find_integrity_problems(connection)
+            if problems:
+                raise StoreIntegrityError(_describe_corruption(path, "; ".join(problems)))
             _prepare_schema(connection)
         except sqlite3.DatabaseError as error:
             connection.close()
             if not _is_corruption(error):
                 raise
-            raise StoreIntegrityError(_describe_corruption(path, error)) from None
-        except StoreVersionError:
+            raise StoreIntegrityError(_describe_corruption(path, str(error))) from None
+        except (StoreIntegrityError, StoreVersionError):
             connection.close()
             raise
         return cls(connection, now_ns)
@@ -131,9 +133,9 @@ class Store:
         """Store new spans and count `issues`, all in one transaction.
 
         The first copy of a span key wins, as in the file loader: an identical copy is a
-        duplicate, a different one a conflict, reported under `subject`. A batch of only
-        identical copies changes nothing, so a client retrying an acknowledged batch does not
-        cause a recompute.
+        duplicate, a different one a conflict, reported under `subject`. Only a new span or a
+        new kind of issue advances the generation, so a client retrying an acknowledged batch
+        does not cause a recompute; a repeated issue just has its count raised.
         """
         accepted = duplicates = conflicts = 0
         with self._write() as now:
@@ -155,18 +157,27 @@ class Store:
                             f"{span.trace_id}/{span.span_id}",
                         )
                     )
-            _count_issues(self._connection, found, now)
-            if accepted or found:
+            new_issue_count = _count_issues(self._connection, found, now)
+            if accepted or new_issue_count:
                 _advance_generation(self._connection, now)
         return AddSpansResult(accepted, duplicates, conflicts)
 
     def put_verdicts(self, rows: Sequence[VerdictRow], token_name: str) -> int:
         """Store each row as its case's current verdict, keeping any replaced one in history.
 
-        The raw label is stored; mapping it happens at recompute. Returns the number stored.
+        The raw label is stored; mapping it happens at recompute. A row equal to the case's
+        current verdict changes nothing, so a client retrying a request causes no recompute,
+        but it still counts in the number stored that is returned.
         """
+        has_changed = False
         with self._write() as now:
             for row in rows:
+                current = self._connection.execute(
+                    "SELECT alert_class, label FROM verdicts WHERE case_id = ?", (row.case_id,)
+                ).fetchone()
+                if current == (row.alert_class, row.label):
+                    continue
+                has_changed = True
                 self._connection.execute(
                     "INSERT INTO verdict_history"
                     " (case_id, alert_class, label, received_at_ns, replaced_at_ns, token_name)"
@@ -180,15 +191,17 @@ class Store:
                     " VALUES (?, ?, ?, ?, ?)",
                     (row.case_id, row.alert_class, row.label, now, token_name),
                 )
-            if rows:
+            if has_changed:
                 _advance_generation(self._connection, now)
         return len(rows)
 
     def add_issues(self, issues: Sequence[Issue]) -> None:
-        """Count each issue, so a client repeating the same bad input can't fill the disk."""
+        """Count each issue, so a client repeating the same bad input can't fill the disk.
+
+        Only an issue not seen before advances the generation.
+        """
         with self._write() as now:
-            _count_issues(self._connection, issues, now)
-            if issues:
+            if _count_issues(self._connection, issues, now):
                 _advance_generation(self._connection, now)
 
     def read_inputs(self) -> StoredInputs:
@@ -270,10 +283,10 @@ class Store:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
                 yield self._now_ns()
+                self._connection.execute("COMMIT")
             except BaseException:
-                self._connection.execute("ROLLBACK")
+                _roll_back(self._connection)
                 raise
-            self._connection.execute("COMMIT")
 
     @contextmanager
     def _read(self) -> Iterator[sqlite3.Connection]:
@@ -362,10 +375,9 @@ def _set_pragmas(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA foreign_keys = ON")
 
 
-def _check_integrity(connection: sqlite3.Connection) -> None:
-    results = [row[0] for row in connection.execute("PRAGMA quick_check")]
-    if results != ["ok"]:
-        raise sqlite3.DatabaseError("; ".join(str(result) for result in results[:5]))
+def _find_integrity_problems(connection: sqlite3.Connection) -> list[str]:
+    results = [str(row[0]) for row in connection.execute("PRAGMA quick_check")]
+    return [] if results == ["ok"] else results[:5]
 
 
 def _prepare_schema(connection: sqlite3.Connection) -> None:
@@ -383,10 +395,17 @@ def _prepare_schema(connection: sqlite3.Connection) -> None:
             connection.execute(
                 "UPDATE meta SET value = ? WHERE key = 'schema_version'", (SCHEMA_VERSION,)
             )
+        connection.execute("COMMIT")
     except BaseException:
-        connection.execute("ROLLBACK")
+        _roll_back(connection)
         raise
-    connection.execute("COMMIT")
+
+
+def _roll_back(connection: sqlite3.Connection) -> None:
+    # Some errors, such as a full disk, end the transaction inside SQLite already; a ROLLBACK
+    # then would fail and hide the real error. A failed COMMIT can leave it open instead.
+    if connection.in_transaction:
+        connection.execute("ROLLBACK")
 
 
 def _read_schema_version(connection: sqlite3.Connection) -> int | None:
@@ -398,24 +417,28 @@ def _read_schema_version(connection: sqlite3.Connection) -> int | None:
 
 def _describe_version(path: Path | None, version: int | None) -> str:
     where = "The database" if path is None else f"The database {path}"
+    if version is None:
+        cause = "it holds no detecttrace data yet. Start detecttrace serve first."
+    elif version < SCHEMA_VERSION:
+        cause = "an older detecttrace wrote it. Start detecttrace serve once to upgrade it."
+    else:
+        cause = "a newer detecttrace wrote it. Upgrade detecttrace to use it."
     return (
         f"{where} has schema version {version}, but this detecttrace reads schema version "
-        f"{SCHEMA_VERSION}; a newer detecttrace wrote it. Upgrade detecttrace to use it."
+        f"{SCHEMA_VERSION}; {cause}"
     )
 
 
 def _is_corruption(error: sqlite3.DatabaseError) -> bool:
-    # A busy or locked database is an OperationalError worth reporting as itself. A failed
-    # quick_check raises a plain DatabaseError without an error code.
+    # sqlite_errorcode is the extended code; its low byte is the primary one. A busy or
+    # locked database is an OperationalError worth reporting as itself.
     code = getattr(error, "sqlite_errorcode", None)
-    return code in (sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB) or (
-        type(error) is sqlite3.DatabaseError and code is None
-    )
+    return code is not None and code & 0xFF in (sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB)
 
 
-def _describe_corruption(path: Path, error: sqlite3.DatabaseError) -> str:
+def _describe_corruption(path: Path, reason: str) -> str:
     return (
-        f"The database {path} is damaged or is not a detecttrace database ({error}). "
+        f"The database {path} is damaged or is not a detecttrace database ({reason}). "
         "Stop detecttrace serve, move the file aside, and restore it from a backup, such as "
         f'one taken with: sqlite3 {path} ".backup {path}.backup"'
     )
@@ -481,14 +504,25 @@ def _insert_span(
     )
 
 
-def _count_issues(connection: sqlite3.Connection, issues: Sequence[Issue], now: int) -> None:
-    connection.executemany(
-        "INSERT INTO ingest_issues"
-        " (kind, subject, detail, count, first_seen_ns, last_seen_ns) VALUES (?, ?, ?, 1, ?, ?)"
-        " ON CONFLICT (kind, subject, detail)"
-        " DO UPDATE SET count = count + 1, last_seen_ns = excluded.last_seen_ns",
-        [(str(issue.kind), issue.subject, issue.detail, now, now) for issue in issues],
-    )
+def _count_issues(connection: sqlite3.Connection, issues: Sequence[Issue], now: int) -> int:
+    """Count each issue in its (kind, subject, detail) row; return how many rows are new."""
+    new_count = 0
+    for issue in issues:
+        key = (str(issue.kind), issue.subject, issue.detail)
+        updated = connection.execute(
+            "UPDATE ingest_issues SET count = count + 1, last_seen_ns = ?"
+            " WHERE kind = ? AND subject = ? AND detail = ?",
+            (now, *key),
+        )
+        if updated.rowcount == 0:
+            connection.execute(
+                "INSERT INTO ingest_issues"
+                " (kind, subject, detail, count, first_seen_ns, last_seen_ns)"
+                " VALUES (?, ?, ?, 1, ?, ?)",
+                (*key, now, now),
+            )
+            new_count += 1
+    return new_count
 
 
 def _advance_generation(connection: sqlite3.Connection, now: int) -> None:
