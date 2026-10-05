@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 import yaml
 from builders import case_root
+from html_tree import has_tag, parse_html
 
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.pipeline import run_check
@@ -32,6 +33,8 @@ SETTLE_NS = SETTLE_SECONDS * 1_000_000_000
 CASE_END_NS = 1_700_000_000_000_000_000
 # Long after every case, so nothing is held back.
 LATE_NS = CASE_END_NS + 10 * SETTLE_NS
+# What a stored dashboard snapshot that held nothing back says about itself.
+OLD_RESULTS = '{"served": {"held_back_cases": 0}}'
 
 
 class FakeClock:
@@ -85,7 +88,7 @@ def store(tmp_path: Path) -> Iterator[Store]:
 @pytest.fixture
 def current_store(store: Store) -> Store:
     """A store whose snapshot is up to date, so starting a coordinator schedules nothing."""
-    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", "{}"))
+    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", OLD_RESULTS))
     return store
 
 
@@ -372,7 +375,7 @@ def test_a_failed_run_keeps_the_old_snapshot(
 ) -> None:
     fail_runs(coordinator, clock, submit, 1)
 
-    assert current_store.read_snapshot() == Snapshot(0, 1, "<p>old</p>", "{}")
+    assert current_store.read_snapshot() == Snapshot(0, 1, "<p>old</p>", OLD_RESULTS)
 
 
 def test_a_failed_run_is_not_retried_without_a_write(
@@ -460,7 +463,7 @@ def test_a_submit_that_raises_counts_as_a_failed_run(
 def test_startup_with_input_newer_than_the_snapshot_schedules_a_run(
     store: Store, clock: FakeClock, submit: FakeSubmit
 ) -> None:
-    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", "{}"))
+    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", OLD_RESULTS))
     store.add_issues([Issue(IssueKind.INVALID_SPAN, INGEST_SUBJECT, "x")])
     coordinator = RecomputeCoordinator(submit, store, clock, DEBOUNCE)
     coordinator.tick()
@@ -587,6 +590,38 @@ def test_startup_with_held_back_cases_in_the_snapshot_schedules_a_run(
     assert submit.count == 1
 
 
+UNREADABLE_RESULTS = [
+    pytest.param("not json", id="not-json"),
+    pytest.param("[]", id="list"),
+    pytest.param('{"served": null}', id="served-null"),
+    pytest.param('{"held_back_count": "3"}', id="no-status"),
+    pytest.param('{"status": "waiting", "held_back_count": "3"}', id="text-count"),
+    pytest.param('{"served": {"held_back_cases": true}}', id="bool-count"),
+    pytest.param('{"served": {"held_back_cases": -1}}', id="negative-count"),
+]
+
+
+@pytest.mark.parametrize("results_json", UNREADABLE_RESULTS)
+def test_startup_with_an_unreadable_snapshot_schedules_a_run(
+    store: Store, clock: FakeClock, submit: FakeSubmit, results_json: str
+) -> None:
+    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", results_json))
+    coordinator = RecomputeCoordinator(submit, store, clock, DEBOUNCE)
+    coordinator.tick()
+
+    assert submit.count == 1
+
+
+@pytest.mark.parametrize("results_json", UNREADABLE_RESULTS)
+def test_an_unreadable_snapshot_reports_no_held_back_cases(
+    store: Store, clock: FakeClock, submit: FakeSubmit, results_json: str
+) -> None:
+    store.write_snapshot(Snapshot(0, 1, "<p>old</p>", results_json))
+    coordinator = RecomputeCoordinator(submit, store, clock, DEBOUNCE)
+
+    assert coordinator.status.held_back_cases == 0
+
+
 def tick_each_second(coordinator: RecomputeCoordinator, clock: FakeClock, seconds: int) -> None:
     for _ in range(seconds):
         clock.advance(1)
@@ -598,7 +633,7 @@ def test_a_case_ending_ahead_of_the_server_clock_is_scored_without_a_new_write(
 ) -> None:
     # The agent's clock runs 2 s ahead of the server's, so its case ends "in the future".
     add_case(store, 1, CASE_END_NS)
-    store.write_snapshot(Snapshot(store.generation(), 1, "<p>old</p>", "{}"))
+    store.write_snapshot(Snapshot(store.generation(), 1, "<p>old</p>", OLD_RESULTS))
     config_path = write_serve_config(tmp_path)
     started_at = clock.now
 
@@ -688,6 +723,73 @@ def test_a_held_back_case_is_not_scored(tmp_path: Path, boundary_store: Store) -
 
 def test_a_held_back_cases_verdict_is_held_back_too(tmp_path: Path, boundary_store: Store) -> None:
     results = results_at(tmp_path, boundary_store, CASE_END_NS + SETTLE_NS - 1)
+
+    assert results["data_notes"] == []
+
+
+def next_settle_at(tmp_path: Path, now_ns: int) -> int | None:
+    database = tmp_path / "detecttrace.db"
+    return compute_snapshot(database, write_serve_config(tmp_path), now_ns).next_settle_at_ns
+
+
+def test_the_outcome_says_when_the_held_back_case_settles(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    assert next_settle_at(tmp_path, CASE_END_NS + SETTLE_NS - 1) == CASE_END_NS + SETTLE_NS
+
+
+def test_the_outcome_says_when_the_first_of_several_held_back_cases_settles(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    add_case(boundary_store, 3, CASE_END_NS + 5 * 1_000_000_000)
+
+    assert next_settle_at(tmp_path, CASE_END_NS + SETTLE_NS - 1) == CASE_END_NS + SETTLE_NS
+
+
+def test_the_outcome_has_no_settle_time_when_nothing_is_held_back(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    assert next_settle_at(tmp_path, LATE_NS) is None
+
+
+# A case ends more than a settle window after the server's now: its agent's clock runs ahead.
+FUTURE_NOW_NS = CASE_END_NS - SETTLE_NS - 1
+FUTURE_NOTE = (
+    "1 case ends more than serve.settle_seconds after the server's current time, "
+    "so it is not counted yet."
+)
+
+
+def test_a_future_dated_case_gets_a_data_note_on_the_dashboard(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    results = results_at(tmp_path, boundary_store, FUTURE_NOW_NS)
+
+    assert [note["message"] for note in results["data_notes"]] == [FUTURE_NOTE]
+
+
+def test_a_future_dated_case_gets_a_data_note_on_the_waiting_page(
+    tmp_path: Path, store: Store
+) -> None:
+    add_case(store, 1, CASE_END_NS)
+    results = results_at(tmp_path, store, FUTURE_NOW_NS)
+
+    assert results["data_notes"] == [FUTURE_NOTE]
+
+
+def test_the_waiting_page_shows_the_future_dated_case_note(tmp_path: Path, store: Store) -> None:
+    add_case(store, 1, CASE_END_NS)
+    database = tmp_path / "detecttrace.db"
+    outcome = compute_snapshot(database, write_serve_config(tmp_path), FUTURE_NOW_NS)
+
+    assert FUTURE_NOTE in parse_html(outcome.snapshot.html).find(has_tag("ol")).text()
+
+
+def test_a_case_exactly_a_settle_window_ahead_gets_no_data_note(
+    tmp_path: Path, store: Store
+) -> None:
+    add_case(store, 1, CASE_END_NS)
+    results = results_at(tmp_path, store, CASE_END_NS - SETTLE_NS)
 
     assert results["data_notes"] == []
 

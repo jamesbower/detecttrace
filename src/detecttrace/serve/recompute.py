@@ -29,7 +29,7 @@ from pathlib import Path
 
 from detecttrace.cases import build_trace_cases
 from detecttrace.dashboard import ServedPage, WaitingCounts, render_dashboard, render_waiting_page
-from detecttrace.model import Issue
+from detecttrace.model import Issue, IssueKind
 from detecttrace.pipeline import load_run_checklists, run_stages, to_source
 from detecttrace.serve.config import load_serve_config
 from detecttrace.serve.store import Snapshot, Store
@@ -75,6 +75,12 @@ def compute_snapshot(database: Path, config_path: Path, now_ns: int) -> Recomput
     issues: list[Issue] = [stored.issue for stored in inputs.issues]
     issues.extend(case_issues)
     issues.extend(checklist_issues)
+    # Such a case waits more than a whole settle window, which only a clock ahead of ours explains.
+    issues.extend(
+        Issue(IssueKind.FUTURE_CASE_END, case.case_id)
+        for case in held_back
+        if case.end_ns - now_ns > settle_ns
+    )
     folder = config_path.absolute().parent
     source = {
         "traces": TRACES_SOURCE,
@@ -196,10 +202,12 @@ class RecomputeCoordinator:
             self._last_write_at = clock() - debounce_seconds
             self._first_uncovered_write_at = self._last_write_at
         elif snapshot is not None:
-            self._held_back_cases = _read_held_back_cases(snapshot)
-            if self._held_back_cases:
-                # They may have settled while the server was down; when exactly is not stored.
+            held_back_cases = _read_held_back_cases(snapshot)
+            # Held-back cases may have settled while the server was down, and when is not
+            # stored; an unreadable snapshot is replaced by a fresh one.
+            if held_back_cases != 0:
                 self._settle_due_at = clock()
+            self._held_back_cases = held_back_cases or 0
 
     def notify_write(self) -> None:
         with self._lock:
@@ -292,10 +300,20 @@ class RecomputeCoordinator:
         return self._clock() + max(1.0, wait_seconds)
 
 
-def _read_held_back_cases(snapshot: Snapshot) -> int:
-    results = json.loads(snapshot.results_json)
-    served = results.get("served", {})
-    return results.get("held_back_count", served.get("held_back_cases", 0))
+def _read_held_back_cases(snapshot: Snapshot) -> int | None:
+    """The held-back count a stored snapshot reports, or None when it can't be read."""
+    try:
+        results = json.loads(snapshot.results_json)
+        if results.get("status") == "waiting":
+            count = results["held_back_count"]
+        else:
+            count = results["served"]["held_back_cases"]
+    except (ValueError, AttributeError, TypeError, KeyError):
+        return None
+    # bool is an int subclass, and a count of True means nothing.
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        return None
+    return count
 
 
 def _to_json(value: object) -> str:

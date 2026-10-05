@@ -65,6 +65,7 @@ WARNING_KINDS = [
     IssueKind.LANGFUSE_WITHOUT_IO,
     IssueKind.LANGFUSE_NO_TOOL_CALLS,
     IssueKind.INACTIVE_CHECKLIST,
+    IssueKind.FUTURE_CASE_END,
 ]
 
 

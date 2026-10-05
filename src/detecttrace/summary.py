@@ -61,6 +61,7 @@ SEVERITY: Mapping[IssueKind, Severity] = {
     IssueKind.LANGFUSE_WITHOUT_IO: _W,
     IssueKind.LANGFUSE_NO_TOOL_CALLS: _W,
     IssueKind.INACTIVE_CHECKLIST: _W,
+    IssueKind.FUTURE_CASE_END: _W,
 }
 
 _AGENT = conventions.INVOKE_AGENT
@@ -298,6 +299,14 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "checklist '{key}' is inactive",
         "checklists '{key}' are inactive",
         "Rename it to .yaml to measure evidence completeness.",
+    ),
+    IssueKind.FUTURE_CASE_END: (
+        "case ends more than serve.settle_seconds after the server's current time, so it is "
+        "not counted yet",
+        "cases end more than serve.settle_seconds after the server's current time, so they are "
+        "not counted yet",
+        "Check that the clock of the host that runs the agent is synchronized, for example "
+        "with NTP.",
     ),
 }
 

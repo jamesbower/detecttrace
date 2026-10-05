@@ -80,6 +80,8 @@ class IssueKind(StrEnum):
     LANGFUSE_WITHOUT_IO = "langfuse_without_io"
     LANGFUSE_NO_TOOL_CALLS = "langfuse_no_tool_calls"
     INACTIVE_CHECKLIST = "inactive_checklist"
+    # Only detecttrace serve reports this: it compares a case's end with its own clock.
+    FUTURE_CASE_END = "future_case_end"
 
 
 @dataclass(frozen=True, slots=True)
