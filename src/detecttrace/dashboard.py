@@ -3,13 +3,16 @@
 The page holds exactly one inline stylesheet and one inline script, both allowed by the SHA-256
 hashes in its Content-Security-Policy, and the full results object as a non-executed JSON block
 that the case-table script reads. Every other value is rendered by an autoescaping template.
+
+A page served by `detecttrace serve` adds a second inline script, which asks the same server
+whether newer results exist; its policy allows that one request target and nothing else.
 """
 
 import base64
 import hashlib
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -19,8 +22,9 @@ from markupsafe import Markup
 
 from detecttrace import __version__
 from detecttrace.charts import SHAPE_BY_STYLE, Chart, SeriesInput, create_marker, trend_chart
-from detecttrace.dashboard_view import TrendMetricView, TrendView, build_view
+from detecttrace.dashboard_view import TrendMetricView, TrendView, build_view, format_count
 from detecttrace.files import MARKER_READ_BYTES, read_head, write_text_atomically
+from detecttrace.summary import SummaryLine, to_visible_text
 
 GENERATOR_PREFIX = "detecttrace"
 _DOCTYPE = b"<!DOCTYPE html>"
@@ -30,6 +34,7 @@ _MARKER = re.compile(
     rb'<meta name="generator" content="' + re.escape(GENERATOR_PREFIX.encode()) + rb' [^"]+">'
 )
 _TEMPLATE_NAME = "dashboard.html.j2"
+_WAITING_TEMPLATE_NAME = "waiting.html.j2"
 # Standard JSON leaves these as they are. Inside <script>, "</script>" or "<!--" in any string
 # would end or change the block, and U+2028/U+2029 end a line in older JavaScript parsers.
 _JSON_ESCAPES = {
@@ -45,19 +50,46 @@ _SWATCH_RADIUS = 4.0
 
 
 @dataclass(frozen=True, slots=True)
+class ServedPage:
+    """What a page from `detecttrace serve` knows about itself, to tell when newer results exist."""
+
+    generation: int  # the stored input's generation the page was computed from
+    updated_at: str  # when it was computed, ISO 8601 in UTC, as the status route reports it
+    held_back_cases: int  # cases still inside the settle window, so not counted on the page
+
+
+@dataclass(frozen=True, slots=True)
+class WaitingCounts:
+    span_count: int
+    case_count: int  # cases whose trace has settled
+    held_back_count: int  # cases still inside the settle window
+    verdict_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class _NoteText:
+    message: str
+    hint: str
+
+
+@dataclass(frozen=True, slots=True)
 class _TrendCharts:
     completeness: Chart | None  # None when the class has no checklist
     agreement: Chart
 
 
-def render_dashboard(results: Mapping[str, object]) -> str:
+def render_dashboard(results: Mapping[str, object], *, served: ServedPage | None = None) -> str:
     """Render the page for a results object from `results.build_results` (or its JSON).
 
+    With `served`, the page is for `detecttrace serve`: it carries its generation and the
+    script that checks for newer results. Without it, the page is the offline one.
     Raises ValueError for an unknown schema version, or a NaN or infinity in the results.
     """
     view = build_view(results)
     css = _read_asset("dashboard.css")
     js = _read_asset("dashboard.js")
+    serve_js = None if served is None else _read_asset("dashboard-serve.js")
+    scripts = [js] if serve_js is None else [js, serve_js]
     template = _create_environment().get_template(_TEMPLATE_NAME)
     return template.render(
         view=view,
@@ -71,10 +103,37 @@ def render_dashboard(results: Mapping[str, object]) -> str:
         # Markup: the policy is fixed text and base64 hashes. The three blocks are raw text
         # elements, so HTML escaping would corrupt them; the stylesheet and script are packaged
         # files, and the JSON is escaped for a script block.
-        csp=Markup(_to_csp(css, js)),
+        csp=Markup(_to_csp(css, scripts, can_connect=served is not None)),
         css=Markup(css),
         js=Markup(js),
         results_json=Markup(to_script_json(results)),
+        served=served,
+        serve_js=None if serve_js is None else Markup(serve_js),
+        settling_text=None if served is None else _to_settling_text(served.held_back_cases),
+    )
+
+
+def render_waiting_page(
+    counts: WaitingCounts, notes: Sequence[SummaryLine], served: ServedPage
+) -> str:
+    """Render the page `detecttrace serve` shows until at least one case can be scored.
+
+    `notes` are the run's issue lines, which often say why nothing joined yet.
+    """
+    css = _read_asset("dashboard.css")
+    serve_js = _read_asset("dashboard-serve.js")
+    template = _create_environment().get_template(_WAITING_TEMPLATE_NAME)
+    return template.render(
+        counts=counts,
+        notes=[
+            _NoteText(to_visible_text(line.message), to_visible_text(line.hint)) for line in notes
+        ],
+        served=served,
+        generator=f"{GENERATOR_PREFIX} {__version__}",
+        csp=Markup(_to_csp(css, [serve_js], can_connect=True)),
+        css=Markup(css),
+        serve_js=Markup(serve_js),
+        format_count=format_count,
     )
 
 
@@ -129,10 +188,22 @@ def _format_coordinate(value: float) -> str:
     return f"{value:.1f}"
 
 
-def _to_csp(css: str, js: str) -> str:
+def _to_settling_text(count: int) -> str | None:
+    if count == 0:
+        return None
+    if count == 1:
+        return "1 case still settling is not counted yet."
+    return f"{format_count(count)} cases still settling are not counted yet."
+
+
+def _to_csp(css: str, scripts: Sequence[str], *, can_connect: bool) -> str:
+    script_sources = " ".join(f"'{_to_hash_source(script)}'" for script in scripts)
+    # Only a served page asks anything of a server, and only of the one that sent it.
+    connect = " connect-src 'self';" if can_connect else ""
     return (
-        f"default-src 'none'; script-src '{_to_hash_source(js)}'; "
-        f"style-src '{_to_hash_source(css)}'; img-src data:; base-uri 'none'; form-action 'none'"
+        f"default-src 'none'; script-src {script_sources}; "
+        f"style-src '{_to_hash_source(css)}'; img-src data:;{connect} base-uri 'none'; "
+        "form-action 'none'"
     )
 
 

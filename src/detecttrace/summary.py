@@ -61,6 +61,7 @@ SEVERITY: Mapping[IssueKind, Severity] = {
     IssueKind.LANGFUSE_WITHOUT_IO: _W,
     IssueKind.LANGFUSE_NO_TOOL_CALLS: _W,
     IssueKind.INACTIVE_CHECKLIST: _W,
+    IssueKind.FUTURE_CASE_END: _W,
 }
 
 _AGENT = conventions.INVOKE_AGENT
@@ -299,6 +300,14 @@ _TEMPLATES: Mapping[IssueKind, tuple[str, str, str]] = {
         "checklists '{key}' are inactive",
         "Rename it to .yaml to measure evidence completeness.",
     ),
+    IssueKind.FUTURE_CASE_END: (
+        "case ends more than serve.settle_seconds after the server's current time, so it is "
+        "not counted yet",
+        "cases end more than serve.settle_seconds after the server's current time, so they are "
+        "not counted yet",
+        "Check that the clock of the host that runs the agent is synchronized, for example "
+        "with NTP.",
+    ),
 }
 
 # Kinds whose Issue.detail is the grouping key itself, so repeating it per example adds nothing.
@@ -358,16 +367,25 @@ class JoinCoverage:
 
 
 def summarize_issues(
-    issues: Sequence[Issue], config_name: str = "detecttrace.yaml"
+    issues: Sequence[Issue],
+    config_name: str = "detecttrace.yaml",
+    *,
+    counts: Sequence[int] = (),
 ) -> list[SummaryLine]:
-    """Group issues by kind and key into one line each: invalid input first, then by count."""
+    """Group issues by kind and key into one line each: invalid input first, then by count.
+
+    `counts[i]`, when given, is how many times `issues[i]` was seen; issues past the end of
+    `counts` count once.
+    """
+    if len(counts) > len(issues):
+        raise ValueError(f"{len(counts)} counts for {len(issues)} issues")
     groups: dict[tuple[IssueKind, str], _Group] = {}
-    for issue in issues:
+    for index, issue in enumerate(issues):
         group_key = (issue.kind, _to_group_key(issue))
         group = groups.get(group_key)
         if group is None:
             group = groups[group_key] = _Group()
-        group.count += 1
+        group.count += counts[index] if index < len(counts) else 1
         if len(group.examples) < _MAX_EXAMPLES and all(
             example.subject != issue.subject for example in group.examples
         ):

@@ -2,7 +2,7 @@
 
 import gc
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,15 +42,7 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
     recorded in the results are relative to its folder, or just a name when outside it.
     """
     # Checklists are small and read first, so a typo in one fails before a long trace read.
-    checklists = {} if config.checklists is None else load_checklists(config.checklists)
-    inactive = [] if config.checklists is None else find_inactive_checklists(config.checklists)
-    # A folder holding only init's example checklists runs without checklists, with a note.
-    if config.checklists is not None and not checklists and not inactive:
-        # Otherwise a wrong folder would score every class as having no checklist, silently.
-        raise ChecklistFileError(
-            f"No checklist files (*.yaml, *.yml) found under {config.checklists}. "
-            f"Check checklists in {config_path.name}."
-        )
+    checklists, checklist_issues = load_run_checklists(config.checklists, config_path)
     # Loading allocates millions of small objects that all live until the run ends, so the
     # collector's repeated scans of them find nothing to free; pausing it cut the
     # 50,000-case run by about a third for a few percent more peak memory.
@@ -63,13 +55,7 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
         if was_enabled:
             gc.enable()
     issues.extend(case_issues)
-    if config.checklists is not None:
-        # The subject says where the file is, as the other paths in the results do.
-        folder = config_path.absolute().parent
-        issues.extend(
-            Issue(IssueKind.INACTIVE_CHECKLIST, _to_source(config.checklists / name, folder), name)
-            for name in inactive
-        )
+    issues.extend(checklist_issues)
     missing_tool_calls = find_missing_tool_calls(
         config.traces.format, trace_cases, config.traces.path.name
     )
@@ -79,9 +65,9 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
     issues.extend(verdict_issues)
     folder = config_path.absolute().parent
     source = {
-        "traces": _to_source(config.traces.path, folder),
-        "verdicts": _to_source(config.verdicts.path, folder),
-        "checklists": None if config.checklists is None else _to_source(config.checklists, folder),
+        "traces": to_source(config.traces.path, folder),
+        "verdicts": to_source(config.verdicts.path, folder),
+        "checklists": None if config.checklists is None else to_source(config.checklists, folder),
         # Only the name: fix hints on the page point at the file without revealing its folder.
         "config": config_path.name,
     }
@@ -97,6 +83,33 @@ def run_check(config: RunConfig, config_path: Path) -> RunResult:
     )
 
 
+def load_run_checklists(
+    folder: Path | None, config_path: Path
+) -> tuple[dict[str, Checklist], list[Issue]]:
+    """Load the checklists under `folder` (none when None), with a note per inactive file.
+
+    A folder with no checklist at all, active or inactive, raises ChecklistFileError.
+    """
+    if folder is None:
+        return {}, []
+    checklists = load_checklists(folder)
+    inactive = find_inactive_checklists(folder)
+    # A folder holding only init's example checklists runs without checklists, with a note.
+    if not checklists and not inactive:
+        # Otherwise a wrong folder would score every class as having no checklist, silently.
+        raise ChecklistFileError(
+            f"No checklist files (*.yaml, *.yml) found under {folder}. "
+            f"Check checklists in {config_path.name}."
+        )
+    # The subject says where the file is, as the other paths in the results do.
+    config_folder = config_path.absolute().parent
+    issues = [
+        Issue(IssueKind.INACTIVE_CHECKLIST, to_source(folder / name, config_folder), name)
+        for name in inactive
+    ]
+    return checklists, issues
+
+
 def run_stages(
     trace_cases: list[TraceCase],
     verdict_rows: list[VerdictRow],
@@ -107,12 +120,14 @@ def run_stages(
     source: Mapping[str, str | None],
     max_detail_cases: int,
     config_name: str,
+    issue_counts: Sequence[int] = (),
 ) -> RunResult:
     """Join, compute metrics, summarize `issues` plus the stages' own, and build the results.
 
     Takes inputs already loaded, so any loader gets the same results as `run_check`.
     `issues` is copied, never changed: the returned `RunResult.issues` holds the caller's
-    issues followed by the stages' own.
+    issues followed by the stages' own. `issue_counts` says how many times each of the first
+    issues was seen, for a store that keeps one row per repeated issue; the rest count once.
     """
     all_issues = list(issues)
     cases, join_issues = join_cases(trace_cases, verdict_rows, config)
@@ -127,12 +142,13 @@ def run_stages(
         traces_matched=len(cases),
         traces_total=len(trace_cases),
     )
-    summary = summarize_issues(all_issues, config_name)
+    summary = summarize_issues(all_issues, config_name, counts=issue_counts)
     results = build_results(report, cases, checklists, summary, coverage, source, max_detail_cases)
     return RunResult(results, all_issues, len(cases), report, coverage, summary)
 
 
-def _to_source(path: Path, folder: Path) -> str:
+def to_source(path: Path, folder: Path) -> str:
+    """`path` relative to `folder` in POSIX form, or just its name when outside it."""
     # Results get shared, so a path outside the folder is cut to its name: an absolute or
     # `../` path could reveal a user name or folder layout. normpath, not resolve(), so a
     # symlinked folder keeps the name the user wrote.
