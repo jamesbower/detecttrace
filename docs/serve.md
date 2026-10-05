@@ -102,16 +102,19 @@ It exits with code 1 and a short explanation when it can't start:
 - the database folder doesn't exist. The service creates the database file, but never its folder, so a typo in the path can't start an empty service somewhere else,
 - the database was written by a newer DetectTrace,
 - the database file is damaged or isn't a DetectTrace database,
+- the database can't be read, for example because another program holds a lock on it,
 - the checklist folder doesn't exist, or holds no checklist file,
 - a checklist file is invalid or unreadable, or two files cover the same alert class,
 - the port is in use or can't be opened; the line logged before the error says why,
 - the `serve` extra isn't installed.
 
+Any other error stops the service with exit code 2 and prints the error, its message and its traceback to standard error. Please report it.
+
 It stops cleanly on `SIGTERM`, which is what `docker stop` sends, and on `SIGINT` (Ctrl+C), and exits with code 0. It stops within seconds: requests in flight get up to 5 seconds to finish, and a recompute that is running is ended at once. That is safe, because a recompute only reads the database; the last finished dashboard stays, and the service recomputes on its next start.
 
 ## Tokens
 
-Every request except the health check needs an access token. A token has one of three roles:
+Every route that reads or writes data needs an access token. Only the health check, and the `404` or `405` for a path or method the service doesn't have, answer without one. A token has one of three roles:
 
 | Role | What it may do |
 |---|---|
@@ -194,7 +197,7 @@ dashboard:
 
 ## Sending spans from a Collector
 
-Add an `otlp_http` exporter that points at the service. Older Collector releases call it `otlphttp`. It must send JSON: set `encoding: json`. The service doesn't read OTLP protobuf. The Collector's default gzip compression is fine.
+Add an `otlp_http` exporter that points at the service. Older Collector releases call it `otlphttp`. It must send JSON: set `encoding: json`. The service doesn't read OTLP protobuf: it answers `415`, which the Collector doesn't retry, and lists the refused requests in the dashboard's data notes. The Collector's default gzip compression is fine.
 
 ```yaml
 receivers:
@@ -225,9 +228,9 @@ service:
 - **The token comes from the environment.** `${env:DETECTTRACE_INGEST_TOKEN}` is the Collector's syntax for an environment variable, so the token stays out of the file.
 - **Protect the receiver.** The Collector forwards whatever it receives with the ingest token. Unless only trusted processes can reach its receiver, require a token there too. `deploy/collector.yaml` does this with the `bearertokenauth` extension.
 - **Keep your existing backend.** Add `otlp_http/detecttrace` as a second exporter in the traces pipeline; your other exporters still get every span.
-- **Batch size.** `send_batch_max_size` keeps each request well under the [size limit](#limits). A request over it gets 413.
-- **Compression.** Leave `compression` unset (gzip) or set it to `none`. Other values, such as `zstd` or `snappy`, get 415.
-- **Retries.** The exporter retries a 503 on its own, after the `Retry-After` the service sends. Sending the same batch twice is safe: a span already stored is ignored.
+- **Batch size.** `send_batch_max_size` keeps each request well under the [size limit](#limits). A request over it gets 413, and a data note.
+- **Compression.** Leave `compression` unset (gzip) or set it to `none`. Other values, such as `zstd` or `snappy`, get 415, and a data note.
+- **Retries.** The exporter retries a 503 on its own, after the `Retry-After` the service sends. Sending the same batch twice is safe: a span already stored is ignored, and the dashboard isn't recomputed for it.
 
 The spans need the same attributes as for `check`; see [Trace attributes](attributes.md).
 
@@ -262,7 +265,7 @@ curl https://detecttrace.example.com:4320/healthz
 
 ### `POST /v1/traces`
 
-Role `ingest`. One OTLP JSON trace export request, as the Collector's `otlp_http` exporter sends it. `Content-Type` must be `application/json`; `Content-Encoding` may be `gzip`.
+Role `ingest`. One OTLP JSON trace export request, as the Collector's `otlp_http` exporter sends it. `Content-Type` must be `application/json`, with no charset or `charset=utf-8` (`utf8` works too); `Content-Encoding` may be `gzip`.
 
 ```sh
 curl https://detecttrace.example.com:4320/v1/traces \
@@ -333,7 +336,7 @@ The answer counts the stored rows and lists the rejected ones:
 {"accepted": 2, "rejected": []}
 ```
 
-The body must be UTF-8. A newer verdict for a case replaces the current one; the replaced verdict is kept in the database's history, with the name of the token that sent it. Sending the same verdict again changes nothing, so retries are safe.
+The body must be UTF-8: send no charset, or `charset=utf-8` (`utf8` works too). A newer verdict for a case replaces the current one; the replaced verdict is kept in the database's history, with the name of the token that sent it. Sending the same verdict again changes nothing, not even the dashboard, so retries are safe.
 
 **Partial success.** Rows are checked one by one. Good rows are stored even when others are rejected, and the answer is `200`. A row is rejected when a column is missing or empty, a value holds a line break, its label isn't in `label_map`, or its `case_id` already appeared earlier in the same request. A rejected row is not stored: after you fix the cause, send it again.
 
@@ -459,14 +462,14 @@ No answer ever repeats the token a client sent.
 | `400` | The body can't be read at all: not JSON, not an OTLP trace export, broken gzip or more than 64 gzip members, not UTF-8, a verdict body without a `verdicts` list, or a CSV without the required columns. A bad trace body is also listed in the data notes. | No. Fix the sender. |
 | `401` | The token is missing or unknown. | No. Check the token. |
 | `403` | The token is valid but has another role. | No. Use a token of the right role. |
-| `413` | The body is over the size limit, or a verdict request has more than 10,000 rows. | No. Send smaller requests; for a Collector, lower `send_batch_max_size`. |
-| `415` | The `Content-Type` or `Content-Encoding` isn't accepted, such as OTLP protobuf or zstd. | No. Send JSON (traces) or JSON or CSV (verdicts), plain or gzip. |
+| `413` | The body is over the size limit, or a verdict request has more than 10,000 rows. A refused trace request is also listed in the data notes. | No. Send smaller requests; for a Collector, lower `send_batch_max_size`. |
+| `415` | The `Content-Type`, its charset or the `Content-Encoding` isn't accepted, such as OTLP protobuf or zstd. A refused trace request is also listed in the data notes. | No. Send JSON (traces) or JSON or CSV (verdicts), in UTF-8, plain or gzip. |
 | `422` | A verdict request in which no row was accepted. The body lists each reason. | No. Fix the rows. |
 | `503` | The database can't be read or written right now, the body didn't arrive within 30 seconds, or `/api/results.json` was asked for before the first recompute finished. Comes with `Retry-After: 5`. | Yes, after the `Retry-After` delay. |
 
 ## How the dashboard updates
 
-The service recomputes the dashboard in the background: 5 seconds after the last write, and at least once every 60 seconds while data keeps arriving. No request waits for it; the page always shows the last finished dashboard.
+The service recomputes the dashboard in the background: 5 seconds after the last write, and at least once every 60 seconds while data keeps arriving. Only a write that changed the stored data counts: a retried batch, a repeated bad request or an identical verdict causes no recompute. No request waits for it; the page always shows the last finished dashboard.
 
 **Settling.** A case counts once its agent run's root span ended `settle_seconds` ago (300 by default), because its tool calls and verdict may still be on their way. Its verdict waits with it. Until then it is held back, and the page and `/api/status` say how many cases are held back. When the first held-back case settles, the service recomputes again, even without new data. Set `settle_seconds` to `0` to count every case at once.
 
@@ -474,7 +477,7 @@ Settling compares the server's clock with the end time the agent reported. A cas
 
 **The page never reloads by itself.** When newer results exist, it shows a "New data is available" bar. Reload the page to see them.
 
-**When a recompute fails**, the last good dashboard stays in place, and `/api/status` shows the error. The service tries again on the next write, waiting at least 5 seconds after the failure, doubling with each failure in a row up to 5 minutes. The full error goes to the log.
+**When a recompute fails**, the last good dashboard stays in place, and `/api/status` shows the error. The service tries again on the next write that changes the stored data, waiting at least 5 seconds after the failure, doubling with each failure in a row up to 5 minutes. The full error goes to the log.
 
 ### How the served dashboard differs from `check`
 
@@ -483,7 +486,7 @@ On the same spans and verdicts, the service gives the same results as `check`, w
 - **Unmapped verdict labels.** The verdict API rejects a row whose label isn't in `label_map`, so that case has no verdict and stays unscored, with a `root_without_verdict` data note. `check` scores such a case with an unknown analyst verdict and an `unmapped_analyst_label` note. Rejected rows are not stored: after you fix `label_map` and restart the service, send them again.
 - **A case's verdict can change.** A newer verdict for a case replaces the older one, which is kept in the database's history. `check` reports a case ID that appears twice in its CSV.
 - **Retried spans.** An identical copy of a stored span, as a client's retry sends, is dropped without a note. `check` notes a span that appears in more than one file.
-- **Broken requests.** A request that can't be read is refused with an error status, rather than read in part and reported as a note about a file, as `check` does.
+- **Broken requests.** A request that can't be read is refused with an error status, rather than read in part as `check` reads a file. A refused trace request (`400`, `413` or `415`) is also counted in the data notes. A refused verdict request isn't: the tool that sent it gets the reason in the answer.
 - **Settling.** Cases are counted once their root span ended `settle_seconds` ago, and a case dated in the future gets a `future_case_end` note. `check` counts every case in its files.
 - **Sources.** The results name the endpoints, not files, and add a `served` block.
 
@@ -549,10 +552,10 @@ DetectTrace itself never sends data anywhere: no telemetry, no update checks. Th
 - **Tokens** are stored only as hashes and never logged.
 - **The access log** records the method, path, status, client address and duration of each request: never headers, bodies or query strings. The client address is the one the connection comes from; `X-Forwarded-For` is ignored, so behind a reverse proxy the log shows the proxy's address.
 
-Every response, errors included, carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, so no browser or proxy keeps a copy. The dashboard page also carries `Content-Security-Policy: frame-ancestors 'none'`, so other sites can't frame it.
+Every response from the service, errors included, carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, so no browser or proxy keeps a copy. The dashboard page also carries `Content-Security-Policy: frame-ancestors 'none'`, so other sites can't frame it. A request too malformed to be read as HTTP is answered by the web server itself, before it reaches the service, and its `400` carries none of these headers.
 
 ## Operations
 
 - **Slow clients.** Each request must deliver its body within 30 seconds, but the service sets no other read timeout. On a network you don't trust, put a reverse proxy in front to protect the service from slow or idle connections.
 - **Memory.** Allow 3 GiB for about 50,000 cases, as `compose.yaml` does. The recompute runs in a separate worker process and peaks at about 1.5 GB at that scale; the whole container peaked at 1.76 GiB. A trace request near the size limit can also use a few hundred MiB while it is parsed; at most 4 are parsed at once, which bounds that part.
-- **Logs.** The service logs to standard error. A failed recompute logs its full error, with the traceback; `/api/status` shows only the error type and message.
+- **Logs.** The service logs to standard error. A failed recompute logs its full error, with the traceback; `/api/status` shows only the error type and message. An unexpected error that stops the service prints its traceback there too.
