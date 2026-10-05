@@ -1,0 +1,1001 @@
+{
+  "view_version": 1,
+  "header": {
+    "title": "DetectTrace",
+    "sources": [
+      {
+        "name": "traces",
+        "path": "traces"
+      },
+      {
+        "name": "verdicts",
+        "path": "verdicts.csv"
+      },
+      {
+        "name": "config",
+        "path": "detecttrace.yaml"
+      }
+    ],
+    "cases_text": "33 in 1 alert class",
+    "period_text": "2026-W32 to 2026-W39 (8 weeks, UTC)",
+    "versions_text": "v1, v2, v3, v4, v5, v6, v7, v8",
+    "low_coverage_text": null
+  },
+  "classes": [
+    {
+      "anchor": "class-0",
+      "name": "impossible_travel",
+      "cases_text": "33 cases",
+      "versions_text": "v1, v3, v4, v6, v7, v8, (other versions: v2, v5)",
+      "pooled_note": "At most six versions are shown per class, by number of cases. v2, v5 have the fewest cases here and are pooled as one group.",
+      "rows": [
+        {
+          "label": "All versions",
+          "style": "all",
+          "is_all": true,
+          "cases_text": "33",
+          "few_note": null,
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 33",
+            "few_note": null,
+            "strip": null
+          },
+          "agreement": {
+            "value": "88%",
+            "interval": "73–95%",
+            "note": null,
+            "n_text": "n = 33",
+            "few_note": null,
+            "strip": {
+              "range_x": 72.7,
+              "range_width": 22.5,
+              "point_x": 87.9,
+              "point_left": 87.3,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.81",
+            "interval": "0.61–0.95",
+            "note": null,
+            "n_text": "n = 33",
+            "few_note": null,
+            "strip": {
+              "range_x": 80.6,
+              "range_width": 17.1,
+              "point_x": 90.4,
+              "point_left": 89.8,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "1",
+          "is_dangerous": true,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v1",
+          "style": "1",
+          "is_all": false,
+          "cases_text": "3",
+          "few_note": "Few cases.",
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 3",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "agreement": {
+            "value": "100%",
+            "interval": "44–100%",
+            "note": null,
+            "n_text": "n = 3",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 43.9,
+              "range_width": 56.1,
+              "point_x": 100.0,
+              "point_left": 99.4,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "1.00",
+            "interval": null,
+            "note": "No interval (too few usable resamples); 314 of 1,000 resamples dropped",
+            "n_text": "n = 3",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v3",
+          "style": "2",
+          "is_all": false,
+          "cases_text": "4",
+          "few_note": "Few cases.",
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "agreement": {
+            "value": "100%",
+            "interval": "51% to >99%",
+            "note": null,
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 51.0,
+              "range_width": 49.0,
+              "point_x": 100.0,
+              "point_left": 99.4,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "1.00",
+            "interval": null,
+            "note": "No interval (too few usable resamples); 134 of 1,000 resamples dropped",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v4",
+          "style": "3",
+          "is_all": false,
+          "cases_text": "7",
+          "few_note": "Few cases.",
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 7",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "agreement": {
+            "value": "86%",
+            "interval": "49–97%",
+            "note": null,
+            "n_text": "n = 7",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 48.7,
+              "range_width": 48.7,
+              "point_x": 85.7,
+              "point_left": 85.1,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.73",
+            "interval": "0.00–1.00",
+            "note": "20 of 1,000 resamples dropped",
+            "n_text": "n = 7",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 50.0,
+              "range_width": 50.0,
+              "point_x": 86.5,
+              "point_left": 85.9,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v6",
+          "style": "4",
+          "is_all": false,
+          "cases_text": "7",
+          "few_note": "Few cases.",
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 7",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "agreement": {
+            "value": "71%",
+            "interval": "36–92%",
+            "note": null,
+            "n_text": "n = 7",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 35.9,
+              "range_width": 55.9,
+              "point_x": 71.4,
+              "point_left": 70.8,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.52",
+            "interval": "0.00–1.00",
+            "note": "3 of 1,000 resamples dropped",
+            "n_text": "n = 7",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 50.0,
+              "range_width": 50.0,
+              "point_x": 75.9,
+              "point_left": 75.3,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v7",
+          "style": "5",
+          "is_all": false,
+          "cases_text": "4",
+          "few_note": "Few cases.",
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "agreement": {
+            "value": "100%",
+            "interval": "51% to >99%",
+            "note": null,
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 51.0,
+              "range_width": 49.0,
+              "point_x": 100.0,
+              "point_left": 99.4,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "1.00",
+            "interval": null,
+            "note": "No interval (too few usable resamples); 327 of 1,000 resamples dropped",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v8",
+          "style": "6",
+          "is_all": false,
+          "cases_text": "4",
+          "few_note": "Few cases.",
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "agreement": {
+            "value": "75%",
+            "interval": "30–95%",
+            "note": null,
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 30.1,
+              "range_width": 65.3,
+              "point_x": 75.0,
+              "point_left": 74.4,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.60",
+            "interval": "0.00–1.00",
+            "note": "63 of 1,000 resamples dropped",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 50.0,
+              "range_width": 50.0,
+              "point_x": 80.0,
+              "point_left": 79.4,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "1",
+          "is_dangerous": true,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "(other versions: v2, v5)",
+          "style": "other",
+          "is_all": false,
+          "cases_text": "4",
+          "few_note": "Few cases.",
+          "completeness": {
+            "value": "n/a",
+            "interval": null,
+            "note": "No checklist for this class.",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": null
+          },
+          "agreement": {
+            "value": "100%",
+            "interval": "51% to >99%",
+            "note": null,
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 51.0,
+              "range_width": 49.0,
+              "point_x": 100.0,
+              "point_left": 99.4,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "1.00",
+            "interval": "1.00–1.00",
+            "note": "73 of 1,000 resamples dropped",
+            "n_text": "n = 4",
+            "few_note": "Few cases.",
+            "strip": {
+              "range_x": 100.0,
+              "range_width": 0.8,
+              "point_x": 100.0,
+              "point_left": 99.4,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        }
+      ],
+      "skipped": {
+        "steps_text": "No checklist steps",
+        "columns": [],
+        "rows": [],
+        "empty_text": "No checklist for this class."
+      },
+      "trend": {
+        "weeks": [
+          "2026-W32",
+          "2026-W33",
+          "2026-W34",
+          "2026-W35",
+          "2026-W36",
+          "2026-W37",
+          "2026-W38",
+          "2026-W39"
+        ],
+        "period_text": "2026-W32 to 2026-W39",
+        "completeness": {
+          "title": "Evidence completeness",
+          "lines": [],
+          "table_rows": [],
+          "empty_text": "No checklist for this class."
+        },
+        "agreement": {
+          "title": "Verdict agreement",
+          "lines": [
+            {
+              "style": "all",
+              "scope": "all",
+              "label": "All versions",
+              "values": [
+                1.0,
+                1.0,
+                1.0,
+                0.8571428571428571,
+                1.0,
+                0.7142857142857143,
+                1.0,
+                0.75
+              ],
+              "counts": [
+                3,
+                2,
+                4,
+                7,
+                2,
+                7,
+                4,
+                4
+              ],
+              "few": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "style": "1",
+              "scope": "version",
+              "label": "v1",
+              "values": [
+                1.0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                3,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "2",
+              "scope": "version",
+              "label": "v3",
+              "values": [
+                null,
+                null,
+                1.0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                0,
+                0,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "3",
+              "scope": "version",
+              "label": "v4",
+              "values": [
+                null,
+                null,
+                null,
+                0.8571428571428571,
+                null,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                0,
+                0,
+                0,
+                7,
+                0,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "4",
+              "scope": "version",
+              "label": "v6",
+              "values": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                0.7142857142857143,
+                null,
+                null
+              ],
+              "counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                7,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "5",
+              "scope": "version",
+              "label": "v7",
+              "values": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1.0,
+                null
+              ],
+              "counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                4,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false
+              ]
+            },
+            {
+              "style": "6",
+              "scope": "version",
+              "label": "v8",
+              "values": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0.75
+              ],
+              "counts": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                4
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true
+              ]
+            },
+            {
+              "style": "other",
+              "scope": "other",
+              "label": "(other versions: v2, v5)",
+              "values": [
+                null,
+                1.0,
+                null,
+                null,
+                1.0,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                0,
+                2,
+                0,
+                0,
+                2,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                true,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false
+              ]
+            }
+          ],
+          "table_rows": [
+            {
+              "week": "2026-W32",
+              "cells": [
+                "100% (n 3) Few cases.",
+                "100% (n 3) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W33",
+              "cells": [
+                "100% (n 2) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "100% (n 2) Few cases."
+              ]
+            },
+            {
+              "week": "2026-W34",
+              "cells": [
+                "100% (n 4) Few cases.",
+                "no cases",
+                "100% (n 4) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W35",
+              "cells": [
+                "86% (n 7) Few cases.",
+                "no cases",
+                "no cases",
+                "86% (n 7) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W36",
+              "cells": [
+                "100% (n 2) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "100% (n 2) Few cases."
+              ]
+            },
+            {
+              "week": "2026-W37",
+              "cells": [
+                "71% (n 7) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "71% (n 7) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W38",
+              "cells": [
+                "100% (n 4) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "100% (n 4) Few cases.",
+                "no cases",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W39",
+              "cells": [
+                "75% (n 4) Few cases.",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "no cases",
+                "75% (n 4) Few cases.",
+                "no cases"
+              ]
+            }
+          ],
+          "empty_text": null
+        },
+        "version_first_weeks": {
+          "v1": "2026-W32",
+          "v3": "2026-W34",
+          "v4": "2026-W35",
+          "v6": "2026-W37",
+          "v7": "2026-W38",
+          "v8": "2026-W39"
+        },
+        "few_legend_text": "Hollow marker: fewer than 10 cases"
+      },
+      "confusion": {
+        "n_text": "n = 33",
+        "dangerous_text": "1 dangerous false close",
+        "column_labels": [
+          "Agent: true positive",
+          "Agent: false positive",
+          "Agent: benign"
+        ],
+        "rows": [
+          {
+            "label": "Analyst: true positive",
+            "cells": [
+              {
+                "count_text": "5",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "1",
+                "heat": "h-off-1",
+                "is_dangerous": true,
+                "is_flagged": true
+              },
+              {
+                "count_text": "0",
+                "heat": "h-0",
+                "is_dangerous": true,
+                "is_flagged": false
+              }
+            ]
+          },
+          {
+            "label": "Analyst: false positive",
+            "cells": [
+              {
+                "count_text": "1",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "12",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "2",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              }
+            ]
+          },
+          {
+            "label": "Analyst: benign",
+            "cells": [
+              {
+                "count_text": "0",
+                "heat": "h-0",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "0",
+                "heat": "h-0",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "12",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "cases": {
+    "total_text": "33",
+    "detail_count_text": "4",
+    "detail_sentence": "Tool calls are included for 4 notable cases (dashboard.max_detail_cases); tool results are never included.",
+    "class_filters": [
+      {
+        "class_index": 0,
+        "label": "impossible_travel"
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "text": "33 of 33 verdicts matched a trace (100%).",
+      "hint": null,
+      "is_low": false
+    },
+    {
+      "text": "33 of 33 traces matched a verdict (100%).",
+      "hint": null,
+      "is_low": false
+    }
+  ],
+  "notes": [
+    {
+      "severity": "warning",
+      "severity_label": "Warning",
+      "count_text": "314",
+      "message": "of 1,000 resamples for chance-corrected agreement in impossible_travel, v1, were dropped because it was undefined in them.",
+      "hint": "The interval for chance-corrected agreement is built from the remaining resamples; more cases with both verdicts make it steadier.",
+      "examples": [],
+      "more_text": null
+    },
+    {
+      "severity": "warning",
+      "severity_label": "Warning",
+      "count_text": "134",
+      "message": "of 1,000 resamples for chance-corrected agreement in impossible_travel, v3, were dropped because it was undefined in them.",
+      "hint": "The interval for chance-corrected agreement is built from the remaining resamples; more cases with both verdicts make it steadier.",
+      "examples": [],
+      "more_text": null
+    },
+    {
+      "severity": "warning",
+      "severity_label": "Warning",
+      "count_text": "20",
+      "message": "of 1,000 resamples for chance-corrected agreement in impossible_travel, v4, were dropped because it was undefined in them.",
+      "hint": "The interval for chance-corrected agreement is built from the remaining resamples; more cases with both verdicts make it steadier.",
+      "examples": [],
+      "more_text": null
+    },
+    {
+      "severity": "warning",
+      "severity_label": "Warning",
+      "count_text": "3",
+      "message": "of 1,000 resamples for chance-corrected agreement in impossible_travel, v6, were dropped because it was undefined in them.",
+      "hint": "The interval for chance-corrected agreement is built from the remaining resamples; more cases with both verdicts make it steadier.",
+      "examples": [],
+      "more_text": null
+    },
+    {
+      "severity": "warning",
+      "severity_label": "Warning",
+      "count_text": "327",
+      "message": "of 1,000 resamples for chance-corrected agreement in impossible_travel, v7, were dropped because it was undefined in them.",
+      "hint": "The interval for chance-corrected agreement is built from the remaining resamples; more cases with both verdicts make it steadier.",
+      "examples": [],
+      "more_text": null
+    },
+    {
+      "severity": "warning",
+      "severity_label": "Warning",
+      "count_text": "63",
+      "message": "of 1,000 resamples for chance-corrected agreement in impossible_travel, v8, were dropped because it was undefined in them.",
+      "hint": "The interval for chance-corrected agreement is built from the remaining resamples; more cases with both verdicts make it steadier.",
+      "examples": [],
+      "more_text": null
+    },
+    {
+      "severity": "warning",
+      "severity_label": "Warning",
+      "count_text": "73",
+      "message": "of 1,000 resamples for chance-corrected agreement in impossible_travel, (other versions: v2, v5), were dropped because it was undefined in them.",
+      "hint": "The interval for chance-corrected agreement is built from the remaining resamples; more cases with both verdicts make it steadier.",
+      "examples": [],
+      "more_text": null
+    }
+  ],
+  "limits": [
+    {
+      "term": "Why the numbers changed.",
+      "text": "A drop after a new version can come from the prompt, a change in the alert mix, or a log source that stopped. The POC does not separate these."
+    },
+    {
+      "term": "Whether the agent's claims match the evidence.",
+      "text": "The POC checks which steps ran, not what the results showed."
+    },
+    {
+      "term": "When to act.",
+      "text": "There is no baseline and no alert. You read the numbers and choose what to do."
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 """The check gives exactly the numbers in each golden file: the demo's and every fixture's.
 
-The demo also has a golden dashboard page.
+The demo also has a golden dashboard page, and the demo and a few fixtures a golden view model
+for the React dashboard's tests.
 
 After an intended change, rewrite the golden files with
 `uv run python scripts/synthetic/generate.py --update-golden` and review the diff.
@@ -28,6 +29,7 @@ FIXTURE_ROOT = fixture_specs.FIXTURE_ROOT
 # Outside the package so it doesn't ship in every wheel; unlike fixture goldens it has no `keep`.
 DEMO_GOLDEN = FIXTURE_ROOT / "demo" / generate.GOLDEN_NAME
 DEMO_GOLDEN_HTML = FIXTURE_ROOT / "demo" / generate.GOLDEN_HTML_NAME
+DEMO_GOLDEN_VIEW = FIXTURE_ROOT / "demo" / generate.VIEW_GOLDEN_NAME
 FORMATS_DIR = FIXTURE_ROOT / "formats"
 NEEDS_ZSTD = pytest.mark.skipif(
     importlib.util.find_spec("zstandard") is None, reason="zstandard is not installed"
@@ -114,6 +116,27 @@ def test_demo_command_writes_the_golden_dashboard(demo_command: tuple[int, Path]
     assert (
         _first_difference(expected, generate.normalize_dashboard(text), DEMO_GOLDEN_HTML.name) == ""
     )
+
+
+def test_demo_view_matches_the_golden_view() -> None:
+    expected = DEMO_GOLDEN_VIEW.read_text(encoding="utf-8")
+    config_path = DEMO_DIR / "detecttrace.yaml"
+
+    actual = generate.to_view_golden_text(
+        run_check(load_run_config(config_path), config_path).results
+    )
+
+    assert _first_difference(expected, actual, DEMO_GOLDEN_VIEW.name) == ""
+
+
+@pytest.mark.parametrize("name", fixture_specs.VIEW_FIXTURES)
+def test_fixture_view_matches_its_golden_view(name: str) -> None:
+    folder = FIXTURE_ROOT / name
+    expected = (folder / generate.VIEW_GOLDEN_NAME).read_text(encoding="utf-8")
+
+    actual = fixture_specs.to_view_text(folder)
+
+    assert _first_difference(expected, actual, generate.VIEW_GOLDEN_NAME) == ""
 
 
 @pytest.fixture(scope="module")

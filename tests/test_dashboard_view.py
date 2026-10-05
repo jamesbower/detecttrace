@@ -1,20 +1,26 @@
 import json
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from detecttrace.dashboard_view import (
+    DashboardView,
+    StripView,
     build_view,
     format_kappa,
     format_kappa_range,
     format_percent,
     format_percent_range,
+    to_view_json,
 )
-from detecttrace.summary import JoinCoverage, coverage_lines
+from detecttrace.summary import JoinCoverage, coverage_lines, to_visible_text
 
 DEMO_GOLDEN = Path(__file__).parent / "fixtures" / "demo" / "expected.json"
 UNSET: Any = object()
+# The control and bidirectional payload of test_dashboard_security.py.
+HOSTILE_TEXT = f"a{chr(0x1B)}[31m{chr(0x202E)}b{chr(0x07)}"
 
 
 def interval(low: float, high: float) -> dict[str, float]:
@@ -838,3 +844,62 @@ def test_an_unknown_schema_version_is_named_in_the_error() -> None:
 def test_the_demo_results_build_two_classes() -> None:
     demo = json.loads(DEMO_GOLDEN.read_text(encoding="utf-8"))
     assert len(build_view(demo).classes) == 2
+
+
+# JSON form
+
+
+def demo_view_json() -> dict[str, object]:
+    return to_view_json(build_view(json.loads(DEMO_GOLDEN.read_text(encoding="utf-8"))))
+
+
+def test_the_view_json_carries_the_view_version() -> None:
+    assert demo_view_json()["view_version"] == 1
+
+
+def test_the_view_json_is_byte_identical_across_calls() -> None:
+    assert json.dumps(demo_view_json(), ensure_ascii=False) == json.dumps(
+        demo_view_json(), ensure_ascii=False
+    )
+
+
+def test_the_view_json_lists_every_view_field_in_order_after_the_version() -> None:
+    assert list(demo_view_json()) == [
+        "view_version",
+        *(field.name for field in fields(DashboardView)),
+    ]
+
+
+def test_the_view_json_keeps_a_mapping_in_its_own_key_order() -> None:
+    entries = [version_entry("v2"), version_entry("v1", first_week="2026-W11")]
+    data: Any = to_view_json(build_view(results([class_data(entries=entries)])))
+
+    assert list(data["classes"][0]["trend"]["version_first_weeks"]) == ["v2", "v1"]
+
+
+def test_the_view_json_turns_tuples_into_lists() -> None:
+    assert isinstance(demo_view_json()["classes"], list)
+
+
+@pytest.mark.parametrize("character", [chr(0x1B), chr(0x202E), chr(0x07)])
+def test_the_view_json_holds_no_raw_control_or_bidi_character(character: str) -> None:
+    view = build_view(results([class_data(alert_class=HOSTILE_TEXT)]))
+
+    assert character not in json.dumps(to_view_json(view), ensure_ascii=False)
+
+
+def test_the_view_json_holds_the_visible_form_of_a_hostile_class_name() -> None:
+    data: Any = to_view_json(build_view(results([class_data(alert_class=HOSTILE_TEXT)])))
+
+    assert data["classes"][0]["name"] == to_visible_text(HOSTILE_TEXT)
+
+
+def test_the_view_json_refuses_a_number_json_cannot_hold() -> None:
+    view = build_view(results())
+    row = view.classes[0].rows[0]
+    strip = StripView(float("nan"), 1.0, 50.0, 49.4, 1.2)
+    bad_row = replace(row, agreement=replace(row.agreement, strip=strip))
+    bad_view = replace(view, classes=(replace(view.classes[0], rows=(bad_row,)),))
+
+    with pytest.raises(ValueError, match="nan"):
+        to_view_json(bad_view)

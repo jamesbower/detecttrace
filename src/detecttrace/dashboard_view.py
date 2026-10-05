@@ -5,11 +5,14 @@ loops and branches. Labels are raw text for an autoescaping template; text that 
 input (classes, versions, checklist items, paths, data notes) has its control and bidirectional
 characters made visible first. Numbers are formatted without the locale, so every machine writes
 the same page. Chart geometry is not computed here: `charts.trend_chart` lays out `TrendView`.
+
+`to_view_json` turns the view into JSON-ready data for the React dashboard, whose TypeScript
+types `scripts/generate_view_types.py` generates from these dataclasses.
 """
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import date
 from typing import Any
 
@@ -23,6 +26,9 @@ from detecttrace.summary import (
     to_visible_text,
 )
 
+# Raised whenever the JSON shape of the view changes, so the React app can refuse a view it
+# does not know.
+VIEW_VERSION = 1
 FEW_CASES_BELOW = 10
 FEW_CASES_TEXT = "Few cases."
 FEW_CASES_LEGEND_TEXT = f"Hollow marker: fewer than {FEW_CASES_BELOW} cases"
@@ -333,6 +339,15 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
     )
 
 
+def to_view_json(view: DashboardView) -> dict[str, object]:
+    """The view as JSON-ready data: `view_version` first, then every field in declaration order.
+
+    Tuples become lists and mappings keep their key order. Raises ValueError for a NaN or
+    infinite number, which JSON cannot hold.
+    """
+    return {"view_version": VIEW_VERSION, **_to_json_object(view)}
+
+
 def format_percent(value: float) -> str:
     return f"{_to_percent_number(value)}%"
 
@@ -365,6 +380,24 @@ def format_kappa_range(low: float, high: float) -> str:
 
 def format_count(count: int) -> str:
     return f"{count:,}"
+
+
+def _to_json_object(view: Any) -> dict[str, object]:
+    return {field.name: _to_json_value(getattr(view, field.name)) for field in fields(view)}
+
+
+def _to_json_value(value: object) -> object:
+    if is_dataclass(value):
+        return _to_json_object(value)
+    if isinstance(value, Mapping):
+        return {key: _to_json_value(item) for key, item in value.items()}
+    if isinstance(value, tuple | list):
+        return [_to_json_value(item) for item in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"the dashboard view holds {value}, which JSON cannot represent")
+    if value is None or isinstance(value, str | int | float):
+        return value
+    raise TypeError(f"the dashboard view holds a {type(value).__name__}, which has no JSON form")
 
 
 def _to_percent_number(value: float) -> str:

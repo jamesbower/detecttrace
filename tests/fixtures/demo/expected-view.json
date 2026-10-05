@@ -1,0 +1,1365 @@
+{
+  "view_version": 1,
+  "header": {
+    "title": "DetectTrace",
+    "sources": [
+      {
+        "name": "traces",
+        "path": "traces"
+      },
+      {
+        "name": "verdicts",
+        "path": "verdicts.csv"
+      },
+      {
+        "name": "checklists",
+        "path": "checklists"
+      },
+      {
+        "name": "config",
+        "path": "detecttrace.yaml"
+      }
+    ],
+    "cases_text": "201 in 2 alert classes",
+    "period_text": "2026-W32 to 2026-W37 (6 weeks, UTC)",
+    "versions_text": "v1, v2",
+    "low_coverage_text": null
+  },
+  "classes": [
+    {
+      "anchor": "class-0",
+      "name": "impossible_travel",
+      "cases_text": "106 cases",
+      "versions_text": "v1, v2",
+      "pooled_note": null,
+      "rows": [
+        {
+          "label": "All versions",
+          "style": "all",
+          "is_all": true,
+          "cases_text": "106",
+          "few_note": null,
+          "completeness": {
+            "value": "81%",
+            "interval": "78–85%",
+            "note": null,
+            "n_text": "n = 106",
+            "few_note": null,
+            "strip": {
+              "range_x": 78.1,
+              "range_width": 6.4,
+              "point_x": 81.3,
+              "point_left": 80.7,
+              "point_width": 1.2
+            }
+          },
+          "agreement": {
+            "value": "90%",
+            "interval": "82–94%",
+            "note": null,
+            "n_text": "n = 106",
+            "few_note": null,
+            "strip": {
+              "range_x": 82.4,
+              "range_width": 11.7,
+              "point_x": 89.6,
+              "point_left": 89.0,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.83",
+            "interval": "0.73–0.92",
+            "note": null,
+            "n_text": "n = 106",
+            "few_note": null,
+            "strip": {
+              "range_x": 86.4,
+              "range_width": 9.8,
+              "point_x": 91.3,
+              "point_left": 90.7,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "3",
+          "is_dangerous": true,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v1",
+          "style": "1",
+          "is_all": false,
+          "cases_text": "36",
+          "few_note": null,
+          "completeness": {
+            "value": "93%",
+            "interval": "89–97%",
+            "note": null,
+            "n_text": "n = 36",
+            "few_note": null,
+            "strip": {
+              "range_x": 88.8,
+              "range_width": 8.0,
+              "point_x": 92.8,
+              "point_left": 92.2,
+              "point_width": 1.2
+            }
+          },
+          "agreement": {
+            "value": "89%",
+            "interval": "75–96%",
+            "note": null,
+            "n_text": "n = 36",
+            "few_note": null,
+            "strip": {
+              "range_x": 74.7,
+              "range_width": 20.9,
+              "point_x": 88.9,
+              "point_left": 88.3,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.82",
+            "interval": "0.64–0.96",
+            "note": null,
+            "n_text": "n = 36",
+            "few_note": null,
+            "strip": {
+              "range_x": 82.1,
+              "range_width": 15.8,
+              "point_x": 91.1,
+              "point_left": 90.5,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v2",
+          "style": "2",
+          "is_all": false,
+          "cases_text": "70",
+          "few_note": null,
+          "completeness": {
+            "value": "75%",
+            "interval": "72–79%",
+            "note": null,
+            "n_text": "n = 70",
+            "few_note": null,
+            "strip": {
+              "range_x": 71.7,
+              "range_width": 7.5,
+              "point_x": 75.4,
+              "point_left": 74.8,
+              "point_width": 1.2
+            }
+          },
+          "agreement": {
+            "value": "90%",
+            "interval": "81–95%",
+            "note": null,
+            "n_text": "n = 70",
+            "few_note": null,
+            "strip": {
+              "range_x": 80.8,
+              "range_width": 14.3,
+              "point_x": 90.0,
+              "point_left": 89.4,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.83",
+            "interval": "0.69–0.94",
+            "note": null,
+            "n_text": "n = 70",
+            "few_note": null,
+            "strip": {
+              "range_x": 84.5,
+              "range_width": 12.7,
+              "point_x": 91.3,
+              "point_left": 90.7,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "3",
+          "is_dangerous": true,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        }
+      ],
+      "skipped": {
+        "steps_text": "5 checklist steps",
+        "columns": [
+          {
+            "label": "v1",
+            "style": "1",
+            "n_text": "n = 36",
+            "few_note": null
+          },
+          {
+            "label": "v2",
+            "style": "2",
+            "n_text": "n = 70",
+            "few_note": null
+          }
+        ],
+        "rows": [
+          {
+            "item": "signin_history",
+            "cells": [
+              {
+                "rate_text": "3%",
+                "count_text": "1 of 36",
+                "bar_width": 2.8,
+                "few_note": null
+              },
+              {
+                "rate_text": "36%",
+                "count_text": "25 of 70",
+                "bar_width": 35.7,
+                "few_note": null
+              }
+            ]
+          },
+          {
+            "item": "signin_query",
+            "cells": [
+              {
+                "rate_text": "17%",
+                "count_text": "6 of 36",
+                "bar_width": 16.7,
+                "few_note": null
+              },
+              {
+                "rate_text": "6%",
+                "count_text": "4 of 70",
+                "bar_width": 5.7,
+                "few_note": null
+              }
+            ]
+          },
+          {
+            "item": "mfa_check",
+            "cells": [
+              {
+                "rate_text": "0%",
+                "count_text": "0 of 36",
+                "bar_width": 0.0,
+                "few_note": null
+              },
+              {
+                "rate_text": "73%",
+                "count_text": "51 of 70",
+                "bar_width": 72.9,
+                "few_note": null
+              }
+            ]
+          },
+          {
+            "item": "ip_reputation",
+            "cells": [
+              {
+                "rate_text": "3%",
+                "count_text": "1 of 36",
+                "bar_width": 2.8,
+                "few_note": null
+              },
+              {
+                "rate_text": "3%",
+                "count_text": "2 of 70",
+                "bar_width": 2.9,
+                "few_note": null
+              }
+            ]
+          },
+          {
+            "item": "location_history",
+            "cells": [
+              {
+                "rate_text": "14%",
+                "count_text": "5 of 36",
+                "bar_width": 13.9,
+                "few_note": null
+              },
+              {
+                "rate_text": "6%",
+                "count_text": "4 of 70",
+                "bar_width": 5.7,
+                "few_note": null
+              }
+            ]
+          }
+        ],
+        "empty_text": null
+      },
+      "trend": {
+        "weeks": [
+          "2026-W32",
+          "2026-W33",
+          "2026-W34",
+          "2026-W35",
+          "2026-W36",
+          "2026-W37"
+        ],
+        "period_text": "2026-W32 to 2026-W37",
+        "completeness": {
+          "title": "Evidence completeness",
+          "lines": [
+            {
+              "style": "all",
+              "scope": "all",
+              "label": "All versions",
+              "values": [
+                0.9411764705882353,
+                0.9157894736842105,
+                0.7444444444444445,
+                0.7444444444444445,
+                0.79,
+                0.7285714285714286
+              ],
+              "counts": [
+                17,
+                19,
+                18,
+                18,
+                20,
+                14
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "1",
+              "scope": "version",
+              "label": "v1",
+              "values": [
+                0.9411764705882353,
+                0.9157894736842105,
+                null,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                17,
+                19,
+                0,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "2",
+              "scope": "version",
+              "label": "v2",
+              "values": [
+                null,
+                null,
+                0.7444444444444445,
+                0.7444444444444445,
+                0.79,
+                0.7285714285714286
+              ],
+              "counts": [
+                0,
+                0,
+                18,
+                18,
+                20,
+                14
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ],
+          "table_rows": [
+            {
+              "week": "2026-W32",
+              "cells": [
+                "94% (n 17)",
+                "94% (n 17)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W33",
+              "cells": [
+                "92% (n 19)",
+                "92% (n 19)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W34",
+              "cells": [
+                "74% (n 18)",
+                "no cases",
+                "74% (n 18)"
+              ]
+            },
+            {
+              "week": "2026-W35",
+              "cells": [
+                "74% (n 18)",
+                "no cases",
+                "74% (n 18)"
+              ]
+            },
+            {
+              "week": "2026-W36",
+              "cells": [
+                "79% (n 20)",
+                "no cases",
+                "79% (n 20)"
+              ]
+            },
+            {
+              "week": "2026-W37",
+              "cells": [
+                "73% (n 14)",
+                "no cases",
+                "73% (n 14)"
+              ]
+            }
+          ],
+          "empty_text": null
+        },
+        "agreement": {
+          "title": "Verdict agreement",
+          "lines": [
+            {
+              "style": "all",
+              "scope": "all",
+              "label": "All versions",
+              "values": [
+                0.8823529411764706,
+                0.8947368421052632,
+                0.8888888888888888,
+                1.0,
+                0.8,
+                0.9285714285714286
+              ],
+              "counts": [
+                17,
+                19,
+                18,
+                18,
+                20,
+                14
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "1",
+              "scope": "version",
+              "label": "v1",
+              "values": [
+                0.8823529411764706,
+                0.8947368421052632,
+                null,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                17,
+                19,
+                0,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "2",
+              "scope": "version",
+              "label": "v2",
+              "values": [
+                null,
+                null,
+                0.8888888888888888,
+                1.0,
+                0.8,
+                0.9285714285714286
+              ],
+              "counts": [
+                0,
+                0,
+                18,
+                18,
+                20,
+                14
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ],
+          "table_rows": [
+            {
+              "week": "2026-W32",
+              "cells": [
+                "88% (n 17)",
+                "88% (n 17)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W33",
+              "cells": [
+                "89% (n 19)",
+                "89% (n 19)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W34",
+              "cells": [
+                "89% (n 18)",
+                "no cases",
+                "89% (n 18)"
+              ]
+            },
+            {
+              "week": "2026-W35",
+              "cells": [
+                "100% (n 18)",
+                "no cases",
+                "100% (n 18)"
+              ]
+            },
+            {
+              "week": "2026-W36",
+              "cells": [
+                "80% (n 20)",
+                "no cases",
+                "80% (n 20)"
+              ]
+            },
+            {
+              "week": "2026-W37",
+              "cells": [
+                "93% (n 14)",
+                "no cases",
+                "93% (n 14)"
+              ]
+            }
+          ],
+          "empty_text": null
+        },
+        "version_first_weeks": {
+          "v1": "2026-W32",
+          "v2": "2026-W34"
+        },
+        "few_legend_text": "Hollow marker: fewer than 10 cases"
+      },
+      "confusion": {
+        "n_text": "n = 106",
+        "dangerous_text": "3 dangerous false closes",
+        "column_labels": [
+          "Agent: true positive",
+          "Agent: false positive",
+          "Agent: benign"
+        ],
+        "rows": [
+          {
+            "label": "Analyst: true positive",
+            "cells": [
+              {
+                "count_text": "11",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "0",
+                "heat": "h-0",
+                "is_dangerous": true,
+                "is_flagged": false
+              },
+              {
+                "count_text": "3",
+                "heat": "h-off-1",
+                "is_dangerous": true,
+                "is_flagged": true
+              }
+            ]
+          },
+          {
+            "label": "Analyst: false positive",
+            "cells": [
+              {
+                "count_text": "1",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "37",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "3",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              }
+            ]
+          },
+          {
+            "label": "Analyst: benign",
+            "cells": [
+              {
+                "count_text": "0",
+                "heat": "h-0",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "4",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "47",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "anchor": "class-1",
+      "name": "oauth_consent",
+      "cases_text": "95 cases",
+      "versions_text": "v1, v2",
+      "pooled_note": null,
+      "rows": [
+        {
+          "label": "All versions",
+          "style": "all",
+          "is_all": true,
+          "cases_text": "95",
+          "few_note": null,
+          "completeness": {
+            "value": "95%",
+            "interval": "92–97%",
+            "note": null,
+            "n_text": "n = 95",
+            "few_note": null,
+            "strip": {
+              "range_x": 92.4,
+              "range_width": 4.7,
+              "point_x": 94.7,
+              "point_left": 94.1,
+              "point_width": 1.2
+            }
+          },
+          "agreement": {
+            "value": "92%",
+            "interval": "84–96%",
+            "note": null,
+            "n_text": "n = 95",
+            "few_note": null,
+            "strip": {
+              "range_x": 84.3,
+              "range_width": 11.4,
+              "point_x": 91.6,
+              "point_left": 91.0,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.86",
+            "interval": "0.75–0.95",
+            "note": null,
+            "n_text": "n = 95",
+            "few_note": null,
+            "strip": {
+              "range_x": 87.7,
+              "range_width": 9.7,
+              "point_x": 92.9,
+              "point_left": 92.3,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "1",
+          "is_dangerous": true,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v1",
+          "style": "1",
+          "is_all": false,
+          "cases_text": "30",
+          "few_note": null,
+          "completeness": {
+            "value": "94%",
+            "interval": "89–99%",
+            "note": null,
+            "n_text": "n = 30",
+            "few_note": null,
+            "strip": {
+              "range_x": 89.5,
+              "range_width": 9.4,
+              "point_x": 94.2,
+              "point_left": 93.6,
+              "point_width": 1.2
+            }
+          },
+          "agreement": {
+            "value": "90%",
+            "interval": "74–97%",
+            "note": null,
+            "n_text": "n = 30",
+            "few_note": null,
+            "strip": {
+              "range_x": 74.4,
+              "range_width": 22.1,
+              "point_x": 90.0,
+              "point_left": 89.4,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.83",
+            "interval": "0.62–1.00",
+            "note": null,
+            "n_text": "n = 30",
+            "few_note": null,
+            "strip": {
+              "range_x": 80.8,
+              "range_width": 19.2,
+              "point_x": 91.6,
+              "point_left": 91.0,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "0",
+          "is_dangerous": false,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        },
+        {
+          "label": "v2",
+          "style": "2",
+          "is_all": false,
+          "cases_text": "65",
+          "few_note": null,
+          "completeness": {
+            "value": "95%",
+            "interval": "92–98%",
+            "note": null,
+            "n_text": "n = 65",
+            "few_note": null,
+            "strip": {
+              "range_x": 92.3,
+              "range_width": 5.4,
+              "point_x": 95.0,
+              "point_left": 94.4,
+              "point_width": 1.2
+            }
+          },
+          "agreement": {
+            "value": "92%",
+            "interval": "83–97%",
+            "note": null,
+            "n_text": "n = 65",
+            "few_note": null,
+            "strip": {
+              "range_x": 83.2,
+              "range_width": 13.5,
+              "point_x": 92.3,
+              "point_left": 91.7,
+              "point_width": 1.2
+            }
+          },
+          "kappa": {
+            "value": "0.87",
+            "interval": "0.74–0.97",
+            "note": null,
+            "n_text": "n = 65",
+            "few_note": null,
+            "strip": {
+              "range_x": 86.9,
+              "range_width": 11.7,
+              "point_x": 93.3,
+              "point_left": 92.7,
+              "point_width": 1.2
+            }
+          },
+          "dangerous_text": "1",
+          "is_dangerous": true,
+          "tp_without_agent_count": 0,
+          "tp_without_agent_text": null
+        }
+      ],
+      "skipped": {
+        "steps_text": "4 checklist steps",
+        "columns": [
+          {
+            "label": "v1",
+            "style": "1",
+            "n_text": "n = 30",
+            "few_note": null
+          },
+          {
+            "label": "v2",
+            "style": "2",
+            "n_text": "n = 65",
+            "few_note": null
+          }
+        ],
+        "rows": [
+          {
+            "item": "grant_window",
+            "cells": [
+              {
+                "rate_text": "7%",
+                "count_text": "2 of 30",
+                "bar_width": 6.7,
+                "few_note": null
+              },
+              {
+                "rate_text": "3%",
+                "count_text": "2 of 65",
+                "bar_width": 3.1,
+                "few_note": null
+              }
+            ]
+          },
+          {
+            "item": "app_permissions",
+            "cells": [
+              {
+                "rate_text": "0%",
+                "count_text": "0 of 30",
+                "bar_width": 0.0,
+                "few_note": null
+              },
+              {
+                "rate_text": "3%",
+                "count_text": "2 of 65",
+                "bar_width": 3.1,
+                "few_note": null
+              }
+            ]
+          },
+          {
+            "item": "audit_query",
+            "cells": [
+              {
+                "rate_text": "10%",
+                "count_text": "3 of 30",
+                "bar_width": 10.0,
+                "few_note": null
+              },
+              {
+                "rate_text": "5%",
+                "count_text": "3 of 65",
+                "bar_width": 4.6,
+                "few_note": null
+              }
+            ]
+          },
+          {
+            "item": "consent_history",
+            "cells": [
+              {
+                "rate_text": "7%",
+                "count_text": "2 of 30",
+                "bar_width": 6.7,
+                "few_note": null
+              },
+              {
+                "rate_text": "9%",
+                "count_text": "6 of 65",
+                "bar_width": 9.2,
+                "few_note": null
+              }
+            ]
+          }
+        ],
+        "empty_text": null
+      },
+      "trend": {
+        "weeks": [
+          "2026-W32",
+          "2026-W33",
+          "2026-W34",
+          "2026-W35",
+          "2026-W36",
+          "2026-W37"
+        ],
+        "period_text": "2026-W32 to 2026-W37",
+        "completeness": {
+          "title": "Evidence completeness",
+          "lines": [
+            {
+              "style": "all",
+              "scope": "all",
+              "label": "All versions",
+              "values": [
+                0.9,
+                0.9833333333333333,
+                0.96875,
+                0.9423076923076923,
+                0.9605263157894737,
+                0.9264705882352942
+              ],
+              "counts": [
+                15,
+                15,
+                16,
+                13,
+                19,
+                17
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "1",
+              "scope": "version",
+              "label": "v1",
+              "values": [
+                0.9,
+                0.9833333333333333,
+                null,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                15,
+                15,
+                0,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "2",
+              "scope": "version",
+              "label": "v2",
+              "values": [
+                null,
+                null,
+                0.96875,
+                0.9423076923076923,
+                0.9605263157894737,
+                0.9264705882352942
+              ],
+              "counts": [
+                0,
+                0,
+                16,
+                13,
+                19,
+                17
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ],
+          "table_rows": [
+            {
+              "week": "2026-W32",
+              "cells": [
+                "90% (n 15)",
+                "90% (n 15)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W33",
+              "cells": [
+                "98% (n 15)",
+                "98% (n 15)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W34",
+              "cells": [
+                "97% (n 16)",
+                "no cases",
+                "97% (n 16)"
+              ]
+            },
+            {
+              "week": "2026-W35",
+              "cells": [
+                "94% (n 13)",
+                "no cases",
+                "94% (n 13)"
+              ]
+            },
+            {
+              "week": "2026-W36",
+              "cells": [
+                "96% (n 19)",
+                "no cases",
+                "96% (n 19)"
+              ]
+            },
+            {
+              "week": "2026-W37",
+              "cells": [
+                "93% (n 17)",
+                "no cases",
+                "93% (n 17)"
+              ]
+            }
+          ],
+          "empty_text": null
+        },
+        "agreement": {
+          "title": "Verdict agreement",
+          "lines": [
+            {
+              "style": "all",
+              "scope": "all",
+              "label": "All versions",
+              "values": [
+                0.9333333333333333,
+                0.8666666666666667,
+                0.9375,
+                1.0,
+                0.8421052631578947,
+                0.9411764705882353
+              ],
+              "counts": [
+                15,
+                15,
+                16,
+                13,
+                19,
+                17
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "1",
+              "scope": "version",
+              "label": "v1",
+              "values": [
+                0.9333333333333333,
+                0.8666666666666667,
+                null,
+                null,
+                null,
+                null
+              ],
+              "counts": [
+                15,
+                15,
+                0,
+                0,
+                0,
+                0
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            },
+            {
+              "style": "2",
+              "scope": "version",
+              "label": "v2",
+              "values": [
+                null,
+                null,
+                0.9375,
+                1.0,
+                0.8421052631578947,
+                0.9411764705882353
+              ],
+              "counts": [
+                0,
+                0,
+                16,
+                13,
+                19,
+                17
+              ],
+              "few": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ]
+            }
+          ],
+          "table_rows": [
+            {
+              "week": "2026-W32",
+              "cells": [
+                "93% (n 15)",
+                "93% (n 15)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W33",
+              "cells": [
+                "87% (n 15)",
+                "87% (n 15)",
+                "no cases"
+              ]
+            },
+            {
+              "week": "2026-W34",
+              "cells": [
+                "94% (n 16)",
+                "no cases",
+                "94% (n 16)"
+              ]
+            },
+            {
+              "week": "2026-W35",
+              "cells": [
+                "100% (n 13)",
+                "no cases",
+                "100% (n 13)"
+              ]
+            },
+            {
+              "week": "2026-W36",
+              "cells": [
+                "84% (n 19)",
+                "no cases",
+                "84% (n 19)"
+              ]
+            },
+            {
+              "week": "2026-W37",
+              "cells": [
+                "94% (n 17)",
+                "no cases",
+                "94% (n 17)"
+              ]
+            }
+          ],
+          "empty_text": null
+        },
+        "version_first_weeks": {
+          "v1": "2026-W32",
+          "v2": "2026-W34"
+        },
+        "few_legend_text": "Hollow marker: fewer than 10 cases"
+      },
+      "confusion": {
+        "n_text": "n = 95",
+        "dangerous_text": "1 dangerous false close",
+        "column_labels": [
+          "Agent: true positive",
+          "Agent: false positive",
+          "Agent: benign"
+        ],
+        "rows": [
+          {
+            "label": "Analyst: true positive",
+            "cells": [
+              {
+                "count_text": "15",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "1",
+                "heat": "h-off-1",
+                "is_dangerous": true,
+                "is_flagged": true
+              },
+              {
+                "count_text": "0",
+                "heat": "h-0",
+                "is_dangerous": true,
+                "is_flagged": false
+              }
+            ]
+          },
+          {
+            "label": "Analyst: false positive",
+            "cells": [
+              {
+                "count_text": "1",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "23",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "1",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              }
+            ]
+          },
+          {
+            "label": "Analyst: benign",
+            "cells": [
+              {
+                "count_text": "0",
+                "heat": "h-0",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "5",
+                "heat": "h-off-1",
+                "is_dangerous": false,
+                "is_flagged": false
+              },
+              {
+                "count_text": "49",
+                "heat": "h-ok-4",
+                "is_dangerous": false,
+                "is_flagged": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "cases": {
+    "total_text": "201",
+    "detail_count_text": "112",
+    "detail_sentence": "Tool calls are included for 112 notable cases (dashboard.max_detail_cases); tool results are never included.",
+    "class_filters": [
+      {
+        "class_index": 0,
+        "label": "impossible_travel"
+      },
+      {
+        "class_index": 6,
+        "label": "oauth_consent"
+      }
+    ]
+  },
+  "coverage": [
+    {
+      "text": "201 of 201 verdicts matched a trace (100%).",
+      "hint": null,
+      "is_low": false
+    },
+    {
+      "text": "201 of 201 traces matched a verdict (100%).",
+      "hint": null,
+      "is_low": false
+    }
+  ],
+  "notes": [],
+  "limits": [
+    {
+      "term": "Why the numbers changed.",
+      "text": "A drop after a new version can come from the prompt, a change in the alert mix, or a log source that stopped. The POC does not separate these."
+    },
+    {
+      "term": "Whether the agent's claims match the evidence.",
+      "text": "The POC checks which steps ran, not what the results showed."
+    },
+    {
+      "term": "When to act.",
+      "text": "There is no baseline and no alert. You read the numbers and choose what to do."
+    }
+  ]
+}

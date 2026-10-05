@@ -56,7 +56,9 @@ INIT_VARIANTS = tuple(
         "langfuse",
     )
 )
-_GOLDEN_NAMES = (generate.GOLDEN_NAME, generate.INIT_GOLDEN_NAME)
+# Fixtures with a golden view model for the React dashboard's tests: eight versions, two pooled.
+VIEW_FIXTURES = ("edge/versions/more_than_six",)
+_GOLDEN_NAMES = (generate.GOLDEN_NAME, generate.INIT_GOLDEN_NAME, generate.VIEW_GOLDEN_NAME)
 
 
 def write_fixture(spec: FixtureSpec, root: Path) -> list[Path]:
@@ -75,6 +77,11 @@ def update_fixture_golden(spec: FixtureSpec, root: Path) -> Path:
     return generate.write_text(
         folder / generate.GOLDEN_NAME, generate.to_golden_text(check_fixture(folder, spec.keep))
     )
+
+
+def update_view_golden(spec: FixtureSpec, root: Path) -> Path:
+    folder = root / spec.name
+    return generate.write_text(folder / generate.VIEW_GOLDEN_NAME, to_view_text(folder))
 
 
 def update_init_golden(spec: FixtureSpec, root: Path) -> Path:
@@ -111,6 +118,18 @@ def to_init_arguments(folder: Path) -> list[str]:
         "--yes",
         "--dry-run",
     ]
+
+
+def to_view_text(folder: Path) -> str:
+    """The golden view model text of a check run on a fixture folder."""
+    # Imported here so writing fixtures never depends on the pipeline being importable.
+    from detecttrace.pipeline import run_check
+    from detecttrace.runconfig import load_run_config
+
+    config_path = folder.absolute() / CONFIG_NAME
+    return generate.to_view_golden_text(
+        run_check(load_run_config(config_path), config_path).results
+    )
 
 
 def check_fixture(folder: Path, keep: Sequence[str]) -> dict[str, object]:

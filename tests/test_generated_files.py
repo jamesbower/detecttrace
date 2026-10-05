@@ -282,7 +282,12 @@ def _list_generated(folder: Path) -> set[str]:
         name
         for name in _list_files(folder)
         if Path(name).name
-        not in (generate.GOLDEN_NAME, generate.GOLDEN_HTML_NAME, generate.INIT_GOLDEN_NAME)
+        not in (
+            generate.GOLDEN_NAME,
+            generate.GOLDEN_HTML_NAME,
+            generate.INIT_GOLDEN_NAME,
+            generate.VIEW_GOLDEN_NAME,
+        )
         and not name.startswith(CAPTURED_FIXTURES)
     }
 

@@ -7,8 +7,8 @@ A scenario (scenarios/NAME.yaml) gives the classes, base rates, weeks, prompt ve
 the behaviors to inject. The generator writes OTLP traces in the Collector file-exporter
 layout (gzip-compressed JSON lines, one resourceSpans batch per line, rotated into a few
 files), the analyst verdict CSV, one checklist per class and a ready detecttrace.yaml.
-`--update-golden` also rewrites expected.json and expected.html (the dashboard) from a check
-run on the written files, and each trace format variant's expected_init.yaml from an
+`--update-golden` also rewrites expected.json, expected.html (the dashboard) and
+expected-view.json (the dashboard's view model) from a check run on the written files, and each trace format variant's expected_init.yaml from an
 `init --yes --dry-run` run on it.
 
 Output depends only on the scenario: randomness comes from `random.Random(seed).random()`
@@ -42,6 +42,7 @@ SCENARIO_DIR = Path(__file__).resolve().parent / "scenarios"
 GOLDEN_NAME = "expected.json"
 GOLDEN_HTML_NAME = "expected.html"
 INIT_GOLDEN_NAME = "expected_init.yaml"
+VIEW_GOLDEN_NAME = "expected-view.json"
 STYLESHEET_PLACEHOLDER = "/* stylesheet */"
 SCRIPT_PLACEHOLDER = "/* script */"
 RESULTS_PLACEHOLDER = "{}"
@@ -211,6 +212,7 @@ def update_golden(out_dir: Path, golden_dir: Path) -> list[Path]:
     return [
         write_text(golden_dir / GOLDEN_NAME, to_golden_text(normalize_results(results))),
         write_text(golden_dir / GOLDEN_HTML_NAME, normalize_dashboard(render_dashboard(results))),
+        write_text(golden_dir / VIEW_GOLDEN_NAME, to_view_golden_text(results)),
     ]
 
 
@@ -238,6 +240,14 @@ def normalize_dashboard(html: str) -> str:
 
 def to_golden_text(results: object) -> str:
     return json.dumps(results, ensure_ascii=False, allow_nan=False, indent=1) + "\n"
+
+
+def to_view_golden_text(results: Mapping[str, object]) -> str:
+    """The dashboard view model as the React tests read it, its field order kept."""
+    from detecttrace.dashboard_view import build_view, to_view_json
+
+    view = to_view_json(build_view(results))
+    return json.dumps(view, ensure_ascii=False, allow_nan=False, indent=2) + "\n"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -282,6 +292,8 @@ def _write_everything(should_update_golden: bool) -> list[Path]:
             paths.append(fixture_specs.update_fixture_golden(spec, fixture_specs.FIXTURE_ROOT))
             if spec.name in fixture_specs.INIT_VARIANTS:
                 paths.append(fixture_specs.update_init_golden(spec, fixture_specs.FIXTURE_ROOT))
+            if spec.name in fixture_specs.VIEW_FIXTURES:
+                paths.append(fixture_specs.update_view_golden(spec, fixture_specs.FIXTURE_ROOT))
     return paths
 
 
