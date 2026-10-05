@@ -1,3 +1,4 @@
+import contextlib
 import csv
 import gzip
 import io
@@ -284,6 +285,15 @@ def measure_snapshot(
     database: Path, settings: RecomputeSettings, now_ns: int
 ) -> tuple[RecomputeOutcome, int]:
     """Run in the child: the snapshot and the child's peak memory in bytes."""
+    if sys.platform == "linux":
+        # Linux keeps ru_maxrss across fork and exec, so a spawned child would report the
+        # pytest parent's peak, which holds the whole dataset. Writing 5 to clear_refs resets
+        # this process's own high-water mark, which VmHWM reports. Some containers forbid the
+        # write; VmHWM then still covers only this process since its exec.
+        with contextlib.suppress(OSError):
+            Path("/proc/self/clear_refs").write_text("5", encoding="ascii")
+        outcome = compute_snapshot(database, settings, now_ns)
+        return outcome, _read_peak_rss_bytes_on_linux()
     outcome = compute_snapshot(database, settings, now_ns)
     if sys.platform == "win32":
         # Windows has no resource module, so peak memory is not measured there.
@@ -291,8 +301,14 @@ def measure_snapshot(
     import resource
 
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    # macOS reports bytes, Linux kibibytes.
+    # macOS reports bytes, other systems kibibytes.
     return outcome, peak if sys.platform == "darwin" else peak * 1024
+
+
+def _read_peak_rss_bytes_on_linux() -> int:
+    status = Path("/proc/self/status").read_text(encoding="ascii")
+    [line] = [line for line in status.splitlines() if line.startswith("VmHWM:")]
+    return int(line.split()[1]) * 1024  # reported in kB
 
 
 def _read_span_batches(traces: Path) -> Iterator[tuple[dict[str, Any], int]]:
