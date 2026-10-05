@@ -286,6 +286,13 @@ def test_a_one_megabyte_value_is_read(tmp_path: Path) -> None:
 
 
 def test_reading_leaves_the_csv_field_limit_as_it_was(tmp_path: Path) -> None:
-    before = csv.field_size_limit()
     read_verdicts(write_csv(tmp_path, "case_id,alert_class,verdict\nDT-1,c,TP\n"))
-    assert csv.field_size_limit() == before
+    # The csv module's own default, so a limit leaked by an earlier test cannot hide a leak here.
+    assert csv.field_size_limit() == 128 * 1024
+
+
+def test_a_failed_read_leaves_the_csv_field_limit_as_it_was(tmp_path: Path) -> None:
+    with pytest.raises(VerdictFileError):
+        read_verdicts(write_csv(tmp_path, "case_id,alert_class\nDT-1,c\n"))
+
+    assert csv.field_size_limit() == 128 * 1024

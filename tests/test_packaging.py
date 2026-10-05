@@ -55,6 +55,7 @@ PACKAGE_FILES = {
     "detecttrace/serve/config.py",
     "detecttrace/serve/receiver.py",
     "detecttrace/serve/store.py",
+    "detecttrace/serve/verdict_api.py",
     "detecttrace/stats.py",
     "detecttrace/summary.py",
     "detecttrace/templates/dashboard.css",
