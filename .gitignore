@@ -38,6 +38,8 @@ wheels/
 
 # Environment variables
 .env
+# The deployed serve configuration; deploy/detecttrace-serve.example.yaml is the template.
+deploy/detecttrace-serve.yaml
 
 # IDE
 .idea/

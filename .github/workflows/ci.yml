@@ -66,6 +66,8 @@ jobs:
 
   container:
     runs-on: ubuntu-latest
+    # Builds the image and pulls the Collector; the compose tests then take about a minute.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,6 +77,8 @@ jobs:
           python-version: "3.13"
           enable-cache: true
       - run: uv sync --locked
+      # The compose tests need Compose v2 (`docker compose`), which the runner image ships.
+      - run: docker compose version
       - run: uv run pytest -m container -rs
 
   wheel:

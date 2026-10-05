@@ -1,0 +1,28 @@
+# The OpenTelemetry Collector in compose.yaml: receives OTLP/HTTP on 4318 and forwards every
+# batch to DetectTrace as gzipped OTLP JSON, with the ingest token from the environment.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp_http/detecttrace:
+    endpoint: http://detecttrace:4320
+    encoding: json
+    headers:
+      Authorization: "Bearer ${env:DETECTTRACE_INGEST_TOKEN}"
+    # Batches wait in memory and are retried while DetectTrace restarts.
+    retry_on_failure:
+      enabled: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/detecttrace]
