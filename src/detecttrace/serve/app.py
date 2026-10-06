@@ -40,7 +40,7 @@ from detecttrace.summary import to_terminal_text
 access_logger = logging.getLogger("detecttrace.serve.access")
 
 # google.rpc.Code values for the HTTP statuses this app answers with.
-_STATUS_CODES = {400: 3, 401: 16, 403: 7, 404: 5, 405: 12, 413: 3, 415: 3, 503: 14}
+_STATUS_CODES = {400: 3, 401: 16, 403: 7, 404: 5, 405: 12, 413: 3, 415: 3, 422: 3, 503: 14}
 _UNKNOWN_CODE = 2
 _RETRY_AFTER_SECONDS = "5"
 _ROLES: tuple[Role, ...] = ("ingest", "verdicts", "read")
@@ -152,7 +152,7 @@ async def read_page_response(store: Store, mode: Literal["served", "ui"]) -> Res
     try:
         html = await run_in_threadpool(_read_page, store, mode)
     except sqlite3.OperationalError:
-        return _create_unreadable_response()
+        return create_unreadable_response()
     return HTMLResponse(html, headers={"Content-Security-Policy": PAGE_CSP})
 
 
@@ -161,7 +161,7 @@ async def read_status_response(store: Store, status: RecomputeStatus) -> Respons
     try:
         content = await run_in_threadpool(_read_status_content, store, status)
     except sqlite3.OperationalError:
-        return _create_unreadable_response()
+        return create_unreadable_response()
     return JSONResponse(content)
 
 
@@ -170,7 +170,7 @@ async def read_results_response(store: Store) -> Response:
     try:
         snapshot = await run_in_threadpool(store.read_snapshot)
     except sqlite3.OperationalError:
-        return _create_unreadable_response()
+        return create_unreadable_response()
     if snapshot is None:
         # 503, not 404: the results will exist once the first recompute finishes.
         return create_status_response(
@@ -244,7 +244,7 @@ async def _receive_traces(request: Request, store: Store, on_write: Callable[[],
         try:
             await run_in_threadpool(store.add_issues, [_to_refusal_issue(413, error.detail)])
         except sqlite3.OperationalError:
-            return _create_unavailable_response()
+            return create_unavailable_response()
         on_write()
         raise
     try:
@@ -266,7 +266,7 @@ async def _receive_traces(request: Request, store: Store, on_write: Callable[[],
         on_write()
         return create_status_response(415, str(error))
     except sqlite3.OperationalError:
-        return _create_unavailable_response()
+        return create_unavailable_response()
     on_write()
     if not rejected and not has_skipped_parts:
         return JSONResponse({})
@@ -301,9 +301,9 @@ async def _receive_verdicts(
     except _FailedAfterCommit:
         # The verdicts are stored even though the request failed, so the recompute must know.
         on_write()
-        return _create_unavailable_response()
+        return create_unavailable_response()
     except sqlite3.OperationalError:
-        return _create_unavailable_response()
+        return create_unavailable_response()
     if is_committed:
         on_write()
     if not accepted and not rejected:
@@ -322,18 +322,31 @@ async def read_limited_body(request: Request, max_bytes: int, hint: str) -> byte
     A body not fully received within BODY_READ_SECONDS is refused with 503, which OTLP
     clients retry.
     """
+    pieces: list[bytes] = []
+    too_large_message = f"the request body is over {max_bytes >> 20} MiB; {hint}"
+    await receive_limited_body(request, max_bytes, too_large_message, pieces.append)
+    return b"".join(pieces)
+
+
+async def receive_limited_body(
+    request: Request, max_bytes: int, too_large_message: str, write: Callable[[bytes], object]
+) -> None:
+    """Pass each piece of the body to `write`, as read_limited_body reads it.
+
+    Raises 413 with `too_large_message` before reading when Content-Length is over
+    `max_bytes`, or as soon as the pieces pass it; 503 after BODY_READ_SECONDS.
+    """
     declared = request.headers.get("content-length", "")
     if declared.isascii() and declared.isdigit() and int(declared) > max_bytes:
-        raise _to_body_too_large(max_bytes, hint)
-    pieces: list[bytes] = []
+        raise _BodyTooLarge(too_large_message)
     total = 0
     try:
         with anyio.fail_after(BODY_READ_SECONDS):
             async for piece in request.stream():
                 total += len(piece)
                 if total > max_bytes:
-                    raise _to_body_too_large(max_bytes, hint)
-                pieces.append(piece)
+                    raise _BodyTooLarge(too_large_message)
+                write(piece)
     except TimeoutError:
         raise HTTPException(
             503,
@@ -343,7 +356,6 @@ async def read_limited_body(request: Request, max_bytes: int, hint: str) -> byte
     except ClientDisconnect:
         # No one is left to read the answer; this only ends the request without a traceback.
         raise HTTPException(400, "the client closed the connection") from None
-    return b"".join(pieces)
 
 
 class _BodyTooLarge(HTTPException):
@@ -351,10 +363,6 @@ class _BodyTooLarge(HTTPException):
 
     def __init__(self, message: str) -> None:
         super().__init__(413, message)
-
-
-def _to_body_too_large(max_bytes: int, hint: str) -> _BodyTooLarge:
-    return _BodyTooLarge(f"the request body is over {max_bytes >> 20} MiB; {hint}")
 
 
 def _store_traces(
@@ -521,7 +529,7 @@ class _AccessLog:
             )
 
 
-def _create_unreadable_response() -> JSONResponse:
+def create_unreadable_response() -> JSONResponse:
     return create_status_response(
         503,
         "the database can't be read right now; retry later",
@@ -529,7 +537,7 @@ def _create_unreadable_response() -> JSONResponse:
     )
 
 
-def _create_unavailable_response() -> JSONResponse:
+def create_unavailable_response() -> JSONResponse:
     return create_status_response(
         503,
         "the database can't take writes right now; retry later",
