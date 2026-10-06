@@ -13,6 +13,7 @@ anything new; the counts are the stored input's. Times are ISO 8601 in UTC, or n
 
 import base64
 import logging
+import re
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -23,7 +24,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
-from starlette.convertors import Convertor, register_url_convertor
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 from starlette.routing import Match
@@ -75,8 +75,9 @@ SECURITY_HEADERS = {
 # Only what a meta policy can't say: the page's own policy, with its script hashes, stays in
 # the page, and a browser enforces both policies independently.
 PAGE_CSP = "frame-ancestors 'none'"
-# The route that answers each dashboard page's path; ServeApp moves it after every other route.
-PAGE_ROUTE_NAME = "dashboard_page"
+# A path segment that may name a dashboard page: lowercase letters and hyphens, not `api`.
+# Keep in step with registerPage in dashboard/src/registry.ts.
+_PAGE_SEGMENT = re.compile(r"(?!api$)[a-z][a-z-]*")
 _SECURITY_HEADER_ITEMS = {
     name.lower().encode("latin-1"): value.encode("latin-1")
     for name, value in SECURITY_HEADERS.items()
@@ -157,10 +158,10 @@ def add_page_route(
     to the dashboard at build time then needs no change here.
     """
     app.router.add_api_route(
-        "/{page:page}",
+        "/{page}",
         endpoint,
         methods=["GET"],
-        name=PAGE_ROUTE_NAME,
+        name="dashboard_page",
         dependencies=dependencies,
         route_class_override=_PageRoute,
     )
@@ -498,13 +499,14 @@ class ServeApp(FastAPI):
     """The app with the access log and the security headers outside its whole stack.
 
     Middleware added the usual way runs inside the error handler, so the 500 it sends for an
-    unexpected exception would carry no security headers and never reach the log.
+    unexpected exception would carry no security headers and never reach the log. Add every
+    route before the app starts: when it starts, the page route is moved after all the others.
     """
 
     def build_middleware_stack(self) -> ASGIApp:
         # Built at the first request, after every route is added: a route added after the app
         # factory returned, such as `/metrics`, is then matched before the page route.
-        self.router.routes.sort(key=lambda route: getattr(route, "name", None) == PAGE_ROUTE_NAME)
+        self.router.routes.sort(key=lambda route: isinstance(route, _PageRoute))
         return _AccessLog(_SecurityHeaders(super().build_middleware_stack()))
 
 
@@ -598,28 +600,18 @@ def create_status_response(
     )
 
 
-class _PageConvertor(Convertor[str]):
-    """A path segment that may name a dashboard page: lowercase letters and hyphens, not `api`."""
-
-    regex = "(?!api$)[a-z][a-z-]*"
-
-    def convert(self, value: str) -> str:
-        return value
-
-    def to_string(self, value: str) -> str:
-        return value
-
-
-register_url_convertor("page", _PageConvertor())
-
-
 class _PageRoute(APIRoute):
-    """The page route, which matches a page path only for its own methods.
+    """The page route, which matches only a page path, and only for its own methods.
 
-    Starlette answers 405 for a path that a route matches with another method; any other
-    method on a page path is 404 instead, as on a path no route has.
+    Any other segment, or another method on a page path, is 404, as on a path no route has:
+    Starlette would answer 405 for a path the route matches with another method.
     """
 
     def matches(self, scope: Scope) -> tuple[Match, Scope]:
         match, child_scope = super().matches(scope)
-        return (Match.NONE, {}) if match is Match.PARTIAL else (match, child_scope)
+        if (
+            match is not Match.FULL
+            or _PAGE_SEGMENT.fullmatch(child_scope["path_params"]["page"]) is None
+        ):
+            return Match.NONE, {}
+        return match, child_scope

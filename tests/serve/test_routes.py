@@ -12,6 +12,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 from page_data import read_view
+from starlette.convertors import CONVERTOR_TYPES
 
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.serve.app import create_app
@@ -274,6 +275,33 @@ def test_a_route_added_after_the_app_is_built_is_reached(
 
     with TestClient(app) as test_client:
         assert test_client.get("/metrics").json() == "metrics"
+
+
+# The same lists as dashboard/src/registry.test.ts, so the paths the dashboard lets a page
+# register at are exactly the ones the server answers with the page.
+PAGE_PATHS_THE_DASHBOARD_ACCEPTS = ["/", "/cases", "/skipped-steps"]
+PAGE_PATHS_THE_DASHBOARD_REFUSES = [
+    "/Cases",
+    "/cases/open",
+    "/case_list",
+    "/1cases",
+    "/api",
+    "/cases/",
+]
+
+
+@pytest.mark.parametrize("path", PAGE_PATHS_THE_DASHBOARD_ACCEPTS)
+def test_a_path_the_dashboard_accepts_is_the_page(read_client: TestClient, path: str) -> None:
+    assert read_client.get(path, headers=BEARER_READ).text == SNAPSHOT.html
+
+
+@pytest.mark.parametrize("path", PAGE_PATHS_THE_DASHBOARD_REFUSES)
+def test_a_path_the_dashboard_refuses_is_not_found(read_client: TestClient, path: str) -> None:
+    assert read_client.get(path, headers=BEARER_READ).status_code == 404
+
+
+def test_the_page_route_registers_no_process_wide_convertor() -> None:
+    assert "page" not in CONVERTOR_TYPES
 
 
 def test_a_page_path_does_not_shadow_the_health_check(read_client: TestClient) -> None:
