@@ -43,3 +43,138 @@
   margin-top: var(--sp-1);
   color: var(--muted);
 }
+
+/* The ui app's steps: one column, each step a heading and its content (layout A). */
+.data-steps {
+  display: grid;
+  gap: var(--sp-7);
+}
+
+.data-step {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.data-step-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.upload-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+/* --bp-medium: three cards side by side once the navigation moves to the side. */
+@media (width > 1000px) {
+  .upload-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.upload-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+}
+
+.upload-totals-text {
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+
+.upload-totals-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: 0;
+}
+
+.upload-totals-list dt {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.upload-totals-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.upload-totals-error {
+  color: var(--danger);
+}
+
+.data-button {
+  min-height: var(--touch-target);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--frame);
+  border: var(--border-thin) solid var(--control-border);
+  border-radius: var(--r-none);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+
+.data-button:hover {
+  border-color: var(--accent);
+}
+
+/* Destructive: outlined in --danger and named in words; the colour only repeats them. */
+.data-button-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.data-button-danger:hover {
+  background: var(--danger-tint);
+  border-color: var(--danger);
+}
+
+.data-button:disabled {
+  cursor: progress;
+  opacity: var(--disabled-opacity);
+}
+
+.clear-dialog {
+  max-width: min(var(--measure), calc(100vw - 2 * var(--sp-4)));
+  padding: var(--sp-5);
+  background: var(--frame);
+  border: none;
+  border-top: var(--border-accent) solid var(--danger);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+.clear-dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.clear-dialog[open] {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.clear-dialog-title {
+  color: var(--danger);
+  font-size: var(--fs-lg);
+}
+
+.clear-dialog-error {
+  color: var(--danger);
+}
+
+.clear-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+}
