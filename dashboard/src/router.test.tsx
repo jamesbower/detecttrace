@@ -19,6 +19,15 @@ function RouteProbe() {
       <button type="button" onClick={() => route.setQuery({ dangerous: null })}>
         Clear dangerous
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          route.setQuery({ class: "class-1" });
+          route.setQuery({ dangerous: "1" });
+        }}
+      >
+        Set both
+      </button>
       <button type="button" onClick={() => route.navigate("/cases", { q: "DT-1" })}>
         Open cases
       </button>
@@ -108,6 +117,15 @@ describe("useRoute", () => {
     await userEvent.click(screen.getByRole("button", { name: "Clear dangerous" }));
 
     expect(window.location.hash).toBe("#/versions?class=class-0");
+  });
+
+  it("applies two query changes made in one event", async () => {
+    window.history.replaceState(null, "", "#/versions");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Set both" }));
+
+    expect(window.location.hash).toBe("#/versions?class=class-1&dangerous=1");
   });
 
   it("navigates to another page with a fresh query", async () => {

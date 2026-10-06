@@ -7,7 +7,7 @@ export type PageDataError = { readonly error: string };
 
 export const VIEW_BLOCK_ID = "dt-view";
 export const RESULTS_BLOCK_ID = "dt-results";
-const SUPPORTED_VIEW_VERSION = 1;
+const SUPPORTED_VERSION = 1;
 
 /** The page's view and results, or why they can't be read. Never throws. */
 export function readPageData(doc: Document): PageData | PageDataError {
@@ -19,12 +19,13 @@ export function readPageData(doc: Document): PageData | PageDataError {
   if ("error" in results) {
     return results;
   }
-  const version = (view.value as { view_version?: unknown }).view_version;
-  if (version !== SUPPORTED_VIEW_VERSION) {
-    const found = version === undefined ? "has no version" : `has version ${JSON.stringify(version)}`;
-    return { error: `The view data ${found}; this page reads version ${SUPPORTED_VIEW_VERSION}.` };
+  const versionError =
+    checkVersion(view.value, VIEW_BLOCK_ID, "view_version") ??
+    checkVersion(results.value, RESULTS_BLOCK_ID, "schema_version");
+  if (versionError !== null) {
+    return versionError;
   }
-  // The Python side builds both objects; past the version check their shape is trusted.
+  // The Python side builds both objects; past the version checks their shape is trusted.
   return { view: view.value as View, results: results.value as Results };
 }
 
@@ -52,4 +53,13 @@ function readBlock(doc: Document, id: string): { value: object } | PageDataError
     return { error: `The "${id}" data block is not a JSON object.` };
   }
   return { value: parsed };
+}
+
+function checkVersion(value: object, id: string, key: string): PageDataError | null {
+  const version: unknown = (value as Record<string, unknown>)[key];
+  if (version === SUPPORTED_VERSION) {
+    return null;
+  }
+  const found = version === undefined ? `no ${key}` : `${key} ${JSON.stringify(version)}`;
+  return { error: `The "${id}" data block has ${found}; this page reads version ${SUPPORTED_VERSION}.` };
 }

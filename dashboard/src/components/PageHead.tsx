@@ -6,7 +6,10 @@ export function PageHead({ eyebrow, title, description }: PageHeadProps) {
   return (
     <header className="page-head">
       <p className="page-head-eyebrow">{eyebrow}</p>
-      <h1 className="page-head-title">{title}</h1>
+      {/* Focusable from script only: the app moves focus here when a new page opens. */}
+      <h1 className="page-head-title" tabIndex={-1}>
+        {title}
+      </h1>
       {description !== undefined && <p className="page-head-lead">{description}</p>}
       <div className="page-head-marks" aria-hidden="true">
         <span />

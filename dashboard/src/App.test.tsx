@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { registerPage, resetRegistryForTests } from "./registry";
@@ -10,11 +10,11 @@ import type { PageProps } from "./registry";
 const DATA = { view: DEMO_VIEW, results: DEMO_RESULTS };
 
 function HomePage() {
-  return <h1>Home</h1>;
+  return <h1 tabIndex={-1}>Home</h1>;
 }
 
 function CasesPage({ results }: PageProps) {
-  return <h1>{`${results.case_rows.columns.case_id.length} cases`}</h1>;
+  return <h1 tabIndex={-1}>{`${results.case_rows.columns.case_id.length} cases`}</h1>;
 }
 
 beforeEach(() => {
@@ -25,6 +25,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   window.history.replaceState(null, "", "#");
 });
 
@@ -60,4 +61,78 @@ it("shows no navigation when the page data could not be read", () => {
   render(<App data={{ error: "broken" }} />);
 
   expect(screen.queryByRole("navigation")).toBeNull();
+});
+
+function BrokenPage(): never {
+  throw new Error("bad row");
+}
+
+it("shows an alert in place of a page that fails to render", () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  registerPage({ path: "/broken", title: "Broken", icon: "", order: 2, component: BrokenPage });
+  window.history.replaceState(null, "", "#/broken");
+
+  render(<App data={DATA} />);
+
+  expect(screen.getByRole("alert").textContent).toContain("bad row");
+});
+
+it("keeps the navigation when a page fails to render", () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  registerPage({ path: "/broken", title: "Broken", icon: "", order: 2, component: BrokenPage });
+  window.history.replaceState(null, "", "#/broken");
+
+  render(<App data={DATA} />);
+
+  expect(screen.getByRole("link", { name: "Cases" }).getAttribute("href")).toBe("#/cases");
+});
+
+it("titles the document after the page on first load", () => {
+  window.history.replaceState(null, "", "#/cases");
+
+  render(<App data={DATA} />);
+
+  expect(document.title).toBe("Cases · DetectTrace");
+});
+
+it("leaves focus alone on first load", () => {
+  window.history.replaceState(null, "", "#/cases");
+
+  render(<App data={DATA} />);
+
+  expect(document.activeElement).toBe(document.body);
+});
+
+it("titles the document after the page it navigates to", async () => {
+  render(<App data={DATA} />);
+
+  act(() => {
+    window.location.hash = "#/cases";
+  });
+
+  await screen.findByText("201 cases");
+  expect(document.title).toBe("Cases · DetectTrace");
+});
+
+it("moves focus to the new page's heading", async () => {
+  render(<App data={DATA} />);
+
+  act(() => {
+    window.location.hash = "#/cases";
+  });
+
+  const heading = await screen.findByRole("heading", { name: "201 cases" });
+  await waitFor(() => expect(document.activeElement).toBe(heading));
+});
+
+it("leaves focus alone when only the query changes", () => {
+  window.history.replaceState(null, "", "#/cases");
+  render(<App data={DATA} />);
+
+  act(() => {
+    window.history.replaceState(null, "", "#/cases?class=class-1");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  });
+
+  expect(document.activeElement).toBe(document.body);
 });

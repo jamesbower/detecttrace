@@ -1,6 +1,6 @@
 // Hash routing: the page is one offline file, so the route and its filters live after the `#`,
 // as `#/versions?class=class-1&dangerous=1`.
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 import { listPages } from "./registry";
 
@@ -32,36 +32,39 @@ export function toHash(path: string, query: URLSearchParams): string {
 
 export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribeToHash, readHash);
-  const parsed = useMemo(() => parseHash(hash, listPages().map((page) => page.path)), [hash]);
-
-  const navigate = useCallback((path: string, query: Readonly<Record<string, string>> = {}) => {
-    window.location.hash = toHash(path, new URLSearchParams(query));
-  }, []);
-
-  const setQuery = useCallback(
-    (updates: Readonly<Record<string, string | null>>) => {
-      const query = new URLSearchParams(parsed.query);
-      for (const [key, value] of Object.entries(updates)) {
-        if (value === null) {
-          query.delete(key);
-        } else {
-          query.set(key, value);
-        }
-      }
-      // Replaced, not pushed: Back should leave the page, not step through every filter change.
-      window.history.replaceState(window.history.state, "", toHash(parsed.path, query));
-      // replaceState fires no hashchange, so every subscriber is told here.
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    },
-    [parsed],
-  );
+  const parsed = useMemo(() => parseHash(hash, listKnownPaths()), [hash]);
 
   return { ...parsed, navigate, setQuery };
+}
+
+// Reads the live hash, not the last render's, so two changes in one event both apply.
+function setQuery(updates: Readonly<Record<string, string | null>>): void {
+  const current = parseHash(readHash(), listKnownPaths());
+  const query = new URLSearchParams(current.query);
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === null) {
+      query.delete(key);
+    } else {
+      query.set(key, value);
+    }
+  }
+  // Replaced, not pushed: Back should leave the page, not step through every filter change.
+  window.history.replaceState(window.history.state, "", toHash(current.path, query));
+  // replaceState fires no hashchange, so every subscriber is told here.
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+function navigate(path: string, query: Readonly<Record<string, string>> = {}): void {
+  window.location.hash = toHash(path, new URLSearchParams(query));
 }
 
 function subscribeToHash(onChange: () => void): () => void {
   window.addEventListener("hashchange", onChange);
   return () => window.removeEventListener("hashchange", onChange);
+}
+
+function listKnownPaths(): string[] {
+  return listPages().map((page) => page.path);
 }
 
 function readHash(): string {

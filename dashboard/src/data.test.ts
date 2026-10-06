@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { readPageData } from "./data";
 
 const VIEW_JSON = JSON.stringify({ view_version: 1, header: { title: "DetectTrace" } });
-const RESULTS_JSON = JSON.stringify({ case_rows: {}, case_detail: [] });
+const RESULTS_JSON = JSON.stringify({ schema_version: 1, case_rows: {}, case_detail: [] });
 
 function createDocument(blocks: Record<string, string>): Document {
   const doc = document.implementation.createHTMLDocument("test");
@@ -67,7 +67,7 @@ describe("readPageData", () => {
     });
 
     expect(readPageData(doc)).toEqual({
-      error: "The view data has version 2; this page reads version 1.",
+      error: 'The "dt-view" data block has view_version 2; this page reads version 1.',
     });
   });
 
@@ -75,7 +75,26 @@ describe("readPageData", () => {
     const doc = createDocument({ "dt-view": "{}", "dt-results": RESULTS_JSON });
 
     expect(readPageData(doc)).toEqual({
-      error: "The view data has no version; this page reads version 1.",
+      error: 'The "dt-view" data block has no view_version; this page reads version 1.',
+    });
+  });
+
+  it("names an unsupported results schema version", () => {
+    const doc = createDocument({
+      "dt-view": VIEW_JSON,
+      "dt-results": JSON.stringify({ schema_version: 2, case_rows: {}, case_detail: [] }),
+    });
+
+    expect(readPageData(doc)).toEqual({
+      error: 'The "dt-results" data block has schema_version 2; this page reads version 1.',
+    });
+  });
+
+  it("names results with no schema version", () => {
+    const doc = createDocument({ "dt-view": VIEW_JSON, "dt-results": "{}" });
+
+    expect(readPageData(doc)).toEqual({
+      error: 'The "dt-results" data block has no schema_version; this page reads version 1.',
     });
   });
 });

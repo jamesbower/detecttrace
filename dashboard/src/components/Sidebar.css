@@ -3,7 +3,6 @@
   position: fixed;
   inset: auto 0 0;
   z-index: var(--z-sidebar);
-  padding: var(--sp-1);
   background: var(--panel);
   border-top: var(--border-thin) solid var(--line);
 }
@@ -12,11 +11,12 @@
   display: none;
 }
 
+/* The padding leaves room for the focus ring, which the scrolling list would otherwise clip. */
 .sidebar-links {
   display: flex;
   justify-content: safe center;
   gap: var(--sp-1);
-  padding: 0;
+  padding: var(--sp-2);
   overflow-x: auto;
   list-style: none;
 }
@@ -107,6 +107,7 @@
   .sidebar-links {
     flex-direction: column;
     justify-content: flex-start;
+    padding: 0;
     overflow-x: visible;
   }
 

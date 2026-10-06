@@ -1,0 +1,6 @@
+.error-boundary {
+  max-width: var(--measure);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--frame);
+  border-left: var(--border-accent) solid var(--danger);
+}

@@ -1,4 +1,5 @@
 import { listPanels } from "../registry";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 import type { PanelProps, PanelSlot as PanelSlotName } from "../registry";
 
@@ -10,7 +11,9 @@ export function PanelSlot({ name, view, results }: PanelSlotProps) {
     <>
       {listPanels(name).map((Panel, index) => (
         // The registry is fixed once the page loads, so the index is a stable key.
-        <Panel key={index} view={view} results={results} />
+        <ErrorBoundary key={index} subject="This panel">
+          <Panel view={view} results={results} />
+        </ErrorBoundary>
       ))}
     </>
   );

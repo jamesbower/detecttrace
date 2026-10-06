@@ -24,3 +24,9 @@ it("shows the description", () => {
 
   expect(screen.getByText("Per version.").tagName).toBe("P");
 });
+
+it("lets the heading take focus from script only", () => {
+  render(<PageHead eyebrow="Versions" title="By version" />);
+
+  expect(screen.getByRole("heading", { level: 1 }).getAttribute("tabindex")).toBe("-1");
+});
