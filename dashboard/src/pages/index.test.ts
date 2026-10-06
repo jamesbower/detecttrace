@@ -11,7 +11,7 @@ it("registers the built-in pages in navigation order", () => {
     "/trends",
     "/verdicts",
     "/cases",
-    "/data-notes",
+    "/data",
     "/limits",
   ]);
 });

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { registerPage, resetRegistryForTests } from "./registry";
 import { parseHash, toHash, useRoute } from "./router";
 
-const PATHS = ["/", "/versions", "/cases"];
+const PATHS = ["/", "/versions", "/cases", "/data"];
 
 function RouteProbe() {
   const route = useRoute();
@@ -62,6 +62,14 @@ describe("parseHash", () => {
 
   it("keeps the query when the path is unknown", () => {
     expect(parseHash("#/nowhere?class=class-1", PATHS).query.get("class")).toBe("class-1");
+  });
+
+  it("forwards the old data notes path to the data page", () => {
+    expect(parseHash("#/data-notes?class=x", PATHS).path).toBe("/data");
+  });
+
+  it("keeps the query when forwarding an old path", () => {
+    expect(parseHash("#/data-notes?class=x", PATHS).query.get("class")).toBe("x");
   });
 });
 
@@ -154,6 +162,23 @@ describe("useRoute", () => {
     await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
 
     expect(screen.getByTestId("query").textContent).toBe("class=class-1");
+  });
+
+  it("rewrites an old path in the address to its new one, keeping the query", () => {
+    window.history.replaceState(null, "", "#/data-notes?class=x");
+
+    render(<RouteProbe />);
+
+    expect(window.location.hash).toBe("#/data?class=x");
+  });
+
+  it("forwards an old path without adding a history entry", () => {
+    window.history.replaceState(null, "", "#/data-notes");
+    const length = window.history.length;
+
+    render(<RouteProbe />);
+
+    expect(window.history.length).toBe(length);
   });
 
   it("writes the home path when the query changes on an unknown path", async () => {

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { registerPanel, resetRegistryForTests } from "../registry";
 import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
-import { DataNotes } from "./DataNotes";
+import { Data } from "./Data";
 
 import type { View } from "../view";
 
@@ -48,13 +48,13 @@ afterEach(() => {
 
 describe("the demo", () => {
   it("says no input problems were found", () => {
-    render(<DataNotes view={DEMO_VIEW} results={DEMO_RESULTS} />);
+    render(<Data view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
     expect(screen.queryByText("No input problems were found.")).not.toBeNull();
   });
 
   it("lists the coverage lines", () => {
-    render(<DataNotes view={DEMO_VIEW} results={DEMO_RESULTS} />);
+    render(<Data view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
     expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
       "201 of 201 verdicts matched a trace (100%).",
@@ -65,7 +65,7 @@ describe("the demo", () => {
 
 describe("notes", () => {
   it("shows each note's severity label", () => {
-    render(<DataNotes view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
+    render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
 
     expect(screen.getAllByText(/^(Invalid input|Warning)$/).map((label) => label.textContent)).toEqual([
       "Invalid input",
@@ -74,7 +74,7 @@ describe("notes", () => {
   });
 
   it("titles each note with its count and message", () => {
-    render(<DataNotes view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
+    render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
 
     expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual([
       "37 verdict rows have an unknown label.",
@@ -83,13 +83,13 @@ describe("notes", () => {
   });
 
   it("shows a note's fix hint", () => {
-    render(<DataNotes view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
+    render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
 
     expect(screen.queryByText("Add the labels to label_map in detecttrace.yaml.")).not.toBeNull();
   });
 
   it("lists a note's examples with their details", () => {
-    render(<DataNotes view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
+    render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
 
     expect(screen.getByRole("list", { name: "Examples" }).textContent).toBe(
       "DT-IT-0001: label 'maybe'</script><img src=x onerror=alert(1)>2 of 37 shown.",
@@ -97,13 +97,13 @@ describe("notes", () => {
   });
 
   it("says how many examples of how many are shown", () => {
-    render(<DataNotes view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
+    render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
 
     expect(screen.queryByText("2 of 37 shown.")).not.toBeNull();
   });
 
   it("renders a hostile example as text, adding no element", () => {
-    render(<DataNotes view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
+    render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
 
     expect(document.querySelector("img, script")).toBeNull();
   });
@@ -111,7 +111,7 @@ describe("notes", () => {
 
 describe("coverage", () => {
   it("marks low coverage with a warning in words", () => {
-    render(<DataNotes view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
+    render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);
 
     expect(screen.getByRole("list", { name: "Coverage" }).textContent).toBe(
       "Warning: 150 of 201 verdicts matched a trace (75%).Check that detecttrace.yaml names the right trace folder.",
@@ -121,7 +121,7 @@ describe("coverage", () => {
 
 it("shows the notes-after panels", () => {
   registerPanel("notes-after", () => <p>Notes panel</p>);
-  render(<DataNotes view={DEMO_VIEW} results={DEMO_RESULTS} />);
+  render(<Data view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
   expect(screen.queryByText("Notes panel")).not.toBeNull();
 });

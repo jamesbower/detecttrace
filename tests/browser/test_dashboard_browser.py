@@ -57,7 +57,7 @@ PAGES = [
     ("/trends", "Weekly trend"),
     ("/verdicts", "Verdict matrix"),
     ("/cases", "Cases"),
-    ("/data-notes", "Data notes"),
+    ("/data", "Data"),
     ("/limits", "Limits"),
 ]
 PAGE_IDS = [title for _, title in PAGES]

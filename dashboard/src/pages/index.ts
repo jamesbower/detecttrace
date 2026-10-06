@@ -2,7 +2,7 @@
 // Each icon is an SVG path's `d`, drawn stroked in a 24 by 24 box.
 import { registerPage } from "../registry";
 import { Cases } from "./Cases";
-import { DataNotes } from "./DataNotes";
+import { Data } from "./Data";
 import { Limits } from "./Limits";
 import { Overview } from "./Overview";
 import { SkippedSteps } from "./SkippedSteps";
@@ -53,11 +53,11 @@ registerPage({
   component: Cases,
 });
 registerPage({
-  path: "/data-notes",
-  title: "Data notes",
-  icon: "M12 3l10 18H2zM12 10v5M12 18v.5",
+  path: "/data",
+  title: "Data",
+  icon: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   order: 6,
-  component: DataNotes,
+  component: Data,
 });
 registerPage({
   path: "/limits",

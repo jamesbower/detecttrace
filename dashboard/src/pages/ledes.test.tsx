@@ -4,7 +4,7 @@ import { afterEach, expect, it } from "vitest";
 
 import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
 import { Cases } from "./Cases";
-import { DataNotes } from "./DataNotes";
+import { Data } from "./Data";
 import { SkippedSteps } from "./SkippedSteps";
 import { VerdictMatrix } from "./VerdictMatrix";
 import { WeeklyTrend } from "./WeeklyTrend";
@@ -16,7 +16,7 @@ afterEach(cleanup);
 
 it.each<[string, React.ComponentType<PageProps>, string]>([
   ["Cases", Cases, "Filters apply to all 201 cases."],
-  ["Data notes", DataNotes, "Up to three examples each."],
+  ["Data", Data, "Up to three examples each."],
   ["Skipped steps", SkippedSteps, "Read across a row to compare versions."],
   ["Verdict matrix", VerdictMatrix, "Cells with any such case are also flagged."],
   [

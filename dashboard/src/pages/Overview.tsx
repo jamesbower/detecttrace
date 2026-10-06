@@ -56,7 +56,7 @@ export function Overview({ view, results }: PageProps) {
       <PanelSlot name="overview-after-kpis" view={view} results={results} />
       {view.header.low_coverage_text !== null && (
         <p className="overview-alert">
-          <a href={toHash("/data-notes", classQuery)}>
+          <a href={toHash("/data", classQuery)}>
             <WarnIcon className="overview-icon" />
             <span>{view.header.low_coverage_text}</span>
           </a>
