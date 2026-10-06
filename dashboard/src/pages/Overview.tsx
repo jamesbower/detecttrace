@@ -5,6 +5,7 @@ import { Kpi } from "../components/Kpi";
 import { PageHead } from "../components/PageHead";
 import { PanelSlot } from "../components/PanelSlot";
 import { VersionTable } from "../components/VersionTable";
+import { WarnIcon } from "../components/WarnIcon";
 import { toHash } from "../router";
 import { useSelectedClass } from "../use-selected-class";
 import "./Overview.css";
@@ -56,7 +57,7 @@ export function Overview({ view, results }: PageProps) {
       {view.header.low_coverage_text !== null && (
         <p className="overview-alert">
           <a href={toHash("/data-notes", classQuery)}>
-            <WarnIcon />
+            <WarnIcon className="overview-icon" />
             <span>{view.header.low_coverage_text}</span>
           </a>
         </p>
@@ -113,13 +114,4 @@ function listTiles(alertClass: ClassView) {
       context: alertClass.confusion.n_text,
     },
   ];
-}
-
-function WarnIcon() {
-  return (
-    <svg className="overview-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path d="M8 1.8 15 14H1z" />
-      <path d="M8 6.2v3.6M8 11.8v.2" />
-    </svg>
-  );
 }

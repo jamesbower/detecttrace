@@ -63,7 +63,7 @@
 
 .case-cell-text {
   display: block;
-  max-width: var(--case-cell-max);
+  max-width: var(--label-max);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -147,8 +147,8 @@
 
 .case-result-icon {
   flex: none;
-  width: var(--case-icon);
-  height: var(--case-icon);
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   fill: none;
   stroke: currentColor;
   stroke-width: var(--icon-stroke);

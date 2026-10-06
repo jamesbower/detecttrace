@@ -64,7 +64,7 @@
 }
 
 .version-table tbody th {
-  max-width: var(--label-max-width);
+  max-width: var(--label-max);
   font-weight: var(--fw-medium);
   overflow-wrap: anywhere;
 }

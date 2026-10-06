@@ -3,7 +3,9 @@ import { Fragment, useId } from "react";
 
 import { listPanels } from "../registry";
 import { PanelSlot } from "./PanelSlot";
-import { SeriesSwatch, toSeriesClass } from "./SeriesSwatch";
+import { toSeriesClass } from "./series-class";
+import { SeriesSwatch } from "./SeriesSwatch";
+import { WarnIcon } from "./WarnIcon";
 import "./VersionTable.css";
 
 import type { PageProps } from "../registry";
@@ -91,7 +93,7 @@ function VersionRow({ row }: { row: VersionRowView }) {
       <td className="version-table-num">
         {row.is_dangerous ? (
           <span className="version-table-dangerous">
-            <WarnIcon />
+            <WarnIcon className="version-table-icon" />
             {row.dangerous_text}
           </span>
         ) : (
@@ -99,7 +101,7 @@ function VersionRow({ row }: { row: VersionRowView }) {
         )}
         {row.tp_without_agent_text !== null && (
           <span className="version-table-aside">
-            <WarnIcon />
+            <WarnIcon className="version-table-icon" />
             <span>{row.tp_without_agent_text}</span>
           </span>
         )}
@@ -148,14 +150,5 @@ function FewNote({ text }: { text: string }) {
       </svg>
       {text}
     </span>
-  );
-}
-
-function WarnIcon() {
-  return (
-    <svg className="version-table-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path d="M8 1.8 15 14H1z" />
-      <path d="M8 6.2v3.6M8 11.8v.2" />
-    </svg>
   );
 }

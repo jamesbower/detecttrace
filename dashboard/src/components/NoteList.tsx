@@ -1,5 +1,6 @@
 // The data notes: each problem found in the input, with its severity, how to fix it and a
 // few examples. Every text is the view's, already made visible by the Python side.
+import { WarnIcon } from "./WarnIcon";
 import "./NoteList.css";
 
 import type { NoteView } from "../view";
@@ -18,13 +19,13 @@ export function NoteList({ notes }: { notes: readonly NoteView[] }) {
           // The view's note order is fixed for the page's life, so the index is a stable key.
           <li key={index} className="note" data-severity={isInvalid ? "invalid" : "warning"}>
             <p className="note-severity">
-              <svg className="note-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                {isInvalid ? (
+              {isInvalid ? (
+                <svg className="note-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                   <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM5.5 5.5l5 5M10.5 5.5l-5 5" />
-                ) : (
-                  <path d="M8 1.8 15 14H1zM8 6.2v3.6M8 11.8v.2" />
-                )}
-              </svg>
+                </svg>
+              ) : (
+                <WarnIcon className="note-icon" />
+              )}
               {note.severity_label}
             </p>
             <h2 className="note-title">

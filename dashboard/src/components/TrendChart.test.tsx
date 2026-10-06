@@ -141,7 +141,7 @@ it("names a few-case point's value as the view gives it", () => {
 it("draws a hollow marker for each version week with few cases", () => {
   const { container } = renderEdge();
 
-  expect(container.querySelectorAll(".trend-marker.is-few")).toHaveLength(8);
+  expect(container.querySelectorAll(".series-marker.is-few")).toHaveLength(8);
 });
 
 it("draws the other-versions series", () => {

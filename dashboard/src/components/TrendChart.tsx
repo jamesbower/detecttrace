@@ -3,6 +3,7 @@
 // Every point takes focus and names its week, series and value, read from the table rows.
 import { useId, useState } from "react";
 
+import { toSeriesClass } from "./series-class";
 import { TrendMarker } from "./TrendMarker";
 import { TrendTable } from "./TrendTable";
 import { HIT_RADIUS, MARKER_RADIUS, createTrendChart } from "./trend-geometry";
@@ -80,7 +81,7 @@ export function TrendChart({ metric, trend, alertClassName }: TrendChartProps) {
               <g key={index}>
                 {series.path !== "" && (
                   <path
-                    className={series.style === "all" ? "trend-line-all" : `trend-line trend-c-${series.style}`}
+                    className={series.style === "all" ? "series-line-all" : `series-line ${toSeriesClass(series.style)}`}
                     d={series.path}
                   />
                 )}

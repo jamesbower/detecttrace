@@ -1,10 +1,13 @@
+import { toSeriesClass } from "./series-class";
+import "./series.css";
+
 import type { Marker } from "./trend-geometry";
 
 type TrendMarkerProps = { marker: Marker; style: string };
 
-/** A series marker in its shape; hollow where the week has few cases. TrendChart.css styles it. */
+/** A series marker in its shape; hollow where the week has few cases. series.css styles it. */
 export function TrendMarker({ marker, style }: TrendMarkerProps) {
-  const className = `trend-marker trend-c-${style}${marker.isFew ? " is-few" : ""}`;
+  const className = `series-marker ${toSeriesClass(style)}${marker.isFew ? " is-few" : ""}`;
   if (marker.shape === "circle") {
     return <circle className={className} cx={marker.x} cy={marker.y} r={marker.r} />;
   }

@@ -76,5 +76,5 @@ it("shows a 200-character version label in full", () => {
 it("keys each version column with its series swatch", () => {
   render(<Heatmap table={DEMO_TABLE} alertClassName="impossible_travel" />);
 
-  expect(screen.getByRole("columnheader", { name: /^v2/ }).querySelector(".series-swatch.series-2")).not.toBeNull();
+  expect(screen.getByRole("columnheader", { name: /^v2/ }).querySelector(".series-swatch .series-2")).not.toBeNull();
 });

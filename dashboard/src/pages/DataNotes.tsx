@@ -1,6 +1,7 @@
 import { NoteList } from "../components/NoteList";
 import { PageHead } from "../components/PageHead";
 import { PanelSlot } from "../components/PanelSlot";
+import { WarnIcon } from "../components/WarnIcon";
 import "./DataNotes.css";
 
 import type { PageProps } from "../registry";
@@ -18,9 +19,7 @@ export function DataNotes({ view, results }: PageProps) {
           // The view's coverage lines are fixed for the page's life, so the index is a stable key.
           <li key={index} className="coverage-line" data-low={line.is_low}>
             {line.is_low && (
-              <svg className="coverage-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path d="M8 1.8 15 14H1zM8 6.2v3.6M8 11.8v.2" />
-              </svg>
+              <WarnIcon className="coverage-icon" />
             )}
             <span>
               {line.is_low && <strong>Warning: </strong>}

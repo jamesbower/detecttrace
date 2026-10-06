@@ -1,4 +1,6 @@
-/* Version series: colour and dash pattern, with the label as the third cue. */
+/* Version series, shared by the version table, the skipped-step headers, the trend charts and
+   their legend. A series is told apart by colour, dash pattern and marker shape together, and a
+   label always names it. */
 .series-all {
   --series-color: var(--s-all);
   --series-dash: none;
@@ -44,14 +46,38 @@
   --series-dash: var(--s-none-dash);
 }
 
+.series-line {
+  fill: none;
+  stroke: var(--series-color);
+  stroke-width: var(--series-line-width);
+  stroke-dasharray: var(--series-dash);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* All versions together: a broad band behind the version lines. */
+.series-line-all {
+  fill: none;
+  stroke: var(--s-all-halo);
+  stroke-width: var(--series-all-width);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.series-marker {
+  fill: var(--series-color);
+  stroke: var(--series-color);
+  stroke-width: var(--series-marker-stroke);
+}
+
+/* Hollow: the week has few cases. The legend says so in text. */
+.series-marker.is-few {
+  fill: var(--panel);
+}
+
 .series-swatch {
   flex: none;
   width: var(--swatch-width);
   height: var(--swatch-height);
-}
-
-.series-swatch line {
-  stroke: var(--series-color);
-  stroke-dasharray: var(--series-dash);
-  stroke-width: var(--swatch-stroke);
+  overflow: visible;
 }

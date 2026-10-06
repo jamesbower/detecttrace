@@ -14,6 +14,7 @@ import {
 import { computeWindow, DETAIL_ESTIMATE_PX } from "../case-window";
 import { CaseDetail } from "./CaseDetail";
 import { PanelSlot } from "./PanelSlot";
+import { WarnIcon } from "./WarnIcon";
 import "./CaseTable.css";
 
 import type * as React from "react";
@@ -213,10 +214,7 @@ function renderResult(row: CaseRow) {
   if (isDangerous(row)) {
     return (
       <span className="case-result" data-result="dangerous">
-        <svg className="case-result-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M8 1.8 15 14H1z" />
-          <path d="M8 6.2v3.6M8 11.8v.2" />
-        </svg>
+        <WarnIcon className="case-result-icon" />
         Dangerous false close
       </span>
     );
