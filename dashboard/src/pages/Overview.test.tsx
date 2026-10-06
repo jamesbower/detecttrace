@@ -8,7 +8,7 @@ import { Overview } from "./Overview";
 
 import type { View } from "../view";
 
-const LOW_COVERAGE = "Only 40 of 201 verdicts matched a trace (20%). See Data notes.";
+const LOW_COVERAGE = "Only 40 of 201 verdicts matched a trace (20%). See Data.";
 
 afterEach(() => {
   cleanup();
@@ -62,14 +62,14 @@ it("shows each class's dangerous false closes", () => {
 it("shows the low-coverage warning as a link to the data notes", () => {
   renderOverview({ ...DEMO_VIEW, header: { ...DEMO_VIEW.header, low_coverage_text: LOW_COVERAGE } });
 
-  expect(screen.getByRole("link", { name: LOW_COVERAGE }).getAttribute("href")).toBe("#/data-notes?class=class-0");
+  expect(screen.getByRole("link", { name: LOW_COVERAGE }).getAttribute("href")).toBe("#/data?class=class-0");
 });
 
 it("shows no low-coverage warning when coverage is fine", () => {
   renderOverview();
 
   expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).not.toContain(
-    "#/data-notes?class=class-0",
+    "#/data?class=class-0",
   );
 });
 

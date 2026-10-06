@@ -1,10 +1,13 @@
 // Hash routing: the page is one offline file, so the route and its filters live after the `#`,
 // as `#/cases?class=class-1&result=dangerous`.
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { listPages } from "./registry";
 
 export const HOME_PATH = "/";
+
+// A renamed page's old path forwards to its new one, so old links and bookmarks keep working.
+const PATH_ALIASES: ReadonlyMap<string, string> = new Map([["/data-notes", "/data"]]);
 
 export type ParsedHash = { readonly path: string; readonly query: URLSearchParams };
 
@@ -15,14 +18,13 @@ export type Route = ParsedHash & {
   setQuery: (updates: Readonly<Record<string, string | null>>) => void;
 };
 
-/** The route a hash names. A path no page is registered at falls back to the home page. */
+/** The route a hash names. An old path forwards to its new one; a path no page is registered at
+ * falls back to the home page. */
 export function parseHash(hash: string, knownPaths: readonly string[]): ParsedHash {
-  const body = hash.startsWith("#") ? hash.slice(1) : hash;
-  const queryStart = body.indexOf("?");
-  const rawPath = queryStart === -1 ? body : body.slice(0, queryStart);
-  const query = new URLSearchParams(queryStart === -1 ? "" : body.slice(queryStart + 1));
-  const path = rawPath.length > 1 && rawPath.endsWith("/") ? rawPath.slice(0, -1) : rawPath;
-  return { path: knownPaths.includes(path) ? path : HOME_PATH, query };
+  const { rawPath, search } = splitHash(hash);
+  const trimmed = rawPath.length > 1 && rawPath.endsWith("/") ? rawPath.slice(0, -1) : rawPath;
+  const path = PATH_ALIASES.get(trimmed) ?? trimmed;
+  return { path: knownPaths.includes(path) ? path : HOME_PATH, query: new URLSearchParams(search) };
 }
 
 export function toHash(path: string, query: URLSearchParams): string {
@@ -33,6 +35,12 @@ export function toHash(path: string, query: URLSearchParams): string {
 export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribeToHash, readHash);
   const parsed = useMemo(() => parseHash(hash, listKnownPaths()), [hash]);
+  useEffect(() => {
+    if (PATH_ALIASES.has(splitHash(hash).rawPath)) {
+      // Replaced, not pushed: Back should not land on the old path and forward again.
+      window.history.replaceState(window.history.state, "", toHash(parsed.path, parsed.query));
+    }
+  }, [hash, parsed]);
 
   return { ...parsed, navigate, setQuery };
 }
@@ -52,6 +60,14 @@ function setQuery(updates: Readonly<Record<string, string | null>>): void {
   window.history.replaceState(window.history.state, "", toHash(current.path, query));
   // replaceState fires no hashchange, so every subscriber is told here.
   window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+function splitHash(hash: string): { rawPath: string; search: string } {
+  const body = hash.startsWith("#") ? hash.slice(1) : hash;
+  const queryStart = body.indexOf("?");
+  return queryStart === -1
+    ? { rawPath: body, search: "" }
+    : { rawPath: body.slice(0, queryStart), search: body.slice(queryStart + 1) };
 }
 
 function navigate(path: string, query: Readonly<Record<string, string>> = {}): void {

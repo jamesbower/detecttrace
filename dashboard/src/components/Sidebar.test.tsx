@@ -1,7 +1,9 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 
+import { listPages } from "../registry";
 import { Sidebar } from "./Sidebar";
+import "../pages/index";
 
 import type { PageDef } from "../registry";
 
@@ -68,4 +70,10 @@ it("shows the view's title as the brand", () => {
   render(<Sidebar title="DetectTrace" pages={PAGES} currentPath="/" />);
 
   expect(screen.queryByText("DetectTrace")).not.toBeNull();
+});
+
+it("links the Data page to its hash path", () => {
+  render(<Sidebar title="DetectTrace" pages={listPages()} currentPath="/" />);
+
+  expect(screen.getByRole("link", { name: "Data" }).getAttribute("href")).toBe("#/data");
 });

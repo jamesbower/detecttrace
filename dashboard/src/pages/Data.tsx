@@ -2,16 +2,16 @@ import { NoteList } from "../components/NoteList";
 import { PageHead } from "../components/PageHead";
 import { PanelSlot } from "../components/PanelSlot";
 import { WarnIcon } from "../components/WarnIcon";
-import "./DataNotes.css";
+import "./Data.css";
 
 import type { PageProps } from "../registry";
 
-export function DataNotes({ view, results }: PageProps) {
+export function Data({ view, results }: PageProps) {
   return (
     <>
       <PageHead
-        eyebrow="Data notes"
-        title="Data notes"
+        eyebrow="Data"
+        title="Data"
         description="Input problems found while reading traces and verdicts, grouped, with how to fix them. Up to three examples each."
       />
       <ul className="coverage-list" aria-label="Coverage">
