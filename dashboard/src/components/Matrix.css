@@ -5,11 +5,11 @@
   overflow-x: auto;
 }
 
+/* Auto layout: a column is never narrower than its widest word, whatever the font, so a
+   narrow matrix scrolls in its region instead of cutting a word. */
 .matrix {
   width: 100%;
-  min-width: var(--matrix-min-width);
   border-collapse: collapse;
-  table-layout: fixed;
   font-size: var(--fs-sm);
 }
 
@@ -97,6 +97,7 @@
   gap: var(--sp-1);
   color: var(--text);
   font-size: var(--fs-2xs);
+  white-space: nowrap;
 }
 
 @container (width > 480px) {

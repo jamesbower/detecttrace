@@ -138,8 +138,6 @@
   --cell-min-width: 96px;
   --metric-min-width: 9rem;
   --strip-height: 8px;
-  /* Four columns, each wide enough for a cell's "Dangerous" in bold; narrower, the matrix scrolls. */
-  --matrix-min-width: 17rem;
   --matrix-label-share: 22%; /* the row labels' column; the three verdict columns share the rest */
 
   /* Shape: panels are square with one angled corner, cut by clip-path */
