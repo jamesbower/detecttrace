@@ -127,6 +127,126 @@ def test_a_proposal_without_a_case_id_says_what_to_choose(
     )
 
 
+def test_a_field_reads_as_a_summary_line(demo_store: Store, data_dir: Path) -> None:
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert _field(content, "case_id")["summary_text"] == "Case ID: detecttrace.case_id"
+
+
+def test_a_missing_field_reads_as_not_set_in_its_summary_line(
+    no_case_id_store: Store, data_dir: Path
+) -> None:
+    content = build_proposal_content(no_case_id_store, data_dir, {}, {})
+
+    assert _field(content, "case_id")["summary_text"] == "Case ID: Not set"
+
+
+def test_the_proposal_names_a_missing_value(demo_store: Store, data_dir: Path) -> None:
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert content["not_set_text"] == "Not set"
+
+
+def test_the_proposal_explains_the_label_step(demo_store: Store, data_dir: Path) -> None:
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert content["labels_help_text"] == (
+        "Your verdict file uses labels DetectTrace doesn't recognise. Choose the verdict each "
+        "one means; rows left unmapped are reported in the data notes and not scored."
+    )
+
+
+def test_the_proposal_names_each_verdict_choice(demo_store: Store, data_dir: Path) -> None:
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert content["verdict_choice_labels"] == [
+        {"value": "true_positive", "label": "True positive"},
+        {"value": "false_positive", "label": "False positive"},
+        {"value": "benign", "label": "Benign"},
+    ]
+
+
+# The proposal after a save
+
+
+def test_the_proposal_keeps_a_saved_field_edit(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {"prompt_version": EDITED_KEY}, {})
+
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert _field(content, "prompt_version")["value"] == EDITED_KEY
+
+
+def test_the_proposal_keeps_a_saved_label_as_written(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {}, {"label_map": {"Malicious": Verdict.BENIGN}})
+
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert content["label_map"]["Malicious"] == "benign"  # type: ignore[index]
+
+
+def test_an_edit_wins_over_the_saved_label(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {}, {"label_map": {"Malicious": Verdict.BENIGN}})
+
+    content = build_proposal_content(
+        demo_store, data_dir, {}, {"label_map": {"Malicious": Verdict.TRUE_POSITIVE}}
+    )
+
+    assert content["label_map"]["Malicious"] == "true_positive"  # type: ignore[index]
+
+
+def test_an_edit_wins_over_the_saved_field(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {"prompt_version": EDITED_KEY}, {})
+
+    content = build_proposal_content(
+        demo_store, data_dir, {"prompt_version": "detecttrace.prompt_version"}, {}
+    )
+
+    assert _field(content, "prompt_version")["value"] == "detecttrace.prompt_version"
+
+
+def test_a_saved_hand_mapping_is_a_user_label(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {}, {"label_map": {"Malicious": Verdict.BENIGN}})
+
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert content["user_labels"] == {
+        "label_map": {"Malicious": "benign"},
+        "agent_label_map": {},
+    }
+
+
+def test_a_label_mapped_automatically_is_no_user_label(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {}, {"label_map": {"Malicious": Verdict.BENIGN}})
+
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert "TP" not in content["user_labels"]["label_map"]  # type: ignore[index]
+
+
+def test_a_broken_saved_configuration_is_refused(demo_store: Store, data_dir: Path) -> None:
+    (data_dir / CONFIG_NAME).write_text("mapping: [\n", encoding="utf-8")
+
+    with pytest.raises(UiConfigError, match=r"Fix detecttrace\.yaml"):
+        build_proposal_content(demo_store, data_dir, {}, {})
+
+
+def test_saving_again_keeps_the_saved_label(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {}, {"label_map": {"Malicious": Verdict.BENIGN}})
+
+    config = write_ui_config(demo_store, data_dir, {}, {})
+
+    assert config.label_map["malicious"] == Verdict.BENIGN
+
+
+def test_saving_again_writes_the_saved_label_as_written(demo_store: Store, data_dir: Path) -> None:
+    write_ui_config(demo_store, data_dir, {}, {"label_map": {"Malicious": Verdict.BENIGN}})
+
+    write_ui_config(demo_store, data_dir, {}, {})
+
+    assert '"Malicious": "benign"' in (data_dir / CONFIG_NAME).read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize(
     ("fields", "labels"),
     [

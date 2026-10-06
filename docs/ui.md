@@ -106,7 +106,7 @@ The proposal is the one `detecttrace init` would make from the same spans and ve
 
 **Confirm** stays disabled until Case ID and Agent verdict each have an attribute and at least one analyst label maps to a verdict; the text beside it says what is missing.
 
-Once confirmed, the step shows a summary of the fields. To change them later, choose **Change configuration**, edit and confirm again. Nothing needs to be uploaded again: the stored data is recomputed with the new configuration.
+Once confirmed, the step shows a summary of the saved configuration. To change it later, choose **Change configuration**, edit and confirm again. The form starts from the saved configuration, so your earlier attribute choices and label mappings stay unless you change them. Nothing needs to be uploaded again: the stored data is recomputed with the new configuration. If `detecttrace.yaml` was edited by hand and can't be read, the form says why instead of proposing a new configuration; fix the file and try again.
 
 The configuration is saved as `detecttrace.yaml` in the data folder, in the format of a `check` configuration. It always has `checklists: "checklists"`, the app's own folder, even before you upload a checklist. It has `label_map` and `agent_label_map` when they map a label, and `mapping` with only the fields that differ from the defaults; the other fields are listed as comments. It has no `traces`, `verdicts` or `output`, because the app keeps the data itself, and no `dashboard` unless you add it by hand. You can edit it by hand while the app is stopped; it is read on the next start.
 
@@ -120,7 +120,7 @@ The configuration is saved as `detecttrace.yaml` in the data folder, in the form
 | `detecttrace.yaml` | The confirmed configuration. |
 | `checklists/` | One file per alert class, named after the class, such as `impossible_travel.yaml`. |
 
-The app creates the folder and `checklists/` readable and writable by you only (mode `0700`), and the database file the same way (mode `0600`). A folder that already exists keeps the mode it has. While a file is being uploaded, it is kept in a temporary folder inside the data folder, which is removed when the upload ends.
+The app creates the folder and `checklists/` readable and writable by you only (mode `0700`), and the database file the same way (mode `0600`). A folder that already exists keeps the mode it has. While a file is being uploaded, it is kept in a temporary folder inside the data folder, named `upload-` and random characters, which is removed when the upload ends. A checklist upload after you confirm keeps a copy of the checklists in a `backup-` folder the same way. If the app stops in the middle, the next start removes these folders.
 
 The database holds every span attribute your agent recorded except tool results, including tool arguments and any prompt or message content. Treat the data folder like the traces it came from. To back it up, stop the app and copy the folder.
 
@@ -130,7 +130,7 @@ The database holds every span attribute your agent recorded except tool results,
 
 - every stored span, verdict, replaced verdict and input problem, the results, and the recorded trace format,
 - `detecttrace.yaml`,
-- the files in `checklists/`.
+- the files in `checklists/` and in its subfolders, and those subfolders. A link is removed, never what it points to, so files outside the data folder are never deleted.
 
 The data folder, the empty database and the `checklists/` folder stay. It can't be undone. Afterwards the page reloads, empty, and the next trace upload can be in either format.
 
