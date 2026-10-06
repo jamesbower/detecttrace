@@ -1,6 +1,6 @@
 # DetectTrace
 
-![The Overview page on the demo data: cases, period, coverage, dangerous false closes, and results by prompt version with 95% intervals.](docs/images/overview.png)
+![DetectTrace's Overview page on synthetic demo data: case count, period, coverage, dangerous false closes, and results by prompt version with 95% intervals.](docs/images/overview.png)
 
 Agent assurance for AI SOC agents. DetectTrace reads your agent's OpenTelemetry traces and your analysts' verdicts, then shows how the agent compares with the analysts, per alert class and per prompt version, and which investigation steps the agent skips.
 
