@@ -35,7 +35,7 @@ From a clone, run `uv sync --extra serve`, then `uv run detecttrace ui`. To uplo
 detecttrace ui
 ```
 
-Once it listens, it prints `DetectTrace is running at http://127.0.0.1:4321/ (press Ctrl+C to stop).` and opens that address in your browser. Until a case can be scored, the page opens on the Data page.
+Once it listens, it prints `DetectTrace is running at http://127.0.0.1:4321/ (press Ctrl+C to stop).` and opens that address in your browser. Until a case can be scored, it opens on the Data page, unless the address names another page.
 
 | Option | What it does |
 |---|---|
@@ -67,7 +67,7 @@ The Data page has three steps.
 
 After you confirm, the app computes the dashboard in the background. Every 30 seconds the page asks the app whether newer results exist, and reloads itself when they do. It waits while you have unsaved changes in the configuration form. Until a case can be scored, the other pages say so and link to the Data page.
 
-New uploads after that update the dashboard by themselves. You don't need to confirm again, with one exception: if you confirmed before you uploaded any checklist, choose **Change configuration** and **Confirm** after you upload the first one, so the configuration names the checklists.
+New uploads after that update the dashboard by themselves, checklists included. You don't need to confirm again.
 
 ## Uploads
 
@@ -89,9 +89,9 @@ A file that can't be read at all, such as one that holds no trace format DetectT
 
 ### Uploading again
 
-- **Traces.** A span already stored is dropped, and the card counts it as a duplicate, so uploading the same file twice stores nothing twice. A span with the same trace and span ID as a stored one but different content is not stored; the first copy wins, and the conflict is listed in the data notes.
+- **Traces.** A span already stored by an earlier upload is dropped, and the card counts it as a duplicate, without a data note, so uploading the same file twice stores nothing twice. A span repeated within one file is stored once and gets a `duplicate_span` data note, as in `check`. A span with the same trace and span ID as a stored one but different content is not stored; the first copy wins, and the conflict is listed in the data notes.
 - **Verdicts.** Each row becomes its case's current verdict. A newer verdict for a case replaces the older one; the card counts verdicts added, replaced and unchanged. Rows are applied in order, so a later row for the same case in one file wins.
-- **Checklists.** A checklist for an alert class that already has one replaces the earlier one, and the card says so.
+- **Checklists.** A checklist for an alert class that already has one replaces the earlier one, and the card says so. After you confirm, each checklist is used as soon as it is uploaded: the app reloads the checklists and recomputes the dashboard. If the checklists then can't be loaded together, the upload is refused with the reason, and the checklists stay as they were.
 
 ### One trace format per data folder
 
@@ -108,7 +108,7 @@ The proposal is the one `detecttrace init` would make from the same spans and ve
 
 Once confirmed, the step shows a summary of the fields. To change them later, choose **Change configuration**, edit and confirm again. Nothing needs to be uploaded again: the stored data is recomputed with the new configuration.
 
-The configuration is saved as `detecttrace.yaml` in the data folder. It has the `mapping`, `label_map`, `agent_label_map`, `checklists` and `dashboard` sections of a `check` configuration, but no `traces`, `verdicts` or `output`, because the app keeps the data itself. You can edit it by hand while the app is stopped; it is read on the next start.
+The configuration is saved as `detecttrace.yaml` in the data folder, in the format of a `check` configuration. It always has `checklists: "checklists"`, the app's own folder, even before you upload a checklist. It has `label_map` and `agent_label_map` when they map a label, and `mapping` with only the fields that differ from the defaults; the other fields are listed as comments. It has no `traces`, `verdicts` or `output`, because the app keeps the data itself, and no `dashboard` unless you add it by hand. You can edit it by hand while the app is stopped; it is read on the next start.
 
 ## The data folder
 
@@ -164,14 +164,19 @@ The app runs on the same storage and recompute as `detecttrace serve`, so the sc
 
 ## How it differs from `check`
 
-On the same files, the app gives the same results as `check`, apart from the differences below. It reads uploads with the loaders `check` uses, and computes the dashboard with the code `serve` uses. Parity tests check this: they upload the demo data and the test fixtures through the app, confirm the proposed configuration, and compare the results with `check`'s on the same files. They allow only the `source` and `served` differences below, and compare data notes by kind and count. As in `check`, every case counts at once: uploaded files are complete, so no case waits for spans still on their way.
+On the same files, the app gives the same results as `check`, apart from the differences below. It reads uploads with the loaders `check` uses, and computes the dashboard with the code `serve` uses. Parity tests check this: they upload the demo data and the test fixtures through the app, except those the app refuses or can't configure (below), confirm the configuration, and compare the results with `check`'s on the same files. They allow only the differences below, and compare data notes by kind and count. As in `check`, every case counts at once, even one dated after this computer's clock: uploaded files are complete, so no case waits for spans still on their way.
 
 The differences:
 
-- **Sources.** The results name `uploaded traces` and `uploaded verdicts` as their sources, not file paths, and add a `served` block.
+- **Sources.** The results at `/api/results.json` name `uploaded traces` and `uploaded verdicts` as their sources, not file paths, and add a `served` block. Its `settle_seconds` is `null`, because no case is held back.
 - **A case's verdict can change.** A newer verdict for a case replaces the older one, which is kept in the database. `check` reports a case ID that appears twice in its CSV.
-- **Uploading again.** A span already stored is dropped and counted as a duplicate on the upload card, without a data note. `check` notes a span that appears in more than one file.
-- **Refused files.** A file that can't be read at all is refused on its upload card. It stores nothing and leaves no data note.
+- **Uploading again.** A span already stored by an earlier upload, such as the same span in two files, is dropped and counted as a duplicate on the upload card, without a data note. `check` notes every repeated span with `duplicate_span`.
+- **Refused files.** A file that can't be read at all, such as an empty trace file, is refused on its upload card. It stores nothing and leaves no data note, where `check` notes it.
+
+The configuration form edits only attribute keys and label maps, so it can't express two things `check` can:
+
+- `prompt_version_lookup: descendant`, for a prompt version set only on the spans below the agent run. See [docs/attributes.md](attributes.md).
+- An agent verdict attribute whose values are all empty strings. The proposal counts the field as missing, so **Confirm** stays disabled; `check` takes the attribute as given.
 
 ## How it differs from `serve`
 
@@ -180,7 +185,7 @@ The differences:
 - **Input.** You upload files in the browser. `serve` receives spans from an OpenTelemetry Collector over OTLP/HTTP and verdicts from a verdict API.
 - **Access.** The app listens on `127.0.0.1` only and has no tokens. `serve` listens on the network and requires a token for every request but its health check, with TLS as an option.
 - **Configuration.** The app proposes the configuration and you confirm it in the browser. `serve` reads a configuration file at startup.
-- **Settling.** The app counts every case at once. `serve` waits `settle_seconds` after a case's agent run ends.
+- **Settling.** The app counts every case at once, even one dated after this computer's clock. `serve` waits `settle_seconds` after a case's agent run ends.
 - **Updates.** The app's page reloads itself when newer results exist, because your own upload made them. The served page shows a "New data is available." bar instead.
 
 For a dashboard that a team shares, fed by your agents as they run, see [docs/serve.md](serve.md).

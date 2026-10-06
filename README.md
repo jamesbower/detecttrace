@@ -190,7 +190,7 @@ detecttrace ui
 
 From a clone, run `uv sync --extra serve`, then `uv run detecttrace ui`.
 
-It starts an app on `http://127.0.0.1:4321/` and opens it in your browser, on the Data page:
+It starts an app on `http://127.0.0.1:4321/` and opens it in your browser. Until a case can be scored, it opens on the Data page:
 
 1. Upload your traces, your verdict CSV and your checklist YAML files. Each file shows what was stored and any problems found in it.
 2. Confirm the configuration DetectTrace proposes from your data, as `init` does. Correct an attribute or map a verdict label first if you need to.
