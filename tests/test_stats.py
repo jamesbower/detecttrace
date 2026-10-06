@@ -57,24 +57,18 @@ def test_wilson_high_bound_matches_known_value() -> None:
     assert interval is not None and interval.high == pytest.approx(0.9433, abs=1e-4)
 
 
-def test_wilson_all_successes_reaches_one_without_exceeding_it() -> None:
-    interval = wilson_interval(10, 10)
+@pytest.mark.parametrize("n", [1, 4, 10, 30, 300])
+def test_wilson_all_successes_has_a_high_bound_of_exactly_one(n: int) -> None:
+    interval = wilson_interval(n, n)
 
-    assert (
-        interval is not None
-        and interval.high == pytest.approx(1.0, abs=1e-12)
-        and interval.high <= 1.0
-    )
+    assert interval is not None and interval.high == 1.0
 
 
-def test_wilson_no_successes_reaches_zero_without_going_below_it() -> None:
-    interval = wilson_interval(0, 10)
+@pytest.mark.parametrize("n", [1, 4, 10, 30, 300])
+def test_wilson_no_successes_has_a_low_bound_of_exactly_zero(n: int) -> None:
+    interval = wilson_interval(0, n)
 
-    assert (
-        interval is not None
-        and interval.low == pytest.approx(0.0, abs=1e-12)
-        and interval.low >= 0.0
-    )
+    assert interval is not None and interval.low == 0.0
 
 
 def test_wilson_low_bound_for_one_success_in_one_case() -> None:

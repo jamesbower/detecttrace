@@ -133,7 +133,7 @@
           },
           "agreement": {
             "value": "100%",
-            "interval": "51% to >99%",
+            "interval": "51–100%",
             "note": null,
             "n_text": "n = 4",
             "few_note": "Few cases.",
@@ -268,7 +268,7 @@
           },
           "agreement": {
             "value": "100%",
-            "interval": "51% to >99%",
+            "interval": "51–100%",
             "note": null,
             "n_text": "n = 4",
             "few_note": "Few cases.",
@@ -356,7 +356,7 @@
           },
           "agreement": {
             "value": "100%",
-            "interval": "51% to >99%",
+            "interval": "51–100%",
             "note": null,
             "n_text": "n = 4",
             "few_note": "Few cases.",
