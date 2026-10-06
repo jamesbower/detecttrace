@@ -40,7 +40,18 @@ from detecttrace.summary import to_terminal_text
 access_logger = logging.getLogger("detecttrace.serve.access")
 
 # google.rpc.Code values for the HTTP statuses this app answers with.
-_STATUS_CODES = {400: 3, 401: 16, 403: 7, 404: 5, 405: 12, 413: 3, 415: 3, 422: 3, 503: 14}
+_STATUS_CODES = {
+    400: 3,
+    401: 16,
+    403: 7,
+    404: 5,
+    405: 12,
+    409: 9,
+    413: 3,
+    415: 3,
+    422: 3,
+    503: 14,
+}
 _UNKNOWN_CODE = 2
 _RETRY_AFTER_SECONDS = "5"
 _ROLES: tuple[Role, ...] = ("ingest", "verdicts", "read")

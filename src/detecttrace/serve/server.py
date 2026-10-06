@@ -245,14 +245,16 @@ class _AnnouncingServer(uvicorn.Server):
             self._on_started()
 
 
-def _run_until_signalled(server: uvicorn.Server) -> None:
+def _run_until_signalled(
+    server: uvicorn.Server, sockets: list[socket.socket] | None = None
+) -> None:
     # uvicorn handles SIGTERM and SIGINT itself, then raises the signal again so the previous
     # handler sees it. With these handlers that is a no-op, so a graceful stop exits 0.
     previous = {
         signum: signal.signal(signum, _ignore_signal) for signum in (signal.SIGINT, signal.SIGTERM)
     }
     try:
-        server.run()
+        server.run(sockets)
     finally:
         for signum, handler in previous.items():
             signal.signal(signum, handler)

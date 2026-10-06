@@ -12,18 +12,27 @@ as application/octet-stream and answers `{"stored_text", "problems"}`, the probl
 as the view's notes. `GET /api/ui/state` answers `{"is_configured", "can_configure",
 "has_results", "span_count_text", "verdict_count_text", "trace_family_text",
 "checklist_classes", "checklist_error_text"}`.
+
+`POST /api/config/proposal` and `POST /api/config` take the user's edits as JSON,
+`{"fields": {name: key}, "labels": {"label_map": {label: verdict}, "agent_label_map": {...}}}`.
+The proposal answers the configuration form's content, or 409 until traces and verdicts are
+both stored; saving answers `{"saved_text"}` and starts a recompute. `POST /api/data/clear`
+takes `{"confirm": true}` and deletes the stored data, the configuration and the checklists.
 """
 
 import sqlite3
 import tempfile
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import TypeVar
 
 import anyio
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, ConfigDict, StrictBool, ValidationError
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -31,6 +40,8 @@ from starlette.websockets import WebSocketClose
 
 from detecttrace.checklist import ChecklistFileError, load_checklists
 from detecttrace.dashboard_view import format_count, to_note_view
+from detecttrace.files import write_text_atomically
+from detecttrace.model import InputFileError, Verdict
 from detecttrace.results import to_note_data
 from detecttrace.serve.app import (
     IDLE_STATUS,
@@ -41,6 +52,7 @@ from detecttrace.serve.app import (
     create_unavailable_response,
     create_unreadable_response,
     read_health_response,
+    read_limited_body,
     read_page_response,
     read_results_response,
     read_status_response,
@@ -48,9 +60,17 @@ from detecttrace.serve.app import (
     respond_with_status,
 )
 from detecttrace.serve.mediatype import to_media_type
-from detecttrace.serve.recompute import RecomputeCoordinator, RecomputeStatus
+from detecttrace.serve.recompute import RecomputeCoordinator, RecomputeSettings, RecomputeStatus
 from detecttrace.serve.store import Store, TraceFamily
-from detecttrace.serve.ui_config import CHECKLISTS_FOLDER, CONFIG_NAME
+from detecttrace.serve.ui_config import (
+    CHECKLISTS_FOLDER,
+    CONFIG_NAME,
+    UiConfigError,
+    build_proposal_content,
+    to_recompute_settings,
+    write_ui_config,
+)
+from detecttrace.serve.ui_recompute import UiRecompute
 from detecttrace.serve.ui_uploads import (
     CHECKLIST_SUFFIXES,
     MAX_CHECKLIST_FILE_BYTES,
@@ -68,6 +88,10 @@ from detecttrace.serve.ui_uploads import (
 
 WRITE_HEADER = "X-DetectTrace"
 UPLOAD_MEDIA_TYPE = "application/octet-stream"
+JSON_MEDIA_TYPE = "application/json"
+# The form's edits are a few fields and labels; anything near this size is not one.
+MAX_JSON_BYTES = 1 << 20
+SAVED_TEXT = "Configuration saved. The dashboard is being computed."
 _LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
 # The ASGI code a server turns into a 403 when a websocket is closed before it is accepted.
 _POLICY_VIOLATION = 1008
@@ -79,13 +103,50 @@ _TRACE_FAMILY_TEXTS: dict[TraceFamily, str] = {
 
 @dataclass(slots=True)
 class UiState:
-    """What the routes share: the recompute coordinator once a configuration exists."""
+    """What the routes share: the recompute coordinator once a configuration exists.
+
+    `recompute` and `clock` are what `configure` starts a coordinator with; a state without
+    `recompute` can't be configured.
+    """
 
     store: Store
     data_dir: Path
     coordinator: RecomputeCoordinator | None = None
+    recompute: UiRecompute | None = None
+    clock: Callable[[], float] = time.monotonic
     # Guards `coordinator`, which the server swaps while request threads read it.
     lock: threading.Lock = field(default_factory=threading.Lock)
+    # Held through a whole save, clear or tick, so the timer never saves a snapshot of data
+    # just cleared, and a save and a clear never interleave. Reentrant, because a save or a
+    # clear calls configure or unconfigure while holding it.
+    lifecycle_lock: threading.RLock = field(default_factory=threading.RLock)
+
+    def configure(self, settings: RecomputeSettings) -> None:
+        """Recompute with `settings` from now on, starting a run at the next tick."""
+        if self.recompute is None:
+            raise RuntimeError("this app state has no worker pool to recompute with")
+        with self.lifecycle_lock:
+            self.recompute.replace_settings(settings)
+            # Advanced before the coordinator starts, so it finds the input newer than any
+            # snapshot and runs at once instead of after a debounce.
+            self.store.mark_changed()
+            coordinator = RecomputeCoordinator(self.recompute.submit, self.store, self.clock)
+            with self.lock:
+                # A run the previous coordinator started used the old settings; its outcome
+                # goes with it, so the page never shows the old configuration again.
+                self.coordinator = coordinator
+
+    def unconfigure(self) -> None:
+        """Drop the coordinator, so nothing recomputes until the next configure."""
+        with self.lifecycle_lock, self.lock:
+            self.coordinator = None
+
+    def tick(self) -> None:
+        """The timer's call: let the coordinator start or finish a run; idle when unconfigured."""
+        with self.lifecycle_lock:
+            coordinator = self.coordinator
+            if coordinator is not None:
+                coordinator.tick()
 
     def notify_write(self) -> None:
         """Tell the coordinator about a write; with no configuration yet, nothing recomputes."""
@@ -173,6 +234,41 @@ def create_ui_app(*, port: int, state: UiState) -> FastAPI:
                 lambda path: _save_checklist(state, path),
             )
 
+    @app.post("/api/config/proposal", dependencies=[require_write])
+    async def propose_config(request: Request) -> Response:
+        edits = await _read_json_body(request, _ConfigEdits, 422)
+        try:
+            content = await run_in_threadpool(_build_proposal, state, edits)
+        except UiConfigError as error:
+            return create_status_response(422, str(error))
+        except sqlite3.OperationalError:
+            return create_unreadable_response()
+        if content is None:
+            return create_status_response(409, "Upload traces and verdicts first.")
+        return JSONResponse(content)
+
+    @app.post("/api/config", dependencies=[require_write])
+    async def save_config(request: Request) -> Response:
+        edits = await _read_json_body(request, _ConfigEdits, 422)
+        try:
+            await run_in_threadpool(_save_config, state, edits)
+        except (UiConfigError, InputFileError) as error:
+            return create_status_response(422, str(error))
+        except sqlite3.OperationalError:
+            return create_unavailable_response()
+        return JSONResponse({"saved_text": SAVED_TEXT})
+
+    @app.post("/api/data/clear", dependencies=[require_write])
+    async def clear_data(request: Request) -> Response:
+        clear_request = await _read_json_body(request, _ClearRequest, 400)
+        if not clear_request.confirm:
+            raise HTTPException(400, 'send {"confirm": true} to clear the data')
+        try:
+            await run_in_threadpool(_clear_data, state)
+        except sqlite3.OperationalError:
+            return create_unavailable_response()
+        return JSONResponse({})
+
     return app
 
 
@@ -245,6 +341,79 @@ async def _receive_upload(
     state.notify_write()
     problems = [asdict(to_note_view(to_note_data(line))) for line in report.problems]
     return JSONResponse({"stored_text": report.stored_text, "problems": problems})
+
+
+class _ConfigEdits(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fields: dict[str, str]
+    labels: dict[str, dict[str, Verdict]]
+
+
+class _ClearRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Strict, so only the JSON value true confirms: not 1 or "true", which Literal[True]
+    # would take as equal to True.
+    confirm: StrictBool
+
+
+_Body = TypeVar("_Body", bound=BaseModel)
+
+
+async def _read_json_body(request: Request, model: type[_Body], status: int) -> _Body:
+    """The body as `model`, or an HTTPException with `status` saying what is wrong with it."""
+    require_content_type(request, JSON_MEDIA_TYPE)
+    body = await read_limited_body(request, MAX_JSON_BYTES, "send only the form's edits")
+    try:
+        return model.model_validate_json(body)
+    except ValidationError as error:
+        first = error.errors()[0]
+        where = ".".join(str(part) for part in first["loc"])
+        raise HTTPException(
+            status, f"invalid request body: {f'{where}: ' if where else ''}{first['msg']}"
+        ) from None
+
+
+def _build_proposal(state: UiState, edits: _ConfigEdits) -> dict[str, object] | None:
+    """The form's content, or None until traces and verdicts are both stored."""
+    counts = state.store.read_counts()
+    if counts.span_count == 0 or counts.verdict_count == 0:
+        return None
+    return build_proposal_content(state.store, state.data_dir, edits.fields, edits.labels)
+
+
+def _save_config(state: UiState, edits: _ConfigEdits) -> None:
+    """Write the configuration and recompute with it; a file that can't be used is undone."""
+    config_path = state.data_dir / CONFIG_NAME
+    with state.lifecycle_lock:
+        previous = config_path.read_text(encoding="utf-8") if config_path.is_file() else None
+        config = write_ui_config(state.store, state.data_dir, edits.fields, edits.labels)
+        # The checklists are only read once the file names them, so a file whose checklists
+        # can't be used is put back as it was: the next start would refuse to load it.
+        try:
+            settings = to_recompute_settings(config, config_path)
+        except InputFileError:
+            if previous is None:
+                config_path.unlink(missing_ok=True)
+            else:
+                write_text_atomically(previous, config_path)
+            raise
+        state.configure(settings)
+
+
+def _clear_data(state: UiState) -> None:
+    with state.lifecycle_lock:
+        state.unconfigure()
+        state.store.clear()
+        (state.data_dir / CONFIG_NAME).unlink(missing_ok=True)
+        folder = state.data_dir / CHECKLISTS_FOLDER
+        # A linked folder is left alone, so a clear never deletes files outside the data
+        # folder; unlink removes a linked file's link, never its target.
+        if folder.is_dir() and not folder.is_symlink():
+            for entry in folder.iterdir():
+                if entry.is_symlink() or entry.is_file():
+                    entry.unlink()
 
 
 def _save_checklist(state: UiState, file_path: Path) -> UploadReport:

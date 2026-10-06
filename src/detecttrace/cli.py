@@ -90,6 +90,8 @@ _USAGE_ERROR_EXIT_CODE = 2
 _TOKEN_ROLES = get_args(Role)
 # The top-level packages of the [serve] extra; a base install has none of them.
 _SERVE_PACKAGES = frozenset({"fastapi", "starlette", "uvicorn"})
+# ui_server.DEFAULT_PORT, which can't be imported here: the serve extra may be missing.
+_UI_DEFAULT_PORT = 4321
 
 
 class _UsageErrorExitsOne(TyperGroup):
@@ -241,6 +243,30 @@ def serve(
 
 
 @app.command()
+def ui(
+    data_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--data-dir",
+            help="The folder that keeps the uploaded data and the configuration "
+            "(default: ~/.detecttrace).",
+            show_default=False,
+        ),
+    ] = None,
+    port: Annotated[
+        int, typer.Option("--port", min=1, max=65535, help="The port to serve on, on 127.0.0.1.")
+    ] = _UI_DEFAULT_PORT,
+    no_open: Annotated[
+        bool, typer.Option("--no-open", help="Don't open the app in the browser.")
+    ] = False,
+) -> None:
+    """Run the local app: upload traces and verdicts in the browser and see the dashboard."""
+    # Resolved here, not as the option's default, so the home folder is read when run.
+    folder = Path.home() / ".detecttrace" if data_dir is None else data_dir
+    _exit_with(lambda: _ui(folder, port, should_open=not no_open), is_service=True)
+
+
+@app.command()
 def token(
     role: Annotated[
         str, typer.Option("--role", help="What the token may do: ingest, verdicts or read.")
@@ -310,6 +336,23 @@ def _serve(config_path: Path) -> int:
         # the file takes effect on restart.
         config = load_serve_config(config_path)
         server.run_server(config, config_path, typer.echo)
+    except (InputFileError, server.StartupError) as error:
+        _echo_error(str(error))
+        return 1
+    return 0
+
+
+def _ui(data_dir: Path, port: int, *, should_open: bool) -> int:
+    try:
+        # Imported here, as in _serve: the web framework is an optional extra.
+        from detecttrace.serve import server, ui_server
+    except ModuleNotFoundError as error:
+        if (error.name or "").partition(".")[0] not in _SERVE_PACKAGES:
+            raise
+        _echo_error('detecttrace ui needs the serve extra: pip install "detecttrace[serve]"')
+        return 1
+    try:
+        ui_server.run_ui(data_dir, port, should_open=should_open, announce=typer.echo)
     except (InputFileError, server.StartupError) as error:
         _echo_error(str(error))
         return 1
