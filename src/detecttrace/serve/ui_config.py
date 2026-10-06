@@ -126,8 +126,9 @@ def to_recompute_settings(config: UiConfig, config_path: Path) -> RecomputeSetti
             label_map=config.label_map,
             agent_label_map=config.agent_label_map,
         ),
-        # Uploaded files are complete, so no case waits for spans still on their way.
-        settle_seconds=0,
+        # Uploaded files are complete, so no case waits for spans still on their way, even
+        # one dated after this computer's clock.
+        settle_seconds=None,
         max_detail_cases=config.dashboard.max_detail_cases,
         checklists=checklists,
         checklist_issues=checklist_issues,

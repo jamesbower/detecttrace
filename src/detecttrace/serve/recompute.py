@@ -9,7 +9,8 @@ request ever waits for a recompute; a page reads the last finished snapshot.
 
 A case is held back while its root span ended less than `serve.settle_seconds` ago, because
 its tool spans and verdict may still be on their way; its verdict is held back with it, so it
-doesn't read as a verdict without a trace. The results of a served run carry a `served` entry
+doesn't read as a verdict without a trace. Settings without a settle window, for input that is
+already complete, hold nothing back, not even a case that ends after the server's clock. The results of a served run carry a `served` entry
 with the generation, the settle window and how many cases were held back. Settling compares the
 server's clock with the end time the agent reported, so the worker also says when the first
 held-back case will settle, and the coordinator runs again then, with or without new input.
@@ -61,7 +62,7 @@ class RecomputeSettings:
     """What the server read at startup that every run uses; it is pickled to the worker."""
 
     config: Config  # the mapping and the label maps every run applies
-    settle_seconds: int
+    settle_seconds: int | None  # None: the input is complete, so no case is held back
     max_detail_cases: int
     checklists: dict[str, Checklist]
     checklist_issues: list[Issue]
@@ -107,9 +108,13 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
     finally:
         store.close()
     trace_cases, case_issues = build_trace_cases(inputs.spans, settings.config.mapping)
-    settle_ns = settings.settle_seconds * _NS_PER_SECOND
-    settled = [case for case in trace_cases if now_ns - case.end_ns >= settle_ns]
-    held_back = [case for case in trace_cases if now_ns - case.end_ns < settle_ns]
+    if settings.settle_seconds is None:
+        settle_ns = 0
+        settled, held_back = trace_cases, []
+    else:
+        settle_ns = settings.settle_seconds * _NS_PER_SECOND
+        settled = [case for case in trace_cases if now_ns - case.end_ns >= settle_ns]
+        held_back = [case for case in trace_cases if now_ns - case.end_ns < settle_ns]
     held_back_ids = {case.case_id for case in held_back}
     next_settle_at_ns = min((case.end_ns for case in held_back), default=None)
     if next_settle_at_ns is not None:

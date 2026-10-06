@@ -218,7 +218,7 @@ def test_the_app_holds_no_case_back(demo_store: Store, data_dir: Path) -> None:
 
     settings = to_recompute_settings(config, data_dir / CONFIG_NAME)
 
-    assert settings.settle_seconds == 0
+    assert settings.settle_seconds is None
 
 
 def test_the_app_names_its_traces_uploaded(demo_store: Store, data_dir: Path) -> None:
