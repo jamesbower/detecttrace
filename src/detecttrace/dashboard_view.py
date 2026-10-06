@@ -14,7 +14,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 from detecttrace import __version__
 from detecttrace.results import SCHEMA_VERSION
@@ -31,7 +31,7 @@ from detecttrace.summary import (
 
 # Raised whenever the JSON shape of the view changes, so the React app can refuse a view it
 # does not know.
-VIEW_VERSION = 1
+VIEW_VERSION = 2
 GENERATOR_PREFIX = "detecttrace"
 GENERATOR = f"{GENERATOR_PREFIX} {__version__}"
 OFFLINE_GENERATOR_TEXT = f"Written by {GENERATOR}."
@@ -42,6 +42,11 @@ SERVED_GENERATOR_TEXT = f"Written by {GENERATOR} on the server that runs detectt
 SERVED_FOOTER_TEXT = (
     "Every 30 seconds the page asks that server whether newer results exist, and it makes no "
     "other network requests."
+)
+UI_GENERATOR_TEXT = f"Written by {GENERATOR}, running locally with detecttrace ui."
+UI_FOOTER_TEXT = (
+    "Every 30 seconds the page asks the detecttrace ui app on this computer whether newer results "
+    "exist, and it makes no other network requests."
 )
 FEW_CASES_BELOW = 10
 FEW_CASES_TEXT = "Few cases."
@@ -325,6 +330,9 @@ class WaitingView:
 
 @dataclass(frozen=True, slots=True)
 class DashboardView:
+    # "offline" for a page written to a file, "served" from `detecttrace serve`, "ui" from
+    # `detecttrace ui`.
+    mode: Literal["offline", "served", "ui"]
     header: HeaderView
     classes: tuple[ClassView, ...]
     cases: CasesView
@@ -366,6 +374,7 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
     has_no_version = any(None in class_data["versions"] for class_data in classes)
     totals = data["totals"]
     return DashboardView(
+        mode="offline",
         header=_to_header(data, page_versions, has_no_version),
         classes=tuple(
             _to_class_view(index, class_data, styles) for index, class_data in enumerate(classes)
@@ -383,24 +392,39 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
     )
 
 
-def build_served_view(results: Mapping[str, object], served: ServedPage) -> DashboardView:
-    """The view of a results object for a page from `detecttrace serve`.
+def build_served_view(
+    results: Mapping[str, object],
+    served: ServedPage,
+    *,
+    mode: Literal["served", "ui"] = "served",
+) -> DashboardView:
+    """The view of a results object for a page from `detecttrace serve` or `detecttrace ui`.
 
     Raises ValueError for a schema version this code does not know.
     """
     view = build_view(results)
-    return replace(view, header=_to_served_header(view.header), served=_to_served_view(served))
+    return replace(
+        view,
+        mode=mode,
+        header=_to_served_header(view.header, mode),
+        served=_to_served_view(served),
+    )
 
 
 def build_waiting_view(
-    counts: WaitingCounts, notes: Sequence[SummaryLine], served: ServedPage
+    counts: WaitingCounts,
+    notes: Sequence[SummaryLine],
+    served: ServedPage,
+    *,
+    mode: Literal["served", "ui"] = "served",
 ) -> DashboardView:
-    """The view `detecttrace serve` shows until at least one case can be scored.
+    """The view `detecttrace serve` or `detecttrace ui` shows until a case can be scored.
 
     `notes` are the run's issue lines, which often say why nothing joined yet. The counts already
     show the cases still settling, so the served block leaves that text out.
     """
     return DashboardView(
+        mode=mode,
         header=_to_served_header(
             HeaderView(
                 title="DetectTrace",
@@ -411,7 +435,8 @@ def build_waiting_view(
                 low_coverage_text=None,
                 generator_text=OFFLINE_GENERATOR_TEXT,
                 footer_text=OFFLINE_FOOTER_TEXT,
-            )
+            ),
+            mode,
         ),
         classes=(),
         cases=CasesView(total_text="", detail_sentence="", class_filters=()),
@@ -579,7 +604,9 @@ def _to_header(data: Any, page_versions: Sequence[str], has_no_version: bool) ->
     )
 
 
-def _to_served_header(header: HeaderView) -> HeaderView:
+def _to_served_header(header: HeaderView, mode: Literal["served", "ui"]) -> HeaderView:
+    if mode == "ui":
+        return replace(header, generator_text=UI_GENERATOR_TEXT, footer_text=UI_FOOTER_TEXT)
     return replace(header, generator_text=SERVED_GENERATOR_TEXT, footer_text=SERVED_FOOTER_TEXT)
 
 

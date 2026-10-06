@@ -138,6 +138,7 @@ PAGE_OF = {
 # Fields the page reads without printing them. Each one's name must appear in the page code.
 SKIPPED = {
     "view_version": "checked so the page refuses a view it cannot read",
+    "mode": "marks the Data page, where a ui page will add its setup steps",
     "classes[].anchor": "names the selected class in the hash and in element ids",
     "classes[].rows[].style": "picks the row's series colour, dash and marker shape",
     "classes[].rows[].is_all": "styles the all-versions row",
@@ -233,7 +234,8 @@ def test_a_skipped_field_is_read_by_the_page_code(path: str) -> None:
 
 
 # The pages whose text is checked: the demo, the demo with every optional field filled, a page
-# from `detecttrace serve`, and the page it shows while waiting for data.
+# from `detecttrace serve`, the page it shows while waiting for data, and a page from
+# `detecttrace ui`.
 
 DEMO_RESULTS = json.loads((ROOT / "tests/fixtures/demo/expected.json").read_text(encoding="utf-8"))
 
@@ -283,6 +285,10 @@ VARIANTS = {
     "waiting": (
         to_view_json(build_waiting_view(WAITING_COUNTS, [WAITING_NOTE], SERVED)),
         lambda: render_waiting_page(WAITING_COUNTS, [WAITING_NOTE], SERVED),
+    ),
+    "ui": (
+        to_view_json(build_served_view(DEMO_RESULTS, SERVED, mode="ui")),
+        lambda: render_dashboard(DEMO_RESULTS, served=SERVED, mode="ui"),
     ),
 }
 

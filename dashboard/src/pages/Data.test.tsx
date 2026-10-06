@@ -63,6 +63,14 @@ describe("the demo", () => {
   });
 });
 
+describe("mode", () => {
+  it("marks the coverage list with the page's mode", () => {
+    render(<Data view={{ ...DEMO_VIEW, mode: "ui" }} results={DEMO_RESULTS} />);
+
+    expect(screen.getByRole("list", { name: "Coverage" }).dataset.mode).toBe("ui");
+  });
+});
+
 describe("notes", () => {
   it("shows each note's severity label", () => {
     render(<Data view={VIEW_WITH_NOTES} results={DEMO_RESULTS} />);

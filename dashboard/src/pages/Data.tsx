@@ -14,7 +14,8 @@ export function Data({ view, results }: PageProps) {
         title="Data"
         description="Input problems found while reading traces and verdicts, grouped, with how to fix them. Up to three examples each."
       />
-      <ul className="coverage-list" aria-label="Coverage">
+      {/* The mode is not shown yet; later the ui mode adds its upload and setup steps here. */}
+      <ul className="coverage-list" aria-label="Coverage" data-mode={view.mode}>
         {view.coverage.map((line, index) => (
           // The view's coverage lines are fixed for the page's life, so the index is a stable key.
           <li key={index} className="panel coverage-line" data-low={line.is_low}>

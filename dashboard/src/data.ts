@@ -10,7 +10,7 @@ export type PageDataError = { readonly error: string };
 export const VIEW_BLOCK_ID = "dt-view";
 export const RESULTS_BLOCK_ID = "dt-results";
 // The view's version is generated with its types, so a new view version fails to compile here.
-const SUPPORTED_VIEW_VERSION: ViewVersion = 1;
+const SUPPORTED_VIEW_VERSION: ViewVersion = 2;
 // The results JSON's schema_version, from src/detecttrace/results.py.
 const SUPPORTED_SCHEMA_VERSION = 1;
 
