@@ -72,7 +72,7 @@ def parse_traces_body(
             f"the request body is not an OTLP JSON trace export: {malformed[0].detail}"
         )
     rejected = sum(issue.kind is IssueKind.INVALID_SPAN for issue in issues)
-    return [_remove_tool_result(span) for span in spans], issues, rejected
+    return [remove_tool_result(span) for span in spans], issues, rejected
 
 
 def _check_content_type(content_type: str | None) -> None:
@@ -148,7 +148,7 @@ def _to_invalid_body(message: str) -> InvalidBody:
     return InvalidBody(message)
 
 
-def _remove_tool_result(span: Span) -> Span:
+def remove_tool_result(span: Span) -> Span:
     if TOOL_CALL_RESULT not in span.attributes:
         return span
     attributes = {key: value for key, value in span.attributes.items() if key != TOOL_CALL_RESULT}

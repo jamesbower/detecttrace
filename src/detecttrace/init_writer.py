@@ -288,7 +288,12 @@ def choose_example_class(proposal: Proposal) -> str | None:
 
 
 def to_checklist_file_name(alert_class: str) -> str:
-    """A file name for the class's example checklist that cannot leave the checklists folder.
+    """A file name for the class's example checklist that cannot leave the checklists folder."""
+    return to_checklist_stem(alert_class) + EXAMPLE_SUFFIX
+
+
+def to_checklist_stem(alert_class: str) -> str:
+    """The class's checklist file name without its suffix, safe in any folder.
 
     The class is reduced to lowercase [a-z0-9_-], at most 64 characters, falling back to
     "example"; a name Windows reserves for devices (con, nul, com1, ...) gets "_checklist".
@@ -296,7 +301,7 @@ def to_checklist_file_name(alert_class: str) -> str:
     name = _to_safe_name(alert_class) or "example"
     if name in _WINDOWS_RESERVED:
         name += "_checklist"
-    return name + EXAMPLE_SUFFIX
+    return name
 
 
 def render_example_checklist(alert_class: str, tool_names: tuple[str, ...], tool_count: int) -> str:
@@ -306,8 +311,7 @@ def render_example_checklist(alert_class: str, tool_names: tuple[str, ...], tool
     usable = [name for name in tool_names if name.strip()]
     if not usable:
         raise ValueError("an example checklist needs at least one tool name")
-    file_name = to_checklist_file_name(alert_class)
-    active_name = file_name.removesuffix(EXAMPLE_SUFFIX) + ".yaml"
+    active_name = to_checklist_stem(alert_class) + ".yaml"
     listed = usable[:MAX_EXAMPLE_ITEMS]
     lines = [
         f"# Example checklist written by `detecttrace init`. It is inactive until renamed to {active_name}.",

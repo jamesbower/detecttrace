@@ -46,6 +46,13 @@ class AddSpansResult:
 
 
 @dataclass(frozen=True, slots=True)
+class PutVerdictsResult:
+    added: int  # rows for a case with no verdict before
+    replaced: int  # rows that changed a case's verdict
+    unchanged: int  # rows equal to the case's current verdict
+
+
+@dataclass(frozen=True, slots=True)
 class StoredIssue:
     issue: Issue
     count: int
@@ -165,22 +172,26 @@ class Store:
                 _advance_generation(self._connection, now)
         return AddSpansResult(accepted, duplicates, conflicts)
 
-    def put_verdicts(self, rows: Sequence[VerdictRow], token_name: str) -> int:
+    def put_verdicts(self, rows: Sequence[VerdictRow], token_name: str) -> PutVerdictsResult:
         """Store each row as its case's current verdict, keeping any replaced one in history.
 
         The raw label is stored; mapping it happens at recompute. A row equal to the case's
-        current verdict changes nothing, so a client retrying a request causes no recompute,
-        but it still counts in the number stored that is returned.
+        current verdict changes nothing, so a client retrying a request causes no recompute.
+        Rows are applied in order, so a later row for the same case replaces an earlier one.
         """
-        has_changed = False
+        added = replaced = unchanged = 0
         with self._write() as now:
             for row in rows:
                 current = self._connection.execute(
                     "SELECT alert_class, label FROM verdicts WHERE case_id = ?", (row.case_id,)
                 ).fetchone()
                 if current == (row.alert_class, row.label):
+                    unchanged += 1
                     continue
-                has_changed = True
+                if current is None:
+                    added += 1
+                else:
+                    replaced += 1
                 self._connection.execute(
                     "INSERT INTO verdict_history"
                     " (case_id, alert_class, label, received_at_ns, replaced_at_ns, token_name)"
@@ -194,9 +205,9 @@ class Store:
                     " VALUES (?, ?, ?, ?, ?)",
                     (row.case_id, row.alert_class, row.label, now, token_name),
                 )
-            if has_changed:
+            if added or replaced:
                 _advance_generation(self._connection, now)
-        return len(rows)
+        return PutVerdictsResult(added, replaced, unchanged)
 
     def add_issues(self, issues: Sequence[Issue]) -> None:
         """Count each issue, so a client repeating the same bad input can't fill the disk.

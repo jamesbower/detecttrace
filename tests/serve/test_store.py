@@ -17,6 +17,7 @@ from detecttrace.runconfig import ConfigFileError, TraceFormat, load_run_config
 from detecttrace.serve.store import (
     SCHEMA_VERSION,
     AddSpansResult,
+    PutVerdictsResult,
     Snapshot,
     Store,
     StoreCounts,
@@ -406,10 +407,30 @@ def test_repeated_add_issues_leaves_generation_unchanged(store: Store) -> None:
 # Verdicts
 
 
-def test_put_verdicts_returns_the_number_stored(store: Store) -> None:
-    stored = store.put_verdicts([make_verdict("CASE-1"), make_verdict("CASE-2")], "analysts")
+def test_put_verdicts_counts_new_cases_as_added(store: Store) -> None:
+    result = store.put_verdicts([make_verdict("CASE-1"), make_verdict("CASE-2")], "analysts")
 
-    assert stored == 2
+    assert result == PutVerdictsResult(added=2, replaced=0, unchanged=0)
+
+
+def test_put_verdicts_counts_a_changed_verdict_as_replaced(store: Store) -> None:
+    store.put_verdicts([make_verdict("CASE-1", "TP"), make_verdict("CASE-2", "TP")], "analysts")
+
+    result = store.put_verdicts(
+        [make_verdict("CASE-1", "FP"), make_verdict("CASE-2", "TP")], "analysts"
+    )
+
+    assert result == PutVerdictsResult(added=0, replaced=1, unchanged=1)
+
+
+def test_put_verdicts_counts_a_second_row_for_a_case_as_replacing_the_first(
+    store: Store,
+) -> None:
+    result = store.put_verdicts(
+        [make_verdict("CASE-1", "TP"), make_verdict("CASE-1", "FP")], "analysts"
+    )
+
+    assert result == PutVerdictsResult(added=1, replaced=1, unchanged=0)
 
 
 def test_new_verdict_is_read_back_without_a_line_number(store: Store) -> None:
@@ -479,12 +500,12 @@ def test_identical_verdict_repost_keeps_the_first_token_name(store: Store, db_pa
     assert token_name == "analysts"
 
 
-def test_identical_verdict_repost_is_counted_as_stored(store: Store) -> None:
+def test_identical_verdict_repost_is_counted_as_unchanged(store: Store) -> None:
     store.put_verdicts([make_verdict("CASE-1", "TP")], "analysts")
 
-    stored = store.put_verdicts([make_verdict("CASE-1", "TP")], "ops")
+    result = store.put_verdicts([make_verdict("CASE-1", "TP")], "ops")
 
-    assert stored == 1
+    assert result == PutVerdictsResult(added=0, replaced=0, unchanged=1)
 
 
 def test_repost_with_a_new_alert_class_replaces_the_verdict(store: Store) -> None:

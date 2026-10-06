@@ -28,7 +28,7 @@ _PATH_PART = re.compile(r"\.([^.\[\]]+)|\[([0-9]+)\]")
 _YAML_SUFFIXES = (".yaml", ".yml")
 EXAMPLE_SUFFIX = ".yaml.example"
 # Real checklists are a few KB, and PyYAML's pure-Python parser takes seconds per megabyte.
-_MAX_FILE_BYTES = 1 << 20
+MAX_FILE_BYTES = 1 << 20
 _MAX_ECHO_CHARS = 60
 _JSON_VALUE_TAGS = frozenset({"list", "dict", "str", "bool", "int", "float"})
 
@@ -268,7 +268,7 @@ def _list_folder(path: Path, suffixes: tuple[str, ...]) -> list[tuple[Path, str]
 
 def _load_file(file_path: Path, subject: str) -> Checklist:
     try:
-        document = load_yaml12(file_path, max_bytes=_MAX_FILE_BYTES, what="checklists are a few KB")
+        document = load_yaml12(file_path, max_bytes=MAX_FILE_BYTES, what="checklists are a few KB")
     except Yaml12Error as error:
         raise ChecklistFileError(f"{subject}: {error.detail}") from None
     if not isinstance(document, dict):
