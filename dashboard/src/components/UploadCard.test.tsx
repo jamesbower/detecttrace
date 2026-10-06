@@ -224,7 +224,7 @@ describe("the reload hold", () => {
     const input = renderCard();
     await userEvent.upload(input, [csv("a.csv")]);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Clear results" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Clear results/ }));
 
     expect(isReloadHeld()).toBe(false);
   });
@@ -248,7 +248,16 @@ describe("Clear results", () => {
 
     await userEvent.upload(input, [csv("a.csv")]);
 
-    expect(await screen.findByRole("button", { name: "Clear results" })).not.toBeNull();
+    expect(await screen.findByRole("button", { name: /^Clear results/ })).not.toBeNull();
+  });
+
+  it("names its card, so the three cards' buttons can be told apart", async () => {
+    respondWith(200, { stored_text: "Done.", problems: [] });
+    const input = renderCard();
+
+    await userEvent.upload(input, [csv("a.csv")]);
+
+    expect(await screen.findByRole("button", { name: "Clear results for Verdicts" })).not.toBeNull();
   });
 
   it("removes the results", async () => {
@@ -256,7 +265,7 @@ describe("Clear results", () => {
     const input = renderCard();
     await userEvent.upload(input, [csv("a.csv")]);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Clear results" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Clear results/ }));
 
     expect(screen.queryByText("a.csv")).toBeNull();
   });
@@ -266,7 +275,7 @@ describe("Clear results", () => {
     const input = renderCard();
     await userEvent.upload(input, [csv("a.csv")]);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Clear results" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Clear results/ }));
 
     expect(document.activeElement).toBe(input);
   });
@@ -277,7 +286,7 @@ describe("Clear results", () => {
 
     await userEvent.upload(input, [csv("a.csv")]);
 
-    expect(screen.queryByRole("button", { name: "Clear results" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Clear results/ })).toBeNull();
   });
 });
 

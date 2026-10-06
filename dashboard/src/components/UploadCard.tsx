@@ -146,7 +146,7 @@ export function UploadCard({ kind, title, addText, acceptText, accept, onUploade
       )}
       {outcomes.length > 0 && !isUploading && (
         <button type="button" className="data-button upload-clear" onClick={handleClearResults}>
-          Clear results
+          Clear results <span className="visually-hidden">for {title}</span>
         </button>
       )}
     </section>

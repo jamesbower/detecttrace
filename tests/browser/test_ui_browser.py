@@ -15,6 +15,7 @@ production. axe waits on timers, so the clock runs while axe does and only then.
 """
 
 import os
+import re
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -206,7 +207,7 @@ def upload_demo_files(page: Any, visit: UiVisit) -> None:
         visit.stored_texts[title] = card.locator(".upload-stored").all_inner_texts()
         if title == "Traces":
             visit.focus_after_upload = page.evaluate(FOCUS_NAME)
-        card.get_by_role("button", name="Clear results").click()
+        card.get_by_role("button", name=re.compile(r"^Clear results")).click()
 
 
 def choose_labels(page: Any, visit: UiVisit) -> None:
