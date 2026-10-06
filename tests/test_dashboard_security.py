@@ -443,6 +443,18 @@ def waiting_html() -> str:
     return render_waiting_page(WAITING_COUNTS, [], SERVED)
 
 
+@cache
+def ui_html() -> str:
+    return render_dashboard(
+        json.loads(DEMO_GOLDEN.read_text(encoding="utf-8")), served=SERVED, mode="ui"
+    )
+
+
+@cache
+def ui_waiting_html() -> str:
+    return render_waiting_page(WAITING_COUNTS, [], SERVED, mode="ui")
+
+
 def served_view(held_back_cases: int) -> Any:
     served = ServedPage(7, "2026-10-05T12:00:00.000000Z", held_back_cases)
     page = parse_html(
@@ -456,7 +468,11 @@ def test_an_offline_page_is_byte_identical_to_the_golden_page() -> None:
     assert generate.normalize_dashboard(page) == DEMO_GOLDEN_HTML.read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("html", [served_html, waiting_html], ids=["served", "waiting"])
+@pytest.mark.parametrize(
+    "html",
+    [served_html, waiting_html, ui_html, ui_waiting_html],
+    ids=["served", "waiting", "ui", "ui_waiting"],
+)
 def test_a_served_page_allows_its_inline_blocks_and_requests_to_its_own_server(html: Any) -> None:
     page = parse_html(html())
     style = page.find(has_tag("style")).text()
@@ -465,6 +481,19 @@ def test_a_served_page_allows_its_inline_blocks_and_requests_to_its_own_server(h
         f"default-src 'none'; script-src '{to_hash(script)}'; style-src '{to_hash(style)}'; "
         "base-uri 'none'; form-action 'none'; connect-src 'self'"
     )
+
+
+@pytest.mark.parametrize(
+    ("html", "mode"),
+    [(served_html, "served"), (waiting_html, "served"), (ui_html, "ui"), (ui_waiting_html, "ui")],
+    ids=["served", "waiting", "ui", "ui_waiting"],
+)
+def test_a_served_page_tells_the_dashboard_its_mode(html: Any, mode: str) -> None:
+    assert json.loads(data_block(parse_html(html()), "dt-view"))["mode"] == mode
+
+
+def test_an_offline_page_tells_the_dashboard_it_is_offline() -> None:
+    assert json.loads(data_block(demo_page(), "dt-view"))["mode"] == "offline"
 
 
 def test_a_served_page_runs_the_same_script_as_an_offline_page() -> None:

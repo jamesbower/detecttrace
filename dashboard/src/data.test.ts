@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { readPageData } from "./data";
 
-const VIEW_JSON = JSON.stringify({ view_version: 1, header: { title: "DetectTrace" } });
+const VIEW_JSON = JSON.stringify({ view_version: 2, header: { title: "DetectTrace" } });
 const WAITING = { counts: [{ label: "Spans received", value: "12" }], notes: [] };
-const WAITING_VIEW_JSON = JSON.stringify({ view_version: 1, waiting: WAITING });
+const WAITING_VIEW_JSON = JSON.stringify({ view_version: 2, waiting: WAITING });
 const RESULTS_JSON = JSON.stringify({ schema_version: 1, case_rows: {}, case_detail: [] });
 
 function createDocument(blocks: Record<string, string>): Document {
@@ -39,16 +39,16 @@ describe("readPageData", () => {
   });
 
   it("checks a waiting page's view version", () => {
-    const doc = createDocument({ "dt-view": JSON.stringify({ view_version: 2, waiting: WAITING }) });
+    const doc = createDocument({ "dt-view": JSON.stringify({ view_version: 1, waiting: WAITING }) });
 
     expect(readPageData(doc)).toEqual({
-      error: 'The "dt-view" data block has view_version 2; this page reads version 1.',
+      error: 'The "dt-view" data block has view_version 1; this page reads version 2.',
     });
   });
 
   it("reads a page whose view is not waiting as one with results", () => {
     const doc = createDocument({
-      "dt-view": JSON.stringify({ view_version: 1, waiting: null }),
+      "dt-view": JSON.stringify({ view_version: 2, waiting: null }),
       "dt-results": RESULTS_JSON,
     });
 
@@ -87,12 +87,12 @@ describe("readPageData", () => {
 
   it("names an unsupported view version", () => {
     const doc = createDocument({
-      "dt-view": JSON.stringify({ view_version: 2 }),
+      "dt-view": JSON.stringify({ view_version: 1 }),
       "dt-results": RESULTS_JSON,
     });
 
     expect(readPageData(doc)).toEqual({
-      error: 'The "dt-view" data block has view_version 2; this page reads version 1.',
+      error: 'The "dt-view" data block has view_version 1; this page reads version 2.',
     });
   });
 
@@ -100,7 +100,7 @@ describe("readPageData", () => {
     const doc = createDocument({ "dt-view": "{}", "dt-results": RESULTS_JSON });
 
     expect(readPageData(doc)).toEqual({
-      error: 'The "dt-view" data block has no view_version; this page reads version 1.',
+      error: 'The "dt-view" data block has no view_version; this page reads version 2.',
     });
   });
 

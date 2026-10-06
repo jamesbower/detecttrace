@@ -12,12 +12,13 @@ form here fails the run instead of becoming a loose type.
 
 import argparse
 import difflib
+import json
 import sys
 import types
 from collections.abc import Mapping, Sequence
 from dataclasses import fields, is_dataclass
 from pathlib import Path
-from typing import get_args, get_origin, get_type_hints
+from typing import Literal, get_args, get_origin, get_type_hints
 
 from detecttrace.dashboard_view import VIEW_VERSION, DashboardView
 
@@ -55,6 +56,8 @@ def to_typescript(annotation: object, owner: type) -> str:
     if isinstance(annotation, type) and is_dataclass(annotation):
         return annotation.__name__
     origin, arguments = get_origin(annotation), get_args(annotation)
+    if origin is Literal and all(isinstance(argument, str) for argument in arguments):
+        return " | ".join(json.dumps(argument) for argument in arguments)
     if origin is types.UnionType and type(None) in arguments:
         rest = [argument for argument in arguments if argument is not type(None)]
         if len(rest) == 1:

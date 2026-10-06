@@ -5,8 +5,8 @@ one inline script and one inline stylesheet, whose SHA-256 hashes the build writ
 two empty, non-executed JSON blocks. Rendering fills those blocks with the view model and the
 results, and composes the Content-Security-Policy that allows exactly the two inline blocks.
 
-A page served by `detecttrace serve` asks the same server whether newer results exist, so its
-policy also allows requests to its own origin, and nothing else.
+A page served by `detecttrace serve` or `detecttrace ui` asks the same server whether newer
+results exist, so its policy also allows requests to its own origin, and nothing else.
 """
 
 import json
@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from functools import cache
 from importlib.resources import files
 from pathlib import Path
+from typing import Literal
 
 from detecttrace.dashboard_view import (
     GENERATOR,
@@ -67,26 +68,36 @@ class _Page:
     style_hash: str
 
 
-def render_dashboard(results: Mapping[str, object], *, served: ServedPage | None = None) -> str:
+def render_dashboard(
+    results: Mapping[str, object],
+    *,
+    served: ServedPage | None = None,
+    mode: Literal["served", "ui"] = "served",
+) -> str:
     """Render the page for a results object from `results.build_results` (or its JSON).
 
-    With `served`, the page is for `detecttrace serve`: its view carries its generation, and its
-    policy lets it ask the same server for newer results. Without it, the page is the offline
-    one. Raises ValueError for an unknown schema version, or a NaN or infinity in the results.
+    With `served`, the page is for `detecttrace serve` (or `detecttrace ui`, by `mode`): its view
+    carries its generation, and its policy lets it ask the same server for newer results. Without
+    it, the page is the offline one and `mode` is ignored. Raises ValueError for an unknown schema
+    version, or a NaN or infinity in the results.
     """
-    view = build_view(results) if served is None else build_served_view(results, served)
+    view = build_view(results) if served is None else build_served_view(results, served, mode=mode)
     return _fill_page(view, to_script_json(results), can_connect=served is not None)
 
 
 def render_waiting_page(
-    counts: WaitingCounts, notes: Sequence[SummaryLine], served: ServedPage
+    counts: WaitingCounts,
+    notes: Sequence[SummaryLine],
+    served: ServedPage,
+    *,
+    mode: Literal["served", "ui"] = "served",
 ) -> str:
-    """Render the page `detecttrace serve` shows until at least one case can be scored.
+    """Render the page `detecttrace serve` or `detecttrace ui` shows until a case can be scored.
 
     `notes` are the run's issue lines, which often say why nothing joined yet. The page has no
     results, so its results block stays empty.
     """
-    return _fill_page(build_waiting_view(counts, notes, served), "", can_connect=True)
+    return _fill_page(build_waiting_view(counts, notes, served, mode=mode), "", can_connect=True)
 
 
 def write_dashboard(html: str, path: Path) -> None:

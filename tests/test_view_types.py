@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import is_dataclass
 from pathlib import Path
+from typing import Literal
 
 import generate_view_types
 import pytest
@@ -38,6 +39,7 @@ def test_every_public_view_dataclass_gets_a_type() -> None:
         (tuple[tuple[str, ...], ...], "ReadonlyArray<ReadonlyArray<string>>"),
         (Mapping[str, str], "Readonly<Record<string, string>>"),
         (StripView | None, "StripView | null"),
+        (Literal["offline", "ui"], '"offline" | "ui"'),
     ],
 )
 def test_an_annotation_maps_to_its_typescript_type(annotation: object, expected: str) -> None:

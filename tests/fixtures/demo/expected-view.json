@@ -1,5 +1,6 @@
 {
-  "view_version": 1,
+  "view_version": 2,
+  "mode": "offline",
   "header": {
     "title": "DetectTrace",
     "sources": [

@@ -877,7 +877,7 @@ def demo_view_json() -> dict[str, object]:
 
 
 def test_the_view_json_carries_the_view_version() -> None:
-    assert demo_view_json()["view_version"] == 1
+    assert demo_view_json()["view_version"] == 2
 
 
 def test_the_view_json_is_byte_identical_across_calls() -> None:
@@ -966,6 +966,26 @@ def demo_results() -> Any:
     return json.loads(DEMO_GOLDEN.read_text(encoding="utf-8"))
 
 
+def test_an_offline_view_is_in_offline_mode() -> None:
+    assert build_view(demo_results()).mode == "offline"
+
+
+def test_a_served_view_is_in_served_mode_by_default() -> None:
+    assert build_served_view(demo_results(), SERVED).mode == "served"
+
+
+def test_a_served_view_for_detecttrace_ui_is_in_ui_mode() -> None:
+    assert build_served_view(demo_results(), SERVED, mode="ui").mode == "ui"
+
+
+def test_a_waiting_view_is_in_served_mode_by_default() -> None:
+    assert build_waiting_view(WAITING_COUNTS, [], SERVED).mode == "served"
+
+
+def test_a_waiting_view_for_detecttrace_ui_is_in_ui_mode() -> None:
+    assert build_waiting_view(WAITING_COUNTS, [], SERVED, mode="ui").mode == "ui"
+
+
 def test_an_offline_view_has_no_served_block() -> None:
     assert build_view(demo_results()).served is None
 
@@ -1006,7 +1026,7 @@ def test_a_served_view_shows_the_same_results_as_the_offline_view() -> None:
     view = build_served_view(demo_results(), SERVED)
     offline = build_view(demo_results())
 
-    assert replace(view, served=None, header=offline.header) == offline
+    assert replace(view, mode="offline", served=None, header=offline.header) == offline
 
 
 def test_an_offline_view_names_the_version_that_wrote_it() -> None:
@@ -1039,6 +1059,29 @@ def test_a_served_view_says_the_page_asks_the_server_for_newer_results() -> None
         "Every 30 seconds the page asks that server whether newer results exist, and it makes "
         "no other network requests."
     )
+
+
+def test_a_ui_view_says_it_runs_locally() -> None:
+    header = build_served_view(demo_results(), SERVED, mode="ui").header
+
+    assert header.generator_text == (
+        f"Written by detecttrace {__version__}, running locally with detecttrace ui."
+    )
+
+
+def test_a_ui_view_says_the_page_asks_the_app_on_this_computer_for_newer_results() -> None:
+    header = build_served_view(demo_results(), SERVED, mode="ui").header
+
+    assert header.footer_text == (
+        "Every 30 seconds the page asks the detecttrace ui app on this computer whether newer "
+        "results exist, and it makes no other network requests."
+    )
+
+
+def test_a_ui_waiting_view_says_it_runs_locally() -> None:
+    header = build_waiting_view(WAITING_COUNTS, [], SERVED, mode="ui").header
+
+    assert header.generator_text.endswith("running locally with detecttrace ui.")
 
 
 def test_a_waiting_view_says_the_page_asks_the_server_for_newer_results() -> None:
