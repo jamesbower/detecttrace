@@ -1,0 +1,177 @@
+/* The scroll box the windowing reads; its own scrollbar keeps the header in view. */
+.case-table-scroll {
+  container-type: inline-size;
+  max-height: var(--case-scroll-height);
+  overflow: auto;
+  background: var(--panel);
+  border: var(--border-thin) solid var(--line);
+}
+
+.case-table {
+  width: 100%;
+  min-width: var(--case-table-min-width);
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.case-table caption {
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  color: var(--muted);
+  text-align: left;
+}
+
+.case-table th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-raised);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel);
+  border-bottom: var(--border-thin) solid var(--accent);
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-label);
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.case-table td {
+  padding: 0 var(--sp-3);
+  border-bottom: var(--border-thin) solid var(--line);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.case-table .case-num {
+  text-align: right;
+}
+
+/* Every row is one fixed height: the windowing reads it as --case-row-height. */
+.case-row {
+  height: var(--case-row-height);
+}
+
+.case-row:hover > td {
+  background: var(--accent-hover);
+}
+
+/* The dangerous mark is words and an icon in the Result column; the edge only repeats it. */
+.case-row[data-dangerous="true"] > td:first-child {
+  box-shadow: inset var(--border-accent) 0 0 var(--danger);
+}
+
+.case-cell-text {
+  display: block;
+  max-width: var(--case-cell-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.case-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--touch-target);
+  padding: 0 var(--sp-2) 0 0;
+  background: none;
+  border: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.case-toggle::before {
+  flex: none;
+  width: var(--case-chevron);
+  height: var(--case-chevron);
+  border-right: var(--border-mark) solid var(--muted);
+  border-bottom: var(--border-mark) solid var(--muted);
+  content: "";
+  transform: rotate(-45deg);
+  transition: transform var(--t-med) var(--ease);
+}
+
+.case-toggle[aria-expanded="true"]::before {
+  transform: rotate(45deg);
+}
+
+.case-toggle:hover {
+  color: var(--accent-text);
+}
+
+/* The pill names the verdict; the border only repeats it, so colour is never the sole cue. */
+.verdict-pill {
+  display: inline-block;
+  padding: 0 var(--sp-2);
+  border: var(--border-thin) solid var(--line);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.verdict-pill[data-verdict="true_positive"] {
+  border-color: var(--verdict-true-positive);
+}
+
+.verdict-pill[data-verdict="false_positive"] {
+  border-color: var(--verdict-false-positive);
+}
+
+.verdict-pill[data-verdict="benign"] {
+  border-color: var(--verdict-benign);
+}
+
+.verdict-pill[data-verdict="unknown"],
+.verdict-pill[data-verdict="other"] {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.case-result {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.case-result[data-result="dangerous"] {
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}
+
+.case-result-icon {
+  flex: none;
+  width: var(--case-icon);
+  height: var(--case-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+}
+
+.case-detail-row > td {
+  padding: 0;
+  background: var(--frame);
+  white-space: normal;
+}
+
+.case-table-spacer > td {
+  padding: 0;
+  border: 0;
+}
+
+.case-table-empty {
+  height: var(--case-row-height);
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .case-toggle::before {
+    transition: none;
+  }
+}

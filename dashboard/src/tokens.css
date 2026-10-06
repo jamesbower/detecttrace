@@ -184,3 +184,25 @@
   --label-max: 24ch;
   --cell-min-width: 96px;
 }
+
+/* Task 8: cases, data notes */
+:root {
+  /* Warning text and marks; 4.5:1 on --bg, --panel and --frame */
+  --severity-warning: #e8b923;
+
+  /* Verdict pill borders (3:1 non-text on --panel); the pill's words name the verdict */
+  --verdict-true-positive: var(--accent);
+  --verdict-false-positive: var(--s1);
+  --verdict-benign: var(--s3);
+
+  /* Case table. --case-row-height must equal ROW_HEIGHT_PX in case-window.ts. */
+  --case-row-height: 52px;
+  --case-scroll-height: 70vh;
+  --case-table-min-width: 820px;
+  --case-cell-max: 28ch;
+  --case-search-width: 18ch;
+  --case-chevron: 7px;
+  --case-icon: 14px;
+  --case-call-status-width: 88px;
+  --note-icon: 16px;
+}

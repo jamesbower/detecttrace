@@ -1,0 +1,17 @@
+.cases-page {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.cases-summary {
+  display: grid;
+  gap: var(--sp-1);
+  max-width: var(--measure);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.cases-count {
+  color: var(--text);
+}
