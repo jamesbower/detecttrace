@@ -218,6 +218,18 @@ def test_a_page_repeating_a_slot_is_refused(packaged_page: Path, slot: str) -> N
         render_dashboard(demo_results())
 
 
+def test_a_page_with_its_slots_out_of_order_is_refused(packaged_page: Path) -> None:
+    html = packaged_page.read_text(encoding="utf-8")
+    swapped = (
+        html.replace("__DT_CSP__", "\0")
+        .replace("__DT_GENERATOR__", "__DT_CSP__")
+        .replace("\0", "__DT_GENERATOR__")
+    )
+    packaged_page.write_text(swapped, encoding="utf-8")
+    with pytest.raises(RuntimeError, match="out of order"):
+        render_dashboard(demo_results())
+
+
 def test_hashes_without_a_script_hash_are_refused(packaged_page: Path) -> None:
     (packaged_page.parent / "dashboard.hashes.json").write_text(
         '{"style": "sha256-aThnzQW1Gi63mvi1CJ0yBGU0KcS0COLSdy7NcGZf0cA="}', encoding="utf-8"

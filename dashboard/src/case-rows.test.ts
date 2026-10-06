@@ -160,6 +160,10 @@ describe("the result filter in a hash", () => {
     expect(toResultFilter("disagree", "1")).toBe("disagree");
   });
 
+  it("reads an old link's dangerous=0 as all", () => {
+    expect(toResultFilter(null, "0")).toBe("all");
+  });
+
   it("reads an unknown result as all", () => {
     expect(toResultFilter("everything", null)).toBe("all");
   });

@@ -216,3 +216,22 @@ it("checks no more once stopped", async () => {
 
   expect(calls).toBe(1);
 });
+
+it("schedules no check after one that was running when polling stopped", async () => {
+  vi.useFakeTimers();
+  let calls = 0;
+  let settle = () => {};
+  const stop = startPolling(() => {
+    calls += 1;
+    return new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+  });
+  await vi.advanceTimersByTimeAsync(POLL_MS);
+
+  stop();
+  settle();
+  await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+
+  expect(calls).toBe(1);
+});

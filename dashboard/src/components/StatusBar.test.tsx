@@ -138,3 +138,14 @@ it("stops asking once it is gone", async () => {
 
   expect(fetchMock).toHaveBeenCalledOnce();
 });
+
+it("says the last update failed and that newer data exists, in that order", async () => {
+  stubFetch(respondWith(status({ generation: 8, last_error: "RuntimeError: boom" })));
+  render(<StatusBar served={SERVED} />);
+
+  await waitIntervals(1);
+
+  expect(screen.getByRole("status").querySelector("p")?.textContent).toBe(
+    "Showing data from 2026-10-05 12:00 UTC; the last update failed. New data is available.",
+  );
+});

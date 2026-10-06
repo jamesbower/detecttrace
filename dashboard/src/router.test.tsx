@@ -119,6 +119,16 @@ describe("useRoute", () => {
     expect(window.location.hash).toBe("#/versions?class=class-0");
   });
 
+  it("changes the query in place, adding no history entry", async () => {
+    window.history.replaceState(null, "", "#/versions");
+    const length = window.history.length;
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
+
+    expect(window.history.length).toBe(length);
+  });
+
   it("applies two query changes made in one event", async () => {
     window.history.replaceState(null, "", "#/versions");
     render(<RouteProbe />);

@@ -20,6 +20,19 @@ describe("computeCspHashes", () => {
     expect(computeCspHashes(PAGE).style).toBe(sha256("a{}"));
   });
 
+  it("hashes a script body's surrounding whitespace too", () => {
+    const page = PAGE.replace("run()", "\n  run()\n");
+
+    // The digest of "\n  run()\n", computed outside Node with openssl.
+    expect(computeCspHashes(page).script).toBe("sha256-n70kDLiI7xto2L8E2mYfhBOZvIqtOhzAvITUbPNMSPE=");
+  });
+
+  it("refuses a page with no executable script", () => {
+    const page = PAGE.replace('<script type="module">run()</script>', "");
+
+    expect(() => computeCspHashes(page)).toThrow("Expected exactly one executable <script>, found 0.");
+  });
+
   it("refuses a page with a second executable script", () => {
     const page = PAGE.replace("</body>", "<script>more()</script></body>");
 

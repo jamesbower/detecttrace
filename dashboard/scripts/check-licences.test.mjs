@@ -29,6 +29,17 @@ describe("isAllowedLicence", () => {
 });
 
 describe("findDisallowed", () => {
+  it("lists the packages in sorted order, not the order found", () => {
+    const tree = {
+      dependencies: {
+        z: { name: "z", version: "1.0.0", path: "/z" },
+        a: { name: "a", version: "1.0.0", path: "/a" },
+      },
+    };
+
+    expect(findDisallowed(tree, () => "GPL-3.0-only")).toEqual(["a@1.0.0: GPL-3.0-only", "z@1.0.0: GPL-3.0-only"]);
+  });
+
   it("names each nested package with a disallowed licence once", () => {
     const tree = {
       dependencies: {

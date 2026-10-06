@@ -242,3 +242,45 @@ it("marks the first week of a version with a 200-character label", () => {
 
   expect(screen.getAllByText(LONG_LABEL, { selector: "text" })).toHaveLength(1);
 });
+
+// All versions has a point only in the middle week; v1 only in the weeks either side of it.
+const TIE_METRIC = {
+  title: "Verdict agreement",
+  lines: [
+    { style: "all", label: "All versions", values: [null, 0.5, null], counts: [0, 20, 0], few: [false, false, false] },
+    { style: "1", label: "v1", values: [0.4, null, 0.6], counts: [20, 0, 20], few: [false, false, false] },
+  ],
+  table_rows: [
+    { week: "2026-W01", cells: ["no cases", "40% (n 20)"] },
+    { week: "2026-W02", cells: ["50% (n 20)", "no cases"] },
+    { week: "2026-W03", cells: ["no cases", "60% (n 20)"] },
+  ],
+  empty_text: null,
+};
+const TIE_TREND: TrendView = {
+  ...DEMO_TREND,
+  weeks: ["2026-W01", "2026-W02", "2026-W03"],
+  agreement: TIE_METRIC,
+  version_first_weeks: { v1: "2026-W01" },
+};
+
+it("breaks an ArrowDown tie between two nearest weeks toward the earlier one", async () => {
+  render(<TrendChart metric={TIE_METRIC} trend={TIE_TREND} alertClassName="impossible_travel" />);
+  await userEvent.tab();
+
+  await userEvent.keyboard("{ArrowDown}");
+
+  expect(focusedName()).toBe("2026-W01, v1: 40% (n 20)");
+});
+
+it("keeps one tab stop, on the first point, when the point moved to is gone", async () => {
+  const { rerender } = renderDemo();
+  await userEvent.tab();
+  await userEvent.keyboard("{End}");
+
+  rerender(<TrendChart metric={TIE_METRIC} trend={TIE_TREND} alertClassName="impossible_travel" />);
+
+  expect(screen.getAllByRole("img").filter((point) => point.tabIndex === 0).map((point) => point.getAttribute("aria-label"))).toEqual([
+    "2026-W02, All versions: 50% (n 20)",
+  ]);
+});

@@ -3,7 +3,7 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createClasses } from "../test-fixtures";
-import { ClassSelector, MAX_CLASS_TABS } from "./ClassSelector";
+import { ClassPanel, ClassSelector, MAX_CLASS_TABS, getClassTabId } from "./ClassSelector";
 
 const THREE = createClasses(3);
 const MANY = createClasses(MAX_CLASS_TABS + 1);
@@ -175,4 +175,28 @@ it("renders nothing when there are no classes", () => {
   const { container } = render(<ClassSelector classes={[]} panelId="panel" />);
 
   expect(container.childElementCount).toBe(0);
+});
+
+describe("ClassPanel at the most classes tabs hold", () => {
+  const SIX = createClasses(MAX_CLASS_TABS);
+
+  function renderPanel() {
+    return render(
+      <ClassPanel classes={SIX} selected={SIX[0]!} panelId="panel">
+        content
+      </ClassPanel>,
+    );
+  }
+
+  it("is a tab panel", () => {
+    renderPanel();
+
+    expect(screen.queryByRole("tabpanel")).not.toBeNull();
+  });
+
+  it("is named by its class's tab", () => {
+    renderPanel();
+
+    expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(getClassTabId("class-0"));
+  });
 });

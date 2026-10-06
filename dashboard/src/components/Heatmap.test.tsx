@@ -78,3 +78,25 @@ it("keys each version column with its series swatch", () => {
 
   expect(screen.getByRole("columnheader", { name: /^v2/ }).querySelector(".series-swatch .series-2")).not.toBeNull();
 });
+
+// The first version column has few cases, and so does every cell in it.
+const FEW_TABLE: SkipTableView = {
+  ...DEMO_TABLE,
+  columns: DEMO_TABLE.columns.map((column, index) => (index === 0 ? { ...column, few_note: "Few cases." } : column)),
+  rows: DEMO_TABLE.rows.map((row) => ({
+    ...row,
+    cells: row.cells.map((cell, index) => (index === 0 ? { ...cell, few_note: "Few cases." } : cell)),
+  })),
+};
+
+it("says a column has few cases once, in its header, not in every cell", () => {
+  render(<Heatmap table={FEW_TABLE} alertClassName="impossible_travel" />);
+
+  expect(screen.getAllByText("Few cases.")).toHaveLength(1);
+});
+
+it("marks the header of a column with few cases", () => {
+  render(<Heatmap table={FEW_TABLE} alertClassName="impossible_travel" />);
+
+  expect(screen.getByText("Few cases.").closest("th")?.classList.contains("is-few")).toBe(true);
+});

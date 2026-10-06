@@ -374,6 +374,32 @@ describe("windowing", () => {
     expect(caseButton("C00001").closest("tr")?.getAttribute("aria-rowindex")).toBe("4");
   });
 
+  it("counts an opened detail in the whole table's row count", async () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+
+    await userEvent.click(caseButton("C00000"));
+
+    expect(screen.getByRole("table").getAttribute("aria-rowcount")).toBe("5002");
+  });
+
+  it("places an opened detail on the row after its case", async () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    await userEvent.click(caseButton("C00000"));
+    const detailId = caseButton("C00000").getAttribute("aria-controls") ?? "";
+
+    expect(document.getElementById(detailId)?.getAttribute("aria-rowindex")).toBe("3");
+  });
+
+  it("keeps a row drawn when focus leaves for no element, as when the window loses focus", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    act(() => caseButton("C00000").focus());
+    fireEvent.focusOut(caseButton("C00000"), { relatedTarget: null });
+
+    scrollTable(2500 * 52);
+
+    expect(screen.queryByRole("button", { name: "C00000" })).not.toBeNull();
+  });
+
   it("keeps focus on a row when the table scrolls far from it", () => {
     render(<Cases view={DEMO_VIEW} results={results} />);
     act(() => caseButton("C00000").focus());
