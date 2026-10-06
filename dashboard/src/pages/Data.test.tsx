@@ -1,5 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerPanel, resetRegistryForTests } from "../registry";
 import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
@@ -41,9 +42,22 @@ const VIEW_WITH_NOTES: View = {
   ],
 };
 
+const UI_VIEW: View = { ...DEMO_VIEW, mode: "ui" };
+
+const UI_STATE = {
+  is_configured: false,
+  can_configure: false,
+  has_results: false,
+  span_count_text: "2,129 spans stored.",
+  verdict_count_text: "No verdicts stored.",
+  trace_family_text: "OTLP traces",
+  checklist_classes: ["phishing", "malware"],
+};
+
 afterEach(() => {
   cleanup();
   resetRegistryForTests();
+  vi.unstubAllGlobals();
 });
 
 describe("the demo", () => {
@@ -63,11 +77,177 @@ describe("the demo", () => {
   });
 });
 
-describe("mode", () => {
+describe("offline mode", () => {
+  it("shows no upload step", () => {
+    render(<Data view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+    expect(screen.queryByRole("heading", { name: "1 · Upload" })).toBeNull();
+  });
+
+  it("asks the network nothing", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<Data view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ui mode", () => {
+  let fetchMock: ReturnType<typeof vi.fn<(url: string, init?: RequestInit) => Promise<Response>>>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn((url: string) =>
+      Promise.resolve(new Response(JSON.stringify(url === "/api/ui/state" ? UI_STATE : {}), { status: 200 })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    // jsdom has no modal dialogs; these follow the browser's open and close.
+    HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    };
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+    Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
+  });
+
   it("marks the coverage list with the page's mode", () => {
-    render(<Data view={{ ...DEMO_VIEW, mode: "ui" }} results={DEMO_RESULTS} />);
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
 
     expect(screen.getByRole("list", { name: "Coverage" }).dataset.mode).toBe("ui");
+  });
+
+  it("numbers the steps it shows", () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      "1 · Upload",
+      "3 · Data notes",
+    ]);
+  });
+
+  it("shows an upload card for each kind of file", () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Traces",
+      "Verdicts",
+      "Checklists",
+    ]);
+  });
+
+  it("limits each card's chooser to its suffixes", () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect(
+      ["Traces", "Verdicts", "Checklists"].map((title) =>
+        screen.getByLabelText(`Choose files for ${title}`).getAttribute("accept"),
+      ),
+    ).toEqual([".jsonl,.json,.gz,.zst", ".csv", ".yaml,.yml"]);
+  });
+
+  it("shows the totals stored so far", async () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect((await screen.findByText("2,129 spans stored.")).tagName).toBe("DD");
+  });
+
+  it("lists the stored checklists' classes", async () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect((await screen.findByText("phishing, malware")).tagName).toBe("DD");
+  });
+
+  it("reads the totals again after an upload", async () => {
+    const user = userEvent.setup();
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url === "/api/ui/state"
+              ? { ...UI_STATE, verdict_count_text: "201 verdicts stored." }
+              : { stored_text: "201 verdicts added.", problems: [] },
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    await user.upload(screen.getByLabelText("Choose files for Verdicts"), new File(["x"], "v.csv"));
+
+    expect(await screen.findByText("201 verdicts stored.")).not.toBeNull();
+  });
+
+  it("moves focus into the clear dialog", async () => {
+    const user = userEvent.setup();
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    await user.click(screen.getByRole("button", { name: "Clear all data" }));
+
+    expect(document.activeElement?.textContent).toBe("Cancel");
+  });
+
+  it("does not clear the data when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    await user.click(screen.getByRole("button", { name: "Clear all data" }));
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain("/api/data/clear");
+  });
+
+  it("returns focus to the clear button when the dialog closes", async () => {
+    const user = userEvent.setup();
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    const opener = screen.getByRole("button", { name: "Clear all data" });
+    await user.click(opener);
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("clears the data once confirmed, then reloads", async () => {
+    const user = userEvent.setup();
+    const reload = vi.fn();
+    vi.stubGlobal("location", { reload });
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    await user.click(screen.getByRole("button", { name: "Clear all data" }));
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear all data" }));
+
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it("sends the clear only after the confirm", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("location", { reload: vi.fn() });
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    await user.click(screen.getByRole("button", { name: "Clear all data" }));
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear all data" }));
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toContain("/api/data/clear");
+  });
+
+  it("shows why a clear failed and stays on the page", async () => {
+    const user = userEvent.setup();
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ code: 403, message: "This request was refused." }), { status: 403 })),
+    );
+    await user.click(screen.getByRole("button", { name: "Clear all data" }));
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear all data" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe("This request was refused.");
   });
 });
 
