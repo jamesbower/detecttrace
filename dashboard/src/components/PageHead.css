@@ -11,10 +11,16 @@
 }
 
 .page-head-title {
+  width: fit-content;
   font-family: var(--font-display);
   font-size: var(--fs-display);
   line-height: var(--lh-tight);
   text-transform: uppercase;
+}
+
+/* Focus lands here on a new page or from the skip link: a slimmer ring that hugs the words. */
+.page-head-title:focus-visible {
+  outline-width: var(--border-mark);
 }
 
 .page-head-lead {

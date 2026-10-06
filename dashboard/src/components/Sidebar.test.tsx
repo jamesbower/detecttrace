@@ -52,6 +52,18 @@ it("carries the selected class into each link", () => {
   expect(screen.getByRole("link", { name: "Cases" }).getAttribute("href")).toBe("#/cases?class=class-1");
 });
 
+it("puts the brand and navigation in the banner", () => {
+  render(<Sidebar title="DetectTrace" pages={PAGES} currentPath="/" />);
+
+  expect(screen.getByRole("banner").contains(screen.getByRole("navigation", { name: "Pages" }))).toBe(true);
+});
+
+it("adds no complementary landmark", () => {
+  render(<Sidebar title="DetectTrace" pages={PAGES} currentPath="/" />);
+
+  expect(screen.queryByRole("complementary")).toBeNull();
+});
+
 it("shows the view's title as the brand", () => {
   render(<Sidebar title="DetectTrace" pages={PAGES} currentPath="/" />);
 

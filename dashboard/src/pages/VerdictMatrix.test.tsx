@@ -31,6 +31,14 @@ it("puts the case count and dangerous closes in a class's heading", () => {
   ).not.toBeNull();
 });
 
+it("sets each class's name apart in its heading, so it keeps its case", () => {
+  render(<VerdictMatrix view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+  expect(
+    screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.querySelector(".class-name")?.textContent),
+  ).toEqual(["impossible_travel", "oauth_consent"]);
+});
+
 it("labels every dangerous cell across classes", () => {
   render(<VerdictMatrix view={DEMO_VIEW} results={DEMO_RESULTS} />);
 

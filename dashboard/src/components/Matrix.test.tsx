@@ -69,7 +69,13 @@ it("leaves an empty dangerous cell unflagged", () => {
 it("colors a cell from its heat class", () => {
   render(<Matrix confusion={CONFUSION} alertClassName="impossible_travel" />);
 
-  expect(screen.getByRole("cell", { name: "37" }).classList.contains("matrix-h-ok-4")).toBe(true);
+  expect(screen.getByRole("cell", { name: "37" }).classList.contains("matrix-h-4")).toBe(true);
+});
+
+it("marks the cells where agent and analyst agree", () => {
+  const { container } = render(<Matrix confusion={CONFUSION} alertClassName="impossible_travel" />);
+
+  expect([...container.querySelectorAll(".is-match")].map((cell) => cell.textContent)).toEqual(["11", "37", "47"]);
 });
 
 it("names the table by its caption, which names the class", () => {

@@ -179,14 +179,15 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
 
   const captionId = `${idPrefix}-caption`;
   return (
-    <div
-      ref={scrollRef}
-      className="case-table-scroll"
-      role="region"
-      aria-labelledby={captionId}
-      tabIndex={0}
-      onScroll={handleScroll}
-    >
+    <div className="panel">
+      <div
+        ref={scrollRef}
+        className="case-table-scroll"
+        role="region"
+        aria-labelledby={captionId}
+        tabIndex={0}
+        onScroll={handleScroll}
+      >
       <table className="case-table" aria-rowcount={rows.length === 0 ? 2 : rows.length + extents.length + 1}>
         <caption id={captionId}>Cases, newest week first, then by case ID.</caption>
         <thead>
@@ -219,6 +220,7 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

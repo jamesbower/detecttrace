@@ -801,13 +801,13 @@
             "cells": [
               {
                 "count_text": "5",
-                "heat": "h-ok-4",
+                "heat": "h-4",
                 "is_dangerous": false,
                 "is_flagged": false
               },
               {
                 "count_text": "1",
-                "heat": "h-off-1",
+                "heat": "h-1",
                 "is_dangerous": true,
                 "is_flagged": true
               },
@@ -824,19 +824,19 @@
             "cells": [
               {
                 "count_text": "1",
-                "heat": "h-off-1",
+                "heat": "h-1",
                 "is_dangerous": false,
                 "is_flagged": false
               },
               {
                 "count_text": "12",
-                "heat": "h-ok-4",
+                "heat": "h-4",
                 "is_dangerous": false,
                 "is_flagged": false
               },
               {
                 "count_text": "2",
-                "heat": "h-off-1",
+                "heat": "h-1",
                 "is_dangerous": false,
                 "is_flagged": false
               }
@@ -859,7 +859,7 @@
               },
               {
                 "count_text": "12",
-                "heat": "h-ok-4",
+                "heat": "h-4",
                 "is_dangerous": false,
                 "is_flagged": false
               }

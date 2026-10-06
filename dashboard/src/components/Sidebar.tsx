@@ -15,7 +15,8 @@ type SidebarProps = {
 export function Sidebar({ title, pages, currentPath, classAnchor = null }: SidebarProps) {
   const query = new URLSearchParams(classAnchor === null ? {} : { class: classAnchor });
   return (
-    <aside className="sidebar">
+    // A header, not an aside: the brand and the navigation are the site's banner.
+    <header className="sidebar">
       <p className="sidebar-brand">
         <span className="sidebar-brand-mark" aria-hidden="true">
           DT
@@ -42,6 +43,6 @@ export function Sidebar({ title, pages, currentPath, classAnchor = null }: Sideb
           ))}
         </ul>
       </nav>
-    </aside>
+    </header>
   );
 }

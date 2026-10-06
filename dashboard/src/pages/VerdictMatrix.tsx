@@ -18,11 +18,11 @@ export function VerdictMatrix({ view }: PageProps) {
         {view.classes.map((alertClass) => (
           <section
             key={alertClass.anchor}
-            className="analysis-panel"
+            className="panel analysis-panel"
             aria-labelledby={`verdicts-${alertClass.anchor}`}
           >
             <h2 id={`verdicts-${alertClass.anchor}`} className="analysis-panel-title">
-              <span>{alertClass.name}</span>{" "}
+              <span className="class-name">{alertClass.name}</span>{" "}
               <span className="analysis-panel-sub">
                 {`All versions · ${alertClass.confusion.n_text} · ${alertClass.confusion.dangerous_text}`}
               </span>

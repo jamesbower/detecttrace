@@ -33,10 +33,11 @@
      screen's edge would cut a ring drawn outside it. */
   --focus-inset: calc(-1 * var(--focus-width) - var(--focus-offset));
 
-  /* Verdict pill borders (3:1 non-text on --panel); the pill's words name the verdict */
-  --verdict-true-positive: var(--accent);
-  --verdict-false-positive: var(--s1);
-  --verdict-benign: var(--s3);
+  /* Verdict pill borders, apart from the series colours: 3:1 non-text on --panel, --frame and a
+     hovered row. The pill's words name the verdict; the colour only repeats them. */
+  --verdict-true-positive: #ef8a5a;
+  --verdict-false-positive: #9aa9d6;
+  --verdict-benign: #b7c49a;
 
   /* Version series: color is one of three cues; dash pattern and marker shape are the others.
      Each color keeps at least 3:1 on --panel, --bg and --frame. */
@@ -77,24 +78,18 @@
   --swatch-width: 30px;
   --swatch-height: 12px;
 
-  /* Skipped-step cells: --heat-skip is mixed into --panel by the share skipped, up to the cap,
-     which keeps --text and --muted at 4.5:1 on the strongest cell. */
-  --heat-skip: var(--accent);
-  --heat-skip-cap: 40%;
-
-  /* Verdict matrix cells: "ok" on the diagonal, "off" elsewhere; each keeps --text at 4.5:1. */
-  --heat-0: #1e2632;
-  --heat-ok-1: #1f3330;
-  --heat-ok-2: #23443b;
-  --heat-ok-3: #285545;
-  --heat-ok-4: #2d6650;
-  --heat-off-1: #2e2a22;
-  --heat-off-2: #463826;
-  --heat-off-3: #5e462a;
-  --heat-off-4: #75542d;
+  /* Heat: one ramp for every heat cell, skipped steps and verdict matrix alike, so no hue reads
+     as good or bad. --heat is mixed into --panel by a share, up to the cap, which keeps --text
+     and --muted at 4.5:1 on the strongest cell. A matrix cell takes one of four levels. */
+  --heat: var(--accent);
+  --heat-cap: 40%;
+  --heat-1: 10%;
+  --heat-2: 20%;
+  --heat-3: 30%;
+  --heat-4: var(--heat-cap);
   --danger-tint: rgb(255 107 107 / 14%);
-  /* The --danger outline is under 3:1 against the darkest off cells (about 2.5:1 on
-     --heat-off-4), so it is not the cue: every outlined cell also says "Dangerous" in text. */
+  /* The --danger outline keeps 3:1 on every heat level; every outlined cell also says
+     "Dangerous" in text. */
   --outline-danger: 2px;
   --outline-flagged: 3px;
 
@@ -155,6 +150,7 @@
   --border-accent: 3px;
   --cut-sm: 16px;
   --cut-md: 18px;
+  --cut-md-diagonal: calc(var(--cut-md) * 1.4143); /* the cut edge's length */
   --clip-angled-sm: polygon(0 0, calc(100% - var(--cut-sm)) 0, 100% var(--cut-sm), 100% 100%, 0 100%);
   --clip-angled-md: polygon(0 0, calc(100% - var(--cut-md)) 0, 100% var(--cut-md), 100% 100%, 0 100%);
   --clip-brand-mark: polygon(0 0, 80% 0, 100% 25%, 100% 100%, 0 100%);

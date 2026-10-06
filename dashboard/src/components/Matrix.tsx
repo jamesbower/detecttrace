@@ -43,11 +43,14 @@ export function Matrix({ confusion, alertClassName }: MatrixProps) {
           </tr>
         </thead>
         <tbody>
-          {confusion.rows.map((row) => (
+          {confusion.rows.map((row, rowIndex) => (
             <tr key={row.label}>
               <th scope="row">{row.label}</th>
               {row.cells.map((cell, index) => (
-                <td key={index} className={toCellClass(cell.heat, cell.is_dangerous, cell.is_flagged)}>
+                <td
+                  key={index}
+                  className={toCellClass(cell.heat, cell.is_dangerous, cell.is_flagged, rowIndex === index)}
+                >
                   <span className="matrix-count">{cell.count_text}</span>
                   {/* The space keeps "3 Dangerous" two words for a screen reader. */}
                   {cell.is_dangerous && " "}
@@ -69,8 +72,12 @@ export function Matrix({ confusion, alertClassName }: MatrixProps) {
   );
 }
 
-function toCellClass(heat: string, isDangerous: boolean, isFlagged: boolean): string {
+// Rows and columns list the verdicts in the same order, so the diagonal is where they agree.
+function toCellClass(heat: string, isDangerous: boolean, isFlagged: boolean, isMatch: boolean): string {
   const classes = ["matrix-cell", `matrix-${heat}`];
+  if (isMatch) {
+    classes.push("is-match");
+  }
   if (isDangerous) {
     classes.push("is-dangerous");
   }

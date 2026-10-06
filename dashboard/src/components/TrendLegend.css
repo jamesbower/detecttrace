@@ -15,6 +15,11 @@
   min-width: 0;
 }
 
+/* The legend's rule is taller and heavier than the chart's, so it reads at swatch size. */
+.trend-legend .trend-vmark {
+  stroke-width: var(--border-mark);
+}
+
 .trend-legend-label {
   max-width: var(--label-max);
   overflow-wrap: anywhere;

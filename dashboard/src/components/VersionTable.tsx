@@ -22,7 +22,7 @@ export function VersionTable({ alertClass, view, results }: VersionTableProps) {
   return (
     <div className="version-table">
       <h2 className="version-table-heading">
-        <span className="version-table-class">{alertClass.name}</span>{" "}
+        <span className="class-name">{alertClass.name}</span>{" "}
         <span className="version-table-sub">
           {alertClass.cases_text}
           {alertClass.versions_text !== "" && ` · ${alertClass.versions_text}`}
@@ -30,7 +30,7 @@ export function VersionTable({ alertClass, view, results }: VersionTableProps) {
       </h2>
       {/* The frame's clip-path would cut a focus ring drawn outside the scroll area, so the
           scroll area sits inside it, in the frame's padding. */}
-      <div className="version-table-frame">
+      <div className="panel version-table-frame">
         <div className="version-table-scroll" role="region" tabIndex={0} aria-labelledby={captionId}>
           <table>
             <caption id={captionId}>

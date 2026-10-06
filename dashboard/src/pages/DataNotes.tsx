@@ -17,7 +17,7 @@ export function DataNotes({ view, results }: PageProps) {
       <ul className="coverage-list" aria-label="Coverage">
         {view.coverage.map((line, index) => (
           // The view's coverage lines are fixed for the page's life, so the index is a stable key.
-          <li key={index} className="coverage-line" data-low={line.is_low}>
+          <li key={index} className="panel coverage-line" data-low={line.is_low}>
             {line.is_low && (
               <WarnIcon className="coverage-icon" />
             )}

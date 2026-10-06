@@ -13,10 +13,6 @@
   font-size: var(--fs-md);
 }
 
-.overview-class-name {
-  font-family: var(--font-mono);
-}
-
 .overview-alert a {
   display: inline-flex;
   align-items: center;

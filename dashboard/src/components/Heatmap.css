@@ -29,6 +29,10 @@
   vertical-align: bottom;
 }
 
+.heatmap-table tbody th {
+  vertical-align: middle;
+}
+
 .heatmap-table thead th + th {
   text-align: center;
 }
@@ -61,11 +65,7 @@
   min-width: var(--cell-min-width);
   padding: var(--sp-2) var(--sp-3);
   border: var(--border-thin) solid var(--line);
-  background: color-mix(
-    in srgb,
-    var(--heat-skip) min(calc(var(--heat-level, 0) * 1%), var(--heat-skip-cap)),
-    var(--panel)
-  );
+  background: color-mix(in srgb, var(--heat) min(calc(var(--heat-level, 0) * 1%), var(--heat-cap)), var(--panel));
   text-align: center;
 }
 

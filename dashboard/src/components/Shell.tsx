@@ -25,9 +25,11 @@ export function Shell({ header, pages, currentPath, classAnchor = null, served =
   const mainRef = useRef<HTMLElement>(null);
 
   // The hash holds the route, so following the link's own #main-content would leave the page.
+  // Focus lands on the page's heading, as it does when a new page opens.
   function handleSkip(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
-    mainRef.current?.focus();
+    const main = mainRef.current;
+    (main?.querySelector<HTMLElement>("h1") ?? main)?.focus();
   }
 
   return (
@@ -38,6 +40,8 @@ export function Shell({ header, pages, currentPath, classAnchor = null, served =
       <Sidebar title={header.title} pages={pages} currentPath={currentPath} classAnchor={classAnchor} />
       <main id={MAIN_ID} className="shell-main" ref={mainRef} tabIndex={-1}>
         <div className="shell-corner" aria-hidden="true" />
+        {/* The sidebar's brand is hidden on a narrow screen, so the name shows here instead. */}
+        <p className="shell-brand">{header.title}</p>
         {served !== null && served.held_back_text !== null && <p className="shell-note">{served.held_back_text}</p>}
         {children}
         <StatusBar served={served} />

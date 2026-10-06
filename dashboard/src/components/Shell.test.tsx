@@ -10,12 +10,30 @@ afterEach(() => {
   window.history.replaceState(null, "", "#");
 });
 
-it("moves focus to the main content from the skip link", async () => {
+it("moves focus to the main content from the skip link on a page with no heading", async () => {
   render(<Shell header={DEMO_VIEW.header} pages={[]} currentPath="/">content</Shell>);
 
   await userEvent.click(screen.getByRole("link", { name: "Skip to content" }));
 
   expect(document.activeElement).toBe(screen.getByRole("main"));
+});
+
+it("moves focus to the page's heading from the skip link", async () => {
+  render(
+    <Shell header={DEMO_VIEW.header} pages={[]} currentPath="/">
+      <h1 tabIndex={-1}>Overview</h1>
+    </Shell>,
+  );
+
+  await userEvent.click(screen.getByRole("link", { name: "Skip to content" }));
+
+  expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Overview" }));
+});
+
+it("names the site in the main content, for a screen too narrow for the sidebar's brand", () => {
+  render(<Shell header={DEMO_VIEW.header} pages={[]} currentPath="/">content</Shell>);
+
+  expect(screen.getByRole("main").querySelector(".shell-brand")?.textContent).toBe("DetectTrace");
 });
 
 it("keeps the route when the skip link is followed", async () => {

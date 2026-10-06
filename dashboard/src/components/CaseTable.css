@@ -1,10 +1,15 @@
-/* The scroll box the windowing reads; its own scrollbar keeps the header in view. */
+/* The scroll box the windowing reads; its own scrollbar keeps the header in view. It fills
+   its .panel frame, so its focus ring is drawn inside it, clear of the frame's clip-path. */
 .case-table-scroll {
   container-type: inline-size;
   max-height: var(--case-scroll-height);
   overflow: auto;
-  background: var(--panel);
-  border: var(--border-thin) solid var(--line);
+  /* A focused row scrolls clear of the sticky header, with room for its focus ring below. */
+  scroll-padding-block: var(--case-row-height) var(--sp-2);
+}
+
+.case-table-scroll:focus-visible {
+  outline-offset: var(--focus-inset);
 }
 
 .case-table {
@@ -28,11 +33,9 @@
   background: var(--panel);
   border-bottom: var(--border-thin) solid var(--accent);
   color: var(--muted);
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
   text-align: left;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -140,8 +143,10 @@
   white-space: nowrap;
 }
 
+/* The words and the icon mark a dangerous false close, as in the version table; the colour
+   stays neutral. */
 .case-result[data-result="dangerous"] {
-  color: var(--danger);
+  color: var(--text);
   font-weight: var(--fw-bold);
 }
 

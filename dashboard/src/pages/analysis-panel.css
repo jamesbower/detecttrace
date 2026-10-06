@@ -1,13 +1,10 @@
-/* The framed panel that holds one class's table or charts on the skipped steps, weekly trend
-   and verdict matrix pages. */
+/* The panel that holds one class's table or charts on the skipped steps, weekly trend and
+   verdict matrix pages; .panel draws it. */
 .analysis-panel {
   display: grid;
   gap: var(--sp-4);
   min-width: 0;
   padding: var(--sp-4) var(--sp-5);
-  background: var(--panel);
-  border: var(--border-thin) solid var(--line);
-  clip-path: var(--clip-angled-md);
 }
 
 .analysis-panel-title {

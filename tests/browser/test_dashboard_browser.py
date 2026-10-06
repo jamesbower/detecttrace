@@ -97,8 +97,12 @@ FOCUS_PROBE = """() => {
     }
     return false;
   })();
+  // A trend point's mark is the ring drawn around it, not an outline.
+  const ring = el.querySelector(".trend-point-ring");
   const hasRing = ((style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0)
-    || style.boxShadow !== "none") && !isClipped;
+    || style.boxShadow !== "none"
+    || (ring !== null && getComputedStyle(ring).stroke !== "none"
+        && getComputedStyle(ring).stroke !== "rgba(0, 0, 0, 0)")) && !isClipped;
   let name;
   if (el === document.body) name = "body";
   else if (el.matches(".skip-link")) name = "skip link";
@@ -400,7 +404,7 @@ def case_tab_order(browser: Any, demo_path: Path) -> list[int]:
 
 @dataclass(frozen=True)
 class SkipState:
-    focused_id: str
+    focused: str  # the focused element's tag and text
     hash: str
 
 
@@ -410,7 +414,10 @@ def skip_state(browser: Any, demo_path: Path) -> SkipState:
         visit.page.keyboard.press("Tab")
         visit.page.keyboard.press("Enter")
         return SkipState(
-            visit.page.evaluate("document.activeElement.id"), visit.page.evaluate("location.hash")
+            visit.page.evaluate(
+                "`${document.activeElement.tagName} ${document.activeElement.textContent}`"
+            ),
+            visit.page.evaluate("location.hash"),
         )
 
 
@@ -725,8 +732,8 @@ def test_tab_reaches(browser: Any, low_coverage_path: Path, hash: str, target: s
     assert target in names
 
 
-def test_the_skip_link_moves_focus_to_the_main_content(skip_state: SkipState) -> None:
-    assert skip_state.focused_id == "main-content"
+def test_the_skip_link_moves_focus_to_the_page_heading(skip_state: SkipState) -> None:
+    assert skip_state.focused == "H1 By version"
 
 
 def test_the_skip_link_keeps_the_route(skip_state: SkipState) -> None:

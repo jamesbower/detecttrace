@@ -222,7 +222,7 @@ class TrendView:
 @dataclass(frozen=True, slots=True)
 class ConfusionCellView:
     count_text: str
-    heat: str  # "h-0", "h-ok-1".."h-ok-4", "h-off-1".."h-off-4"
+    heat: str  # "h-0".."h-4": the cell's share of its row, one ramp for every cell
     is_dangerous: bool
     is_flagged: bool  # a dangerous cell that holds cases
 
@@ -922,7 +922,7 @@ def _to_confusion_view(overall: Any) -> ConfusionView:
         cells = tuple(
             ConfusionCellView(
                 count_text=format_count(count),
-                heat=_to_heat(count, total, is_diagonal=row_index == column_index),
+                heat=_to_heat(count, total),
                 is_dangerous=_is_dangerous_cell(row_index, column_index),
                 is_flagged=_is_dangerous_cell(row_index, column_index) and count > 0,
             )
@@ -941,11 +941,10 @@ def _is_dangerous_cell(row_index: int, column_index: int) -> bool:
     return row_index == _TRUE_POSITIVE and column_index != _TRUE_POSITIVE
 
 
-def _to_heat(count: int, row_total: int, *, is_diagonal: bool) -> str:
+def _to_heat(count: int, row_total: int) -> str:
     if count == 0:
         return "h-0"
-    level = min(4, 1 + int(count / row_total * 4))
-    return f"h-ok-{level}" if is_diagonal else f"h-off-{level}"
+    return f"h-{min(4, 1 + int(count / row_total * 4))}"
 
 
 def _to_cases_view(data: Any) -> CasesView:

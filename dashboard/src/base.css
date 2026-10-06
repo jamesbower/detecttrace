@@ -52,6 +52,36 @@ pre {
   outline-offset: var(--focus-offset);
 }
 
+/* One panel: square with one angled corner, a thin edge, and the edge drawn along the cut too,
+   which the clip-path would otherwise leave bare. --panel-edge recolours the whole edge. */
+.panel {
+  --panel-edge: var(--line);
+  position: relative;
+  background: var(--panel);
+  border: var(--border-thin) solid var(--panel-edge);
+  clip-path: var(--clip-angled-md);
+}
+
+.panel::after {
+  position: absolute;
+  top: calc(-1 * var(--border-thin));
+  left: calc(100% + var(--border-thin) - var(--cut-md));
+  width: var(--cut-md-diagonal);
+  height: var(--border-thin);
+  background: var(--panel-edge);
+  content: "";
+  transform: rotate(45deg);
+  transform-origin: 0 0;
+}
+
+/* Alert class names are identifiers from the traces: they keep their case and spacing even in
+   a heading that capitalizes. */
+.class-name {
+  font-family: var(--font-mono);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

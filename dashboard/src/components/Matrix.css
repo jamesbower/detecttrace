@@ -41,11 +41,18 @@
   text-align: left;
 }
 
+/* The tint repeats the cell's share of its row, which the count already says. */
 .matrix-cell {
   padding: var(--sp-3) var(--sp-1);
   border: var(--outline-danger) solid var(--frame);
+  background: color-mix(in srgb, var(--heat) var(--matrix-heat, 0%), var(--panel));
   color: var(--text);
   text-align: center;
+}
+
+/* Agent and analyst agree: an inner rule marks the diagonal, with no colour of its own. */
+.matrix-cell.is-match {
+  box-shadow: inset 0 0 0 var(--border-thin) var(--muted);
 }
 
 .matrix-count {
@@ -54,40 +61,20 @@
   font-weight: var(--fw-bold);
 }
 
-.matrix-h-0 {
-  background: var(--heat-0);
+.matrix-h-1 {
+  --matrix-heat: var(--heat-1);
 }
 
-.matrix-h-ok-1 {
-  background: var(--heat-ok-1);
+.matrix-h-2 {
+  --matrix-heat: var(--heat-2);
 }
 
-.matrix-h-ok-2 {
-  background: var(--heat-ok-2);
+.matrix-h-3 {
+  --matrix-heat: var(--heat-3);
 }
 
-.matrix-h-ok-3 {
-  background: var(--heat-ok-3);
-}
-
-.matrix-h-ok-4 {
-  background: var(--heat-ok-4);
-}
-
-.matrix-h-off-1 {
-  background: var(--heat-off-1);
-}
-
-.matrix-h-off-2 {
-  background: var(--heat-off-2);
-}
-
-.matrix-h-off-3 {
-  background: var(--heat-off-3);
-}
-
-.matrix-h-off-4 {
-  background: var(--heat-off-4);
+.matrix-h-4 {
+  --matrix-heat: var(--heat-4);
 }
 
 /* The outline and the "Dangerous" label mark where a dangerous false close would fall. */

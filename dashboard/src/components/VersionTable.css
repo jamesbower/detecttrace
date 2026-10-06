@@ -13,12 +13,6 @@
   overflow-wrap: anywhere;
 }
 
-/* Class names are identifiers from the traces, so they keep their case. */
-.version-table-class {
-  font-family: var(--font-mono);
-  letter-spacing: var(--ls-label);
-}
-
 .version-table-sub {
   color: var(--muted);
   font-weight: var(--fw-regular);
@@ -27,9 +21,6 @@
 .version-table-frame {
   min-width: 0;
   padding: var(--sp-4) var(--sp-5);
-  background: var(--panel);
-  border: var(--border-thin) solid var(--line);
-  clip-path: var(--clip-angled-md);
 }
 
 /* Scrolls sideways on a narrow screen; focusable so the keyboard can scroll it too. */
@@ -60,10 +51,8 @@
 
 .version-table thead th {
   color: var(--muted);
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  text-transform: uppercase;
   border-bottom-color: var(--accent);
 }
 

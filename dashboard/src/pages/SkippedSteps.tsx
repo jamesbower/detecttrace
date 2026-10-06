@@ -21,8 +21,10 @@ export function SkippedSteps({ view }: PageProps) {
       />
       <ClassSelector classes={view.classes} panelId={panelId} />
       {selected !== undefined && (
-        <ClassPanel classes={view.classes} selected={selected} panelId={panelId} className="analysis-panel">
-          <h2 className="analysis-panel-title">{selected.name}</h2>
+        <ClassPanel classes={view.classes} selected={selected} panelId={panelId} className="panel analysis-panel">
+          <h2 className="analysis-panel-title">
+            <span className="class-name">{selected.name}</span>
+          </h2>
           <Heatmap table={selected.skipped} alertClassName={selected.name} />
         </ClassPanel>
       )}

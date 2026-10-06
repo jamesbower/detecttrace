@@ -36,6 +36,12 @@
   display: none;
 }
 
+.shell-brand {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
 /* The bottom padding keeps the last line clear of the bottom navigation bar. */
 .shell-footer {
   max-width: var(--measure);
@@ -59,6 +65,10 @@
   .shell-main {
     grid-column: 2;
     padding: var(--sp-6);
+  }
+
+  .shell-brand {
+    display: none;
   }
 
   .shell-footer {

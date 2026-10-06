@@ -72,7 +72,11 @@
   stroke-width: var(--trend-focus-width);
 }
 
-/* The ring marks the point itself; some browsers draw no outline on SVG content. */
+/* The ring around the point is its one focus mark: the box outline would square it off. */
+.trend-point:focus-visible {
+  outline: none;
+}
+
 .trend-point:focus-visible .trend-point-ring,
 .trend-point:hover .trend-point-ring {
   stroke: var(--focus);

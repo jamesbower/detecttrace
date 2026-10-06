@@ -17,7 +17,7 @@ export function NoteList({ notes }: { notes: readonly NoteView[] }) {
         const isInvalid = note.severity === INVALID_INPUT;
         return (
           // The view's note order is fixed for the page's life, so the index is a stable key.
-          <li key={index} className="note" data-severity={isInvalid ? "invalid" : "warning"}>
+          <li key={index} className="panel note" data-severity={isInvalid ? "invalid" : "warning"}>
             <p className="note-severity">
               {isInvalid ? (
                 <svg className="note-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">

@@ -618,6 +618,16 @@ def test_a_dangerous_cell_without_cases_is_not_flagged() -> None:
     assert build_view(data).classes[0].confusion.rows[0].cells[1].is_flagged is False
 
 
+def test_matrix_heat_follows_the_share_of_the_row_on_and_off_the_diagonal_alike() -> None:
+    data = results([class_data(overall=metrics(confusion=[[4, 4, 0], [0, 1, 7], [0, 0, 3]]))])
+    cells = build_view(data).classes[0].confusion.rows
+    assert [[cell.heat for cell in row.cells] for row in cells] == [
+        ["h-3", "h-3", "h-0"],
+        ["h-0", "h-1", "h-4"],
+        ["h-0", "h-0", "h-4"],
+    ]
+
+
 def test_the_confusion_matrix_counts_dangerous_false_closes() -> None:
     assert build_view(results()).classes[0].confusion.dangerous_text == "2 dangerous false closes"
 

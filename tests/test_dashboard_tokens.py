@@ -61,12 +61,20 @@ def over(foreground: str, background: Rgb) -> Rgb:
     return tuple(f * alpha + b * (1 - alpha) for f, b in zip(rgb, background, strict=True))  # type: ignore[return-value]
 
 
-def skipped_step_cap() -> Rgb:
-    """The strongest skipped-step cell: --heat-skip mixed into --panel at --heat-skip-cap."""
-    share = int(tokens()["--heat-skip-cap"].removesuffix("%")) / 100
+def share(name: str) -> float:
+    """A percentage token as a fraction, following var() chains."""
+    value = tokens()[name]
+    if var := re.fullmatch(r"var\((--[\w-]+)\)", value):
+        return share(var[1])
+    return int(value.removesuffix("%")) / 100
+
+
+def heat_at(level: str) -> Rgb:
+    """A heat cell: --heat mixed into --panel at the share the `level` token gives."""
+    amount = share(level)
     return tuple(  # type: ignore[return-value]
-        a * share + p * (1 - share)
-        for a, p in zip(colour("--heat-skip"), colour("--panel"), strict=True)
+        a * amount + p * (1 - amount)
+        for a, p in zip(colour("--heat"), colour("--panel"), strict=True)
     )
 
 
@@ -89,11 +97,8 @@ def test_contrast_matches_a_known_pair() -> None:
 
 
 # Surfaces text is drawn on, by name.
-HEAT_TOKENS = [
-    "--heat-0",
-    *(f"--heat-ok-{n}" for n in range(1, 5)),
-    *(f"--heat-off-{n}" for n in range(1, 5)),
-]
+# The verdict matrix's four heat levels; a cell with no cases is bare --panel.
+HEAT_TOKENS = [f"--heat-{n}" for n in range(1, 5)]
 PAGE_SURFACES = {
     "--bg": lambda: colour("--bg"),  # page and detail areas
     "--panel": lambda: colour("--panel"),  # tables, sidebar, notes, analysis panels
@@ -106,13 +111,12 @@ SURFACES = {
     # The current navigation link
     "--accent-tint on --panel": lambda: over("--accent-tint", colour("--panel")),
     # The skipped-step cell at its strongest
-    "skipped-step heat at its cap on --panel": skipped_step_cap,
-    **{token: (lambda token=token: colour(token)) for token in HEAT_TOKENS},
-    # A flagged dangerous matrix cell: the tint over each off-diagonal heat
+    "skipped-step heat at its cap on --panel": lambda: heat_at("--heat-cap"),
+    **{token: (lambda token=token: heat_at(token)) for token in HEAT_TOKENS},
+    # A flagged dangerous matrix cell: the tint over each heat level
     **{
-        f"--danger-tint on {token}": (lambda token=token: over("--danger-tint", colour(token)))
+        f"--danger-tint on {token}": (lambda token=token: over("--danger-tint", heat_at(token)))
         for token in HEAT_TOKENS
-        if "off" in token
     },
 }
 
@@ -176,11 +180,26 @@ def test_series_colour_meets_3_to_1_on_the_panel(token: str) -> None:
     assert contrast(colour(token), colour("--panel")) >= GRAPHIC
 
 
+VERDICT_PILLS = ["--verdict-true-positive", "--verdict-false-positive", "--verdict-benign"]
+# A pill sits in a case row: on --panel, on a hovered row, and in an open case's --frame.
+PILL_SURFACES = ["--panel", "--accent-hover on --panel", "--frame"]
+
+
 @pytest.mark.parametrize(
-    "token", ["--verdict-true-positive", "--verdict-false-positive", "--verdict-benign"]
+    ("token", "surface"), [(token, surface) for token in VERDICT_PILLS for surface in PILL_SURFACES]
 )
-def test_verdict_pill_border_meets_3_to_1_on_the_panel(token: str) -> None:
-    assert contrast(colour(token), colour("--panel")) >= GRAPHIC
+def test_verdict_pill_border_meets_3_to_1_on_its_surface(token: str, surface: str) -> None:
+    assert contrast(colour(token), SURFACES[surface]()) >= GRAPHIC
+
+
+@pytest.mark.parametrize("token", VERDICT_PILLS)
+def test_verdict_pills_have_colours_of_their_own(token: str) -> None:
+    assert re.fullmatch(r"#[0-9a-fA-F]{6}", tokens()[token])
+
+
+@pytest.mark.parametrize("surface", HEAT_TOKENS)
+def test_the_dangerous_outline_meets_3_to_1_on_every_heat_level(surface: str) -> None:
+    assert contrast(colour("--danger"), SURFACES[surface]()) >= GRAPHIC
 
 
 @pytest.mark.parametrize("surface", PAGE_SURFACES)
@@ -254,9 +273,22 @@ def test_no_rule_removes_the_outline_without_a_replacement(path: Path) -> None:
     removed = [
         selectors
         for selectors, declarations in _rules(path)
-        if declarations.get("outline") in {"none", "0"} and "box-shadow" not in declarations
+        if declarations.get("outline") in {"none", "0"}
+        and "box-shadow" not in declarations
+        and not any(selector in RING_REPLACEMENTS for selector in selectors)
     ]
     assert removed == []
+
+
+# Outlines removed for a mark drawn by another rule: the selector, and the rule that draws it.
+RING_REPLACEMENTS = {".trend-point:focus-visible": ".trend-point:focus-visible .trend-point-ring"}
+
+
+@pytest.mark.parametrize(("removed", "replacement"), RING_REPLACEMENTS.items())
+def test_a_removed_outline_is_replaced_by_a_focus_coloured_ring(
+    removed: str, replacement: str
+) -> None:
+    assert _scoped_declarations(replacement)["stroke"] == "var(--focus)"
 
 
 def _reduced_motion_block() -> str:
@@ -328,7 +360,7 @@ def test_the_case_row_height_token_equals_the_windowing_constant() -> None:
 
 
 def test_the_heatmap_cell_tint_is_capped_by_the_cap_token() -> None:
-    assert "var(--heat-skip-cap)" in _declarations(".heatmap-cell")["background"]
+    assert "var(--heat-cap)" in _declarations(".heatmap-cell")["background"]
 
 
 RAW_COLOUR = re.compile(
@@ -473,3 +505,60 @@ def test_forced_colors_mark_the_current_page_and_the_selected_class(
     selector: str, property_name: str, value: str
 ) -> None:
     assert _scoped_declarations(selector, media=FORCED_COLORS)[property_name] == value
+
+
+def test_a_panel_cuts_its_corner() -> None:
+    assert _scoped_declarations(".panel")["clip-path"] == "var(--clip-angled-md)"
+
+
+def test_a_panel_draws_its_edge_along_the_cut() -> None:
+    assert _scoped_declarations(".panel::after")["background"] == "var(--panel-edge)"
+
+
+def test_a_low_coverage_line_recolours_its_whole_panel_edge() -> None:
+    assert (
+        _scoped_declarations('.coverage-line[data-low="true"]')["--panel-edge"]
+        == "var(--severity-warning)"
+    )
+
+
+def test_matrix_cells_use_the_one_heat_ramp() -> None:
+    assert _scoped_declarations(".matrix-cell")["background"] == (
+        "color-mix(in srgb, var(--heat) var(--matrix-heat, 0%), var(--panel))"
+    )
+
+
+TABLE_HEADERS = [
+    ".version-table thead th",
+    ".case-table th",
+    ".matrix th",
+    ".heatmap-table th",
+    ".trend-table thead th",
+]
+
+
+@pytest.mark.parametrize("selector", TABLE_HEADERS)
+def test_every_table_header_is_extra_small(selector: str) -> None:
+    assert _scoped_declarations(selector)["font-size"] == "var(--fs-xs)"
+
+
+@pytest.mark.parametrize("selector", TABLE_HEADERS)
+def test_every_table_header_is_in_sentence_case(selector: str) -> None:
+    assert "text-transform" not in _scoped_declarations(selector)
+
+
+@pytest.mark.parametrize("property_name", ["text-transform", "letter-spacing"])
+def test_a_class_name_keeps_its_case_and_spacing(property_name: str) -> None:
+    assert _scoped_declarations(".class-name")[property_name] in {"none", "normal"}
+
+
+def test_a_dangerous_false_close_in_the_case_table_is_neutral_text() -> None:
+    assert _scoped_declarations('.case-result[data-result="dangerous"]')["color"] == "var(--text)"
+
+
+def test_a_skipped_step_label_sits_in_the_middle_of_its_row() -> None:
+    assert _scoped_declarations(".heatmap-table tbody th")["vertical-align"] == "middle"
+
+
+def test_the_page_heading_ring_hugs_its_words() -> None:
+    assert _scoped_declarations(".page-head-title")["width"] == "fit-content"
