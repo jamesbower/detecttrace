@@ -62,6 +62,7 @@ from detecttrace.serve.app import (
     read_results_response,
     read_status_content,
     receive_limited_body,
+    require_page_path,
     respond_with_status,
 )
 from detecttrace.serve.mediatype import to_media_type
@@ -283,6 +284,11 @@ def create_ui_app(*, port: int, state: UiState) -> FastAPI:
         except sqlite3.OperationalError:
             return create_unavailable_response()
         return JSONResponse({})
+
+    # Last, so every other route of one segment, such as /healthz, is matched first.
+    @app.get("/{page}", dependencies=[Depends(require_page_path)])
+    async def show_dashboard_page() -> Response:
+        return await read_page_response(state.store, "ui")
 
     return app
 

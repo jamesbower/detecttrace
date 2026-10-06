@@ -216,6 +216,39 @@ def test_the_page_forbids_framing(client: TestClient) -> None:
     assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
 
 
+@pytest.mark.parametrize("path", ["/versions", "/cases", "/data"])
+def test_a_page_path_is_the_ui_page(client: TestClient, path: str) -> None:
+    response = client.get(path)
+
+    assert read_view(response.text)["mode"] == "ui"
+
+
+@pytest.mark.parametrize("path", ["/versions", "/cases", "/data"])
+def test_a_page_path_forbids_framing(client: TestClient, path: str) -> None:
+    response = client.get(path)
+
+    assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
+
+
+def test_a_page_path_for_another_host_is_refused(client: TestClient) -> None:
+    response = client.get("/versions", headers=EVIL_HOST)
+
+    assert response.json() == {"code": 7, "message": "unexpected Host header"}
+
+
+@pytest.mark.parametrize("path", ["/versions/extra", "/Versions", "/favicon.ico"])
+def test_a_path_that_names_no_page_is_not_found(client: TestClient, path: str) -> None:
+    response = client.get(path)
+
+    assert response.status_code == 404
+
+
+def test_a_page_path_does_not_shadow_the_status_route(client: TestClient) -> None:
+    response = client.get("/api/status")
+
+    assert response.json()["recompute_running"] is False
+
+
 def test_the_results_before_any_snapshot_are_unavailable(client: TestClient) -> None:
     response = client.get("/api/results.json")
 

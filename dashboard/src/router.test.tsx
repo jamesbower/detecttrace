@@ -3,7 +3,7 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { registerPage, resetRegistryForTests } from "./registry";
-import { parseHash, replaceEmptyHash, toHash, useRoute } from "./router";
+import { parseAddress, replaceEmptyAddress, startRouter, toHref, useRoute } from "./router";
 
 const PATHS = ["/", "/versions", "/cases", "/data"];
 
@@ -35,53 +35,53 @@ function RouteProbe() {
   );
 }
 
-describe("parseHash", () => {
+describe("parseAddress", () => {
   it("reads the path", () => {
-    expect(parseHash("#/versions?class=class-1", PATHS).path).toBe("/versions");
+    expect(parseAddress("#/versions?class=class-1", PATHS).path).toBe("/versions");
   });
 
   it("reads a query parameter", () => {
-    expect(parseHash("#/versions?class=class-1&q=a+b", PATHS).query.get("q")).toBe("a b");
+    expect(parseAddress("#/versions?class=class-1&q=a+b", PATHS).query.get("q")).toBe("a b");
   });
 
   it("treats an empty hash as the home page", () => {
-    expect(parseHash("", PATHS).path).toBe("/");
+    expect(parseAddress("", PATHS).path).toBe("/");
   });
 
   it("treats a bare # as the home page", () => {
-    expect(parseHash("#", PATHS).path).toBe("/");
+    expect(parseAddress("#", PATHS).path).toBe("/");
   });
 
   it("ignores a trailing slash", () => {
-    expect(parseHash("#/versions/", PATHS).path).toBe("/versions");
+    expect(parseAddress("#/versions/", PATHS).path).toBe("/versions");
   });
 
   it("falls back to the home page for an unknown path", () => {
-    expect(parseHash("#/nowhere?class=class-1", PATHS).path).toBe("/");
+    expect(parseAddress("#/nowhere?class=class-1", PATHS).path).toBe("/");
   });
 
   it("keeps the query when the path is unknown", () => {
-    expect(parseHash("#/nowhere?class=class-1", PATHS).query.get("class")).toBe("class-1");
+    expect(parseAddress("#/nowhere?class=class-1", PATHS).query.get("class")).toBe("class-1");
   });
 
   it("forwards the old data notes path to the data page", () => {
-    expect(parseHash("#/data-notes?class=x", PATHS).path).toBe("/data");
+    expect(parseAddress("#/data-notes?class=x", PATHS).path).toBe("/data");
   });
 
   it("keeps the query when forwarding an old path", () => {
-    expect(parseHash("#/data-notes?class=x", PATHS).query.get("class")).toBe("x");
+    expect(parseAddress("#/data-notes?class=x", PATHS).query.get("class")).toBe("x");
   });
 });
 
-describe("toHash", () => {
+describe("toHref", () => {
   it("leaves out an empty query", () => {
-    expect(toHash("/cases", new URLSearchParams())).toBe("#/cases");
+    expect(toHref("/cases", new URLSearchParams())).toBe("#/cases");
   });
 
-  it("round-trips through parseHash", () => {
-    const hash = toHash("/cases", new URLSearchParams({ q: "a&b c" }));
+  it("round-trips through parseAddress", () => {
+    const hash = toHref("/cases", new URLSearchParams({ q: "a&b c" }));
 
-    expect(parseHash(hash, PATHS).query.get("q")).toBe("a&b c");
+    expect(parseAddress(hash, PATHS).query.get("q")).toBe("a&b c");
   });
 });
 
@@ -191,7 +191,7 @@ describe("useRoute", () => {
   });
 });
 
-describe("replaceEmptyHash", () => {
+describe("replaceEmptyAddress", () => {
   afterEach(() => {
     window.history.replaceState(null, "", "#");
   });
@@ -199,7 +199,7 @@ describe("replaceEmptyHash", () => {
   it("opens the path when the address names no page", () => {
     window.history.replaceState(null, "", window.location.pathname);
 
-    replaceEmptyHash("/data");
+    replaceEmptyAddress("/data");
 
     expect(window.location.hash).toBe("#/data");
   });
@@ -208,7 +208,7 @@ describe("replaceEmptyHash", () => {
     window.history.replaceState(null, "", window.location.pathname);
     const length = window.history.length;
 
-    replaceEmptyHash("/data");
+    replaceEmptyAddress("/data");
 
     expect(window.history.length).toBe(length);
   });
@@ -216,8 +216,234 @@ describe("replaceEmptyHash", () => {
   it("keeps a path the address names", () => {
     window.history.replaceState(null, "", "#/");
 
-    replaceEmptyHash("/data");
+    replaceEmptyAddress("/data");
 
     expect(window.location.hash).toBe("#/");
+  });
+});
+
+describe("parseAddress of a path", () => {
+  it("reads the path", () => {
+    expect(parseAddress("/versions?class=class-1", PATHS).path).toBe("/versions");
+  });
+
+  it("reads a query parameter", () => {
+    expect(parseAddress("/versions?class=class-1", PATHS).query.get("class")).toBe("class-1");
+  });
+
+  it("forwards the old data notes path to the data page", () => {
+    expect(parseAddress("/data-notes", PATHS).path).toBe("/data");
+  });
+
+  it("falls back to the home page for an unknown path", () => {
+    expect(parseAddress("/nowhere", PATHS).path).toBe("/");
+  });
+});
+
+describe("in path mode", () => {
+  beforeEach(() => {
+    resetRegistryForTests();
+    for (const path of PATHS) {
+      registerPage({ path, title: path, icon: "", order: 0, component: () => null });
+    }
+  });
+
+  afterEach(() => {
+    cleanup();
+    startRouter("offline");
+    window.history.replaceState(null, "", "/");
+  });
+
+  function openAt(address: string, mode: "served" | "ui" = "served") {
+    window.history.replaceState(null, "", address);
+    startRouter(mode);
+  }
+
+  it("builds a link to a page's path", () => {
+    openAt("/");
+
+    expect(toHref("/cases", new URLSearchParams({ class: "class-1" }))).toBe("/cases?class=class-1");
+  });
+
+  it("routes on the hash for a served page saved and opened from disk", () => {
+    window.history.replaceState(null, "", "/");
+    startRouter("served", "file:");
+
+    expect(toHref("/cases", new URLSearchParams())).toBe("#/cases");
+  });
+
+  it("builds a link to a page's path in the ui app", () => {
+    openAt("/", "ui");
+
+    expect(toHref("/cases", new URLSearchParams())).toBe("/cases");
+  });
+
+  it("renders the page the path names", () => {
+    openAt("/versions?class=class-1");
+
+    render(<RouteProbe />);
+
+    expect(screen.getByTestId("path").textContent).toBe("/versions");
+  });
+
+  it("reads the query from the address", () => {
+    openAt("/versions?class=class-1");
+
+    render(<RouteProbe />);
+
+    expect(screen.getByTestId("query").textContent).toBe("class=class-1");
+  });
+
+  it("renders the home page for an unknown path", () => {
+    openAt("/nowhere");
+
+    render(<RouteProbe />);
+
+    expect(screen.getByTestId("path").textContent).toBe("/");
+  });
+
+  it("leaves an unknown path in the address", () => {
+    openAt("/nowhere");
+
+    render(<RouteProbe />);
+
+    expect(window.location.pathname).toBe("/nowhere");
+  });
+
+  it("navigates to another page's path with a fresh query", async () => {
+    openAt("/versions?dangerous=1");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open cases" }));
+
+    expect(`${window.location.pathname}${window.location.search}`).toBe("/cases?q=DT-1");
+  });
+
+  it("adds a history entry when it navigates", async () => {
+    openAt("/versions");
+    const length = window.history.length;
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open cases" }));
+
+    expect(window.history.length).toBe(length + 1);
+  });
+
+  it("re-renders when it navigates", async () => {
+    openAt("/versions");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open cases" }));
+
+    expect(screen.getByTestId("path").textContent).toBe("/cases");
+  });
+
+  it("adds a query parameter and keeps the others", async () => {
+    openAt("/versions?dangerous=1");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
+
+    expect(window.location.search).toBe("?dangerous=1&class=class-1");
+  });
+
+  it("changes the query in place, adding no history entry", async () => {
+    openAt("/versions");
+    const length = window.history.length;
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
+
+    expect(window.history.length).toBe(length);
+  });
+
+  it("re-renders after a query change", async () => {
+    openAt("/versions");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
+
+    expect(screen.getByTestId("query").textContent).toBe("class=class-1");
+  });
+
+  it("re-renders when the browser moves through its history", async () => {
+    openAt("/versions");
+    render(<RouteProbe />);
+
+    act(() => {
+      window.history.pushState(null, "", "/cases");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(await screen.findByText("/cases")).toBe(screen.getByTestId("path"));
+  });
+
+  it("moves an old hash address to its path", () => {
+    openAt("/#/versions?class=x");
+
+    expect(`${window.location.pathname}${window.location.search}`).toBe("/versions?class=x");
+  });
+
+  it("leaves no hash after moving an old hash address", () => {
+    openAt("/#/versions?class=x");
+
+    expect(window.location.hash).toBe("");
+  });
+
+  it("moves an old hash address without adding a history entry", () => {
+    const length = window.history.length;
+
+    openAt("/#/versions");
+
+    expect(window.history.length).toBe(length);
+  });
+
+  it("moves an old hash address typed over the open page to its path", async () => {
+    openAt("/");
+    render(<RouteProbe />);
+
+    act(() => {
+      window.location.hash = "#/cases?q=x";
+    });
+
+    expect(await screen.findByText("/cases")).toBe(screen.getByTestId("path"));
+  });
+
+  it("leaves a hash that names no route alone", () => {
+    openAt("/cases#main-content");
+
+    expect(`${window.location.pathname}${window.location.hash}`).toBe("/cases#main-content");
+  });
+
+  it("rewrites the old data notes path to the data page's, keeping the query", () => {
+    openAt("/data-notes?class=x");
+
+    render(<RouteProbe />);
+
+    expect(`${window.location.pathname}${window.location.search}`).toBe("/data?class=x");
+  });
+
+  it("rewrites an old data notes hash address to the data page's path", () => {
+    openAt("/#/data-notes");
+
+    render(<RouteProbe />);
+
+    expect(window.location.pathname).toBe("/data");
+  });
+
+  it("opens the start path when the address names no page", () => {
+    openAt("/", "ui");
+
+    replaceEmptyAddress("/data");
+
+    expect(window.location.pathname).toBe("/data");
+  });
+
+  it("keeps a page the address names", () => {
+    openAt("/cases", "ui");
+
+    replaceEmptyAddress("/data");
+
+    expect(window.location.pathname).toBe("/cases");
   });
 });

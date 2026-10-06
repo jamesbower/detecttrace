@@ -50,7 +50,8 @@ def basic_client(tmp_path: Path, app_store: Store) -> Iterator[TestClient]:
     app = create_app(config, app_store, lambda: None)
     require_read = require_role(config.tokens, "read", allow_basic=True)
 
-    @app.get("/probe")
+    # Two segments: a single one is a dashboard page's address.
+    @app.get("/test/probe")
     def probe(name: Annotated[str, Depends(require_read)]) -> str:
         return name
 
@@ -162,12 +163,14 @@ def test_api_docs_are_not_served(client: TestClient) -> None:
 
 
 def test_read_route_takes_the_read_token_as_the_basic_password(basic_client: TestClient) -> None:
-    response = basic_client.get("/probe", headers={"Authorization": to_basic("any", READ_TOKEN)})
+    response = basic_client.get(
+        "/test/probe", headers={"Authorization": to_basic("any", READ_TOKEN)}
+    )
     assert response.json() == "analysts"
 
 
 def test_read_route_takes_a_bearer_token(basic_client: TestClient) -> None:
-    response = basic_client.get("/probe", headers={"Authorization": f"Bearer {READ_TOKEN}"})
+    response = basic_client.get("/test/probe", headers={"Authorization": f"Bearer {READ_TOKEN}"})
     assert response.json() == "analysts"
 
 
@@ -182,17 +185,17 @@ def test_read_route_takes_a_bearer_token(basic_client: TestClient) -> None:
 def test_bad_basic_credentials_are_unauthorized(
     basic_client: TestClient, authorization: str
 ) -> None:
-    response = basic_client.get("/probe", headers={"Authorization": authorization})
+    response = basic_client.get("/test/probe", headers={"Authorization": authorization})
     assert response.status_code == 401
 
 
 def test_non_ascii_basic_credentials_are_unauthorized(basic_client: TestClient) -> None:
-    response = basic_client.get("/probe", headers={"Authorization": b"Basic \xe9\xe9\xe9\xe9"})
+    response = basic_client.get("/test/probe", headers={"Authorization": b"Basic \xe9\xe9\xe9\xe9"})
     assert response.status_code == 401
 
 
 def test_read_route_challenge_offers_basic(basic_client: TestClient) -> None:
-    response = basic_client.get("/probe")
+    response = basic_client.get("/test/probe")
     assert response.headers["WWW-Authenticate"] == 'Bearer, Basic realm="detecttrace"'
 
 

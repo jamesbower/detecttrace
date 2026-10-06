@@ -67,7 +67,7 @@ The dashboard is one HTML file with eight pages, listed in a sidebar:
 - **Data**: the coverage lines and every input problem, with how to fix it. In `detecttrace ui`, this is also where you upload files and confirm the configuration.
 - **Limits**: what the dashboard does not tell you.
 
-Each page has its own address after the `#`, such as `#/cases?class=class-1&result=dangerous`. A bookmark or a reload keeps the page, the selected alert class and the case filters. These links stay inside the file. The footer names the DetectTrace version that wrote the page and says which network requests it makes.
+Each page has its own address. In the file that `check` and `demo` write, it comes after the `#`, such as `#/cases?class=class-1&result=dangerous`, so the links stay inside the file. In `detecttrace ui` and `detecttrace serve`, it is a path, such as `/cases?class=class-1&result=dangerous`. A bookmark or a reload keeps the page, the selected alert class and the case filters. The footer names the DetectTrace version that wrote the page and says which network requests it makes.
 
 ## Run it on your data
 

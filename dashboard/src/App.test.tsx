@@ -1,10 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { Data } from "./pages/Data";
 import { POLL_MS } from "./poller";
 import { registerPage, resetRegistryForTests } from "./registry";
+import { startRouter } from "./router";
 import { DEMO_RESULTS, DEMO_VIEW } from "./test-fixtures";
 
 import type { PageProps } from "./registry";
@@ -30,7 +31,8 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  window.history.replaceState(null, "", "#");
+  startRouter("offline");
+  window.history.replaceState(null, "", "/");
 });
 
 it("names each registered page in the navigation", () => {
@@ -302,4 +304,37 @@ it("shows an alert, not a blank page, when the shell itself fails to render", ()
   render(<App data={{ view: brokenView, results: DEMO_RESULTS }} />);
 
   expect(screen.getByRole("alert").textContent).toMatch(/^The dashboard could not be shown: /);
+});
+
+it("opens a served page's sidebar link in place", async () => {
+  startRouter("served");
+  render(<App data={DATA} />);
+
+  fireEvent.click(screen.getByRole("link", { name: "Cases" }));
+
+  expect(await screen.findByRole("heading", { level: 1 })).toHaveProperty("textContent", "201 cases");
+});
+
+it("moves focus to the heading of the page a served page's link opens", async () => {
+  startRouter("served");
+  render(<App data={DATA} />);
+
+  fireEvent.click(screen.getByRole("link", { name: "Cases" }));
+
+  const heading = await screen.findByRole("heading", { name: "201 cases" });
+  await waitFor(() => expect(document.activeElement).toBe(heading));
+});
+
+it("shows the earlier page when a served page goes back", async () => {
+  startRouter("served");
+  render(<App data={DATA} />);
+  fireEvent.click(screen.getByRole("link", { name: "Cases" }));
+  await screen.findByRole("heading", { name: "201 cases" });
+
+  act(() => {
+    window.history.replaceState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+
+  expect(await screen.findByRole("heading", { name: "Home" })).not.toBeNull();
 });

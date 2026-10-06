@@ -3,10 +3,11 @@ import { useId } from "react";
 import { ClassPanel, ClassSelector } from "../components/ClassSelector";
 import { Kpi } from "../components/Kpi";
 import { PageHead } from "../components/PageHead";
+import { PageLink } from "../components/PageLink";
 import { PanelSlot } from "../components/PanelSlot";
 import { VersionTable } from "../components/VersionTable";
 import { WarnIcon } from "../components/WarnIcon";
-import { toHash } from "../router";
+import { DATA_PATH } from "../router";
 import { useSelectedClass } from "../use-selected-class";
 import "./Overview.css";
 
@@ -56,10 +57,10 @@ export function Overview({ view, results }: PageProps) {
       <PanelSlot name="overview-after-kpis" view={view} results={results} />
       {view.header.low_coverage_text !== null && (
         <p className="overview-alert">
-          <a href={toHash("/data", classQuery)}>
+          <PageLink path={DATA_PATH} query={classQuery}>
             <WarnIcon className="overview-icon" />
             <span>{view.header.low_coverage_text}</span>
-          </a>
+          </PageLink>
         </p>
       )}
       <ClassSelector classes={view.classes} panelId={panelId} />
@@ -68,11 +69,11 @@ export function Overview({ view, results }: PageProps) {
           <VersionTable alertClass={selected} view={view} results={results} />
           <nav className="overview-tiles" aria-label={`More for ${selected.name}`}>
             {listTiles(selected).map((tile) => (
-              <a key={tile.path} className="overview-tile" href={toHash(tile.path, classQuery)}>
+              <PageLink key={tile.path} className="overview-tile" path={tile.path} query={classQuery}>
                 <span className="overview-tile-title">{tile.title}</span>
                 <span className="overview-tile-figure">{tile.figure}</span>
                 <span className="overview-tile-context">{tile.context}</span>
-              </a>
+              </PageLink>
             ))}
           </nav>
         </ClassPanel>

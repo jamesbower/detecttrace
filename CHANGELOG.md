@@ -29,8 +29,9 @@ The first release.
 ### Changed
 
 - The dashboard is a new multi-page React app, with a sidebar of pages and a footer. It shows the same numbers, and it is still one self-contained HTML file that opens without a network. Node is needed only to change the dashboard, not to run DetectTrace.
-- The "Data notes" page is now the "Data" page, with a database icon in the sidebar. Its address is `#/data`; links and bookmarks to the old `#/data-notes` open it.
+- The "Data notes" page is now the "Data" page, with a database icon in the sidebar. Its address is `#/data` (`/data` in `ui` and `serve`); links and bookmarks to the old `data-notes` address open it.
 - The "Self-reported" banner and the matching summary line from the command line are removed.
+- In `detecttrace ui` and `detecttrace serve`, each dashboard page has its own path, such as `/versions?class=class-1`, in place of an address after the `#`. Back and Forward move between pages, and a reload keeps the page and its filters. Old addresses such as `/#/versions` open the matching path. The file from `check` and `demo` keeps its `#/…` addresses.
 - The Overview no longer lists the input paths (traces, verdicts, checklists, config). The results JSON still names them in its `source` block.
 - `jinja2` is no longer a dependency.
 - Network policy: `demo`, `check` and `init` read files and write one self-contained HTML page that opens without a network. `ui` listens on `127.0.0.1` only and keeps what you upload in its data folder. `serve` listens on the network, stores data in SQLite, and shows the dashboard to people with a read token. DetectTrace itself never sends data anywhere: no telemetry, no update checks.

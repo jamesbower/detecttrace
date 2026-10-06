@@ -214,6 +214,49 @@ def test_status_before_any_write_has_no_ingest_time(empty_status_body: dict[str,
     assert empty_status_body["last_ingest_at"] is None
 
 
+# Every page of the dashboard has its own address, and each one answers with the same page.
+PAGE_PATHS = ["/versions", "/cases", "/data"]
+
+
+@pytest.mark.parametrize("path", PAGE_PATHS)
+def test_a_page_path_is_the_stored_html(read_client: TestClient, path: str) -> None:
+    assert read_client.get(path, headers=BEARER_READ).text == SNAPSHOT.html
+
+
+@pytest.mark.parametrize("path", PAGE_PATHS)
+def test_a_page_path_forbids_framing(read_client: TestClient, path: str) -> None:
+    response = read_client.get(path, headers=BEARER_READ)
+    assert response.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+
+
+@pytest.mark.parametrize("path", PAGE_PATHS)
+def test_a_page_path_needs_a_read_token(read_client: TestClient, path: str) -> None:
+    assert read_client.get(path).status_code == 401
+
+
+@pytest.mark.parametrize("path", PAGE_PATHS)
+def test_a_page_path_with_a_write_token_is_forbidden(read_client: TestClient, path: str) -> None:
+    response = read_client.get(path, headers={"Authorization": f"Bearer {INGEST_TOKEN}"})
+    assert response.status_code == 403
+
+
+def test_a_page_path_before_the_first_recompute_is_the_waiting_page(client: TestClient) -> None:
+    assert read_view(client.get("/cases", headers=BEARER_READ).text)["waiting"] is not None
+
+
+@pytest.mark.parametrize("path", ["/versions/extra", "/Versions", "/favicon.ico", "/1cases"])
+def test_a_path_that_names_no_page_is_not_found(read_client: TestClient, path: str) -> None:
+    assert read_client.get(path, headers=BEARER_READ).status_code == 404
+
+
+def test_a_path_that_names_no_page_is_not_found_without_a_token(read_client: TestClient) -> None:
+    assert read_client.get("/favicon.ico").status_code == 404
+
+
+def test_a_page_path_does_not_shadow_the_health_check(read_client: TestClient) -> None:
+    assert read_client.get("/healthz").text == "ok"
+
+
 def test_status_needs_a_read_token(read_client: TestClient) -> None:
     assert read_client.get("/api/status").status_code == 401
 

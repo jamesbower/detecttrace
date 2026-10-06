@@ -13,6 +13,7 @@ anything new; the counts are the stored input's. Times are ISO 8601 in UTC, or n
 
 import base64
 import logging
+import re
 import sqlite3
 import time
 from collections.abc import Callable, Mapping
@@ -72,6 +73,10 @@ SECURITY_HEADERS = {
 # Only what a meta policy can't say: the page's own policy, with its script hashes, stays in
 # the page, and a browser enforces both policies independently.
 PAGE_CSP = "frame-ancestors 'none'"
+# The dashboard routes on the address's path, so each of its pages has an address here. Any
+# single lowercase segment answers with the page, which shows its home page for a path it
+# doesn't know: a page added to the dashboard at build time then needs no change here.
+_PAGE_PATH = re.compile(r"[a-z][a-z-]*")
 _SECURITY_HEADER_ITEMS = {
     name.lower().encode("latin-1"): value.encode("latin-1")
     for name, value in SECURITY_HEADERS.items()
@@ -135,7 +140,19 @@ def create_app(
     async def show_results() -> Response:
         return await read_results_response(store)
 
+    # Last, so every other route of one segment, such as /healthz, is matched first. The path
+    # check comes before the token check, so a path that is no page is 404 for anyone.
+    @app.get("/{page}", dependencies=[Depends(require_page_path), Depends(require_read)])
+    async def show_dashboard_page() -> Response:
+        return await read_page_response(store, "served")
+
     return app
+
+
+def require_page_path(page: str) -> None:
+    """The dependency of the page route: 404 unless `page` could name a dashboard page."""
+    if _PAGE_PATH.fullmatch(page) is None:
+        raise HTTPException(404, "Not Found")
 
 
 async def respond_with_status(request: Request, error: HTTPException) -> Response:
@@ -159,7 +176,7 @@ async def read_health_response(store: Store) -> Response:
 
 
 async def read_page_response(store: Store, mode: Literal["served", "ui"]) -> Response:
-    """`GET /`: the stored snapshot's page, or `mode`'s waiting page before the first one."""
+    """`GET /` and each page path: the stored snapshot's page, or `mode`'s waiting page before the first one."""
     try:
         html = await run_in_threadpool(_read_page, store, mode)
     except sqlite3.OperationalError:

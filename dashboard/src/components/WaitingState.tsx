@@ -1,5 +1,6 @@
 import { DATA_PATH } from "../router";
 import { PageHead } from "./PageHead";
+import { PageLink } from "./PageLink";
 import "./WaitingState.css";
 
 import type { WaitingView } from "../view";
@@ -16,7 +17,7 @@ export function WaitingState({ waiting }: { waiting: WaitingView }) {
       />
       {waiting.next_step_text !== null && (
         <p className="waiting-next-step">
-          <a href={`#${DATA_PATH}`}>{waiting.next_step_text}</a>
+          <PageLink path={DATA_PATH}>{waiting.next_step_text}</PageLink>
         </p>
       )}
       <dl className="waiting-counts">

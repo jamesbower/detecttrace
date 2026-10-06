@@ -1,4 +1,4 @@
-import { toHash } from "../router";
+import { PageLink } from "./PageLink";
 import "./Sidebar.css";
 
 import type { PageDef } from "../registry";
@@ -27,9 +27,10 @@ export function Sidebar({ title, pages, currentPath, classAnchor = null }: Sideb
         <ul className="sidebar-links">
           {pages.map((page) => (
             <li key={page.path}>
-              <a
+              <PageLink
                 className="sidebar-link"
-                href={toHash(page.path, query)}
+                path={page.path}
+                query={query}
                 aria-current={page.path === currentPath ? "page" : undefined}
               >
                 {page.icon !== "" && (
@@ -38,7 +39,7 @@ export function Sidebar({ title, pages, currentPath, classAnchor = null }: Sideb
                   </svg>
                 )}
                 <span className="sidebar-label">{page.title}</span>
-              </a>
+              </PageLink>
             </li>
           ))}
         </ul>

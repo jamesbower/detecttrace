@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from page_addresses import READ_ADDRESS, AddressWalk, walk_page_addresses
 from serve.app_support import READ_TOKEN
 from serve.served_process import ServedProcess, post_demo_data, start_server
 
@@ -56,6 +57,7 @@ class ReloadVisit:
     filter_before_reload: str
     reloaded_generation: int
     filter_after_reload: str
+    address_after_reload: str
     requests: list[str]
     base_url: str
     csp_violations: list[str]
@@ -78,7 +80,7 @@ def browser() -> Iterator[Any]:
 
 
 def open_signed_in(
-    browser: Any, served: ServedProcess, hash: str = ""
+    browser: Any, served: ServedProcess, path: str = ""
 ) -> tuple[Any, list[str], list[str]]:
     """The page, signed in, with every request it makes and every console error, from the start."""
     context = browser.new_context(http_credentials={"username": "analyst", "password": READ_TOKEN})
@@ -95,7 +97,7 @@ def open_signed_in(
     page.on("console", log_console)
     page.on("pageerror", lambda error: console_errors.append(str(error)))
     page.clock.install()
-    page.goto(served.base_url + "/" + hash)
+    page.goto(served.base_url + "/" + path)
     page.wait_for_selector("h1")
     return page, requests, console_errors
 
@@ -108,7 +110,7 @@ def reload_visit(browser: Any, tmp_path_factory: pytest.TempPathFactory) -> Relo
         first_status = served.wait_for_generation(1, timeout=60)
         first_generation = first_status["generation"]
         assert isinstance(first_generation, int)
-        page, requests, console_errors = open_signed_in(browser, served, "#/cases")
+        page, requests, console_errors = open_signed_in(browser, served, "cases")
         page.select_option(RESULT_FILTER, "disagree")
         served.post_verdicts_csv(CHANGED_VERDICT).raise_for_status()
         served.wait_for_generation(first_generation + 1, timeout=60)
@@ -127,6 +129,7 @@ def reload_visit(browser: Any, tmp_path_factory: pytest.TempPathFactory) -> Relo
             filter_before_reload=filter_before_reload,
             reloaded_generation=page.evaluate(READ_GENERATION),
             filter_after_reload=page.input_value(RESULT_FILTER),
+            address_after_reload=page.evaluate(READ_ADDRESS),
             requests=requests,
             base_url=served.base_url,
             csp_violations=page.evaluate("window.__cspViolations"),
@@ -136,6 +139,20 @@ def reload_visit(browser: Any, tmp_path_factory: pytest.TempPathFactory) -> Relo
     finally:
         served.stop()
     return visit
+
+
+@pytest.fixture(scope="module")
+def address_walk(browser: Any, tmp_path_factory: pytest.TempPathFactory) -> AddressWalk:
+    served = start_server(tmp_path_factory.mktemp("served-addresses"))
+    try:
+        post_demo_data(served)
+        served.wait_for_generation(1, timeout=60)
+        page, _, _ = open_signed_in(browser, served)
+        walk = walk_page_addresses(page, served.base_url)
+        page.context.close()
+    finally:
+        served.stop()
+    return walk
 
 
 @pytest.fixture(scope="module")
@@ -172,6 +189,47 @@ def test_reload_shows_the_newer_generation(reload_visit: ReloadVisit) -> None:
 
 def test_reload_keeps_the_filter(reload_visit: ReloadVisit) -> None:
     assert reload_visit.filter_after_reload == "disagree"
+
+
+def test_reload_keeps_the_page_address(reload_visit: ReloadVisit) -> None:
+    assert reload_visit.address_after_reload == "/cases?result=disagree"
+
+
+def test_each_sidebar_link_opens_its_page_address(address_walk: AddressWalk) -> None:
+    assert address_walk.link_addresses == {
+        "Overview": "/",
+        "Versions": "/versions",
+        "Skipped steps": "/skipped",
+        "Weekly trend": "/trends",
+        "Verdict matrix": "/verdicts",
+        "Cases": "/cases",
+        "Data": "/data",
+        "Limits": "/limits",
+    }
+
+
+def test_back_returns_to_the_page_before(address_walk: AddressWalk) -> None:
+    assert address_walk.address_after_back == "/data"
+
+
+def test_forward_returns_to_the_page_after(address_walk: AddressWalk) -> None:
+    assert address_walk.address_after_forward == "/limits"
+
+
+def test_a_reload_keeps_the_page_address_and_class(address_walk: AddressWalk) -> None:
+    assert address_walk.address_after_reload == "/versions?class=class-1"
+
+
+def test_a_reload_keeps_the_picked_class(address_walk: AddressWalk) -> None:
+    assert address_walk.class_after_reload == address_walk.class_before_reload
+
+
+def test_an_old_hash_address_moves_to_its_page_path(address_walk: AddressWalk) -> None:
+    assert address_walk.address_from_old_hash == "/versions?class=class-1"
+
+
+def test_the_old_data_notes_path_lands_on_the_data_page(address_walk: AddressWalk) -> None:
+    assert address_walk.address_from_old_path == "/data"
 
 
 def test_the_served_page_asks_only_its_own_server(reload_visit: ReloadVisit) -> None:

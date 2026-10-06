@@ -24,6 +24,7 @@ from typing import Any
 
 import httpx
 import pytest
+from page_addresses import READ_ADDRESS, AddressWalk, walk_page_addresses
 from serve.served_process import DEMO_FOLDER, ServedProcess, start_ui
 from serve.test_ui_parity import DEMO_LABEL_CHOICES
 from test_dashboard_browser import WCAG_TAGS, axe_source  # noqa: F401 (a fixture)
@@ -77,6 +78,16 @@ document.addEventListener("securitypolicyviolation", function (event) {
   );
 }, true);
 """
+PAGE_ADDRESSES = {
+    "Overview": "/",
+    "Versions": "/versions",
+    "Skipped steps": "/skipped",
+    "Weekly trend": "/trends",
+    "Verdict matrix": "/verdicts",
+    "Cases": "/cases",
+    "Data": "/data",
+    "Limits": "/limits",
+}
 EMPTY_STATE = {
     "is_configured": False,
     "can_configure": False,
@@ -93,7 +104,7 @@ EMPTY_STATE = {
 @dataclass
 class UiVisit:
     base_url: str
-    opening_hash: str = ""
+    opening_address: str = ""
     stored_texts: dict[str, list[str]] = field(default_factory=dict)
     offered_labels: list[str] = field(default_factory=list)
     focus_after_upload: str = ""
@@ -102,7 +113,8 @@ class UiVisit:
     focus_after_reload: str = ""
     announced_after_reload: str = ""
     kpi_text: str = ""
-    alias_hash: str = ""
+    alias_address: str = ""
+    address_walk: AddressWalk | None = None
     is_dialog_open_after_enter: bool = False
     focus_in_dialog: str = ""
     is_dialog_open_after_escape: bool = True
@@ -144,7 +156,7 @@ def ui_visit(
         page.clock.install()
         page.goto(served.base_url + "/")
         page.wait_for_selector("#data-step-upload")
-        visit.opening_hash = page.evaluate("location.hash")
+        visit.opening_address = page.evaluate(READ_ADDRESS)
         # Paused, the page never polls by itself; the test moves its clock to the poll.
         pause_clock(page)
         visit.axe["empty"] = run_axe(page, axe_script)
@@ -171,7 +183,8 @@ def ui_visit(
         visit.kpi_text = page.inner_text(".overview-kpis")
         page.goto(served.base_url + "/#/data-notes")
         page.wait_for_selector(NOTES_STEP)
-        visit.alias_hash = page.evaluate("location.hash")
+        visit.alias_address = page.evaluate(READ_ADDRESS)
+        visit.address_walk = walk_addresses(browser, served)
 
         try_clear_dialog_keys(page, visit)
         clear_all_data(page, served, visit)
@@ -180,6 +193,16 @@ def ui_visit(
         context.close()
         served.stop()
     return visit
+
+
+def walk_addresses(browser: Any, served: ServedProcess) -> AddressWalk:
+    """Walk the page addresses in a context of its own, whose clock runs and whose requests
+    stay out of the visit's."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    try:
+        return walk_page_addresses(context.new_page(), served.base_url)
+    finally:
+        context.close()
 
 
 def watch(page: Any, visit: UiVisit) -> None:
@@ -324,7 +347,7 @@ def offline_kpi_text(browser: Any, tmp_path_factory: pytest.TempPathFactory) -> 
 
 
 def test_the_app_opens_on_the_data_page(ui_visit: UiVisit) -> None:
-    assert ui_visit.opening_hash == "#/data"
+    assert ui_visit.opening_address == "/data"
 
 
 @pytest.mark.parametrize(
@@ -384,7 +407,45 @@ def test_the_overview_kpis_match_the_offline_demo_page(
 
 
 def test_the_old_data_notes_address_lands_on_the_data_page(ui_visit: UiVisit) -> None:
-    assert ui_visit.alias_hash == "#/data"
+    assert ui_visit.alias_address == "/data"
+
+
+@pytest.fixture(scope="module")
+def address_walk(ui_visit: UiVisit) -> AddressWalk:
+    assert ui_visit.address_walk is not None
+    return ui_visit.address_walk
+
+
+def test_each_sidebar_link_opens_its_page_address(address_walk: AddressWalk) -> None:
+    assert address_walk.link_addresses == PAGE_ADDRESSES
+
+
+def test_back_returns_to_the_page_before(address_walk: AddressWalk) -> None:
+    assert address_walk.address_after_back == "/data"
+
+
+def test_forward_returns_to_the_page_after(address_walk: AddressWalk) -> None:
+    assert address_walk.address_after_forward == "/limits"
+
+
+def test_picking_a_class_puts_it_in_the_page_address(address_walk: AddressWalk) -> None:
+    assert address_walk.address_before_reload == "/versions?class=class-1"
+
+
+def test_a_reload_keeps_the_page_address(address_walk: AddressWalk) -> None:
+    assert address_walk.address_after_reload == "/versions?class=class-1"
+
+
+def test_a_reload_keeps_the_picked_class(address_walk: AddressWalk) -> None:
+    assert address_walk.class_after_reload == address_walk.class_before_reload
+
+
+def test_an_old_hash_address_moves_to_its_page_path(address_walk: AddressWalk) -> None:
+    assert address_walk.address_from_old_hash == "/versions?class=class-1"
+
+
+def test_the_old_data_notes_path_lands_on_the_data_page(address_walk: AddressWalk) -> None:
+    assert address_walk.address_from_old_path == "/data"
 
 
 def test_enter_opens_the_clear_dialog(ui_visit: UiVisit) -> None:

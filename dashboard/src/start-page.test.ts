@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 
+import { startRouter } from "./router";
 import { openStartPage } from "./start-page";
 import { DEMO_RESULTS, DEMO_VIEW } from "./test-fixtures";
 
@@ -11,7 +12,8 @@ function openWithHash(hash: string) {
 }
 
 afterEach(() => {
-  window.history.replaceState(null, "", "#");
+  startRouter("offline");
+  window.history.replaceState(null, "", "/");
 });
 
 it("opens a ui waiting page with no page named on the Data page", () => {
@@ -52,4 +54,31 @@ it("leaves the address alone when the page data could not be read", () => {
   openStartPage({ error: "broken" });
 
   expect(window.location.hash).toBe("");
+});
+
+it("opens a ui waiting page at the root on the Data page's path", () => {
+  window.history.replaceState(null, "", "/");
+  startRouter("ui");
+
+  openStartPage(UI_WAITING_DATA);
+
+  expect(window.location.pathname).toBe("/data");
+});
+
+it("keeps the page path a ui waiting page's address names", () => {
+  window.history.replaceState(null, "", "/cases");
+  startRouter("ui");
+
+  openStartPage(UI_WAITING_DATA);
+
+  expect(window.location.pathname).toBe("/cases");
+});
+
+it("opens a ui waiting page's old hash address at its path", () => {
+  window.history.replaceState(null, "", "/#/cases");
+  startRouter("ui");
+
+  openStartPage(UI_WAITING_DATA);
+
+  expect(window.location.pathname).toBe("/cases");
 });
