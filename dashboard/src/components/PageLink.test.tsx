@@ -1,8 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
 
 import { startRouter } from "../router";
 import { PageLink } from "./PageLink";
+
+import type * as React from "react";
 
 afterEach(() => {
   cleanup();
@@ -79,4 +81,14 @@ describe("on a served or ui page", () => {
 
     expect(window.location.pathname).toBe("/");
   });
+});
+
+// Checked by the type checker: a page link opens in place, so it takes neither a target nor a
+// download, which only the browser's own handling of a click would honour.
+it("takes no target", () => {
+  expectTypeOf<React.ComponentProps<typeof PageLink>>().not.toHaveProperty("target");
+});
+
+it("takes no download", () => {
+  expectTypeOf<React.ComponentProps<typeof PageLink>>().not.toHaveProperty("download");
 });

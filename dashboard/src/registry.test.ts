@@ -33,6 +33,19 @@ describe("registry", () => {
     expect(() => registerPage(createPage("/cases", 2))).toThrow('"/cases"');
   });
 
+  it.each(["cases", "/Cases", "/cases/open", "/case_list", "/1cases", "/api", "/cases/"])(
+    "refuses a page at %s, which the servers would not answer",
+    (path) => {
+      expect(() => registerPage(createPage(path, 1))).toThrow(`"${path}"`);
+    },
+  );
+
+  it.each(["/", "/cases", "/skipped-steps"])("accepts a page at %s", (path) => {
+    registerPage(createPage(path, 1));
+
+    expect(listPages().map((page) => page.path)).toEqual([path]);
+  });
+
   it("lists pages by order, then by path", () => {
     registerPage(createPage("/b", 2));
     registerPage(createPage("/z", 1));

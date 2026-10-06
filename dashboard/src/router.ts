@@ -153,10 +153,14 @@ function subscribeToAddress(onChange: () => void): () => void {
   };
 }
 
-// Replaced, not pushed: Back should not land on the old address and forward again.
+// Replaced, not pushed: Back should not land on the old address and forward again. Written
+// from the parsed route, never from the raw hash: `#//example.com/x` would name another origin,
+// which replaceState refuses with an error that leaves the page blank. Needs the pages
+// registered, as they are once the page modules have loaded.
 function forwardHashRoute(): void {
   if (window.location.hash.startsWith("#/")) {
-    window.history.replaceState(window.history.state, "", window.location.hash.slice(1));
+    const { path, query } = parseAddress(window.location.hash, listKnownPaths());
+    window.history.replaceState(window.history.state, "", toHref(path, query));
   }
 }
 

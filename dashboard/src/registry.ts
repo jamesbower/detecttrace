@@ -26,7 +26,17 @@ export type PanelSlot =
 const pages = new Map<string, PageDef>();
 const panels = new Map<PanelSlot, React.ComponentType<PanelProps>[]>();
 
+// What `detecttrace serve` and `detecttrace ui` answer with the page: one lowercase segment,
+// not `api`, or the root. Keep in step with the page route in src/detecttrace/serve/app.py.
+const PAGE_PATH = /^\/([a-z][a-z-]*)?$/;
+const RESERVED_PATHS: ReadonlySet<string> = new Set(["/api"]);
+
 export function registerPage(page: PageDef): void {
+  if (!PAGE_PATH.test(page.path) || RESERVED_PATHS.has(page.path)) {
+    throw new Error(
+      `A page can't be registered at path "${page.path}": a page path is "/" or one segment of lowercase letters and hyphens, such as "/cases", and not "/api".`,
+    );
+  }
   if (pages.has(page.path)) {
     throw new Error(`A page is already registered at path "${page.path}".`);
   }

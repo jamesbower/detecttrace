@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 
+import { registerPage, resetRegistryForTests } from "./registry";
 import { startRouter } from "./router";
 import { openStartPage } from "./start-page";
 import { DEMO_RESULTS, DEMO_VIEW } from "./test-fixtures";
@@ -75,6 +76,9 @@ it("keeps the page path a ui waiting page's address names", () => {
 });
 
 it("opens a ui waiting page's old hash address at its path", () => {
+  // As in the built page, where the page modules register before the router starts.
+  resetRegistryForTests();
+  registerPage({ path: "/cases", title: "Cases", icon: "", order: 0, component: () => null });
   window.history.replaceState(null, "", "/#/cases");
   startRouter("ui");
 

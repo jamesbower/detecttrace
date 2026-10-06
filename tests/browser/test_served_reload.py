@@ -216,7 +216,11 @@ def test_forward_returns_to_the_page_after(address_walk: AddressWalk) -> None:
     assert address_walk.address_after_forward == "/limits"
 
 
-def test_a_reload_keeps_the_page_address_and_class(address_walk: AddressWalk) -> None:
+def test_picking_a_class_puts_it_in_the_page_address(address_walk: AddressWalk) -> None:
+    assert address_walk.address_before_reload == "/versions?class=class-1"
+
+
+def test_a_reload_keeps_the_page_address(address_walk: AddressWalk) -> None:
     assert address_walk.address_after_reload == "/versions?class=class-1"
 
 

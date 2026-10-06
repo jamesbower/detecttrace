@@ -2,7 +2,12 @@ import { followLink, toHref } from "../router";
 
 import type * as React from "react";
 
-type PageLinkProps = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "onClick"> & {
+// No target or download: a click on either needs the browser's own handling, and followLink
+// opens every plain click in place.
+type PageLinkProps = Omit<
+  React.AnchorHTMLAttributes<HTMLAnchorElement>,
+  "href" | "onClick" | "target" | "download"
+> & {
   path: string;
   query?: URLSearchParams;
 };

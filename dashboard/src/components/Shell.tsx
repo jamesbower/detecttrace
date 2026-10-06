@@ -34,8 +34,9 @@ export function Shell({
 }: ShellProps) {
   const mainRef = useRef<HTMLElement>(null);
 
-  // The hash holds the route, so following the link's own #main-content would leave the page.
-  // Focus lands on the page's heading, as it does when a new page opens.
+  // On a page opened from disk the hash holds the route, so following the link's own
+  // #main-content would leave the page. Focus lands on the page's heading, as it does when a
+  // new page opens.
   function handleSkip(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
     const main = mainRef.current;

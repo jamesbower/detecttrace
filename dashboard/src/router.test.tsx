@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -272,6 +272,13 @@ describe("in path mode", () => {
     expect(toHref("/cases", new URLSearchParams())).toBe("#/cases");
   });
 
+  it("routes on the hash for an offline page, even one served over http", () => {
+    window.history.replaceState(null, "", "/");
+    startRouter("offline", "http:");
+
+    expect(toHref("/cases", new URLSearchParams())).toBe("#/cases");
+  });
+
   it("builds a link to a page's path in the ui app", () => {
     openAt("/", "ui");
 
@@ -407,6 +414,45 @@ describe("in path mode", () => {
     });
 
     expect(await screen.findByText("/cases")).toBe(screen.getByTestId("path"));
+  });
+
+  it.each(["#//example.com/x", "#/\\example.com"])("keeps a crafted hash %s on this page on load", (hash) => {
+    openAt(`/${hash}`);
+
+    expect(`${window.location.pathname}${window.location.hash}`).toBe("/");
+  });
+
+  it.each(["#//example.com/x", "#/\\example.com"])("opens the home page for a crafted hash %s on load", (hash) => {
+    openAt(`/${hash}`);
+
+    render(<RouteProbe />);
+
+    expect(screen.getByTestId("path").textContent).toBe("/");
+  });
+
+  it.each(["#//example.com/x", "#/\\example.com"])(
+    "keeps a crafted hash %s typed over the open page on this page",
+    async (hash) => {
+      openAt("/cases");
+      render(<RouteProbe />);
+
+      act(() => {
+        window.location.hash = hash;
+      });
+
+      // The browser fires hashchange in a task of its own, after this one.
+      await waitFor(() => expect(`${window.location.pathname}${window.location.hash}`).toBe("/"));
+    },
+  );
+
+  it("adds no history entry for a link to the address already open", async () => {
+    openAt("/cases?q=DT-1");
+    const length = window.history.length;
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open cases" }));
+
+    expect(window.history.length).toBe(length);
   });
 
   it("leaves a hash that names no route alone", () => {
