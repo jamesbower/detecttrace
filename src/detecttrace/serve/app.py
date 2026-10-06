@@ -170,7 +170,7 @@ async def read_page_response(store: Store, mode: Literal["served", "ui"]) -> Res
 async def read_status_response(store: Store, status: RecomputeStatus) -> Response:
     """`GET /api/status`: the body the module docstring describes."""
     try:
-        content = await run_in_threadpool(_read_status_content, store, status)
+        content = await run_in_threadpool(read_status_content, store, status)
     except sqlite3.OperationalError:
         return create_unreadable_response()
     return JSONResponse(content)
@@ -445,7 +445,8 @@ def _read_page(store: Store, mode: Literal["served", "ui"]) -> str:
     return render_waiting_page(waiting, [], served, mode=mode)
 
 
-def _read_status_content(store: Store, status: RecomputeStatus) -> dict[str, object]:
+def read_status_content(store: Store, status: RecomputeStatus) -> dict[str, object]:
+    """`GET /api/status`'s body; reads the store, so call it off the event loop."""
     snapshot = store.read_snapshot()
     counts = store.read_counts()
     return {

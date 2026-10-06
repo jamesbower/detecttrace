@@ -55,6 +55,7 @@ VERDICT_LABELS = {
     Verdict.BENIGN: "Benign",
 }
 NOT_SET_TEXT = "Not set"
+NOT_MAPPED_TEXT = "Not mapped"
 LABELS_HELP_TEXT = (
     "Your verdict file uses labels DetectTrace doesn't recognise. Choose the verdict each one "
     "means; rows left unmapped are reported in the data notes and not scored."
@@ -116,6 +117,7 @@ def build_proposal_content(
         ],
         "labels_help_text": LABELS_HELP_TEXT,
         "not_set_text": NOT_SET_TEXT,
+        "not_mapped_text": NOT_MAPPED_TEXT,
         "notes": list(draft.notes),
         "missing_required": list(draft.missing_required),
         "missing_text": _describe_missing(draft.missing_required),

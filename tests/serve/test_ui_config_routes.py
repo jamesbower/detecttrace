@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from detecttrace.init_writer import FIELD_NAMES
 from detecttrace.model import VerdictRow
 from detecttrace.runconfig import load_ui_config
+from detecttrace.serve.recompute import RecomputeStatus
 from detecttrace.serve.store import Store
 from detecttrace.serve.ui import SAVED_TEXT, UiState, create_ui_app
 from detecttrace.serve.ui_config import CHECKLISTS_FOLDER, CONFIG_NAME
@@ -426,3 +427,55 @@ def test_a_second_save_recomputes_with_the_new_settings(
 
     _, settings, _ = executor.calls[-1]
     assert settings.config.mapping.prompt_version == EDITED_KEY
+
+
+# The status's reason for a failed update
+
+
+def _fail_recompute(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
+    path = data_dir.absolute() / CHECKLISTS_FOLDER / "a.yaml"
+    error = f"ChecklistFileError: {path}: not valid YAML"
+    monkeypatch.setattr(UiState, "read_status", lambda _: RecomputeStatus(False, error, 1_000, 0))
+
+
+def test_the_status_names_no_failure_when_the_last_update_worked(uploaded: TestClient) -> None:
+    assert uploaded.get("/api/status").json()["last_error_text"] is None
+
+
+def test_the_status_says_why_the_first_update_failed(
+    uploaded: TestClient, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fail_recompute(monkeypatch, data_dir)
+
+    assert uploaded.get("/api/status").json()["last_error_text"] == (
+        "The dashboard could not be computed: ChecklistFileError: checklists/a.yaml: not valid YAML"
+    )
+
+
+def test_the_status_says_earlier_results_are_shown_when_an_update_failed(
+    uploaded: TestClient, state: UiState, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    save_and_recompute(uploaded, state, NO_EDITS)
+    _fail_recompute(monkeypatch, data_dir)
+
+    assert uploaded.get("/api/status").json()["last_error_text"] == (
+        "Showing the results from before the last update, which failed: "
+        "ChecklistFileError: checklists/a.yaml: not valid YAML"
+    )
+
+
+def test_the_status_keeps_serves_fields(uploaded: TestClient) -> None:
+    body = uploaded.get("/api/status").json()
+
+    assert sorted(body) == [
+        "generation",
+        "held_back_cases",
+        "last_error",
+        "last_error_at",
+        "last_error_text",
+        "last_ingest_at",
+        "recompute_running",
+        "span_count",
+        "updated_at",
+        "verdict_count",
+    ]

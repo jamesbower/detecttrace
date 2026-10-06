@@ -11,7 +11,9 @@ routes answer exactly as `serve`'s do.
 as application/octet-stream and answers `{"stored_text", "problems"}`, the problems shaped
 as the view's notes. `GET /api/ui/state` answers `{"is_configured", "can_configure",
 "has_results", "span_count_text", "verdict_count_text", "trace_family_text",
-"checklist_classes", "checklist_classes_text", "checklist_error_text"}`.
+"checklist_classes", "checklist_classes_text", "checklist_error_text"}`. `GET /api/status`
+answers as `serve`'s does, plus `"last_error_text"`: why the last update failed, for the page
+to show, or null.
 
 `POST /api/config/proposal` and `POST /api/config` take the user's edits as JSON,
 `{"fields": {name: key}, "labels": {"label_map": {label: verdict}, "agent_label_map": {...}}}`.
@@ -58,7 +60,7 @@ from detecttrace.serve.app import (
     read_limited_body,
     read_page_response,
     read_results_response,
-    read_status_response,
+    read_status_content,
     receive_limited_body,
     respond_with_status,
 )
@@ -187,7 +189,11 @@ def create_ui_app(*, port: int, state: UiState) -> FastAPI:
 
     @app.get("/api/status")
     async def show_status() -> Response:
-        return await read_status_response(state.store, state.read_status())
+        try:
+            content = await run_in_threadpool(_read_ui_status_content, state)
+        except sqlite3.OperationalError:
+            return create_unreadable_response()
+        return JSONResponse(content)
 
     @app.get("/api/results.json")
     async def show_results() -> Response:
@@ -524,6 +530,22 @@ def _read_state_content(state: UiState) -> dict[str, object]:
         "checklist_classes_text": ", ".join(classes) or "None yet",
         "checklist_error_text": checklist_error,
     }
+
+
+def _read_ui_status_content(state: UiState) -> dict[str, object]:
+    content = read_status_content(state.store, state.read_status())
+    return {**content, "last_error_text": _describe_last_error(state, content)}
+
+
+def _describe_last_error(state: UiState, status: dict[str, object]) -> str | None:
+    error = status["last_error"]
+    if not isinstance(error, str) or not error:
+        return None
+    reason = to_data_folder_text(error, state.data_dir)
+    # Generation 0 means no snapshot: the page shows no earlier results to fall back on.
+    if status["generation"] == 0:
+        return f"The dashboard could not be computed: {reason}"
+    return f"Showing the results from before the last update, which failed: {reason}"
 
 
 def _read_checklist_classes(data_dir: Path) -> tuple[list[str], str | None]:

@@ -147,6 +147,12 @@ def test_the_proposal_names_a_missing_value(demo_store: Store, data_dir: Path) -
     assert content["not_set_text"] == "Not set"
 
 
+def test_the_proposal_names_a_label_left_unmapped(demo_store: Store, data_dir: Path) -> None:
+    content = build_proposal_content(demo_store, data_dir, {}, {})
+
+    assert content["not_mapped_text"] == "Not mapped"
+
+
 def test_the_proposal_explains_the_label_step(demo_store: Store, data_dir: Path) -> None:
     content = build_proposal_content(demo_store, data_dir, {}, {})
 
