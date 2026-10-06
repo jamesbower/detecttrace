@@ -16,6 +16,8 @@ venv/
 .venv
 env/
 build/
+# The dashboard build plugins are source, not output.
+!dashboard/build/
 develop-eggs/
 dist/
 downloads/
@@ -35,6 +37,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Dashboard (Node)
+dashboard/node_modules/
 
 # Environment variables
 .env

@@ -46,11 +46,26 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "22"
+          node-version: "22.22.2"
       - run: node --test tests/js/*.test.mjs
+      - run: npm ci --ignore-scripts
+        working-directory: dashboard
+      - run: npm run lint
+        working-directory: dashboard
+      - run: npm run typecheck
+        working-directory: dashboard
+      - run: npm test
+        working-directory: dashboard
+      - run: npm run build
+        working-directory: dashboard
+      # The built page is committed so Python users need no Node; it must match its source.
+      - run: git diff --exit-code -- src/detecttrace/templates/dashboard.html src/detecttrace/templates/dashboard.hashes.json
+      # The diff names a changed file; this also catches a new file the build left behind.
+      - run: test -z "$(git status --porcelain -- src/detecttrace/templates)"
 
   audit:
-    # Checks the runtime dependencies the image installs against known vulnerabilities.
+    # Checks the runtime dependencies the image installs, and those the dashboard inlines,
+    # against known vulnerabilities.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,6 +76,16 @@ jobs:
           python-version: "3.13"
       - run: uv export --locked --no-dev --extra serve --extra zstd --no-emit-project -o requirements.txt
       - run: uvx pip-audit==2.10.1 --requirement requirements.txt --require-hashes --disable-pip --strict
+      # The dashboard inlines its production npm packages into the page the wheel ships.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.22.2"
+      - run: npm ci --ignore-scripts
+        working-directory: dashboard
+      - run: npm audit --omit=dev --audit-level=low
+        working-directory: dashboard
+      - run: node scripts/check-licences.mjs
+        working-directory: dashboard
 
   browser:
     runs-on: ubuntu-latest

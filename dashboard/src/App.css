@@ -1,0 +1,35 @@
+.app {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-5);
+}
+
+.app-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+}
+
+.app-title-accent {
+  color: var(--accent-text);
+}
+
+.app-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: 0;
+  list-style: none;
+}
+
+.app-pages li {
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--frame);
+  border-top: var(--border-accent) solid var(--accent);
+  clip-path: var(--clip-angled-sm);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
