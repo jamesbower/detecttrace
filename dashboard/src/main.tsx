@@ -1,9 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { App } from "./App";
+// The global styles come first, so each component's styles follow them in the bundle.
 import "./tokens.css";
 import "./base.css";
+import { App } from "./App";
+import { readPageData } from "./data";
 import "./pages";
 
 const root = document.getElementById("root");
@@ -12,6 +14,6 @@ if (root === null) {
 }
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <App data={readPageData(document)} />
   </StrictMode>,
 );

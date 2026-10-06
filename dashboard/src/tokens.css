@@ -9,6 +9,7 @@
   --frame: #2a3033;
   --line: #3a4144; /* rules and borders only, never text */
   --accent-tint: rgb(242 101 34 / 10%);
+  --accent-hover: rgb(242 101 34 / 6%);
 
   /* Text. Each passes 4.5:1 on --bg, --panel and --frame. */
   --text: #f0f2f2;
@@ -89,15 +90,29 @@
   --sp-8: 72px;
   --sidebar-width: 230px;
   --touch-target: 44px;
+  --measure: 720px; /* longest comfortable line of running text */
+  --icon-md: 22px;
+  --icon-stroke: 1.6;
 
   /* Shape: panels are square with one angled corner, cut by clip-path */
   --r-none: 0;
   --r-sm: 2px;
+  --border-thin: 1px;
+  --border-mark: 2px; /* the current page's edge in the navigation */
   --border-accent: 3px;
   --cut-sm: 16px;
   --cut-md: 18px;
   --clip-angled-sm: polygon(0 0, calc(100% - var(--cut-sm)) 0, 100% var(--cut-sm), 100% 100%, 0 100%);
   --clip-angled-md: polygon(0 0, calc(100% - var(--cut-md)) 0, 100% var(--cut-md), 100% 100%, 0 100%);
+  --clip-brand-mark: polygon(0 0, 80% 0, 100% 25%, 100% 100%, 0 100%);
+  --clip-corner: polygon(12% 0, 100% 0, 100% 100%, 0 100%);
+
+  /* Decoration: the page head's dash marks and the frame-colored corner behind it */
+  --dash-mark-width: 14px;
+  --dash-mark-height: 4px;
+  --corner-width: 360px;
+  --corner-height: 110px;
+  --corner-opacity: 0.7;
 
   /* Depth */
   --shadow-1: 0 1px 0 rgb(255 255 255 / 3%) inset, 0 8px 24px -16px rgb(0 0 0 / 50%);

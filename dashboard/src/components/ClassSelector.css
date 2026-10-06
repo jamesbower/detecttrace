@@ -1,0 +1,52 @@
+.class-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* Class names are identifiers from the traces, so they keep their case. */
+.class-tab {
+  min-height: var(--touch-target);
+  padding: var(--sp-2) var(--sp-4);
+  background: transparent;
+  border: var(--border-thin) solid var(--line);
+  border-radius: var(--r-none);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.class-tab:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.class-tab[aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--fw-semibold);
+}
+
+.class-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.class-select label {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.class-select select {
+  min-height: var(--touch-target);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--line);
+  border-radius: var(--r-none);
+  font-size: var(--fs-sm);
+}

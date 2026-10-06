@@ -1,0 +1,139 @@
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { registerPage, resetRegistryForTests } from "./registry";
+import { parseHash, toHash, useRoute } from "./router";
+
+const PATHS = ["/", "/versions", "/cases"];
+
+function RouteProbe() {
+  const route = useRoute();
+  return (
+    <>
+      <p data-testid="path">{route.path}</p>
+      <p data-testid="query">{route.query.toString()}</p>
+      <button type="button" onClick={() => route.setQuery({ class: "class-1" })}>
+        Pick class
+      </button>
+      <button type="button" onClick={() => route.setQuery({ dangerous: null })}>
+        Clear dangerous
+      </button>
+      <button type="button" onClick={() => route.navigate("/cases", { q: "DT-1" })}>
+        Open cases
+      </button>
+    </>
+  );
+}
+
+describe("parseHash", () => {
+  it("reads the path", () => {
+    expect(parseHash("#/versions?class=class-1", PATHS).path).toBe("/versions");
+  });
+
+  it("reads a query parameter", () => {
+    expect(parseHash("#/versions?class=class-1&q=a+b", PATHS).query.get("q")).toBe("a b");
+  });
+
+  it("treats an empty hash as the home page", () => {
+    expect(parseHash("", PATHS).path).toBe("/");
+  });
+
+  it("treats a bare # as the home page", () => {
+    expect(parseHash("#", PATHS).path).toBe("/");
+  });
+
+  it("ignores a trailing slash", () => {
+    expect(parseHash("#/versions/", PATHS).path).toBe("/versions");
+  });
+
+  it("falls back to the home page for an unknown path", () => {
+    expect(parseHash("#/nowhere?class=class-1", PATHS).path).toBe("/");
+  });
+
+  it("keeps the query when the path is unknown", () => {
+    expect(parseHash("#/nowhere?class=class-1", PATHS).query.get("class")).toBe("class-1");
+  });
+});
+
+describe("toHash", () => {
+  it("leaves out an empty query", () => {
+    expect(toHash("/cases", new URLSearchParams())).toBe("#/cases");
+  });
+
+  it("round-trips through parseHash", () => {
+    const hash = toHash("/cases", new URLSearchParams({ q: "a&b c" }));
+
+    expect(parseHash(hash, PATHS).query.get("q")).toBe("a&b c");
+  });
+});
+
+describe("useRoute", () => {
+  beforeEach(() => {
+    resetRegistryForTests();
+    for (const path of PATHS) {
+      registerPage({ path, title: path, icon: "", order: 0, component: () => null });
+    }
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.history.replaceState(null, "", "#");
+  });
+
+  it("re-renders when the hash changes", async () => {
+    window.history.replaceState(null, "", "#/");
+    render(<RouteProbe />);
+
+    act(() => {
+      window.location.hash = "#/cases";
+    });
+
+    expect(await screen.findByText("/cases")).toBe(screen.getByTestId("path"));
+  });
+
+  it("adds a query parameter and keeps the others", async () => {
+    window.history.replaceState(null, "", "#/versions?dangerous=1");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
+
+    expect(window.location.hash).toBe("#/versions?dangerous=1&class=class-1");
+  });
+
+  it("removes a query parameter set to null", async () => {
+    window.history.replaceState(null, "", "#/versions?dangerous=1&class=class-0");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear dangerous" }));
+
+    expect(window.location.hash).toBe("#/versions?class=class-0");
+  });
+
+  it("navigates to another page with a fresh query", async () => {
+    window.history.replaceState(null, "", "#/versions?dangerous=1");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open cases" }));
+
+    expect(window.location.hash).toBe("#/cases?q=DT-1");
+  });
+
+  it("re-renders after a query change", async () => {
+    window.history.replaceState(null, "", "#/versions");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
+
+    expect(screen.getByTestId("query").textContent).toBe("class=class-1");
+  });
+
+  it("writes the home path when the query changes on an unknown path", async () => {
+    window.history.replaceState(null, "", "#/nowhere");
+    render(<RouteProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
+
+    expect(window.location.hash).toBe("#/?class=class-1");
+  });
+});

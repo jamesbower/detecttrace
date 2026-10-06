@@ -1,0 +1,131 @@
+/* Narrow screens first: a bar of icons along the bottom, labels kept for screen readers. */
+.sidebar {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: var(--z-sidebar);
+  padding: var(--sp-1);
+  background: var(--panel);
+  border-top: var(--border-thin) solid var(--line);
+}
+
+.sidebar-brand {
+  display: none;
+}
+
+.sidebar-links {
+  display: flex;
+  justify-content: safe center;
+  gap: var(--sp-1);
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: var(--sp-2);
+  border-top: var(--border-mark) solid transparent;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-label);
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sidebar-link:hover {
+  background: var(--accent-hover);
+  color: var(--accent-text);
+}
+
+.sidebar-link[aria-current="page"] {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.sidebar-icon {
+  flex: none;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: var(--icon-stroke);
+  stroke-linecap: square;
+}
+
+.sidebar-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --bp-medium: a sidebar down the left, with labels. */
+@media (width > 1000px) {
+  .sidebar {
+    inset: 0 auto 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+    width: var(--sidebar-width);
+    padding: var(--sp-5) var(--sp-3);
+    overflow-y: auto;
+    border-top: 0;
+    border-right: var(--border-thin) solid var(--line);
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding-left: var(--sp-2);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    white-space: nowrap;
+  }
+
+  .sidebar-brand-mark {
+    padding: 0 var(--sp-2);
+    background: var(--accent);
+    clip-path: var(--clip-brand-mark);
+    color: var(--on-accent);
+    font-size: var(--fs-md);
+  }
+
+  .sidebar-brand-accent {
+    color: var(--accent-text);
+  }
+
+  .sidebar-links {
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow-x: visible;
+  }
+
+  .sidebar-link {
+    justify-content: flex-start;
+    padding: var(--sp-3) var(--sp-4);
+    border-top: 0;
+    border-left: var(--border-mark) solid transparent;
+  }
+
+  .sidebar-link[aria-current="page"] {
+    border-left-color: var(--accent);
+  }
+
+  .sidebar-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+}

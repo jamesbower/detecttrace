@@ -1,0 +1,65 @@
+.shell {
+  min-height: 100vh;
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  z-index: var(--z-skip);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--fw-semibold);
+  transform: translateY(calc(-100% - var(--sp-5)));
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* The bottom padding keeps the last line clear of the bottom navigation bar. */
+.shell-main {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--sp-4);
+  min-width: 0;
+  padding: var(--sp-5) var(--sp-4) calc(var(--touch-target) + var(--sp-7));
+}
+
+.shell-main > * {
+  position: relative;
+  z-index: var(--z-raised);
+}
+
+.shell-main > .shell-corner {
+  display: none;
+}
+
+/* --bp-medium: the sidebar takes the first column. */
+@media (width > 1000px) {
+  .shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+
+  .shell-main {
+    grid-column: 2;
+    padding: var(--sp-6) var(--sp-6) var(--sp-8);
+  }
+
+  .shell-main > .shell-corner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: var(--z-base);
+    display: block;
+    width: var(--corner-width);
+    height: var(--corner-height);
+    background: var(--frame);
+    clip-path: var(--clip-corner);
+    opacity: var(--corner-opacity);
+    pointer-events: none;
+  }
+}

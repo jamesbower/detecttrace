@@ -1,0 +1,35 @@
+.page-head {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.page-head-eyebrow {
+  color: var(--accent-text);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+}
+
+.page-head-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+}
+
+.page-head-lead {
+  max-width: var(--measure);
+  color: var(--muted);
+}
+
+.page-head-marks {
+  display: flex;
+  gap: var(--sp-2);
+  padding-block: var(--sp-3);
+}
+
+.page-head-marks span {
+  width: var(--dash-mark-width);
+  height: var(--dash-mark-height);
+  background: var(--accent);
+}

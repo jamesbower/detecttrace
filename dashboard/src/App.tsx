@@ -1,20 +1,24 @@
+import { ErrorState } from "./components/ErrorState";
+import { Shell } from "./components/Shell";
+import { isPageDataError } from "./data";
 import { listPages } from "./registry";
-import "./App.css";
+import { useRoute } from "./router";
 
-export function App() {
+import type { PageData, PageDataError } from "./data";
+
+/** The dashboard. `data` is read once, before the first render, by the entry point. */
+export function App({ data }: { data: PageData | PageDataError }) {
+  const { path } = useRoute();
+
+  if (isPageDataError(data)) {
+    return <ErrorState message={data.error} />;
+  }
+
   const pages = listPages();
+  const Page = pages.find((page) => page.path === path)?.component;
   return (
-    <main className="app">
-      <h1 className="app-title">
-        Detect<span className="app-title-accent">Trace</span>
-      </h1>
-      <nav aria-label="Pages">
-        <ul className="app-pages">
-          {pages.map((page) => (
-            <li key={page.path}>{page.title}</li>
-          ))}
-        </ul>
-      </nav>
-    </main>
+    <Shell pages={pages} currentPath={path}>
+      {Page !== undefined && <Page view={data.view} results={data.results} />}
+    </Shell>
   );
 }

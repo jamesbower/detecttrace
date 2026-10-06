@@ -1,0 +1,19 @@
+.error-state {
+  padding: var(--sp-6) var(--sp-4);
+}
+
+.error-state-box {
+  display: grid;
+  gap: var(--sp-3);
+  max-width: var(--measure);
+  padding: var(--sp-5);
+  background: var(--frame);
+  border-top: var(--border-accent) solid var(--danger);
+  clip-path: var(--clip-angled-md);
+}
+
+.error-state-title {
+  color: var(--danger);
+  font-size: var(--fs-lg);
+  text-transform: uppercase;
+}

@@ -2,7 +2,10 @@
 // so a downstream build can add views without editing the shell.
 import type * as React from "react";
 
-export type PageProps = { view: unknown; results: unknown }; // tightened in a later task
+import type { Results } from "./results";
+import type { View } from "./view";
+
+export type PageProps = { view: View; results: Results };
 export type PanelProps = PageProps;
 export type PageDef = {
   path: string;
