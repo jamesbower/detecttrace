@@ -82,10 +82,16 @@
   overflow: visible;
 }
 
-/* Forced colours: the all-versions band and markers, and the hollow few-case markers, stay
-   visible in system colours. */
+/* Forced colours: every line and marker draws in the text colour, told apart by dash pattern
+   and marker shape; hollow few-case markers stay hollow. */
 @media (forced-colors: active) {
+  .series-line,
   .series-line-all {
+    stroke: CanvasText;
+  }
+
+  .series-marker {
+    fill: CanvasText;
     stroke: CanvasText;
   }
 

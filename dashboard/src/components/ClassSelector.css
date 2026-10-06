@@ -9,7 +9,7 @@
   min-height: var(--touch-target);
   padding: var(--sp-2) var(--sp-4);
   background: transparent;
-  border: var(--border-thin) solid var(--line);
+  border: var(--border-thin) solid var(--control-border);
   border-radius: var(--r-none);
   color: var(--muted);
   font-size: var(--fs-sm);
@@ -46,7 +46,17 @@
   min-height: var(--touch-target);
   padding: var(--sp-2) var(--sp-3);
   background: var(--panel);
-  border: var(--border-thin) solid var(--line);
+  border: var(--border-thin) solid var(--control-border);
   border-radius: var(--r-none);
   font-size: var(--fs-sm);
+}
+
+/* Forced colours: the selected tab keeps its fill, in the system's selection colours. */
+@media (forced-colors: active) {
+  .class-tab[aria-selected="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    border-color: Highlight;
+    color: HighlightText;
+  }
 }

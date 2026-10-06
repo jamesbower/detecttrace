@@ -36,6 +36,21 @@ it("captions the chart with the metric", () => {
   expect(screen.queryByRole("figure", { name: "Evidence completeness per week" })).not.toBeNull();
 });
 
+it("puts the chart in a scroll area named by its caption", () => {
+  renderDemo();
+
+  expect(screen.queryByRole("region", { name: "Evidence completeness per week" })).not.toBeNull();
+});
+
+it("names only the figure and its scroll area by the caption", () => {
+  const { container } = renderDemo();
+  const captionId = container.querySelector("figcaption")?.id ?? "";
+
+  expect(
+    [...container.querySelectorAll(`[aria-labelledby="${captionId}"]`)].map((element) => element.tagName),
+  ).toEqual(["FIGURE", "DIV"]);
+});
+
 it("moves Tab to the first point, named by week, series and value", async () => {
   renderDemo();
 

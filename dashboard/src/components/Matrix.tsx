@@ -2,19 +2,33 @@
 // dangerous false close would fall is outlined and says so in text, so color is never the cue.
 import { useId } from "react";
 
+import { useIsScrollable } from "../use-is-scrollable";
 import { WarnIcon } from "./WarnIcon";
 import "./Matrix.css";
 
 import type { ConfusionView } from "../view";
 
-export function Matrix({ confusion }: { confusion: ConfusionView }) {
+type MatrixProps = {
+  confusion: ConfusionView;
+  /** Names the table in its caption, so each class's matrix has its own name. */
+  alertClassName: string;
+};
+
+export function Matrix({ confusion, alertClassName }: MatrixProps) {
   const captionId = useId();
+  const [scrollRef, isScrollable] = useIsScrollable<HTMLDivElement>();
 
   return (
-    <div className="matrix-scroll" role="region" tabIndex={0} aria-labelledby={captionId}>
+    <div
+      ref={scrollRef}
+      className="matrix-scroll"
+      role="region"
+      tabIndex={isScrollable ? 0 : undefined}
+      aria-labelledby={captionId}
+    >
       <table className="matrix">
         <caption id={captionId} className="matrix-caption">
-          Rows are the analyst verdict, columns the agent verdict.
+          {`${alertClassName}: rows are the analyst verdict, columns the agent verdict.`}
         </caption>
         <thead>
           <tr>

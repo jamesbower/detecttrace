@@ -39,7 +39,7 @@
 /* The bottom padding keeps the last line clear of the bottom navigation bar. */
 .shell-footer {
   max-width: var(--measure);
-  padding: 0 var(--sp-4) calc(var(--touch-target) + var(--sp-7));
+  padding: 0 var(--sp-4) calc(var(--bottom-bar-height) + var(--sp-6));
   color: var(--muted);
   font-size: var(--fs-xs);
 }

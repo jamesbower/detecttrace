@@ -6,6 +6,7 @@
 // order, at the same week or the nearest one that series has.
 import { useId, useState } from "react";
 
+import { useIsScrollable } from "../use-is-scrollable";
 import { toSeriesClass } from "./series-class";
 import { TrendMarker } from "./TrendMarker";
 import { TrendTable } from "./TrendTable";
@@ -29,6 +30,7 @@ export function TrendChart({ metric, trend, alertClassName }: TrendChartProps) {
   const captionId = useId();
   const [readout, setReadout] = useState<string | null>(null);
   const [active, setActive] = useState<PointKey | null>(null);
+  const [scrollRef, isScrollable] = useIsScrollable<HTMLDivElement>();
 
   if (metric.empty_text !== null) {
     return (
@@ -67,13 +69,14 @@ export function TrendChart({ metric, trend, alertClassName }: TrendChartProps) {
   return (
     <figure className="trend-chart" aria-labelledby={captionId}>
       <figcaption id={captionId} className="trend-chart-title">{`${metric.title} per week`}</figcaption>
-      <div className="trend-chart-scroll">
-        <svg
-          className="trend-chart-svg"
-          viewBox={`0 0 ${chart.width} ${chart.height}`}
-          role="group"
-          aria-labelledby={captionId}
-        >
+      <div
+        ref={scrollRef}
+        className="trend-chart-scroll"
+        role="region"
+        tabIndex={isScrollable ? 0 : undefined}
+        aria-labelledby={captionId}
+      >
+        <svg className="trend-chart-svg" viewBox={`0 0 ${chart.width} ${chart.height}`} role="group">
           <g aria-hidden="true">
             {chart.grid.map((line) => (
               <g key={line.label}>

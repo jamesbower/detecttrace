@@ -24,7 +24,7 @@
   max-width: 100%;
   padding: var(--sp-2) var(--sp-3);
   background: var(--panel);
-  border: var(--border-thin) solid var(--line);
+  border: var(--border-thin) solid var(--control-border);
   border-radius: var(--r-none);
   font-size: var(--fs-sm);
 }

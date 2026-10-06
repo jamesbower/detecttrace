@@ -29,6 +29,7 @@
   display: block;
   width: 100%;
   min-width: var(--trend-chart-min-width);
+  max-width: var(--trend-chart-max-width);
   height: auto;
 }
 
@@ -89,5 +90,14 @@
   .trend-grid,
   .trend-vmark {
     stroke: GrayText;
+  }
+
+  .trend-point:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .trend-point:focus-visible .trend-point-ring,
+  .trend-point:hover .trend-point-ring {
+    stroke: Highlight;
   }
 }

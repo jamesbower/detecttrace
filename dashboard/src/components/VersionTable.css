@@ -24,13 +24,17 @@
   font-weight: var(--fw-regular);
 }
 
-/* Scrolls sideways on a narrow screen; focusable so the keyboard can scroll it too. */
-.version-table-scroll {
-  overflow-x: auto;
+.version-table-frame {
+  min-width: 0;
   padding: var(--sp-4) var(--sp-5);
   background: var(--panel);
   border: var(--border-thin) solid var(--line);
   clip-path: var(--clip-angled-md);
+}
+
+/* Scrolls sideways on a narrow screen; focusable so the keyboard can scroll it too. */
+.version-table-scroll {
+  overflow-x: auto;
 }
 
 .version-table table {
@@ -63,10 +67,13 @@
   border-bottom-color: var(--accent);
 }
 
+/* Breaks a long label between words, and inside a word only when the word alone is wider
+   than --label-max. */
 .version-table tbody th {
+  min-width: var(--label-min);
   max-width: var(--label-max);
   font-weight: var(--fw-medium);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .version-table .version-table-num {
@@ -101,8 +108,12 @@
 .version-table-why,
 .version-table-n {
   color: var(--muted);
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   font-weight: var(--fw-regular);
+}
+
+.version-table-why {
+  font-size: var(--fs-2xs);
 }
 
 .version-table-few,
@@ -179,13 +190,17 @@
   font-size: var(--fs-sm);
 }
 
-/* Forced colours: the interval strip keeps its track and point in system colours. */
+/* Forced colours: the interval strip draws in system colours, the point a gap in its range. */
 @media (forced-colors: active) {
   .strip-track {
     fill: GrayText;
   }
 
-  .strip-point {
+  .strip-range {
     fill: CanvasText;
+  }
+
+  .strip-point {
+    fill: Canvas;
   }
 }

@@ -28,47 +28,51 @@ export function VersionTable({ alertClass, view, results }: VersionTableProps) {
           {alertClass.versions_text !== "" && ` · ${alertClass.versions_text}`}
         </span>
       </h2>
-      <div className="version-table-scroll" role="region" tabIndex={0} aria-labelledby={captionId}>
-        <table>
-          <caption id={captionId}>
-            {alertClass.name}: metrics per version, in the order each version first appeared. Ranges are 95%
-            intervals.
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Version</th>
-              <th scope="col" className="version-table-num">
-                Cases
-              </th>
-              <th scope="col">Evidence completeness</th>
-              <th scope="col">Verdict agreement</th>
-              <th scope="col">Chance-corrected agreement (κ)</th>
-              <th scope="col" className="version-table-num">
-                Dangerous false closes
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {alertClass.rows.map((row) => (
-              <Fragment key={row.label}>
-                <VersionRow row={row} />
-                {hasRowPanels && (
-                  <tr className="version-table-detail">
-                    <td colSpan={COLUMN_COUNT}>
-                      <PanelSlot
-                        name="version-row-detail"
-                        view={view}
-                        results={results}
-                        classAnchor={alertClass.anchor}
-                        versionLabel={row.label}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
+      {/* The frame's clip-path would cut a focus ring drawn outside the scroll area, so the
+          scroll area sits inside it, in the frame's padding. */}
+      <div className="version-table-frame">
+        <div className="version-table-scroll" role="region" tabIndex={0} aria-labelledby={captionId}>
+          <table>
+            <caption id={captionId}>
+              {alertClass.name}: metrics per version, in the order each version first appeared. Ranges are 95%
+              intervals.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Version</th>
+                <th scope="col" className="version-table-num">
+                  Cases
+                </th>
+                <th scope="col">Evidence completeness</th>
+                <th scope="col">Verdict agreement</th>
+                <th scope="col">Chance-corrected agreement (κ)</th>
+                <th scope="col" className="version-table-num">
+                  Dangerous false closes
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {alertClass.rows.map((row) => (
+                <Fragment key={row.label}>
+                  <VersionRow row={row} />
+                  {hasRowPanels && (
+                    <tr className="version-table-detail">
+                      <td colSpan={COLUMN_COUNT}>
+                        <PanelSlot
+                          name="version-row-detail"
+                          view={view}
+                          results={results}
+                          classAnchor={alertClass.anchor}
+                          versionLabel={row.label}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       {alertClass.pooled_note !== null && <p className="version-table-note">{alertClass.pooled_note}</p>}
     </div>

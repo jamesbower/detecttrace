@@ -3,22 +3,33 @@
   position: fixed;
   inset: auto 0 0;
   z-index: var(--z-sidebar);
+  height: var(--bottom-bar-height);
   background: var(--panel);
   border-top: var(--border-thin) solid var(--line);
+}
+
+/* Focus scrolls an element clear of the bar instead of behind it. */
+html {
+  scroll-padding-bottom: calc(var(--bottom-bar-height) + var(--sp-3));
 }
 
 .sidebar-brand {
   display: none;
 }
 
-/* The padding leaves room for the focus ring, which the scrolling list would otherwise clip. */
+/* The links share the screen's width, so all of them show on a 320px screen; more pages than
+   fit scroll sideways. */
 .sidebar-links {
   display: flex;
   justify-content: safe center;
-  gap: var(--sp-1);
-  padding: var(--sp-2);
+  padding: var(--sp-2) 0;
   overflow-x: auto;
   list-style: none;
+}
+
+.sidebar-links > li {
+  flex: 1 1 0;
+  min-width: var(--nav-link-min-width);
 }
 
 .sidebar-link {
@@ -26,9 +37,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-3);
-  min-width: var(--touch-target);
   min-height: var(--touch-target);
-  padding: var(--sp-2);
+  padding: var(--sp-2) 0;
   border-top: var(--border-mark) solid transparent;
   color: var(--muted);
   font-size: var(--fs-xs);
@@ -36,6 +46,11 @@
   text-decoration: none;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+/* Inside the link: the scrolling list and the screen's edges would cut a ring outside it. */
+.sidebar-link:focus-visible {
+  outline-offset: var(--focus-inset);
 }
 
 .sidebar-link:hover {
@@ -70,12 +85,17 @@
 
 /* --bp-medium: a sidebar down the left, with labels. */
 @media (width > 1000px) {
+  html {
+    scroll-padding-bottom: 0;
+  }
+
   .sidebar {
     inset: 0 auto 0 0;
     display: flex;
     flex-direction: column;
     gap: var(--sp-5);
     width: var(--sidebar-width);
+    height: auto;
     padding: var(--sp-5) var(--sp-3);
     overflow-y: auto;
     border-top: 0;
@@ -103,8 +123,13 @@
   .sidebar-links {
     flex-direction: column;
     justify-content: flex-start;
+    gap: var(--sp-1);
     padding: 0;
     overflow-x: visible;
+  }
+
+  .sidebar-links > li {
+    flex: none;
   }
 
   .sidebar-link {
@@ -112,6 +137,10 @@
     padding: var(--sp-3) var(--sp-4);
     border-top: 0;
     border-left: var(--border-mark) solid transparent;
+  }
+
+  .sidebar-link:focus-visible {
+    outline-offset: var(--focus-offset);
   }
 
   .sidebar-link[aria-current="page"] {
@@ -124,5 +153,19 @@
     height: auto;
     overflow: visible;
     clip: auto;
+  }
+}
+
+/* Forced colours: only the current page's link keeps a visible edge, and it is bold and
+   underlined too, since the bar shows no labels on a narrow screen. */
+@media (forced-colors: active) {
+  .sidebar-link {
+    border-color: Canvas;
+  }
+
+  .sidebar-link[aria-current="page"] {
+    border-color: Highlight;
+    font-weight: var(--fw-bold);
+    text-decoration: underline;
   }
 }

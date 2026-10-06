@@ -33,10 +33,13 @@
   text-align: center;
 }
 
+/* Breaks a long step name between words, and inside a word only when the word alone is wider
+   than --label-max. */
 .heatmap-table tbody th {
+  min-width: var(--label-min);
   max-width: var(--label-max);
   border-bottom: var(--border-thin) solid var(--line);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .heatmap-table code {
@@ -78,6 +81,10 @@
   display: block;
   color: var(--muted);
   font-size: var(--fs-2xs);
+}
+
+.heatmap-of {
+  font-size: var(--fs-xs);
 }
 
 .is-few .heatmap-rate,

@@ -1,9 +1,13 @@
+/* The width container for the label below: a matrix is narrow on a phone, and also in the
+   two-column grid on a mid-sized screen. */
 .matrix-scroll {
+  container-type: inline-size;
   overflow-x: auto;
 }
 
 .matrix {
   width: 100%;
+  min-width: var(--matrix-min-width);
   border-collapse: collapse;
   table-layout: fixed;
   font-size: var(--fs-sm);
@@ -17,7 +21,7 @@
 }
 
 .matrix th {
-  padding: var(--sp-2);
+  padding: var(--sp-2) var(--sp-1);
   color: var(--muted);
   font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
@@ -29,12 +33,16 @@
   text-align: center;
 }
 
+.matrix thead th:first-child {
+  width: var(--matrix-label-share);
+}
+
 .matrix tbody th {
   text-align: left;
 }
 
 .matrix-cell {
-  padding: var(--sp-3) var(--sp-2);
+  padding: var(--sp-3) var(--sp-1);
   border: var(--outline-danger) solid var(--frame);
   color: var(--text);
   text-align: center;
@@ -94,14 +102,28 @@
   background-image: linear-gradient(var(--danger-tint), var(--danger-tint));
 }
 
+/* Narrow first: the icon above the word, in plain case, so the whole word fits a narrow cell. */
 .matrix-flag {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--sp-1);
   color: var(--text);
   font-size: var(--fs-2xs);
-  letter-spacing: var(--ls-label);
-  text-transform: uppercase;
+}
+
+@container (width > 480px) {
+  .matrix th,
+  .matrix-cell {
+    padding-inline: var(--sp-2);
+  }
+
+  .matrix-flag {
+    display: inline-flex;
+    flex-direction: row;
+    letter-spacing: var(--ls-label);
+    text-transform: uppercase;
+  }
 }
 
 .is-flagged .matrix-flag {

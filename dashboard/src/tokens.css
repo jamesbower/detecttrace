@@ -8,6 +8,7 @@
   --panel: #14181a;
   --frame: #2a3033;
   --line: #3a4144; /* rules and borders only, never text */
+  --control-border: #737c80; /* a control's edge: 3:1 on --bg, --panel and --frame */
   --accent-tint: rgb(242 101 34 / 10%);
   --accent-hover: rgb(242 101 34 / 6%);
 
@@ -25,8 +26,12 @@
 
   /* Focus ring */
   --focus: #f0f2f2;
-  --focus-ring: 3px solid var(--focus);
+  --focus-width: 3px;
+  --focus-ring: var(--focus-width) solid var(--focus);
   --focus-offset: 2px;
+  /* An outline offset that draws the ring inside its element, where a clip-path or the
+     screen's edge would cut a ring drawn outside it. */
+  --focus-inset: calc(-1 * var(--focus-width) - var(--focus-offset));
 
   /* Verdict pill borders (3:1 non-text on --panel); the pill's words name the verdict */
   --verdict-true-positive: var(--accent);
@@ -124,15 +129,23 @@
   --sp-8: 72px;
   --sidebar-width: 230px;
   --touch-target: 44px;
+  /* The narrow screen's navigation bar: one row of links, its padding and its top rule. */
+  --bottom-bar-height: calc(var(--touch-target) + 2 * var(--sp-2) + var(--border-thin));
+  /* Each link in that bar: 44px wide, or an eighth of the screen when eight don't fit (40px at 320px). */
+  --nav-link-min-width: min(var(--touch-target), 12.5vw);
   --measure: 720px; /* longest comfortable line of running text */
   --icon-md: 22px;
   --icon-stroke: 1.6;
   --icon-sm: 14px;
   --note-icon: 16px;
   --label-max: 28ch; /* a long label (version, step, case ID) wraps here instead of widening a table */
+  --label-min: 10ch; /* a row label never narrows below a short word, so words break whole */
   --cell-min-width: 96px;
   --metric-min-width: 9rem;
   --strip-height: 8px;
+  /* Four columns, each wide enough for a cell's "Dangerous" in bold; narrower, the matrix scrolls. */
+  --matrix-min-width: 17rem;
+  --matrix-label-share: 22%; /* the row labels' column; the three verdict columns share the rest */
 
   /* Shape: panels are square with one angled corner, cut by clip-path */
   --r-none: 0;
@@ -179,6 +192,8 @@
   /* Trend charts. A chart never draws narrower than its 640-unit view box, so a point's
      44-unit hit area keeps the 44px touch target. */
   --trend-chart-min-width: 640px;
+  /* Past this the chart stops growing, so its 12-unit axis text stays near 15px. */
+  --trend-chart-max-width: 800px;
   --trend-vmark-dash: 3 3;
   --trend-focus-width: 2.5;
   --trend-axis-size: 12px;

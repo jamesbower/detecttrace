@@ -77,11 +77,28 @@ document.addEventListener("securitypolicyviolation", function (event) {
 }, true);
 """
 
+# A ring counts only if no clip-path cuts it: the element's own clip-path cuts any ring drawn
+# outside it, and an ancestor's cuts a ring that reaches past the ancestor's box.
 FOCUS_PROBE = """() => {
   const el = document.activeElement;
   const style = getComputedStyle(el);
-  const hasRing = (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0)
-    || style.boxShadow !== "none";
+  const outset = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+  const isClipped = (() => {
+    const ring = el.getBoundingClientRect();
+    for (let node = el; node instanceof Element; node = node.parentElement) {
+      if (getComputedStyle(node).clipPath === "none") continue;
+      if (node === el) {
+        if (outset > 0) return true;
+        continue;
+      }
+      const box = node.getBoundingClientRect();
+      if (ring.left - outset < box.left || ring.top - outset < box.top
+          || ring.right + outset > box.right || ring.bottom + outset > box.bottom) return true;
+    }
+    return false;
+  })();
+  const hasRing = ((style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0)
+    || style.boxShadow !== "none") && !isClipped;
   let name;
   if (el === document.body) name = "body";
   else if (el.matches(".skip-link")) name = "skip link";
@@ -879,6 +896,85 @@ def test_a_reload_keeps_the_selected_class(reloaded: Reloaded) -> None:
 @pytest.mark.parametrize("title", PAGE_IDS)
 def test_the_page_never_scrolls_sideways(layouts: dict[str, Layout], title: str) -> None:
     assert layouts[title].scroll_width <= layouts[title].client_width
+
+
+# Each element Tab reaches outside the navigation bar, with its top and bottom, and the bar's top.
+BAR_PROBE = """() => {
+  const el = document.activeElement;
+  const box = el.getBoundingClientRect();
+  return [el !== document.body && el.closest(".sidebar") === null,
+          el.getAttribute("class") || el.tagName, box.top, box.bottom,
+          document.querySelector(".sidebar").getBoundingClientRect().top];
+}"""
+
+
+@pytest.fixture(scope="module")
+def narrow_focus_walk(browser: Any, demo_path: Path) -> list[tuple[str, float, float, float]]:
+    """Tab through the overview on a 390px phone: each focused element outside the navigation
+    bar and where it sits."""
+    walk: list[tuple[str, float, float, float]] = []
+    with visiting(browser, demo_path, width=390) as visit:
+        for _ in range(30):
+            visit.page.keyboard.press("Tab")
+            is_outside, name, top, bottom, bar_top = visit.page.evaluate(BAR_PROBE)
+            if is_outside:
+                walk.append((name, top, bottom, bar_top))
+    return walk
+
+
+@pytest.mark.parametrize("name", ["class-tab", "version-table-scroll", "overview-tile"])
+def test_tab_on_a_phone_reaches(
+    narrow_focus_walk: list[tuple[str, float, float, float]], name: str
+) -> None:
+    assert name in [focused for focused, *_ in narrow_focus_walk]
+
+
+def test_focus_on_a_phone_stays_clear_of_the_navigation_bar(
+    narrow_focus_walk: list[tuple[str, float, float, float]],
+) -> None:
+    hidden = [
+        name for name, top, bottom, bar_top in narrow_focus_walk if top < 0 or bottom > bar_top
+    ]
+    assert hidden == []
+
+
+@pytest.mark.parametrize("width", [390, 360])
+def test_each_dangerous_label_shows_its_whole_word(
+    browser: Any, demo_path: Path, width: int
+) -> None:
+    with visiting(browser, demo_path, hash="#/verdicts", width=width) as visit:
+        cut = visit.page.evaluate(
+            """() => [...document.querySelectorAll(".matrix-flag")].filter((flag) => {
+              const cell = flag.closest("td").getBoundingClientRect();
+              const box = flag.getBoundingClientRect();
+              return flag.scrollWidth > flag.clientWidth
+                || box.left < cell.left || box.right > cell.right;
+            }).length"""
+        )
+    assert cut == 0
+
+
+def test_every_navigation_link_fits_a_320px_screen(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path, width=320) as visit:
+        outside = visit.page.evaluate(
+            """() => [...document.querySelectorAll(".sidebar-link")].filter((link) => {
+              const box = link.getBoundingClientRect();
+              return box.left < 0 || box.right > document.documentElement.clientWidth;
+            }).length"""
+        )
+    assert outside == 0
+
+
+def test_a_matrix_that_fits_is_not_a_tab_stop(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path, hash="#/verdicts") as visit:
+        stops = visit.page.locator('.matrix-scroll[tabindex="0"]').count()
+    assert stops == 0
+
+
+def test_a_trend_chart_wider_than_a_phone_is_a_tab_stop(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path, hash="#/trends", width=390) as visit:
+        stops = visit.page.locator('.trend-chart-scroll[role="region"][tabindex="0"]').count()
+    assert stops == 2
 
 
 # CSP and network

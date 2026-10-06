@@ -90,7 +90,7 @@
 
 /* The clip-path would cut the default outline, so the focus ring is drawn inside. */
 .overview-tile:focus-visible {
-  outline-offset: calc(-1 * var(--border-accent) - var(--focus-offset));
+  outline-offset: var(--focus-inset);
 }
 
 .overview-tile-title {

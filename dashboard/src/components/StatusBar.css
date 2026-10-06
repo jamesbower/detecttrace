@@ -2,7 +2,7 @@
    of newer results is seen wherever the reader has scrolled. */
 .shell-main > .status-bar {
   position: sticky;
-  bottom: calc(var(--touch-target) + var(--sp-5));
+  bottom: calc(var(--bottom-bar-height) + var(--sp-2));
   z-index: var(--z-overlay);
 }
 

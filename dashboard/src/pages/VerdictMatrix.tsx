@@ -27,7 +27,7 @@ export function VerdictMatrix({ view }: PageProps) {
                 {`All versions · ${alertClass.confusion.n_text} · ${alertClass.confusion.dangerous_text}`}
               </span>
             </h2>
-            <Matrix confusion={alertClass.confusion} />
+            <Matrix confusion={alertClass.confusion} alertClassName={alertClass.name} />
           </section>
         ))}
       </div>

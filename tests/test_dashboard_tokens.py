@@ -183,6 +183,26 @@ def test_verdict_pill_border_meets_3_to_1_on_the_panel(token: str) -> None:
     assert contrast(colour(token), colour("--panel")) >= GRAPHIC
 
 
+@pytest.mark.parametrize("surface", PAGE_SURFACES)
+def test_control_border_meets_3_to_1_on_every_page_surface(surface: str) -> None:
+    assert contrast(colour("--control-border"), SURFACES[surface]()) >= GRAPHIC
+
+
+# Every control whose edge shows where to press or type.
+CONTROL_EDGES = [
+    ".class-tab",
+    ".class-select select",
+    ".case-filter select",
+    ".case-filter input",
+    ".trend-table-toggle",
+]
+
+
+@pytest.mark.parametrize("selector", CONTROL_EDGES)
+def test_a_control_draws_its_edge_in_the_control_border(selector: str) -> None:
+    assert _declarations(selector)["border"] == "var(--border-thin) solid var(--control-border)"
+
+
 @pytest.mark.parametrize("surface", [*PAGE_SURFACES, *HEAT_TOKENS])
 def test_focus_ring_meets_3_to_1_on_every_surface(surface: str) -> None:
     background = SURFACES[surface]()
@@ -221,8 +241,12 @@ def test_a_focus_visible_rule_draws_the_focus_ring() -> None:
     assert _declarations(":focus-visible")["outline"] == "var(--focus-ring)"
 
 
-def test_the_focus_ring_is_at_least_2px_solid() -> None:
-    assert re.fullmatch(r"([2-9]|\d{2,})px solid var\(--focus\)", tokens()["--focus-ring"])
+def test_the_focus_ring_is_solid_in_the_focus_colour() -> None:
+    assert tokens()["--focus-ring"] == "var(--focus-width) solid var(--focus)"
+
+
+def test_the_focus_ring_is_at_least_2px_wide() -> None:
+    assert int(tokens()["--focus-width"].removesuffix("px")) >= 2
 
 
 @pytest.mark.parametrize("path", ALL_STYLES, ids=lambda path: path.name)
@@ -254,7 +278,7 @@ def test_reduced_motion_shortens_every_transition_and_animation(property_name: s
 
 # Every control a reader can press, type into or follow, with the sizes it must keep.
 TOUCH_TARGETS = [
-    (".sidebar-link", ("min-width", "min-height")),  # navigation links
+    (".sidebar-link", ("min-height",)),  # navigation links; their width is tested below
     (".class-tab", ("min-height",)),  # class tabs
     (".class-select select", ("min-height",)),  # class dropdown
     (".case-filter select", ("min-height",)),  # case filters
@@ -273,6 +297,24 @@ TOUCH_TARGETS = [
 )
 def test_control_keeps_the_touch_target_size(selector: str, property_name: str) -> None:
     assert _declarations(selector)[property_name] == "var(--touch-target)"
+
+
+def test_a_navigation_link_is_44px_wide_unless_eight_would_not_fit() -> None:
+    assert tokens()["--nav-link-min-width"] == "min(var(--touch-target), 12.5vw)"
+
+
+def test_navigation_links_share_the_bar_at_the_link_minimum() -> None:
+    assert _scoped_declarations(".sidebar-links > li")["min-width"] == "var(--nav-link-min-width)"
+
+
+def test_focus_scrolls_an_element_clear_of_the_bottom_bar() -> None:
+    assert _scoped_declarations("html")["scroll-padding-bottom"] == (
+        "calc(var(--bottom-bar-height) + var(--sp-3))"
+    )
+
+
+def test_the_bottom_bar_is_its_token_high() -> None:
+    assert _scoped_declarations(".sidebar")["height"] == "var(--bottom-bar-height)"
 
 
 def test_the_touch_target_token_is_at_least_44px() -> None:
@@ -340,6 +382,25 @@ def test_a_dangerous_matrix_cell_has_an_outline() -> None:
     )
 
 
+@pytest.mark.parametrize("selector", [".version-table tbody th", ".heatmap-table tbody th"])
+def test_a_row_label_breaks_between_words(selector: str) -> None:
+    assert _scoped_declarations(selector)["overflow-wrap"] == "break-word"
+
+
+@pytest.mark.parametrize("selector", [".version-table tbody th", ".heatmap-table tbody th"])
+def test_a_row_label_keeps_its_minimum_width(selector: str) -> None:
+    assert _scoped_declarations(selector)["min-width"] == "var(--label-min)"
+
+
+@pytest.mark.parametrize("selector", [".version-table-interval", ".version-table-n", ".heatmap-of"])
+def test_intervals_and_counts_in_dense_tables_are_extra_small_not_smaller(selector: str) -> None:
+    assert _scoped_declarations(selector)["font-size"] == "var(--fs-xs)"
+
+
+def test_a_trend_chart_stops_growing_at_its_maximum_width() -> None:
+    assert _scoped_declarations(".trend-chart-svg")["max-width"] == "var(--trend-chart-max-width)"
+
+
 def test_a_skipped_step_rate_with_few_cases_is_italic() -> None:
     assert _scoped_declarations(".is-few .heatmap-rate")["font-style"] == "italic"
 
@@ -378,13 +439,37 @@ def test_trend_grid_lines_use_the_line_token() -> None:
         (".trend-grid", "stroke", "GrayText"),
         (".trend-vmark", "stroke", "GrayText"),
         (".strip-track", "fill", "GrayText"),
-        (".strip-point", "fill", "CanvasText"),
+        (".strip-range", "fill", "CanvasText"),
+        (".strip-point", "fill", "Canvas"),
+        (".series-line", "stroke", "CanvasText"),
         (".series-line-all", "stroke", "CanvasText"),
+        (".series-marker", "fill", "CanvasText"),
+        (".series-marker", "stroke", "CanvasText"),
         (".series-marker.series-all", "fill", "CanvasText"),
         (".series-marker.is-few", "fill", "Canvas"),
+        (".trend-point:focus-visible .trend-point-ring", "stroke", "Highlight"),
+        (".trend-point:focus-visible", "outline-color", "Highlight"),
     ],
 )
 def test_forced_colors_keep_chart_parts_visible(
+    selector: str, property_name: str, value: str
+) -> None:
+    assert _scoped_declarations(selector, media=FORCED_COLORS)[property_name] == value
+
+
+@pytest.mark.parametrize(
+    ("selector", "property_name", "value"),
+    [
+        (".sidebar-link", "border-color", "Canvas"),
+        ('.sidebar-link[aria-current="page"]', "border-color", "Highlight"),
+        ('.sidebar-link[aria-current="page"]', "font-weight", "var(--fw-bold)"),
+        ('.sidebar-link[aria-current="page"]', "text-decoration", "underline"),
+        ('.class-tab[aria-selected="true"]', "forced-color-adjust", "none"),
+        ('.class-tab[aria-selected="true"]', "background", "Highlight"),
+        ('.class-tab[aria-selected="true"]', "color", "HighlightText"),
+    ],
+)
+def test_forced_colors_mark_the_current_page_and_the_selected_class(
     selector: str, property_name: str, value: str
 ) -> None:
     assert _scoped_declarations(selector, media=FORCED_COLORS)[property_name] == value
