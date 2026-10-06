@@ -1,0 +1,41 @@
+/* Stays in view at the bottom of the screen, above the narrow screen's navigation bar, so news
+   of newer results is seen wherever the reader has scrolled. */
+.shell-main > .status-bar {
+  position: sticky;
+  bottom: calc(var(--touch-target) + var(--sp-5));
+  z-index: var(--z-overlay);
+}
+
+.status-bar-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-4);
+  max-width: var(--measure);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--frame);
+  border-left: var(--border-accent) solid var(--accent);
+  box-shadow: var(--shadow-1);
+}
+
+.status-bar-reload {
+  min-height: var(--touch-target);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--accent);
+  border: var(--border-thin) solid var(--accent);
+  border-radius: var(--r-none);
+  color: var(--on-accent);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+
+.status-bar-reload:hover {
+  background: var(--accent-text);
+}
+
+/* --bp-medium: the navigation moves to the side, so the bar can sit lower. */
+@media (width > 1000px) {
+  .shell-main > .status-bar {
+    bottom: var(--sp-4);
+  }
+}

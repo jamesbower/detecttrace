@@ -37,6 +37,11 @@
   display: none;
 }
 
+.shell-note {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
 /* --bp-medium: the sidebar takes the first column. */
 @media (width > 1000px) {
   .shell {

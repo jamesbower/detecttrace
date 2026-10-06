@@ -27,13 +27,14 @@ from starlette.requests import ClientDisconnect
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from detecttrace.config import Config
-from detecttrace.dashboard import ServedPage, WaitingCounts, render_waiting_page
+from detecttrace.dashboard import render_waiting_page
 from detecttrace.model import Issue, IssueKind
 from detecttrace.serve import receiver, verdict_api
 from detecttrace.serve.auth import Role, find_token_name
 from detecttrace.serve.config import ServeConfig, TokenRoles
 from detecttrace.serve.recompute import RecomputeStatus, to_iso_time
 from detecttrace.serve.store import INGEST_SUBJECT, Store
+from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.summary import to_terminal_text
 
 access_logger = logging.getLogger("detecttrace.serve.access")

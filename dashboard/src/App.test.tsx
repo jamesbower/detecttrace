@@ -2,6 +2,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { POLL_MS } from "./poller";
 import { registerPage, resetRegistryForTests } from "./registry";
 import { DEMO_RESULTS, DEMO_VIEW } from "./test-fixtures";
 
@@ -25,6 +26,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   window.history.replaceState(null, "", "#");
 });
@@ -143,4 +146,77 @@ it("carries only the class parameter into the navigation links", () => {
   render(<App data={DATA} />);
 
   expect(screen.getByRole("link", { name: "Cases" }).getAttribute("href")).toBe("#/cases?class=class-1");
+});
+
+const SERVED = { generation: 7, updated_at: "2026-10-05T12:00:00.000000Z", held_back_text: null };
+const WAITING = {
+  counts: [{ label: "Spans received", value: "1,200" }],
+  notes: [{ message: "No verdict file yet.", hint: "Send verdicts to /v1/verdicts." }],
+};
+const WAITING_DATA = { view: { ...DEMO_VIEW, served: SERVED, waiting: WAITING }, waiting: WAITING };
+
+it("shows what has arrived on a waiting page", () => {
+  render(<App data={WAITING_DATA} />);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Nothing to score yet");
+});
+
+it("shows no page whatever the hash names while waiting", () => {
+  window.history.replaceState(null, "", "#/cases");
+
+  render(<App data={WAITING_DATA} />);
+
+  expect(screen.queryByText("201 cases")).toBeNull();
+});
+
+it("links to no page while waiting", () => {
+  render(<App data={WAITING_DATA} />);
+
+  expect(screen.queryAllByRole("link", { name: /Home|Cases/ })).toEqual([]);
+});
+
+it("titles the document as waiting while waiting", () => {
+  render(<App data={WAITING_DATA} />);
+
+  expect(document.title).toBe("Waiting for data · DetectTrace");
+});
+
+it("keeps the status bar on a waiting page", () => {
+  render(<App data={WAITING_DATA} />);
+
+  expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+});
+
+it("shows how many cases are still settling on a served page", () => {
+  const served = { ...SERVED, held_back_text: "3 cases still settling are not counted yet." };
+
+  render(<App data={{ view: { ...DEMO_VIEW, served }, results: DEMO_RESULTS }} />);
+
+  expect(screen.getByText("3 cases still settling are not counted yet.").tagName).toBe("P");
+});
+
+it("never asks the network on an offline page", async () => {
+  vi.useFakeTimers();
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App data={DATA} />);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3);
+  });
+
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("asks the server for its status on a served page", async () => {
+  vi.useFakeTimers();
+  const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ generation: 7 }))));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App data={{ view: { ...DEMO_VIEW, served: SERVED }, results: DEMO_RESULTS }} />);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+  });
+
+  expect(fetchMock).toHaveBeenCalledOnce();
 });
