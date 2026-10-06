@@ -473,7 +473,9 @@ def _render_config(draft: InitDraft, *, is_for_app: bool) -> str:
         "label_map",
         draft.label_map,
         draft.unmapped_analyst_labels,
-        "Analyst labels not mapped yet; check reports them as unmapped.",
+        "Analyst labels not mapped yet; "
+        + ("the dashboard" if is_for_app else "check")
+        + " reports them as unmapped.",
     )
     lines += _render_label_map(
         "agent_label_map",
