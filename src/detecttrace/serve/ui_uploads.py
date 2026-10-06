@@ -98,10 +98,11 @@ def store_trace_file(store: Store, file_path: Path) -> UploadReport:
     except TraceFileError as error:
         raise _to_refusal(error, file_path) from None
     result = store.add_spans(
-        [remove_tool_result(span) for span in spans], issues, subject=file_path.name
+        [remove_tool_result(span) for span in spans],
+        issues,
+        subject=file_path.name,
+        trace_family=family,
     )
-    if stored_family is None:
-        store.set_trace_family(family)
     stored_text = _describe_counts(
         (result.accepted, "span added", "spans added"),
         (result.duplicates, "duplicate dropped", "duplicates dropped"),
@@ -119,8 +120,7 @@ def store_verdict_file(store: Store, file_path: Path) -> UploadReport:
         rows, issues = read_verdicts(file_path)
     except VerdictFileError as error:
         raise _to_refusal(error, file_path) from None
-    result = store.put_verdicts(rows, UPLOAD_TOKEN_NAME)
-    store.add_issues(issues)
+    result = store.put_verdicts(rows, UPLOAD_TOKEN_NAME, issues=issues)
     stored_text = _describe_counts(
         (result.added, "verdict added", "verdicts added"),
         (result.replaced, "replaced", "replaced"),

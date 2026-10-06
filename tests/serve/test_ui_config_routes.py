@@ -1,3 +1,4 @@
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -264,6 +265,42 @@ def test_saving_with_a_broken_checklist_starts_no_recompute(
     run_recompute(state)
 
     assert executor.count == 0
+
+
+def fail_to_write() -> None:
+    raise sqlite3.OperationalError("disk I/O error")
+
+
+def test_a_save_the_store_cannot_record_answers_503(
+    uploaded: TestClient, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    response = post_json(uploaded, "/api/config", NO_EDITS)
+
+    assert response.status_code == 503
+
+
+def test_a_first_save_the_store_cannot_record_leaves_no_file(
+    uploaded: TestClient, store: Store, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    post_json(uploaded, "/api/config", NO_EDITS)
+
+    assert not (data_dir / CONFIG_NAME).exists()
+
+
+def test_a_save_the_store_cannot_record_keeps_the_previous_file(
+    uploaded: TestClient, store: Store, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    post_json(uploaded, "/api/config", NO_EDITS)
+    previous = (data_dir / CONFIG_NAME).read_text(encoding="utf-8")
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    post_json(uploaded, "/api/config", PROMPT_EDIT)
+
+    assert (data_dir / CONFIG_NAME).read_text(encoding="utf-8") == previous
 
 
 # The recompute

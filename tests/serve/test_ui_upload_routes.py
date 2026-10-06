@@ -1,3 +1,4 @@
+import sqlite3
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future
 from pathlib import Path
@@ -258,7 +259,9 @@ def test_an_upload_without_the_write_header_answers_403(client: TestClient) -> N
 # The recompute
 
 
-@pytest.mark.parametrize(("kind", "path", "stored_text"), DEMO_UPLOADS)
+# Not checklists: before a configuration there is no coordinator, and after one a checklist
+# upload starts a recompute by configuring again (test_ui_checklist_after_config.py).
+@pytest.mark.parametrize(("kind", "path", "stored_text"), DEMO_UPLOADS[:2])
 def test_an_upload_that_stores_something_starts_a_recompute(
     upload: Upload,
     state: UiState,
@@ -277,6 +280,48 @@ def test_an_upload_that_stores_something_starts_a_recompute(
     coordinator.tick()
 
     assert coordinator.status.is_running
+
+
+# A store write that fails
+
+
+def fail_to_write(*args: object, **kwargs: object) -> None:
+    raise sqlite3.OperationalError("disk I/O error")
+
+
+def test_a_trace_upload_records_its_format_in_the_same_write(
+    upload: Upload, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "set_trace_family", fail_to_write)
+
+    upload("traces", DEMO_TRACES)
+
+    assert store.read_trace_family() == "otlp"
+
+
+def test_a_verdict_upload_stores_its_problems_in_the_same_write(
+    upload: Upload, store: Store, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(store, "add_issues", fail_to_write)
+    verdicts = tmp_path / "verdicts.csv"
+    verdicts.write_text(
+        "case_id,alert_class,verdict\nDT-1,impossible_travel,TP\n,impossible_travel,TP\n",
+        encoding="utf-8",
+    )
+
+    response = upload("verdicts", verdicts)
+
+    assert response.status_code == 200
+
+
+def test_a_checklist_upload_before_configuring_needs_no_store_write(
+    upload: Upload, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    response = upload("checklists", DEMO_CHECKLIST)
+
+    assert response.status_code == 200
 
 
 # The state route

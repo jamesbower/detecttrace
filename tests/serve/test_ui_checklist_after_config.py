@@ -1,3 +1,4 @@
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -228,3 +229,22 @@ def test_a_refused_checklist_keeps_the_running_settings(
 
     _, settings, _ = executor.calls[-1]
     assert settings.checklists == {}
+
+
+def fail_to_write() -> None:
+    raise sqlite3.OperationalError("disk I/O error")
+
+
+def test_a_checklist_the_store_cannot_record_keeps_the_previous_checklist(
+    configured_with_checklist: TestClient,
+    store: Store,
+    data_dir: Path,
+    replacement: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    upload_file(configured_with_checklist, "checklists", replacement)
+
+    saved = data_dir / CHECKLISTS_FOLDER / "impossible_travel.yaml"
+    assert saved.read_bytes() == DEMO_CHECKLIST.read_bytes()

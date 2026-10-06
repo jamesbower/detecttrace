@@ -827,6 +827,47 @@ def test_setting_the_trace_family_leaves_the_generation(store: Store) -> None:
     assert store.generation() == 0
 
 
+def test_add_spans_records_the_trace_family_given(store: Store) -> None:
+    store.add_spans([make_span()], [], trace_family="langfuse")
+
+    assert store.read_trace_family() == "langfuse"
+
+
+def test_failed_add_spans_records_no_trace_family(store: Store) -> None:
+    unencodable = make_span("00000000000000a2", attributes={"bad": {1, 2}})
+
+    with pytest.raises(TypeError):
+        store.add_spans([unencodable], [], trace_family="otlp")
+
+    assert store.read_trace_family() is None
+
+
+def test_put_verdicts_counts_the_issues_given(store: Store) -> None:
+    issue = Issue(IssueKind.INVALID_VERDICT_ROW, "verdicts.csv", "line 3")
+
+    store.put_verdicts([make_verdict()], "upload", issues=[issue])
+
+    assert [stored.issue for stored in store.read_inputs().issues] == [issue]
+
+
+def test_put_verdicts_with_only_a_new_issue_adds_one_to_generation(store: Store) -> None:
+    issue = Issue(IssueKind.INVALID_VERDICT_ROW, "verdicts.csv", "line 3")
+
+    store.put_verdicts([], "upload", issues=[issue])
+
+    assert store.generation() == 1
+
+
+def test_failed_put_verdicts_stores_no_issues(store: Store) -> None:
+    unbindable = VerdictRow("CASE-2", "Impossible travel", cast(str, {"not": "text"}), 0)
+    issue = Issue(IssueKind.INVALID_VERDICT_ROW, "verdicts.csv", "line 3")
+
+    with pytest.raises(sqlite3.Error):
+        store.put_verdicts([unbindable], "upload", issues=[issue])
+
+    assert store.read_inputs().issues == []
+
+
 # Migrations and integrity
 
 

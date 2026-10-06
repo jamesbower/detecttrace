@@ -129,10 +129,11 @@ class UiState:
         if self.recompute is None:
             raise RuntimeError("this app state has no worker pool to recompute with")
         with self.lifecycle_lock:
-            self.recompute.replace_settings(settings)
             # Advanced before the coordinator starts, so it finds the input newer than any
-            # snapshot and runs at once instead of after a debounce.
+            # snapshot and runs at once instead of after a debounce. First, so a store that
+            # can't take the write leaves the running settings as they were.
             self.store.mark_changed()
+            self.recompute.replace_settings(settings)
             coordinator = RecomputeCoordinator(self.recompute.submit, self.store, self.clock)
             with self.lock:
                 # A run the previous coordinator started used the old settings; its outcome
@@ -393,16 +394,17 @@ def _save_config(state: UiState, edits: _ConfigEdits) -> None:
         previous = config_path.read_text(encoding="utf-8") if config_path.is_file() else None
         config = write_ui_config(state.store, state.data_dir, edits.fields, edits.labels)
         # The checklists are only read once the file names them, so a file whose checklists
-        # can't be used is put back as it was: the next start would refuse to load it.
+        # can't be used is put back as it was: the next start would refuse to load it. A
+        # store that can't record the change puts it back too, so the file always matches
+        # the settings the app runs with.
         try:
-            settings = to_recompute_settings(config, config_path)
-        except InputFileError:
+            state.configure(to_recompute_settings(config, config_path))
+        except BaseException:
             if previous is None:
                 config_path.unlink(missing_ok=True)
             else:
                 write_text_atomically(previous, config_path)
             raise
-        state.configure(settings)
 
 
 def _clear_data(state: UiState) -> None:
@@ -425,11 +427,9 @@ def _save_checklist(state: UiState, file_path: Path) -> UploadReport:
     config_path = state.data_dir / CONFIG_NAME
     with state.lifecycle_lock:
         if not config_path.is_file():
-            report = save_checklist_file(file_path, folder)
-            # Checklists live outside the store, so the generation is advanced for the
-            # recompute to see the change.
-            state.store.mark_changed()
-            return report
+            # Nothing recomputes before a configuration, and configure advances the
+            # generation, so the store needs no write here.
+            return save_checklist_file(file_path, folder)
         with tempfile.TemporaryDirectory(dir=state.data_dir) as backup_folder:
             backup = Path(backup_folder)
             folder.mkdir(parents=True, exist_ok=True)
@@ -443,7 +443,12 @@ def _save_checklist(state: UiState, file_path: Path) -> UploadReport:
             except InputFileError as error:
                 _restore_folder_files(folder, backup)
                 raise UploadRefused(str(error)) from None
-        state.configure(settings)
+            # The upload answers as not stored, so the folder must not keep it either.
+            try:
+                state.configure(settings)
+            except BaseException:
+                _restore_folder_files(folder, backup)
+                raise
         return report
 
 
