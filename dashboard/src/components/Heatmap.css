@@ -1,0 +1,84 @@
+.heatmap {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.heatmap-sub,
+.heatmap-empty {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.heatmap-scroll {
+  overflow-x: auto;
+}
+
+.heatmap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.heatmap-table th {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-thin) solid var(--accent);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.heatmap-table thead th + th {
+  text-align: center;
+}
+
+.heatmap-table tbody th {
+  max-width: var(--label-max);
+  border-bottom: var(--border-thin) solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.heatmap-table code {
+  font-size: var(--fs-xs);
+}
+
+.heatmap-label {
+  display: block;
+  max-width: var(--label-max);
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* The tint repeats the share skipped, which the cell also says in text. */
+.heatmap-cell {
+  min-width: var(--cell-min-width);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-thin) solid var(--line);
+  background: color-mix(
+    in srgb,
+    var(--heat-skip) min(calc(var(--heat-level, 0) * 1%), var(--heat-skip-cap)),
+    var(--panel)
+  );
+  text-align: center;
+}
+
+.heatmap-rate {
+  display: block;
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+.heatmap-of,
+.heatmap-few {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+}
+
+.is-few .heatmap-rate,
+.is-few .heatmap-label {
+  font-style: italic;
+}

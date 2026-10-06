@@ -1,0 +1,46 @@
+/* The framed panel that holds one class's table or charts on the skipped steps, weekly trend
+   and verdict matrix pages. */
+.analysis-panel {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--line);
+  clip-path: var(--clip-angled-md);
+}
+
+.analysis-panel-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.analysis-panel-sub {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.analysis-panel-lead {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.analysis-grid {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+/* --bp-medium: two classes side by side. */
+@media (width > 1000px) {
+  .analysis-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

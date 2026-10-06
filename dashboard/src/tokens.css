@@ -147,3 +147,40 @@
   --label-max-width: 28ch; /* a long version label wraps here instead of widening the table */
   --tile-lift: -4px;
 }
+
+/* Task 7: skipped steps, trend, verdict matrix */
+:root {
+  /* Skipped-step cells: --heat-skip is mixed into --panel by the share skipped, up to the cap,
+     which keeps --text and --muted at 4.5:1 on the strongest cell. */
+  --heat-skip: var(--accent);
+  --heat-skip-cap: 40%;
+
+  /* Verdict matrix cells: "ok" on the diagonal, "off" elsewhere; each keeps --text at 4.5:1. */
+  --heat-0: #1e2632;
+  --heat-ok-1: #1f3330;
+  --heat-ok-2: #23443b;
+  --heat-ok-3: #285545;
+  --heat-ok-4: #2d6650;
+  --heat-off-1: #2e2a22;
+  --heat-off-2: #463826;
+  --heat-off-3: #5e462a;
+  --heat-off-4: #75542d;
+  --danger-tint: rgb(255 107 107 / 14%);
+  --outline-danger: 2px;
+  --outline-flagged: 3px;
+
+  /* Trend charts, in SVG user units. A chart never draws narrower than its 640-unit view box,
+     so a point's 44-unit hit area keeps the 44px touch target. */
+  --trend-chart-min-width: 640px;
+  --trend-line-width: 2;
+  --trend-all-width: 6;
+  --trend-marker-stroke: 1.5;
+  --trend-vmark-dash: 3 3;
+  --trend-focus-width: 2.5;
+  --trend-axis-size: 12px;
+  --trend-label-size: 13px;
+
+  /* Long version labels and step names wrap at this width instead of widening a table. */
+  --label-max: 24ch;
+  --cell-min-width: 96px;
+}
