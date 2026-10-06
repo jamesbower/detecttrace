@@ -12,7 +12,7 @@ import yaml
 from builders import case_root
 from html_tree import has_tag, parse_html, read_terms
 
-from detecttrace.dashboard import ServedPage, WaitingCounts, render_waiting_page
+from detecttrace.dashboard import render_waiting_page
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.pipeline import run_check
 from detecttrace.runconfig import load_run_config
@@ -28,6 +28,7 @@ from detecttrace.serve.recompute import (
     to_iso_time,
 )
 from detecttrace.serve.store import INGEST_SUBJECT, Snapshot, Store
+from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
 

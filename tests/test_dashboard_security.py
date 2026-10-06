@@ -19,9 +19,10 @@ import pytest
 from builders import otlp_document, otlp_span, span_hex, write_jsonl
 from html_tree import Node, has_tag, parse_html
 
-from detecttrace.dashboard import ServedPage, render_dashboard
+from detecttrace.dashboard import render_dashboard
 from detecttrace.pipeline import run_check
 from detecttrace.runconfig import load_run_config
+from detecttrace.served_page import ServedPage
 from detecttrace.summary import to_visible_text
 
 DEMO_GOLDEN = Path(__file__).parent / "fixtures" / "demo" / "expected.json"

@@ -12,15 +12,17 @@ types `scripts/generate_view_types.py` generates from these dataclasses.
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date
 from typing import Any
 
 from detecttrace.results import SCHEMA_VERSION
+from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.stats import BOOTSTRAP_RESAMPLES
 from detecttrace.summary import (
     CoverageLine,
     JoinCoverage,
+    SummaryLine,
     coverage_lines,
     to_message_without_count,
     to_visible_text,
@@ -287,6 +289,31 @@ class LimitView:
 
 
 @dataclass(frozen=True, slots=True)
+class ServedView:
+    generation: int
+    updated_at: str  # compared with the status route's time, so passed on as the server wrote it
+    held_back_text: str | None  # "3 cases still settling are not counted yet."
+
+
+@dataclass(frozen=True, slots=True)
+class CountView:
+    label: str
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
+class WaitingNoteView:
+    message: str
+    hint: str
+
+
+@dataclass(frozen=True, slots=True)
+class WaitingView:
+    counts: tuple[CountView, ...]
+    notes: tuple[WaitingNoteView, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class DashboardView:
     header: HeaderView
     classes: tuple[ClassView, ...]
@@ -294,6 +321,10 @@ class DashboardView:
     coverage: tuple[CoverageView, ...]
     notes: tuple[NoteView, ...]
     limits: tuple[LimitView, ...]
+    served: ServedView | None  # set only on a page from `detecttrace serve`
+    # Set only on the page `detecttrace serve` shows until a case can be scored; every other
+    # section is then empty.
+    waiting: WaitingView | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,7 +368,64 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
             *(note for class_data in classes for note in _to_dropped_notes(class_data, styles)),
         ),
         limits=tuple(LimitView(term, text) for term, text in LIMITS),
+        served=None,
+        waiting=None,
     )
+
+
+def build_served_view(results: Mapping[str, object], served: ServedPage) -> DashboardView:
+    """The view of a results object for a page from `detecttrace serve`.
+
+    Raises ValueError for a schema version this code does not know.
+    """
+    return replace(build_view(results), served=_to_served_view(served))
+
+
+def build_waiting_view(
+    counts: WaitingCounts, notes: Sequence[SummaryLine], served: ServedPage
+) -> DashboardView:
+    """The view `detecttrace serve` shows until at least one case can be scored.
+
+    `notes` are the run's issue lines, which often say why nothing joined yet. The counts already
+    show the cases still settling, so the served block leaves that text out.
+    """
+    return DashboardView(
+        header=HeaderView(
+            title="DetectTrace",
+            sources=(),
+            cases_text="",
+            period_text="",
+            versions_text="",
+            low_coverage_text=None,
+        ),
+        classes=(),
+        cases=CasesView(total_text="", detail_count_text="", detail_sentence="", class_filters=()),
+        coverage=(),
+        notes=(),
+        limits=(),
+        served=replace(_to_served_view(served), held_back_text=None),
+        waiting=WaitingView(
+            counts=(
+                CountView("Spans received", format_count(counts.span_count)),
+                CountView("Cases settled", format_count(counts.case_count)),
+                CountView("Cases still settling", format_count(counts.held_back_count)),
+                CountView("Verdicts received", format_count(counts.verdict_count)),
+            ),
+            notes=tuple(
+                WaitingNoteView(to_visible_text(line.message), to_visible_text(line.hint))
+                for line in notes
+            ),
+        ),
+    )
+
+
+def format_held_back_text(count: int) -> str | None:
+    """The sentence about cases still inside the settle window, or None when there are none."""
+    if count == 0:
+        return None
+    if count == 1:
+        return "1 case still settling is not counted yet."
+    return f"{format_count(count)} cases still settling are not counted yet."
 
 
 def to_view_json(view: DashboardView) -> dict[str, object]:
@@ -960,3 +1048,11 @@ def _n_text(n: int) -> str:
 
 def _plural(count: int, singular: str, plural: str) -> str:
     return f"{format_count(count)} {singular if count == 1 else plural}"
+
+
+def _to_served_view(served: ServedPage) -> ServedView:
+    return ServedView(
+        generation=served.generation,
+        updated_at=served.updated_at,
+        held_back_text=format_held_back_text(served.held_back_cases),
+    )

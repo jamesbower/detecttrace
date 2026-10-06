@@ -31,11 +31,12 @@ from pathlib import Path
 
 from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import Checklist
-from detecttrace.dashboard import ServedPage, WaitingCounts, render_dashboard, render_waiting_page
+from detecttrace.dashboard import render_dashboard, render_waiting_page
 from detecttrace.model import Issue, IssueKind
 from detecttrace.pipeline import load_run_checklists, run_stages, to_source
 from detecttrace.serve.config import ServeConfig
 from detecttrace.serve.store import Snapshot, Store
+from detecttrace.served_page import ServedPage, WaitingCounts
 
 logger = logging.getLogger(__name__)
 

@@ -6,16 +6,28 @@ from typing import Any
 import pytest
 
 from detecttrace.dashboard_view import (
+    CountView,
     DashboardView,
     StripView,
+    WaitingNoteView,
+    build_served_view,
     build_view,
+    build_waiting_view,
     format_kappa,
     format_kappa_range,
     format_percent,
     format_percent_range,
     to_view_json,
 )
-from detecttrace.summary import JoinCoverage, coverage_lines, to_visible_text
+from detecttrace.model import IssueKind
+from detecttrace.served_page import ServedPage, WaitingCounts
+from detecttrace.summary import (
+    JoinCoverage,
+    Severity,
+    SummaryLine,
+    coverage_lines,
+    to_visible_text,
+)
 
 DEMO_GOLDEN = Path(__file__).parent / "fixtures" / "demo" / "expected.json"
 UNSET: Any = object()
@@ -925,3 +937,110 @@ def test_the_view_json_refuses_a_number_json_cannot_hold() -> None:
 
     with pytest.raises(ValueError, match="nan"):
         to_view_json(bad_view)
+
+
+# Served and waiting pages
+
+SERVED = ServedPage(generation=7, updated_at="2026-10-05T12:00:00.000000Z", held_back_cases=3)
+WAITING_COUNTS = WaitingCounts(span_count=1200, case_count=2, held_back_count=3, verdict_count=5)
+WAITING_NOTE = SummaryLine(
+    severity=Severity.WARNING,
+    kind=IssueKind.DUPLICATE_VERDICT,
+    count=2,
+    message=f"2 duplicate verdict rows for {HOSTILE_TEXT}.",
+    message_without_count=f"duplicate verdict rows for {HOSTILE_TEXT}.",
+    terminal_message="2 duplicate verdict rows.",
+    hint="Keep one row per case.",
+    terminal_hint="Keep one row per case.",
+    examples=(),
+)
+
+
+def demo_results() -> Any:
+    return json.loads(DEMO_GOLDEN.read_text(encoding="utf-8"))
+
+
+def test_an_offline_view_has_no_served_block() -> None:
+    assert build_view(demo_results()).served is None
+
+
+def test_an_offline_view_is_not_waiting() -> None:
+    assert build_view(demo_results()).waiting is None
+
+
+def test_a_served_view_carries_the_page_generation() -> None:
+    served = build_served_view(demo_results(), SERVED).served
+
+    assert served is not None and served.generation == 7
+
+
+def test_a_served_view_passes_the_computed_time_on_unchanged() -> None:
+    served = build_served_view(demo_results(), SERVED).served
+
+    assert served is not None and served.updated_at == "2026-10-05T12:00:00.000000Z"
+
+
+@pytest.mark.parametrize(
+    ("held_back_cases", "text"),
+    [
+        (0, None),
+        (1, "1 case still settling is not counted yet."),
+        (1200, "1,200 cases still settling are not counted yet."),
+    ],
+)
+def test_a_served_view_says_how_many_cases_are_still_settling(
+    held_back_cases: int, text: str | None
+) -> None:
+    served = build_served_view(demo_results(), replace(SERVED, held_back_cases=held_back_cases))
+
+    assert served.served is not None and served.served.held_back_text == text
+
+
+def test_a_served_view_shows_the_same_results_as_the_offline_view() -> None:
+    view = build_served_view(demo_results(), SERVED)
+
+    assert replace(view, served=None) == build_view(demo_results())
+
+
+def test_a_waiting_view_lists_each_count_under_its_label() -> None:
+    waiting = build_waiting_view(WAITING_COUNTS, [], SERVED).waiting
+
+    assert waiting is not None and waiting.counts == (
+        CountView("Spans received", "1,200"),
+        CountView("Cases settled", "2"),
+        CountView("Cases still settling", "3"),
+        CountView("Verdicts received", "5"),
+    )
+
+
+def test_a_waiting_view_holds_the_visible_form_of_each_note() -> None:
+    waiting = build_waiting_view(WAITING_COUNTS, [WAITING_NOTE], SERVED).waiting
+
+    assert waiting is not None and waiting.notes == (
+        WaitingNoteView(
+            to_visible_text(f"2 duplicate verdict rows for {HOSTILE_TEXT}."),
+            "Keep one row per case.",
+        ),
+    )
+
+
+def test_a_waiting_view_carries_the_page_generation() -> None:
+    served = build_waiting_view(WAITING_COUNTS, [], SERVED).served
+
+    assert served is not None and served.generation == 7
+
+
+def test_a_waiting_view_leaves_the_settling_text_to_its_counts() -> None:
+    served = build_waiting_view(WAITING_COUNTS, [], SERVED).served
+
+    assert served is not None and served.held_back_text is None
+
+
+def test_a_waiting_view_has_no_classes() -> None:
+    assert build_waiting_view(WAITING_COUNTS, [], SERVED).classes == ()
+
+
+def test_a_waiting_view_turns_into_json() -> None:
+    data: Any = to_view_json(build_waiting_view(WAITING_COUNTS, [WAITING_NOTE], SERVED))
+
+    assert data["waiting"]["counts"][0] == {"label": "Spans received", "value": "1,200"}

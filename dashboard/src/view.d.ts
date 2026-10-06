@@ -175,6 +175,27 @@ export type LimitView = {
   readonly text: string;
 };
 
+export type ServedView = {
+  readonly generation: number;
+  readonly updated_at: string;
+  readonly held_back_text: string | null;
+};
+
+export type CountView = {
+  readonly label: string;
+  readonly value: string;
+};
+
+export type WaitingNoteView = {
+  readonly message: string;
+  readonly hint: string;
+};
+
+export type WaitingView = {
+  readonly counts: ReadonlyArray<CountView>;
+  readonly notes: ReadonlyArray<WaitingNoteView>;
+};
+
 export type DashboardView = {
   readonly header: HeaderView;
   readonly classes: ReadonlyArray<ClassView>;
@@ -182,6 +203,8 @@ export type DashboardView = {
   readonly coverage: ReadonlyArray<CoverageView>;
   readonly notes: ReadonlyArray<NoteView>;
   readonly limits: ReadonlyArray<LimitView>;
+  readonly served: ServedView | null;
+  readonly waiting: WaitingView | null;
 };
 
 export type View = { readonly view_version: ViewVersion } & DashboardView;

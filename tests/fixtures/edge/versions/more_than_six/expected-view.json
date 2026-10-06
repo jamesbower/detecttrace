@@ -998,5 +998,7 @@
       "term": "When to act.",
       "text": "There is no baseline and no alert. You read the numbers and choose what to do."
     }
-  ]
+  ],
+  "served": null,
+  "waiting": null
 }

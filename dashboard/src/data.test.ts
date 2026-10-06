@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { readPageData } from "./data";
 
 const VIEW_JSON = JSON.stringify({ view_version: 1, header: { title: "DetectTrace" } });
+const WAITING = { counts: [{ label: "Spans received", value: "12" }], notes: [] };
+const WAITING_VIEW_JSON = JSON.stringify({ view_version: 1, waiting: WAITING });
 const RESULTS_JSON = JSON.stringify({ schema_version: 1, case_rows: {}, case_detail: [] });
 
 function createDocument(blocks: Record<string, string>): Document {
@@ -26,6 +28,29 @@ describe("readPageData", () => {
 
   it("returns the results from the page", () => {
     const doc = createDocument({ "dt-view": VIEW_JSON, "dt-results": RESULTS_JSON });
+
+    expect(readPageData(doc)).toMatchObject({ results: { case_detail: [] } });
+  });
+
+  it("reads a waiting page without its empty results block", () => {
+    const doc = createDocument({ "dt-view": WAITING_VIEW_JSON, "dt-results": "" });
+
+    expect(readPageData(doc)).toMatchObject({ waiting: WAITING });
+  });
+
+  it("checks a waiting page's view version", () => {
+    const doc = createDocument({ "dt-view": JSON.stringify({ view_version: 2, waiting: WAITING }) });
+
+    expect(readPageData(doc)).toEqual({
+      error: 'The "dt-view" data block has view_version 2; this page reads version 1.',
+    });
+  });
+
+  it("reads a page whose view is not waiting as one with results", () => {
+    const doc = createDocument({
+      "dt-view": JSON.stringify({ view_version: 1, waiting: null }),
+      "dt-results": RESULTS_JSON,
+    });
 
     expect(readPageData(doc)).toMatchObject({ results: { case_detail: [] } });
   });

@@ -1,36 +1,51 @@
 // Reads the two JSON blocks the Python side embeds in the page.
 import type { Results } from "./results";
-import type { View } from "./view";
+import type { View, WaitingView } from "./view";
 
 export type PageData = { readonly view: View; readonly results: Results };
+/** The page `detecttrace serve` shows until a case can be scored: it has no results. */
+export type WaitingData = { readonly view: View; readonly waiting: WaitingView };
 export type PageDataError = { readonly error: string };
 
 export const VIEW_BLOCK_ID = "dt-view";
 export const RESULTS_BLOCK_ID = "dt-results";
 const SUPPORTED_VERSION = 1;
 
-/** The page's view and results, or why they can't be read. Never throws. */
-export function readPageData(doc: Document): PageData | PageDataError {
-  const view = readBlock(doc, VIEW_BLOCK_ID);
-  if ("error" in view) {
-    return view;
+/**
+ * The page's view and results, the view alone on a waiting page (whose results block stays
+ * empty), or why they can't be read. Never throws.
+ */
+export function readPageData(doc: Document): PageData | WaitingData | PageDataError {
+  const viewBlock = readBlock(doc, VIEW_BLOCK_ID);
+  if ("error" in viewBlock) {
+    return viewBlock;
+  }
+  const viewError = checkVersion(viewBlock.value, VIEW_BLOCK_ID, "view_version");
+  if (viewError !== null) {
+    return viewError;
+  }
+  // The Python side builds both objects; past the version checks their shape is trusted.
+  const view = viewBlock.value as View;
+  if (view.waiting) {
+    return { view, waiting: view.waiting };
   }
   const results = readBlock(doc, RESULTS_BLOCK_ID);
   if ("error" in results) {
     return results;
   }
-  const versionError =
-    checkVersion(view.value, VIEW_BLOCK_ID, "view_version") ??
-    checkVersion(results.value, RESULTS_BLOCK_ID, "schema_version");
-  if (versionError !== null) {
-    return versionError;
+  const resultsError = checkVersion(results.value, RESULTS_BLOCK_ID, "schema_version");
+  if (resultsError !== null) {
+    return resultsError;
   }
-  // The Python side builds both objects; past the version checks their shape is trusted.
-  return { view: view.value as View, results: results.value as Results };
+  return { view, results: results.value as Results };
 }
 
-export function isPageDataError(data: PageData | PageDataError): data is PageDataError {
+export function isPageDataError(data: PageData | WaitingData | PageDataError): data is PageDataError {
   return "error" in data;
+}
+
+export function isWaitingData(data: PageData | WaitingData): data is WaitingData {
+  return "waiting" in data;
 }
 
 // Wrapped in `value`, so a block whose JSON has an `error` key is never taken for an error.

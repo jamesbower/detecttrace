@@ -22,8 +22,15 @@ from markupsafe import Markup
 
 from detecttrace import __version__
 from detecttrace.charts import SHAPE_BY_STYLE, Chart, SeriesInput, create_marker, trend_chart
-from detecttrace.dashboard_view import TrendMetricView, TrendView, build_view, format_count
+from detecttrace.dashboard_view import (
+    TrendMetricView,
+    TrendView,
+    build_view,
+    format_count,
+    format_held_back_text,
+)
 from detecttrace.files import MARKER_READ_BYTES, read_head, write_text_atomically
+from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.summary import SummaryLine, to_visible_text
 
 GENERATOR_PREFIX = "detecttrace"
@@ -47,23 +54,6 @@ _JSON_ESCAPES = {
 _JSON_ESCAPE_TABLE = str.maketrans(_JSON_ESCAPES)
 _SWATCH_CENTER = (15.0, 6.0)
 _SWATCH_RADIUS = 4.0
-
-
-@dataclass(frozen=True, slots=True)
-class ServedPage:
-    """What a page from `detecttrace serve` knows about itself, to tell when newer results exist."""
-
-    generation: int  # the stored input's generation the page was computed from
-    updated_at: str  # when it was computed, ISO 8601 in UTC, as the status route reports it
-    held_back_cases: int  # cases still inside the settle window, so not counted on the page
-
-
-@dataclass(frozen=True, slots=True)
-class WaitingCounts:
-    span_count: int
-    case_count: int  # cases whose trace has settled
-    held_back_count: int  # cases still inside the settle window
-    verdict_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +99,7 @@ def render_dashboard(results: Mapping[str, object], *, served: ServedPage | None
         results_json=Markup(to_script_json(results)),
         served=served,
         serve_js=None if serve_js is None else Markup(serve_js),
-        settling_text=None if served is None else _to_settling_text(served.held_back_cases),
+        settling_text=None if served is None else format_held_back_text(served.held_back_cases),
     )
 
 
@@ -186,14 +176,6 @@ def _create_environment() -> Environment:
 def _format_coordinate(value: float) -> str:
     # One decimal, as the chart geometry is rounded; also hides float noise such as 252.00000000000003.
     return f"{value:.1f}"
-
-
-def _to_settling_text(count: int) -> str | None:
-    if count == 0:
-        return None
-    if count == 1:
-        return "1 case still settling is not counted yet."
-    return f"{format_count(count)} cases still settling are not counted yet."
 
 
 def _to_csp(css: str, scripts: Sequence[str], *, can_connect: bool) -> str:
