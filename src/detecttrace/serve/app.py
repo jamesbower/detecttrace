@@ -13,18 +13,20 @@ anything new; the counts are the stored input's. Times are ISO 8601 in UTC, or n
 
 import base64
 import logging
-import re
 import sqlite3
 import time
-from collections.abc import Callable, Mapping
-from typing import Annotated, Literal
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from typing import Annotated, Any, Literal
 
 import anyio
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
+from starlette.convertors import Convertor, register_url_convertor
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
+from starlette.routing import Match
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from detecttrace.config import Config
@@ -73,10 +75,8 @@ SECURITY_HEADERS = {
 # Only what a meta policy can't say: the page's own policy, with its script hashes, stays in
 # the page, and a browser enforces both policies independently.
 PAGE_CSP = "frame-ancestors 'none'"
-# The dashboard routes on the address's path, so each of its pages has an address here. Any
-# single lowercase segment answers with the page, which shows its home page for a path it
-# doesn't know: a page added to the dashboard at build time then needs no change here.
-_PAGE_PATH = re.compile(r"[a-z][a-z-]*")
+# The route that answers each dashboard page's path; ServeApp moves it after every other route.
+PAGE_ROUTE_NAME = "dashboard_page"
 _SECURITY_HEADER_ITEMS = {
     name.lower().encode("latin-1"): value.encode("latin-1")
     for name, value in SECURITY_HEADERS.items()
@@ -140,19 +140,30 @@ def create_app(
     async def show_results() -> Response:
         return await read_results_response(store)
 
-    # Last, so every other route of one segment, such as /healthz, is matched first. The path
-    # check comes before the token check, so a path that is no page is 404 for anyone.
-    @app.get("/{page}", dependencies=[Depends(require_page_path), Depends(require_read)])
     async def show_dashboard_page() -> Response:
         return await read_page_response(store, "served")
 
+    add_page_route(app, show_dashboard_page, [Depends(require_read)])
     return app
 
 
-def require_page_path(page: str) -> None:
-    """The dependency of the page route: 404 unless `page` could name a dashboard page."""
-    if _PAGE_PATH.fullmatch(page) is None:
-        raise HTTPException(404, "Not Found")
+def add_page_route(
+    app: FastAPI, endpoint: Callable[[], Awaitable[Response]], dependencies: Sequence[Any]
+) -> None:
+    """Answer GET on every dashboard page path, such as `/versions`, with `endpoint`.
+
+    The dashboard routes on the address's path, so any single lowercase segment but `api` may
+    name one of its pages; the page shows its home page for a path it doesn't know. A page added
+    to the dashboard at build time then needs no change here.
+    """
+    app.router.add_api_route(
+        "/{page:page}",
+        endpoint,
+        methods=["GET"],
+        name=PAGE_ROUTE_NAME,
+        dependencies=dependencies,
+        route_class_override=_PageRoute,
+    )
 
 
 async def respond_with_status(request: Request, error: HTTPException) -> Response:
@@ -491,6 +502,9 @@ class ServeApp(FastAPI):
     """
 
     def build_middleware_stack(self) -> ASGIApp:
+        # Built at the first request, after every route is added: a route added after the app
+        # factory returned, such as `/metrics`, is then matched before the page route.
+        self.router.routes.sort(key=lambda route: getattr(route, "name", None) == PAGE_ROUTE_NAME)
         return _AccessLog(_SecurityHeaders(super().build_middleware_stack()))
 
 
@@ -582,3 +596,30 @@ def create_status_response(
         status_code=status,
         headers=headers,
     )
+
+
+class _PageConvertor(Convertor[str]):
+    """A path segment that may name a dashboard page: lowercase letters and hyphens, not `api`."""
+
+    regex = "(?!api$)[a-z][a-z-]*"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("page", _PageConvertor())
+
+
+class _PageRoute(APIRoute):
+    """The page route, which matches a page path only for its own methods.
+
+    Starlette answers 405 for a path that a route matches with another method; any other
+    method on a page path is 404 instead, as on a path no route has.
+    """
+
+    def matches(self, scope: Scope) -> tuple[Match, Scope]:
+        match, child_scope = super().matches(scope)
+        return (Match.NONE, {}) if match is Match.PARTIAL else (match, child_scope)

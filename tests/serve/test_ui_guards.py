@@ -243,6 +243,29 @@ def test_a_path_that_names_no_page_is_not_found(client: TestClient, path: str) -
     assert response.status_code == 404
 
 
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("POST", "/v2"), ("PUT", "/zzz"), ("POST", "/cases"), ("GET", "/api")],
+)
+def test_a_request_for_no_page_is_not_found(client: TestClient, method: str, path: str) -> None:
+    response = client.request(method, path, headers=WRITE)
+
+    assert response.status_code == 404
+
+
+def test_a_route_added_after_the_app_is_built_is_reached(tmp_path: Path, app_store: Store) -> None:
+    ui_app = create_ui_app(port=PORT, state=UiState(store=app_store, data_dir=tmp_path))
+
+    @ui_app.get("/metrics")
+    def show_metrics() -> str:
+        return "metrics"
+
+    with TestClient(ui_app, base_url=ORIGIN) as test_client:
+        response = test_client.get("/metrics")
+
+    assert response.json() == "metrics"
+
+
 def test_a_page_path_does_not_shadow_the_status_route(client: TestClient) -> None:
     response = client.get("/api/status")
 

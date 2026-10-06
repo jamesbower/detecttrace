@@ -253,6 +253,29 @@ def test_a_path_that_names_no_page_is_not_found_without_a_token(read_client: Tes
     assert read_client.get("/favicon.ico").status_code == 404
 
 
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("POST", "/v2"), ("PUT", "/zzz"), ("POST", "/cases"), ("GET", "/api")],
+)
+def test_a_request_for_no_page_is_not_found(
+    read_client: TestClient, method: str, path: str
+) -> None:
+    assert read_client.request(method, path, headers=BEARER_READ).status_code == 404
+
+
+def test_a_route_added_after_the_app_is_built_is_reached(
+    tmp_path: Path, served_store: Store
+) -> None:
+    app = create_app(create_config(tmp_path / "detecttrace.db"), served_store, lambda: None)
+
+    @app.get("/metrics")
+    def show_metrics() -> str:
+        return "metrics"
+
+    with TestClient(app) as test_client:
+        assert test_client.get("/metrics").json() == "metrics"
+
+
 def test_a_page_path_does_not_shadow_the_health_check(read_client: TestClient) -> None:
     assert read_client.get("/healthz").text == "ok"
 

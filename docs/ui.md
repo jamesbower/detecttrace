@@ -35,7 +35,7 @@ From a clone, run `uv sync --extra serve`, then `uv run detecttrace ui`. To uplo
 detecttrace ui
 ```
 
-Once it listens, it prints `DetectTrace is running at http://127.0.0.1:4321/ (press Ctrl+C to stop).` and opens that address in your browser. Until a case can be scored, it opens on the Data page, `http://127.0.0.1:4321/data`, unless the address names another page. Each page has its own path, such as `/versions` or `/cases?class=class-1`, so a bookmark or a reload keeps the page and its filters. An address from before page paths, such as `/#/cases`, opens `/cases`.
+Once it listens, it prints `DetectTrace is running at http://127.0.0.1:4321/ (press Ctrl+C to stop).` and opens that address in your browser. Until a case can be scored, it opens on the Data page, `http://127.0.0.1:4321/data`, unless the address names another page. Each page has its own path, such as `/versions` or `/cases?class=class-1`, so a bookmark or a reload keeps the page and its filters. The app answers a `GET` for any path of one segment made of lowercase letters and hyphens, except `/api`, with the page; the page shows the Overview for a path it doesn't know. An address from before page paths, such as `/#/cases`, opens `/cases`.
 
 | Option | What it does |
 |---|---|
