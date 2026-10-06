@@ -1,0 +1,131 @@
+.overview-kpis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+  margin: 0;
+}
+
+.overview-lines {
+  display: grid;
+  gap: var(--sp-1);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-md);
+}
+
+.overview-class-name {
+  font-family: var(--font-mono);
+}
+
+.overview-alert a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--touch-target);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--frame);
+  border-left: var(--border-accent) solid var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.overview-icon {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+}
+
+.overview-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: 0 0 var(--sp-4);
+  list-style: none;
+  border-bottom: var(--border-thin) solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.overview-chip {
+  max-width: 100%;
+  padding: 0 var(--sp-2);
+  border: var(--border-thin) solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.overview-panel {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.overview-tiles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.overview-tile {
+  display: grid;
+  gap: var(--sp-1);
+  min-height: var(--touch-target);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--frame);
+  border-top: var(--border-accent) solid var(--accent);
+  clip-path: var(--clip-angled-sm);
+  text-decoration: none;
+  transition:
+    transform var(--t-med) var(--ease),
+    box-shadow var(--t-med) var(--ease);
+}
+
+.overview-tile:hover,
+.overview-tile:focus-visible {
+  transform: translateY(var(--tile-lift));
+  box-shadow: var(--shadow-2);
+}
+
+/* The clip-path would cut the default outline, so the focus ring is drawn inside. */
+.overview-tile:focus-visible {
+  outline-offset: calc(-1 * var(--border-accent) - var(--focus-offset));
+}
+
+.overview-tile-title {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.overview-tile-figure {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.overview-tile-context {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+/* --bp-narrow */
+@media (width > 620px) {
+  .overview-kpis,
+  .overview-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* --bp-medium */
+@media (width > 1000px) {
+  .overview-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .overview-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

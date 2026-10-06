@@ -1,0 +1,238 @@
+.version-table {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.version-table-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+/* Class names are identifiers from the traces, so they keep their case. */
+.version-table-class {
+  font-family: var(--font-mono);
+  letter-spacing: var(--ls-label);
+}
+
+.version-table-sub {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+}
+
+/* Scrolls sideways on a narrow screen; focusable so the keyboard can scroll it too. */
+.version-table-scroll {
+  overflow-x: auto;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--line);
+  clip-path: var(--clip-angled-md);
+}
+
+.version-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.version-table caption {
+  padding-bottom: var(--sp-3);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-align: left;
+}
+
+.version-table th,
+.version-table td {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.version-table thead th {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  border-bottom-color: var(--accent);
+}
+
+.version-table tbody th {
+  max-width: var(--label-max-width);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.version-table .version-table-num {
+  text-align: right;
+}
+
+.version-table-all th,
+.version-table-all td {
+  background: var(--accent-hover);
+  font-weight: var(--fw-semibold);
+}
+
+.version-table-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.version-table-metric {
+  min-width: var(--metric-min-width);
+}
+
+.version-table-metric > span {
+  display: block;
+}
+
+.version-table-value {
+  font-weight: var(--fw-semibold);
+}
+
+.version-table-interval,
+.version-table-why,
+.version-table-n {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-regular);
+}
+
+.version-table-few,
+.version-table-aside,
+.version-table-dangerous {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.version-table-few,
+.version-table-aside {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-regular);
+}
+
+.version-table-few {
+  margin-inline-start: var(--sp-2);
+}
+
+.version-table-aside {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sp-1);
+  text-align: right;
+}
+
+/* The icon and the weight mark a dangerous count; the colour stays neutral. */
+.version-table-dangerous {
+  font-weight: var(--fw-bold);
+}
+
+.version-table-icon {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+}
+
+.version-table-icon .icon-dot {
+  fill: currentColor;
+  stroke: none;
+}
+
+.version-table-strip {
+  display: block;
+  width: 100%;
+  height: var(--strip-height);
+  margin-block: var(--sp-1);
+}
+
+.strip-track {
+  fill: var(--line);
+}
+
+.strip-range {
+  fill: var(--series-color);
+}
+
+.strip-point {
+  fill: var(--text);
+}
+
+.series-swatch {
+  flex: none;
+  width: var(--swatch-width);
+  height: var(--swatch-height);
+}
+
+.series-swatch line {
+  stroke: var(--series-color);
+  stroke-dasharray: var(--series-dash);
+  stroke-width: var(--swatch-stroke);
+}
+
+.version-table-detail td {
+  background: var(--panel);
+}
+
+.version-table-note {
+  max-width: var(--measure);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+/* Version series: colour and dash pattern, with the label as the third cue. */
+.series-all {
+  --series-color: var(--s-all);
+  --series-dash: none;
+}
+
+.series-1 {
+  --series-color: var(--s1);
+  --series-dash: var(--s1-dash);
+}
+
+.series-2 {
+  --series-color: var(--s2);
+  --series-dash: var(--s2-dash);
+}
+
+.series-3 {
+  --series-color: var(--s3);
+  --series-dash: var(--s3-dash);
+}
+
+.series-4 {
+  --series-color: var(--s4);
+  --series-dash: var(--s4-dash);
+}
+
+.series-5 {
+  --series-color: var(--s5);
+  --series-dash: var(--s5-dash);
+}
+
+.series-6 {
+  --series-color: var(--s6);
+  --series-dash: var(--s6-dash);
+}
+
+.series-other {
+  --series-color: var(--s-other);
+  --series-dash: var(--s-other-dash);
+}
+
+.series-none {
+  --series-color: var(--s-none);
+  --series-dash: var(--s-none-dash);
+}
