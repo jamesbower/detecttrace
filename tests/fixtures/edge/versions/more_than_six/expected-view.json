@@ -3,20 +3,6 @@
   "mode": "offline",
   "header": {
     "title": "DetectTrace",
-    "sources": [
-      {
-        "name": "traces",
-        "path": "traces"
-      },
-      {
-        "name": "verdicts",
-        "path": "verdicts.csv"
-      },
-      {
-        "name": "config",
-        "path": "detecttrace.yaml"
-      }
-    ],
     "cases_text": "33 in 1 alert class",
     "period_text": "2026-W32 to 2026-W39 (8 weeks, UTC)",
     "versions_text": "v1, v2, v3, v4, v5, v6, v7, v8",

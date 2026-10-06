@@ -33,24 +33,6 @@
   stroke-width: var(--icon-stroke);
 }
 
-.overview-sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  padding: 0 0 var(--sp-4);
-  list-style: none;
-  border-bottom: var(--border-thin) solid var(--line);
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-
-.overview-chip {
-  max-width: 100%;
-  padding: 0 var(--sp-2);
-  border: var(--border-thin) solid var(--line);
-  overflow-wrap: anywhere;
-}
-
 .overview-panel {
   display: grid;
   gap: var(--sp-4);

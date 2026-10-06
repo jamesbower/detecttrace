@@ -73,14 +73,10 @@ it("shows no low-coverage warning when coverage is fine", () => {
   );
 });
 
-it("shows a chip for each data source", () => {
+it("shows no list of data sources", () => {
   renderOverview();
 
-  expect(
-    within(screen.getByRole("list", { name: "Data sources" }))
-      .getAllByRole("listitem")
-      .map((item) => item.textContent),
-  ).toEqual(["traces: traces", "verdicts: verdicts.csv", "checklists: checklists", "config: detecttrace.yaml"]);
+  expect(screen.queryByRole("list", { name: "Data sources" })).toBeNull();
 });
 
 it("labels the class panel by the selected tab", () => {

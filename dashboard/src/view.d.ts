@@ -3,14 +3,8 @@
 
 export type ViewVersion = 2;
 
-export type SourceView = {
-  readonly name: string;
-  readonly path: string;
-};
-
 export type HeaderView = {
   readonly title: string;
-  readonly sources: ReadonlyArray<SourceView>;
   readonly cases_text: string;
   readonly period_text: string;
   readonly versions_text: string;

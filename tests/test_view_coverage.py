@@ -52,8 +52,6 @@ PAGE_SOURCE = ROOT / "dashboard" / "src"
 # The route that shows each field.
 PAGE_OF = {
     "header.title": "/",
-    "header.sources[].name": "/",
-    "header.sources[].path": "/",
     "header.cases_text": "/",
     "header.period_text": "/",
     "header.versions_text": "/",

@@ -725,13 +725,9 @@ def test_the_trend_gives_each_version_its_first_week() -> None:
 # Header
 
 
-def test_the_header_shows_the_data_source_paths() -> None:
-    sources = build_view(results()).header.sources
-    assert [(source.name, source.path) for source in sources] == [
-        ("traces", "traces"),
-        ("verdicts", "verdicts.csv"),
-        ("config", "detecttrace.yaml"),
-    ]
+def test_the_header_leaves_out_the_data_source_paths() -> None:
+    header = build_view(results()).header
+    assert "sources" not in [field.name for field in fields(header)]
 
 
 def test_the_header_counts_cases_and_classes() -> None:

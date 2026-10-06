@@ -62,13 +62,6 @@ export function Overview({ view, results }: PageProps) {
           </a>
         </p>
       )}
-      <ul className="overview-sources" aria-label="Data sources">
-        {view.header.sources.map((source) => (
-          <li key={source.name} className="overview-chip">
-            {source.name}: <code>{source.path}</code>
-          </li>
-        ))}
-      </ul>
       <ClassSelector classes={view.classes} panelId={panelId} />
       {selected !== undefined && (
         <ClassPanel classes={view.classes} selected={selected} panelId={panelId} className="overview-panel">

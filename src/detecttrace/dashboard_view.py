@@ -110,15 +110,8 @@ _STRIP_POINT_WIDTH = 1.2
 
 
 @dataclass(frozen=True, slots=True)
-class SourceView:
-    name: str
-    path: str
-
-
-@dataclass(frozen=True, slots=True)
 class HeaderView:
     title: str
-    sources: tuple[SourceView, ...]
     cases_text: str  # "4,210 in 2 alert classes"
     period_text: str  # "2026-W27 to 2026-W38 (12 weeks, UTC)"
     versions_text: str  # page order, then "(no version)"
@@ -445,7 +438,6 @@ def build_waiting_view(
         header=_to_served_header(
             HeaderView(
                 title="DetectTrace",
-                sources=(),
                 cases_text="",
                 period_text="",
                 versions_text="",
@@ -608,11 +600,6 @@ def _to_header(data: Any, page_versions: Sequence[str], has_no_version: bool) ->
         labels.append(NO_VERSION_LABEL)
     return HeaderView(
         title="DetectTrace",
-        sources=tuple(
-            SourceView(to_visible_text(name), to_visible_text(path))
-            for name, path in data["source"].items()
-            if path is not None
-        ),
         cases_text=f"{format_count(totals['cases'])} in {format_count(class_count)} "
         + ("alert class" if class_count == 1 else "alert classes"),
         period_text=_to_period_text(totals["period"]["first_week"], totals["period"]["last_week"]),
