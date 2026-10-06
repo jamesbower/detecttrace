@@ -1,0 +1,47 @@
+.coverage-list {
+  display: grid;
+  gap: var(--sp-2);
+  padding: 0;
+  list-style: none;
+}
+
+.coverage-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--line);
+  font-size: var(--fs-sm);
+}
+
+.coverage-line > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Low coverage reads as the word "Warning" and an icon; the border only repeats it. */
+.coverage-line[data-low="true"] {
+  border-color: var(--severity-warning);
+}
+
+.coverage-line strong,
+.coverage-icon {
+  color: var(--severity-warning);
+}
+
+.coverage-icon {
+  flex: none;
+  width: var(--note-icon);
+  height: var(--note-icon);
+  margin-top: var(--sp-1);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+}
+
+.coverage-hint {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--muted);
+}

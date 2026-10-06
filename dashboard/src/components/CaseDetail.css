@@ -1,0 +1,127 @@
+/* Pinned to the scroll box's visible width, so a wide table never pushes the text off screen. */
+.case-detail {
+  position: sticky;
+  left: 0;
+  max-width: 100cqi;
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4) var(--sp-5);
+}
+
+.case-detail > *,
+.case-calls li > *,
+.case-steps li > * {
+  min-width: 0;
+}
+
+.case-detail-heading {
+  margin-bottom: var(--sp-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.case-detail-missing {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.case-calls,
+.case-steps {
+  display: grid;
+  padding: 0;
+  list-style: none;
+}
+
+.case-calls li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-1) var(--sp-3);
+  align-items: baseline;
+  padding-block: var(--sp-2);
+  border-top: var(--border-thin) solid var(--line);
+}
+
+.case-calls li:first-child {
+  border-top: 0;
+}
+
+.case-call-status {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.case-call-status[data-failed="true"] {
+  color: var(--danger);
+}
+
+.case-call-main {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.case-call-tool,
+.case-call-args {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.case-call-tool {
+  font-size: var(--fs-sm);
+}
+
+.case-call-args {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+}
+
+.case-call-duration {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.case-steps {
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+}
+
+.case-steps li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.case-step-kind {
+  color: var(--severity-warning);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
+.case-step-kind[data-status="failed"] {
+  color: var(--danger);
+}
+
+.case-step-why {
+  color: var(--muted);
+}
+
+/* --bp-narrow: tool, status and duration share one line. */
+@media (width > 620px) {
+  .case-calls li {
+    grid-template-columns: var(--case-call-status-width) minmax(0, 1fr) auto;
+  }
+
+  .case-call-main {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}

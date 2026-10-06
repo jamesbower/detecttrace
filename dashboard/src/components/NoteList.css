@@ -1,0 +1,86 @@
+.note-list {
+  display: grid;
+  gap: var(--sp-3);
+  padding: 0;
+  list-style: none;
+}
+
+/* The severity is a word and an icon; the edge colour only repeats it. */
+.note {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+  border-left: var(--border-accent) solid var(--severity-warning);
+  font-size: var(--fs-sm);
+}
+
+.note[data-severity="invalid"] {
+  border-left-color: var(--danger);
+}
+
+.note-severity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--severity-warning);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.note[data-severity="invalid"] .note-severity {
+  color: var(--danger);
+}
+
+.note-icon {
+  flex: none;
+  width: var(--note-icon);
+  height: var(--note-icon);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+}
+
+.note-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-regular);
+  overflow-wrap: anywhere;
+}
+
+.note-title strong {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+}
+
+.note-hint {
+  max-width: var(--measure);
+  color: var(--muted);
+}
+
+.note-examples {
+  display: grid;
+  gap: var(--sp-1);
+  padding: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  list-style: none;
+}
+
+.note-examples li {
+  overflow-wrap: anywhere;
+}
+
+.note-examples code {
+  color: var(--text);
+}
+
+.note-more {
+  font-style: italic;
+}
+
+.note-list-empty {
+  color: var(--muted);
+}

@@ -1,0 +1,56 @@
+.case-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--sp-3) var(--sp-5);
+}
+
+.case-filter {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.case-filter label {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.case-filter select,
+.case-filter input {
+  min-height: var(--touch-target);
+  max-width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--line);
+  border-radius: var(--r-none);
+  font-size: var(--fs-sm);
+}
+
+.case-filter input {
+  width: var(--case-search-width);
+}
+
+.case-filter select:hover,
+.case-filter input:hover {
+  border-color: var(--accent);
+}
+
+/* The whole label is the target, so the small box still meets the 44px minimum. */
+.case-filter-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--touch-target);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.case-filter-check input {
+  width: var(--sp-4);
+  height: var(--sp-4);
+  margin: 0;
+  accent-color: var(--accent);
+}
