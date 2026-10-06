@@ -135,3 +135,15 @@
   --bp-narrow: 620px;
   --bp-medium: 1000px;
 }
+
+/* Task 6: overview, versions, limits */
+:root {
+  --icon-sm: 14px;
+  --swatch-width: 30px;
+  --swatch-height: 12px;
+  --swatch-stroke: 2.5;
+  --strip-height: 8px;
+  --metric-min-width: 9rem;
+  --label-max-width: 28ch; /* a long version label wraps here instead of widening the table */
+  --tile-lift: -4px;
+}

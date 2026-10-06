@@ -1,0 +1,32 @@
+.kpi {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--frame);
+  border-top: var(--border-accent) solid var(--accent);
+  clip-path: var(--clip-angled-sm);
+}
+
+.kpi-label {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.kpi-value {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.kpi-context {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
