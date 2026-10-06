@@ -70,7 +70,10 @@ function UiSteps({ notes }: { notes: ReactNode }) {
           <h2 id="data-step-config" className="data-step-title">
             2 · Configuration
           </h2>
-          <ConfigStep isConfigured={state.isConfigured} />
+          <ConfigStep
+            isConfigured={state.isConfigured}
+            totalsKey={[state.spanCountText, state.verdictCountText, ...state.checklistClasses].join("\n")}
+          />
         </section>
       )}
       {notes !== null && (

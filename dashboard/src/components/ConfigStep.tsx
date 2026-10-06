@@ -1,8 +1,9 @@
 // The ui app's configuration step: the server proposes which trace attribute holds each field
 // and the reader corrects it, maps any unknown verdict labels and confirms. Every sentence on it
 // is the server's; the page only sends back what the reader changed.
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
+import { setReloadHeld } from "../reload-hold";
 import { readProposal, saveConfig } from "../ui-api";
 import "./ConfigStep.css";
 
@@ -11,6 +12,8 @@ import type { ConfigBody, Proposal, ProposalField } from "../ui-api";
 type ConfigStepProps = {
   /** A configuration is already saved, so the step opens as its summary. */
   isConfigured: boolean;
+  /** Changes whenever the stored totals do, so the proposal is read again after an upload. */
+  totalsKey: string;
 };
 
 type Labels = { label_map: Record<string, string>; agent_label_map: Record<string, string> };
@@ -20,9 +23,10 @@ export const SUGGESTIONS_ID = "dt-config-suggestions";
 export const PROPOSAL_DELAY_MS = 400;
 const NOT_MAPPED = "";
 const EMPTY_LABELS: Labels = { label_map: {}, agent_label_map: {} };
+const EMPTY_BODY_KEY = JSON.stringify({ fields: {}, labels: EMPTY_LABELS });
 
-export function ConfigStep({ isConfigured }: ConfigStepProps) {
-  // The first proposal is what an edit is compared with; the latest one gives the share texts.
+export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
+  // The unedited proposal is what an edit is compared with; the latest one gives the share texts.
   const [original, setOriginal] = useState<Proposal | null>(null);
   const [latest, setLatest] = useState<Proposal | null>(null);
   const [proposalError, setProposalError] = useState<string | null>(null);
@@ -32,6 +36,7 @@ export function ConfigStep({ isConfigured }: ConfigStepProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedText, setSavedText] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(isConfigured);
+  const [savedBodyKey, setSavedBodyKey] = useState(EMPTY_BODY_KEY);
   const requestCount = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const focusAfterToggle = useRef(false);
@@ -53,7 +58,9 @@ export function ConfigStep({ isConfigured }: ConfigStepProps) {
       }
       setProposalError(null);
       setLatest(result);
-      setOriginal((previous) => previous ?? result);
+      setOriginal((previous) =>
+        previous === null || JSON.stringify(body) === EMPTY_BODY_KEY ? result : mergeProposal(previous, result, body),
+      );
     });
   }, []);
 
@@ -65,6 +72,28 @@ export function ConfigStep({ isConfigured }: ConfigStepProps) {
       requestCount.current += 1;
     };
   }, [requestProposal]);
+
+  const body = toBody(original, edits, labels);
+  const bodyKey = JSON.stringify(body);
+  // Unsaved edits on an open form, or a save on its way, would be lost to a reload.
+  const isHoldingReload = !isCollapsed && (isSaving || bodyKey !== savedBodyKey);
+  useEffect(() => {
+    setReloadHeld(isHoldingReload);
+    return () => setReloadHeld(false);
+  }, [isHoldingReload]);
+
+  // An upload can add labels or runs; the reader's edits are sent along and kept.
+  const refreshProposal = useEffectEvent(() => {
+    clearTimeout(timer.current);
+    requestProposal(body);
+  });
+  const shownTotalsKey = useRef(totalsKey);
+  useEffect(() => {
+    if (totalsKey !== shownTotalsKey.current) {
+      shownTotalsKey.current = totalsKey;
+      refreshProposal();
+    }
+  }, [totalsKey]);
 
   // After Confirm or Change configuration, the button that was pressed is gone; focus moves to
   // what replaced it.
@@ -105,13 +134,14 @@ export function ConfigStep({ isConfigured }: ConfigStepProps) {
     clearTimeout(timer.current);
     setIsSaving(true);
     setSaveError(null);
-    const result = await saveConfig(toBody(original, edits, labels));
+    const result = await saveConfig(body);
     setIsSaving(false);
     if ("error" in result) {
       setSaveError(result.error);
       return;
     }
     setSavedText(result.savedText);
+    setSavedBodyKey(bodyKey);
     focusAfterToggle.current = true;
     setIsCollapsed(true);
   }
@@ -294,6 +324,23 @@ function toBody(original: Proposal | null, edits: Readonly<Record<string, string
     Object.entries(edits).filter(([name, value]) => value !== (findValue(original, name) ?? "")),
   );
   return { fields, labels };
+}
+
+// The proposal for edits keeps the unedited value of each edited field, so an edit stays an edit,
+// and keeps every label the reader could map, including the ones mapped since.
+function mergeProposal(previous: Proposal, result: Proposal, body: ConfigBody): Proposal {
+  return {
+    ...result,
+    fields: result.fields.map((field) =>
+      field.name in body.fields ? { ...field, value: findValue(previous, field.name) } : field,
+    ),
+    unmappedAnalystLabels: toUnion(previous.unmappedAnalystLabels, result.unmappedAnalystLabels),
+    unmappedAgentLabels: toUnion(previous.unmappedAgentLabels, result.unmappedAgentLabels),
+  };
+}
+
+function toUnion(first: readonly string[], second: readonly string[]): string[] {
+  return [...new Set([...first, ...second])];
 }
 
 function findValue(proposal: Proposal | null, name: string): string | null {

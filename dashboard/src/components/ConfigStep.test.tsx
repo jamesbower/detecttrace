@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { isReloadHeld } from "../reload-hold";
 import { readProposal, saveConfig } from "../ui-api";
 import { ConfigStep, PROPOSAL_DELAY_MS } from "./ConfigStep";
 
@@ -47,6 +48,8 @@ const MISSING: Proposal = {
 };
 
 const EMPTY_LABELS = { label_map: {}, agent_label_map: {} };
+const TOTALS = "2,129 spans stored.";
+const NEW_TOTALS = "4,000 spans stored.";
 
 // Each settles when the test says so, to put responses in any order.
 function deferProposals() {
@@ -68,8 +71,9 @@ async function flush() {
 
 async function renderStep({ proposal = PROPOSAL, isConfigured = false } = {}) {
   readProposalMock.mockResolvedValue(proposal);
-  render(<ConfigStep isConfigured={isConfigured} />);
+  const view = render(<ConfigStep isConfigured={isConfigured} totalsKey={TOTALS} />);
   await flush();
+  return view;
 }
 
 function edit(label: string, value: string) {
@@ -145,7 +149,7 @@ describe("the proposal", () => {
 
   it("shows why the proposal could not be read", async () => {
     readProposalMock.mockResolvedValue({ error: "Upload traces and verdicts first." });
-    render(<ConfigStep isConfigured={false} />);
+    render(<ConfigStep isConfigured={false} totalsKey={TOTALS} />);
     await flush();
 
     expect(screen.getByRole("alert").textContent).toBe("Upload traces and verdicts first.");
@@ -207,7 +211,7 @@ describe("an edit", () => {
 
   it("shows the newer proposal when an older one answers last", async () => {
     const settlers = deferProposals();
-    render(<ConfigStep isConfigured={false} />);
+    render(<ConfigStep isConfigured={false} totalsKey={TOTALS} />);
     settlers[0]!(PROPOSAL);
     await flush();
     edit("Case ID", "a");
@@ -224,7 +228,7 @@ describe("an edit", () => {
 
   it("ignores an older proposal that answers after the newer one", async () => {
     const settlers = deferProposals();
-    render(<ConfigStep isConfigured={false} />);
+    render(<ConfigStep isConfigured={false} totalsKey={TOTALS} />);
     settlers[0]!(PROPOSAL);
     await flush();
     edit("Case ID", "a");
@@ -412,5 +416,165 @@ describe("a saved configuration", () => {
     await renderStep({ isConfigured: true });
 
     expect(screen.getByText("Agent verdict").nextElementSibling?.textContent).toBe("Not set");
+  });
+});
+
+describe("the reload hold", () => {
+  it("holds a reload while the form has unsaved edits", async () => {
+    await renderStep();
+
+    edit("Agent verdict", "agent.verdict");
+
+    expect(isReloadHeld()).toBe(true);
+  });
+
+  it("holds no reload while the form has no edits", async () => {
+    await renderStep();
+
+    expect(isReloadHeld()).toBe(false);
+  });
+
+  it("holds a reload while a save is on its way", async () => {
+    await renderStep();
+    saveConfigMock.mockReturnValue(new Promise(() => {}));
+    edit("Agent verdict", "agent.verdict");
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(isReloadHeld()).toBe(true);
+  });
+
+  it("lets the reload go once the form is saved", async () => {
+    await renderStep();
+    edit("Agent verdict", "agent.verdict");
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(isReloadHeld()).toBe(false);
+  });
+
+  it("holds no reload when a saved form is reopened unchanged", async () => {
+    await renderStep();
+    edit("Agent verdict", "agent.verdict");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: "Change configuration" }));
+
+    expect(isReloadHeld()).toBe(false);
+  });
+
+  it("lets the reload go once the step is gone", async () => {
+    const { unmount } = await renderStep();
+    edit("Agent verdict", "agent.verdict");
+
+    unmount();
+
+    expect(isReloadHeld()).toBe(false);
+  });
+});
+
+describe("new uploads", () => {
+  const WITH_NEW_LABEL: Proposal = { ...PROPOSAL, unmappedAnalystLabels: ["maybe", "unsure"] };
+
+  it("read the proposal again", async () => {
+    const { rerender } = await renderStep();
+    readProposalMock.mockResolvedValue(WITH_NEW_LABEL);
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    expect(screen.queryByLabelText("unsure")).not.toBeNull();
+  });
+
+  it("send the unsaved edits along", async () => {
+    const { rerender } = await renderStep();
+    edit("Agent verdict", "agent.verdict");
+    fireEvent.change(screen.getByLabelText("maybe"), { target: { value: "benign" } });
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    expect(readProposalMock).toHaveBeenLastCalledWith({
+      fields: { agent_verdict: "agent.verdict" },
+      labels: { label_map: { maybe: "benign" }, agent_label_map: {} },
+    });
+  });
+
+  it("keep a typed value", async () => {
+    const { rerender } = await renderStep();
+    edit("Agent verdict", "agent.verdict");
+    readProposalMock.mockResolvedValue({
+      ...WITH_NEW_LABEL,
+      fields: [CASE_ID_FIELD, { ...AGENT_VERDICT_FIELD, value: "agent.verdict" }],
+    });
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    expect((screen.getByLabelText("Agent verdict") as HTMLInputElement).value).toBe("agent.verdict");
+  });
+
+  it("keep a mapped label the new proposal no longer lists as unmapped", async () => {
+    const { rerender } = await renderStep();
+    fireEvent.change(screen.getByLabelText("maybe"), { target: { value: "benign" } });
+    readProposalMock.mockResolvedValue({ ...PROPOSAL, unmappedAnalystLabels: ["unsure"] });
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    expect((screen.getByLabelText("maybe") as HTMLSelectElement).value).toBe("benign");
+  });
+
+  it("add a newly uploaded label beside the edits", async () => {
+    const { rerender } = await renderStep();
+    edit("Agent verdict", "agent.verdict");
+    readProposalMock.mockResolvedValue(WITH_NEW_LABEL);
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    expect(screen.queryByLabelText("unsure")).not.toBeNull();
+  });
+
+  it("still save a typed value the new proposal echoes back", async () => {
+    const { rerender } = await renderStep();
+    edit("Agent verdict", "agent.verdict");
+    readProposalMock.mockResolvedValue({
+      ...PROPOSAL,
+      fields: [CASE_ID_FIELD, { ...AGENT_VERDICT_FIELD, value: "agent.verdict" }],
+    });
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(saveConfigMock).toHaveBeenCalledWith({ fields: { agent_verdict: "agent.verdict" }, labels: EMPTY_LABELS });
+  });
+
+  it("refresh the share texts", async () => {
+    const { rerender } = await renderStep();
+    edit("Agent verdict", "agent.verdict");
+    readProposalMock.mockResolvedValue({
+      ...PROPOSAL,
+      fields: [{ ...CASE_ID_FIELD, shareText: "400 of 400 runs (100%)" }, AGENT_VERDICT_FIELD],
+    });
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    expect(screen.queryByText("400 of 400 runs (100%)")).not.toBeNull();
+  });
+
+  it("ask nothing while the totals stay the same", async () => {
+    const { rerender } = await renderStep();
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={TOTALS} />);
+    await flush();
+
+    expect(readProposalMock).toHaveBeenCalledOnce();
   });
 });

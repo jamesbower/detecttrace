@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { EMPTY_BAR, NEW_DATA_TEXT, createPoll, fetchStatus, startPolling } from "../poller";
+import { isReloadHeld, subscribeToReloadHold } from "../reload-hold";
 import "./StatusBar.css";
 
 import type { Bar } from "../poller";
@@ -10,7 +11,7 @@ type StatusBarProps = {
   /** Set only on a page from `detecttrace serve`; without it the page never asks the network. */
   served?: ServedView | null;
   /** In `detecttrace ui` the reader's own upload or configuration made the newer results, so
-   * the page reloads by itself instead of offering to. */
+   * the page reloads by itself instead of offering to, unless unsaved work holds the reload. */
   shouldReloadOnNewData?: boolean;
 };
 
@@ -42,15 +43,30 @@ function useServerNews(served: ServedView | null, shouldReloadOnNewData: boolean
     if (generation === undefined || updatedAt === undefined) {
       return;
     }
+    // Newer results seen while the reload was held; the reload follows once the hold ends.
+    let hasHeldNewData = false;
     function show(next: Bar) {
+      hasHeldNewData = false;
       if (shouldReloadOnNewData && next.isNewData) {
-        location.reload();
-        return;
+        if (!isReloadHeld()) {
+          location.reload();
+          return;
+        }
+        hasHeldNewData = true;
       }
       setBar(next);
     }
     const poll = createPoll(show, { generation, updatedAt }, fetchStatus, (text) => console.warn(text));
-    return startPolling(poll);
+    const stopPolling = startPolling(poll);
+    const stopListening = subscribeToReloadHold(() => {
+      if (hasHeldNewData && !isReloadHeld()) {
+        location.reload();
+      }
+    });
+    return () => {
+      stopPolling();
+      stopListening();
+    };
   }, [generation, updatedAt, shouldReloadOnNewData]);
   return bar;
 }
