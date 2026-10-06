@@ -40,7 +40,11 @@ def wilson_interval(successes: int, n: int) -> Interval | None:
     denominator = 1 + z2 / n
     center = (p + z2 / (2 * n)) / denominator
     half = Z_95 * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n)) / denominator
-    return Interval(max(0.0, center - half), min(1.0, center + half))
+    # The bound at an observed 0 or 1 is exactly 0 or 1; computed, it can land a rounding
+    # step short on some platforms, and the page would then read ">99%" instead of "100%".
+    low = 0.0 if successes == 0 else max(0.0, center - half)
+    high = 1.0 if successes == n else min(1.0, center + half)
+    return Interval(low, high)
 
 
 def cohens_kappa(matrix: ConfusionMatrix) -> float | None:
