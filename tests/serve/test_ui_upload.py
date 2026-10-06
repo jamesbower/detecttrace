@@ -150,7 +150,7 @@ def test_langfuse_upload_into_an_otlp_store_is_refused(app_store: Store) -> None
 
 def write_empty_otlp_file(tmp_path: Path) -> Path:
     path = tmp_path / "empty.json"
-    path.write_text(json.dumps({"resourceSpans": []}))
+    path.write_text(json.dumps({"resourceSpans": []}), encoding="utf-8")
     return path
 
 
