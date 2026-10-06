@@ -33,6 +33,7 @@ from detecttrace.init_writer import (
     render_ui_config_yaml,
     set_label,
     to_checklist_file_name,
+    to_checklist_stem,
 )
 from detecttrace.model import Verdict
 from detecttrace.pipeline import run_check
@@ -477,6 +478,16 @@ def test_later_set_wins() -> None:
 )
 def test_checklist_file_name(alert_class: str, expected: str) -> None:
     assert to_checklist_file_name(alert_class) == expected + ".yaml.example"
+
+
+@pytest.mark.parametrize(
+    ("alert_class", "expected"),
+    [("Impossible Travel", "impossible_travel"), ("", "example"), ("nul", "nul_checklist")],
+)
+def test_checklist_stem_is_the_file_name_without_its_suffix(
+    alert_class: str, expected: str
+) -> None:
+    assert to_checklist_stem(alert_class) == expected
 
 
 def load_example(tmp_path: Path, alert_class: str, tools: tuple[str, ...]) -> Checklist:
