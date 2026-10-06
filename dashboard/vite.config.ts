@@ -11,6 +11,8 @@ export default defineConfig({
     viteSingleFile({ removeViteModuleLoader: true }),
     cspHashes({ htmlFileName: "dashboard.html", hashesFileName: "dashboard.hashes.json" }),
   ],
+  // Nothing outside src/ may reach the page; a public/ folder would be copied beside it.
+  publicDir: false,
   build: {
     outDir: "../src/detecttrace/templates",
     // The output folder holds the other templates, so the build must never clear it.
@@ -18,6 +20,10 @@ export default defineConfig({
     // The page has nothing to preload, and the polyfill would add a fetch call to it.
     modulePreload: { polyfill: false },
     sourcemap: false,
+    rolldownOptions: {
+      // Keeps the @license headers, so the page carries React's MIT notice.
+      output: { comments: { legal: true } },
+    },
     reportCompressedSize: false,
   },
   test: {

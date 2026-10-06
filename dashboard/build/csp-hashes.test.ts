@@ -37,4 +37,16 @@ describe("computeCspHashes", () => {
 
     expect(() => computeCspHashes(page)).toThrow("must be inline");
   });
+
+  it("refuses a page that still links a stylesheet", () => {
+    const page = PAGE.replace("</head>", '<link rel="stylesheet" href="a.css"></head>');
+
+    expect(() => computeCspHashes(page)).toThrow("still links an external file");
+  });
+
+  it("refuses a page that still preloads a module", () => {
+    const page = PAGE.replace("</head>", '<link rel="modulepreload" href="a.js"></head>');
+
+    expect(() => computeCspHashes(page)).toThrow("still links an external file");
+  });
 });

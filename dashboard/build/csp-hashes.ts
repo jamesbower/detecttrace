@@ -10,8 +10,13 @@ const SCRIPT_PATTERN = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
 const STYLE_PATTERN = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
 const JSON_TYPE_PATTERN = /\btype\s*=\s*["']?application\/json["']?/i;
 const SRC_PATTERN = /\bsrc\s*=/i;
+const EXTERNAL_LINK_PATTERN = /<link\b[^>]*\brel\s*=\s*["']?(?:stylesheet|modulepreload)\b[^>]*>/i;
 
 export function computeCspHashes(html: string): CspHashes {
+  const externalLink = EXTERNAL_LINK_PATTERN.exec(html);
+  if (externalLink !== null) {
+    throw new Error(`The page still links an external file: ${externalLink[0]}`);
+  }
   const scripts = [...html.matchAll(SCRIPT_PATTERN)].filter(
     ([, attributes]) => !JSON_TYPE_PATTERN.test(attributes ?? ""),
   );

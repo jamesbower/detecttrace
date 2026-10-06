@@ -93,6 +93,7 @@
   /* Shape: panels are square with one angled corner, cut by clip-path */
   --r-none: 0;
   --r-sm: 2px;
+  --border-accent: 3px;
   --cut-sm: 16px;
   --cut-md: 18px;
   --clip-angled-sm: polygon(0 0, calc(100% - var(--cut-sm)) 0, 100% var(--cut-sm), 100% 100%, 0 100%);

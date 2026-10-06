@@ -26,7 +26,7 @@
 .app-pages li {
   padding: var(--sp-2) var(--sp-4);
   background: var(--frame);
-  border-top: 3px solid var(--accent);
+  border-top: var(--border-accent) solid var(--accent);
   clip-path: var(--clip-angled-sm);
   color: var(--muted);
   font-size: var(--fs-xs);
