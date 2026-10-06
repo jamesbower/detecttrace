@@ -162,7 +162,7 @@ def ui_visit(
         page.clock.fast_forward(POLL_MS)
         # The page reloads by itself once its poll sees the results.
         page.wait_for_selector(NOTES_STEP, timeout=TIMEOUT_MS)
-        page.wait_for_function("document.activeElement !== document.body")
+        page.wait_for_function("() => document.activeElement !== document.body")
         visit.focus_after_reload = page.evaluate(FOCUS_NAME)
         visit.announced_after_reload = page.inner_text(".data-steps > [role=status]")
         visit.axe["with notes"] = run_axe(page, axe_script)
