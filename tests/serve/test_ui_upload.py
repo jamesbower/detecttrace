@@ -148,6 +148,30 @@ def test_langfuse_upload_into_an_otlp_store_is_refused(app_store: Store) -> None
         store_trace_file(app_store, LANGFUSE_TRACES)
 
 
+def write_empty_otlp_file(tmp_path: Path) -> Path:
+    path = tmp_path / "empty.json"
+    path.write_text(json.dumps({"resourceSpans": []}))
+    return path
+
+
+def test_trace_upload_without_spans_records_no_trace_family(
+    app_store: Store, tmp_path: Path
+) -> None:
+    store_trace_file(app_store, write_empty_otlp_file(tmp_path))
+
+    assert app_store.read_trace_family() is None
+
+
+def test_langfuse_upload_after_an_upload_without_spans_is_stored(
+    app_store: Store, tmp_path: Path
+) -> None:
+    store_trace_file(app_store, write_empty_otlp_file(tmp_path))
+
+    report = store_trace_file(app_store, LANGFUSE_TRACES)
+
+    assert report.stored_text == "20 spans added."
+
+
 def test_refused_langfuse_upload_leaves_the_store_unchanged(app_store: Store) -> None:
     store_trace_file(app_store, DEMO_TRACES)
     before = app_store.read_counts()

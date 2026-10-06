@@ -833,6 +833,12 @@ def test_add_spans_records_the_trace_family_given(store: Store) -> None:
     assert store.read_trace_family() == "langfuse"
 
 
+def test_add_spans_storing_no_span_records_no_trace_family(store: Store) -> None:
+    store.add_spans([], [], trace_family="langfuse")
+
+    assert store.read_trace_family() is None
+
+
 def test_failed_add_spans_records_no_trace_family(store: Store) -> None:
     unencodable = make_span("00000000000000a2", attributes={"bad": {1, 2}})
 

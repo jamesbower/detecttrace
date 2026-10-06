@@ -151,7 +151,8 @@ class Store:
         duplicate, a different one a conflict, reported under `subject`. Only a new span or a
         new kind of issue advances the generation, so a client retrying an acknowledged batch
         does not cause a recompute; a repeated issue just has its count raised. A
-        `trace_family` is recorded in the same transaction, as set_trace_family does.
+        `trace_family` is recorded in the same transaction, as set_trace_family does, but
+        only when a span is stored: a batch that stores none says nothing about the format.
         """
         accepted = duplicates = conflicts = 0
         with self._write() as now:
@@ -176,7 +177,7 @@ class Store:
             new_issue_count = _count_issues(self._connection, found, now)
             if accepted or new_issue_count:
                 _advance_generation(self._connection, now)
-            if trace_family is not None:
+            if trace_family is not None and accepted:
                 _write_trace_family(self._connection, trace_family)
         return AddSpansResult(accepted, duplicates, conflicts)
 
