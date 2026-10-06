@@ -138,6 +138,7 @@ export type ClassView = {
 
 export type ClassFilterView = {
   readonly class_index: number;
+  readonly anchor: string;
   readonly label: string;
 };
 

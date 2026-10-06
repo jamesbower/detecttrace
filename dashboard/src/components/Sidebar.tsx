@@ -1,10 +1,17 @@
+import { toHash } from "../router";
 import "./Sidebar.css";
 
 import type { PageDef } from "../registry";
 
-type SidebarProps = { pages: readonly PageDef[]; currentPath: string };
+type SidebarProps = {
+  pages: readonly PageDef[];
+  currentPath: string;
+  /** The selected class, carried to every page; page-specific filters are not. */
+  classAnchor?: string | null;
+};
 
-export function Sidebar({ pages, currentPath }: SidebarProps) {
+export function Sidebar({ pages, currentPath, classAnchor = null }: SidebarProps) {
+  const query = new URLSearchParams(classAnchor === null ? {} : { class: classAnchor });
   return (
     <aside className="sidebar">
       <p className="sidebar-brand">
@@ -21,7 +28,7 @@ export function Sidebar({ pages, currentPath }: SidebarProps) {
             <li key={page.path}>
               <a
                 className="sidebar-link"
-                href={`#${page.path}`}
+                href={toHash(page.path, query)}
                 aria-current={page.path === currentPath ? "page" : undefined}
               >
                 {page.icon !== "" && (

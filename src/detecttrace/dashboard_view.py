@@ -244,6 +244,7 @@ class ClassView:
 @dataclass(frozen=True, slots=True)
 class ClassFilterView:
     class_index: int  # the class's index in `case_rows.strings`, as the script filters on
+    anchor: str  # the matching ClassView's anchor, so a page can share the selected class
     label: str
 
 
@@ -504,6 +505,10 @@ def _to_coverage_lines(coverage: Any, config_text: str) -> list[CoverageLine]:
     return coverage_lines(join, config_text)
 
 
+def _to_class_anchor(index: int) -> str:
+    return f"class-{index}"
+
+
 def _to_class_view(index: int, class_data: Any, styles: Mapping[str, str]) -> ClassView:
     has_checklist = bool(class_data["checklist_item_ids"])
     groups = _to_groups(class_data, styles)
@@ -514,7 +519,7 @@ def _to_class_view(index: int, class_data: Any, styles: Mapping[str, str]) -> Cl
         for group in groups
     )
     return ClassView(
-        anchor=f"class-{index}",
+        anchor=_to_class_anchor(index),
         name=to_visible_text(class_data["alert_class"]),
         cases_text=_plural(overall["case_count"], "case", "cases"),
         versions_text=", ".join(group.label for group in groups),
@@ -850,11 +855,14 @@ def _to_cases_view(data: Any) -> CasesView:
             f"Tool calls are included for {_plural(detail_count, 'notable case', 'notable cases')} "
             "(dashboard.max_detail_cases); tool results are never included."
         ),
+        # Enumerated in the same order as the class views, so each anchor names its class.
         class_filters=tuple(
             ClassFilterView(
-                string_index[class_data["alert_class"]], to_visible_text(class_data["alert_class"])
+                string_index[class_data["alert_class"]],
+                _to_class_anchor(index),
+                to_visible_text(class_data["alert_class"]),
             )
-            for class_data in data["classes"]
+            for index, class_data in enumerate(data["classes"])
         ),
     )
 

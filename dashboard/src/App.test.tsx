@@ -136,3 +136,11 @@ it("leaves focus alone when only the query changes", () => {
 
   expect(document.activeElement).toBe(document.body);
 });
+
+it("carries only the class parameter into the navigation links", () => {
+  window.history.replaceState(null, "", "#/?class=class-1&dangerous=1&q=DT");
+
+  render(<App data={DATA} />);
+
+  expect(screen.getByRole("link", { name: "Cases" }).getAttribute("href")).toBe("#/cases?class=class-1");
+});

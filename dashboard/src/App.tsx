@@ -11,7 +11,7 @@ import type { PageData, PageDataError } from "./data";
 
 /** The dashboard. `data` is read once, before the first render, by the entry point. */
 export function App({ data }: { data: PageData | PageDataError }) {
-  const { path } = useRoute();
+  const { path, query } = useRoute();
   useAnnouncePage(path);
 
   if (isPageDataError(data)) {
@@ -21,7 +21,7 @@ export function App({ data }: { data: PageData | PageDataError }) {
   const pages = listPages();
   const Page = pages.find((page) => page.path === path)?.component;
   return (
-    <Shell pages={pages} currentPath={path}>
+    <Shell pages={pages} currentPath={path} classAnchor={query.get("class")}>
       {Page !== undefined && (
         // Keyed by path, so opening another page clears an earlier page's error.
         <ErrorBoundary key={path} subject="This page">

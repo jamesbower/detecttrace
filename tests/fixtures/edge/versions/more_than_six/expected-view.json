@@ -903,6 +903,7 @@
     "class_filters": [
       {
         "class_index": 0,
+        "anchor": "class-0",
         "label": "impossible_travel"
       }
     ]

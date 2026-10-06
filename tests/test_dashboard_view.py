@@ -833,6 +833,11 @@ def test_a_class_filter_uses_the_class_index_in_the_strings_table() -> None:
     assert build_view(results()).cases.class_filters[0].class_index == 1
 
 
+def test_each_class_filter_carries_its_class_views_anchor() -> None:
+    view = build_view(json.loads(DEMO_GOLDEN.read_text(encoding="utf-8")))
+    assert [f.anchor for f in view.cases.class_filters] == [c.anchor for c in view.classes]
+
+
 # Schema
 
 

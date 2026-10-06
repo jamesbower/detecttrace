@@ -7,11 +7,16 @@ import "./Shell.css";
 import type * as React from "react";
 import type { PageDef } from "../registry";
 
-type ShellProps = { pages: readonly PageDef[]; currentPath: string; children: React.ReactNode };
+type ShellProps = {
+  pages: readonly PageDef[];
+  currentPath: string;
+  classAnchor?: string | null;
+  children: React.ReactNode;
+};
 
 export const MAIN_ID = "main-content";
 
-export function Shell({ pages, currentPath, children }: ShellProps) {
+export function Shell({ pages, currentPath, classAnchor = null, children }: ShellProps) {
   const mainRef = useRef<HTMLElement>(null);
 
   // The hash holds the route, so following the link's own #main-content would leave the page.
@@ -25,7 +30,7 @@ export function Shell({ pages, currentPath, children }: ShellProps) {
       <a className="skip-link" href={`#${MAIN_ID}`} onClick={handleSkip}>
         Skip to content
       </a>
-      <Sidebar pages={pages} currentPath={currentPath} />
+      <Sidebar pages={pages} currentPath={currentPath} classAnchor={classAnchor} />
       <main id={MAIN_ID} className="shell-main" ref={mainRef} tabIndex={-1}>
         <div className="shell-corner" aria-hidden="true" />
         {children}

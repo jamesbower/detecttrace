@@ -45,3 +45,9 @@ it("labels the navigation", () => {
 
   expect(screen.getByRole("navigation", { name: "Pages" }).tagName).toBe("NAV");
 });
+
+it("carries the selected class into each link", () => {
+  render(<Sidebar pages={PAGES} currentPath="/" classAnchor="class-1" />);
+
+  expect(screen.getByRole("link", { name: "Cases" }).getAttribute("href")).toBe("#/cases?class=class-1");
+});
