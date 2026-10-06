@@ -84,6 +84,7 @@ EMPTY_STATE = {
     "verdict_count_text": "0 verdicts stored.",
     "trace_family_text": None,
     "checklist_classes": [],
+    "checklist_classes_text": "None yet",
     "checklist_error_text": None,
 }
 
