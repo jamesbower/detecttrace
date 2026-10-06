@@ -28,6 +28,7 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import Checklist
@@ -68,6 +69,7 @@ class RecomputeSettings:
     checklist_source: str | None  # the checklist folder relative to the configuration
     traces_source: str  # where the page's source says the traces came from
     verdicts_source: str
+    page_mode: Literal["served", "ui"]  # which app's page the snapshot renders
 
 
 def load_recompute_settings(config: ServeConfig, config_path: Path) -> RecomputeSettings:
@@ -90,6 +92,7 @@ def load_recompute_settings(config: ServeConfig, config_path: Path) -> Recompute
         else to_source(config.checklists, folder),
         traces_source=TRACES_SOURCE,
         verdicts_source=VERDICTS_SOURCE,
+        page_mode="served",
     )
 
 
@@ -161,7 +164,7 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
         snapshot = Snapshot(
             generation=inputs.generation,
             finished_at_ns=now_ns,
-            html=render_waiting_page(counts, run.summary, served),
+            html=render_waiting_page(counts, run.summary, served, mode=settings.page_mode),
             results_json=_to_json(waiting),
         )
         return RecomputeOutcome(snapshot, len(held_back_ids), next_settle_at_ns)
@@ -176,7 +179,7 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
     snapshot = Snapshot(
         generation=inputs.generation,
         finished_at_ns=now_ns,
-        html=render_dashboard(results, served=served),
+        html=render_dashboard(results, served=served, mode=settings.page_mode),
         results_json=_to_json(results),
     )
     return RecomputeOutcome(snapshot, len(held_back_ids), next_settle_at_ns)

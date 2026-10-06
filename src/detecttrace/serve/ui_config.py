@@ -137,6 +137,7 @@ def to_recompute_settings(config: UiConfig, config_path: Path) -> RecomputeSetti
         else to_source(config.checklists, config_path.absolute().parent),
         traces_source=UI_TRACES_SOURCE,
         verdicts_source=UI_VERDICTS_SOURCE,
+        page_mode="ui",
     )
 
 

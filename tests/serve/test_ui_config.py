@@ -1,12 +1,15 @@
 import shutil
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from builders import agent_span
+from page_data import read_view
 
 from detecttrace.init_proposal import propose_init
 from detecttrace.model import Verdict, VerdictRow
+from detecttrace.serve.recompute import compute_snapshot
 from detecttrace.serve.store import Store
 from detecttrace.serve.ui_config import (
     CHECKLISTS_FOLDER,
@@ -241,3 +244,14 @@ def test_the_app_without_checklists_loads_none(demo_store: Store, data_dir: Path
     settings = to_recompute_settings(config, data_dir / CONFIG_NAME)
 
     assert settings.checklists == {}
+
+
+def test_the_app_renders_its_snapshot_as_the_ui_page(
+    demo_store: Store, data_dir: Path, tmp_path: Path
+) -> None:
+    config = write_ui_config(demo_store, data_dir, {}, {})
+    settings = to_recompute_settings(config, data_dir / CONFIG_NAME)
+
+    outcome = compute_snapshot(tmp_path / "detecttrace.db", settings, time.time_ns())
+
+    assert read_view(outcome.snapshot.html)["mode"] == "ui"
