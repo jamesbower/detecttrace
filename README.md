@@ -31,6 +31,18 @@ A command-line tool that turns traces and verdicts into a view that goes beyond 
 
 It shows the numbers. It doesn't explain why a number changed, check whether the agent's conclusions are supported by its tool results, or fail builds.
 
+### A look at the dashboard
+
+![The Overview page on the demo data: 201 cases in 2 alert classes over 6 weeks, verdict coverage, dangerous false closes per class, and evidence completeness, verdict agreement and chance-corrected agreement for each prompt version of impossible_travel, with 95% intervals.](docs/images/overview.png)
+
+The Overview, from `detecttrace ui` on the demo data. More of the app:
+
+- [Versions](docs/images/versions.png): each prompt version's results for one alert class, with intervals and n.
+- [Cases](docs/images/cases.png): a dangerous false close opened to show its tool calls and the checklist steps it missed.
+- [Upload](docs/images/data-upload.png) and [configuration](docs/images/data-configuration.png): the Data page in `detecttrace ui`.
+
+All screenshots show the synthetic demo data.
+
 ## Who it's for
 
 Engineers who build their own AI SOC agent and have:
@@ -60,10 +72,16 @@ The dashboard is one HTML file with eight pages, listed in a sidebar:
 
 - **Overview**: the cases, the period, the coverage and the dangerous false closes, then the results by version for one alert class.
 - **Versions**: evidence completeness, verdict agreement and chance-corrected agreement for each version, with intervals.
+
+  ![The Versions page for impossible_travel: rows for all versions, v1 and v2, each with evidence completeness, verdict agreement and chance-corrected agreement as a value, a 95% interval bar and n, plus the dangerous false closes count.](docs/images/versions.png)
+
 - **Skipped steps**: how often each checklist step was not satisfied, per version.
 - **Weekly trend**: completeness and agreement per week, one line per version. Each chart can also be read as a table, and its points can be stepped through with the arrow keys.
 - **Verdict matrix**: agent verdicts against analyst verdicts.
 - **Cases**: every scored case. Filter by alert class, by result (all, disagreements, or dangerous false closes) and by case ID. Open a notable case's row to see its tool calls and the checklist steps it missed.
+
+  ![The Cases page filtered to impossible_travel dangerous false closes, with one case open: analyst true positive, agent benign, its five successful tool calls with their arguments, and two missed checklist steps, signin_history with wrong arguments and mfa_check not called.](docs/images/cases.png)
+
 - **Data**: the coverage lines and every input problem, with how to fix it. In `detecttrace ui`, this is also where you upload files and confirm the configuration.
 - **Limits**: what the dashboard does not tell you.
 
@@ -190,11 +208,17 @@ detecttrace ui
 
 From a clone, run `uv sync --extra serve`, then `uv run detecttrace ui`.
 
-It starts an app on `http://127.0.0.1:4321/` and opens it in your browser. Until a case can be scored, it opens on the Data page:
+It starts an app on `http://127.0.0.1:4321/` and opens it in your browser. Until a case can be scored, it opens on the Data page, `/data`:
 
-1. Upload your traces, your verdict CSV and your checklist YAML files. Each file shows what was stored and any problems found in it.
-2. Confirm the configuration DetectTrace proposes from your data, as `init` does. Correct an attribute or map a verdict label first if you need to.
-3. The dashboard appears once it is computed, with the same pages as the file from `check`. New uploads update it by themselves.
+1. **Upload** your traces, your verdict CSV and your checklist YAML files. Each file shows what was stored and any problems found in it, and the totals below the cards show everything stored so far.
+
+   ![Step 1, Upload, on the Data page: three cards for traces, verdicts and checklists. After the demo files are added, each file shows what was stored, such as "791 spans added." and "201 verdicts added.", and the totals read 2,129 spans, OTLP traces, 201 verdicts, and checklists for impossible_travel and oauth_consent.](docs/images/data-upload.png)
+
+2. **Confirm** the configuration DetectTrace proposes from your data, as `init` does. Correct an attribute or map a verdict label first if you need to.
+
+   ![Step 2, Configuration: the proposed trace attributes, each with how many agent runs or tool calls it was found on, and the two demo labels DetectTrace couldn't map by itself, "Closed - Benign" mapped to Benign and "Malicious" mapped to True positive, above the Confirm button.](docs/images/data-configuration.png)
+
+3. The app computes the dashboard, and the page reloads itself once the results exist. The other pages then show the dashboard, with the same pages as the file from `check`, and the Data page adds step 3, the data notes. New uploads update it by themselves.
 
 The app keeps the uploaded data, the configuration and the checklists in a data folder, `~/.detecttrace` by default. It listens on `127.0.0.1` only, and stops with Ctrl+C.
 
