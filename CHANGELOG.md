@@ -16,7 +16,10 @@ The first release.
 - Trace inputs: OTLP JSON and JSON Lines files, plain or compressed with gzip or zstd (zstd needs the `zstd` extra), a single file or a folder of rotated files, and Langfuse v4 observation exports.
 - Verdict inputs: a CSV file of analyst verdicts, with label mapping to true positive, false positive and benign.
 - `FileSpanExporter` (the `otel` extra) writes your agent's OpenTelemetry spans straight to OTLP JSON Lines files, without a Collector.
-- Dashboard sections: results by alert class and version, checklist steps the agent skipped, a weekly trend, agent verdicts against analyst verdicts, cases, data notes, and what the dashboard does not tell you. Every value shows its number of cases and a 95% confidence interval.
+- Dashboard pages: an overview, results by version, checklist steps the agent skipped, a weekly trend, agent verdicts against analyst verdicts, cases, data notes, and what the dashboard does not tell you. Every value shows its number of cases and a 95% confidence interval.
+- A Result filter on the Cases page: all cases, disagreements, or dangerous false closes. The page, the selected alert class and the case filters are kept in the page's address.
+- Keyboard navigation of the weekly trend charts: the arrow keys, Home and End move between points.
+- Support for forced colors, such as Windows high contrast: trend lines, chart markers and interval strips stay visible.
 - `detecttrace serve` runs the dashboard as a long-running service for a team. It receives spans over OTLP/HTTP as JSON (plain or gzip) from an OpenTelemetry Collector's `otlp_http` exporter, stores them in SQLite, recomputes the dashboard in the background, and serves it to holders of a read token, along with `/api/status`, `/api/results.json` and an unauthenticated `/healthz`. Tool results are dropped on arrival.
 - A verdict API, `POST /api/verdicts`, takes analyst verdicts as JSON or CSV, up to 10,000 rows per request, with each rejected row and its reason in the answer.
 - `detecttrace token` creates an access token with the role `ingest`, `verdicts` or `read`, and prints the configuration entry that holds its hash.
@@ -24,4 +27,7 @@ The first release.
 
 ### Changed
 
+- The dashboard is a new multi-page React app, with a sidebar of pages and a footer. It shows the same numbers, and it is still one self-contained HTML file that opens without a network. Node is needed only to change the dashboard, not to run DetectTrace.
+- The "Self-reported" banner and the matching summary line from the command line are removed.
+- `jinja2` is no longer a dependency.
 - Network policy: `demo`, `check` and `init` read files and write one self-contained HTML page that opens without a network. `serve` listens on the network, stores data in SQLite, and shows the dashboard to people with a read token. DetectTrace itself never sends data anywhere: no telemetry, no update checks.

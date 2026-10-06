@@ -13,7 +13,7 @@ A case is scored when its case ID is in both the traces and the verdict file. It
 
 A verdict is missing when the label has no mapping, when the agent span has no verdict, or when a case's verdict rows disagree. Each of these is reported in the data notes.
 
-The dashboard's two coverage lines show how many verdicts found a trace and how many traces found a verdict. A side below half is marked as low coverage, which usually means a wrong case ID mapping.
+Two coverage lines, on the Overview and Data notes pages, show how many verdicts found a trace and how many traces found a verdict. A side below half is marked as low coverage, which usually means a wrong case ID mapping.
 
 ## Verdict agreement
 
@@ -91,7 +91,7 @@ A case's version is its prompt version attribute (see [Trace attributes](attribu
 
 Within a class, rows come in this order: "All versions", then each shown version by first appearance (its earliest case start, then its name), then the pooled versions, then "(no version)".
 
-At most six versions are shown per class. When a class has more, the six with the most cases are shown. Ties go to the version that appeared first, then to the name. The rest are pooled into one row, "(other versions: v3, v5)", with a note. "(no version)" is never pooled and doesn't take one of the six places. Colors follow the order in which versions first appear on the page.
+At most six versions are shown per class. When a class has more, the six with the most cases are shown. Ties go to the version that appeared first, then to the name. The rest are pooled into one row, "(other versions: v3, v5)", with a note. "(no version)" is never pooled and doesn't take one of the six places. Each version keeps one color on every page. Colors follow the order in which versions first appear.
 
 ## Intervals
 
@@ -106,7 +106,7 @@ Every interval is a 95% interval.
 
 The percentile bootstrap draws 1,000 resamples of the cases, with replacement. The interval runs from the 2.5th to the 97.5th percentile of the statistic over the resamples. Each interval uses its own generator with the same fixed seed, so it doesn't depend on what else was computed.
 
-For κ, a resample in which κ is undefined (`p_e` = 1) is dropped. The dashboard then says "N of 1,000 resamples dropped", and a data note names the class and version. With fewer than 900 usable resamples, no interval is shown: "No interval (too few usable resamples)".
+For κ, a resample in which κ is undefined (`p_e` = 1) is dropped. The κ cell on the Overview and Versions pages then says "N of 1,000 resamples dropped", and a data note names the class and version. With fewer than 900 usable resamples, no interval is shown: "No interval (too few usable resamples)".
 
 ## Small samples
 

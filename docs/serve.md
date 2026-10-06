@@ -374,7 +374,7 @@ A rejected JSON row is named by its position, such as `verdicts[1]`; a rejected 
 
 ### `GET /`
 
-Role `read`. The dashboard, the same page `check` writes. Until the first recompute has finished, and while no case can be scored, it is a short "waiting for data" page that counts the spans and verdicts received so far. Once a recompute has run, the waiting page also counts the cases and lists the data notes.
+Role `read`. The dashboard, the same page `check` writes. Until the first recompute has finished, and while no case can be scored, it is a short "Waiting for data" page with four counts: spans received, cases settled, cases still settling and verdicts received. The case counts stay at 0 until the first recompute has run; from then on the page also lists the data notes. It shows the "New data is available" bar too, so you know when to reload.
 
 Open it in a browser and enter the read token as the password, or fetch it:
 
@@ -475,9 +475,9 @@ The service recomputes the dashboard in the background: 5 seconds after the last
 
 Settling compares the server's clock with the end time the agent reported. A case that ends more than `settle_seconds` in the server's future gets a `future_case_end` data note: check that the clock of the host that runs your agent is synchronized, for example with NTP.
 
-**The page never reloads by itself.** When newer results exist, it shows a "New data is available" bar. Reload the page to see them.
+**The page never reloads by itself.** Every 30 seconds it asks `/api/status` whether newer results exist, and it makes no other network requests; its footer says so. When newer results exist, it shows a "New data is available." bar with a Reload button. The selected page, alert class and case filters are in the page's address, so a reload keeps them.
 
-**When a recompute fails**, the last good dashboard stays in place, and `/api/status` shows the error. The service tries again on the next write that changes the stored data, waiting at least 5 seconds after the failure, doubling with each failure in a row up to 5 minutes. The full error goes to the log.
+**When a recompute fails**, the last good dashboard stays in place, and `/api/status` shows the error. The page's bar then says "Showing data from 2026-10-05 09:30 UTC; the last update failed.", with the time of the data it shows. It never shows the error itself. The service tries again on the next write that changes the stored data, waiting at least 5 seconds after the failure, doubling with each failure in a row up to 5 minutes. The full error goes to the log.
 
 ### How the served dashboard differs from `check`
 
@@ -552,7 +552,7 @@ DetectTrace itself never sends data anywhere: no telemetry, no update checks. Th
 - **Tokens** are stored only as hashes and never logged.
 - **The access log** records the method, path, status, client address and duration of each request: never headers, bodies or query strings. The client address is the one the connection comes from; `X-Forwarded-For` is ignored, so behind a reverse proxy the log shows the proxy's address.
 
-Every response from the service, errors included, carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, so no browser or proxy keeps a copy. The dashboard page also carries `Content-Security-Policy: frame-ancestors 'none'`, so other sites can't frame it. A request too malformed to be read as HTTP is answered by the web server itself, before it reaches the service, and its `400` carries none of these headers.
+Every response from the service, errors included, carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, so no browser or proxy keeps a copy. The dashboard page also carries `Content-Security-Policy: frame-ancestors 'none'`, so other sites can't frame it. Inside, the page holds its own policy, as the file from `check` does: the browser runs only the page's own script and style, and the page may send requests only to the service that sent it. A request too malformed to be read as HTTP is answered by the web server itself, before it reaches the service, and its `400` carries none of these headers.
 
 ## Operations
 

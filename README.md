@@ -56,6 +56,19 @@ The demo runs on about 200 synthetic cases in two identity alert classes over si
 
 It prints a short summary and writes `detecttrace-demo.html`, a self-contained dashboard that opens in any browser without a network connection. Running the demo again replaces its own earlier page.
 
+The dashboard is one HTML file with eight pages, listed in a sidebar:
+
+- **Overview**: the cases, the period, the coverage and the dangerous false closes, then the results by version for one alert class.
+- **Versions**: evidence completeness, verdict agreement and chance-corrected agreement for each version, with intervals.
+- **Skipped steps**: how often each checklist step was not satisfied, per version.
+- **Weekly trend**: completeness and agreement per week, one line per version. Each chart can also be read as a table, and its points can be stepped through with the arrow keys.
+- **Verdict matrix**: agent verdicts against analyst verdicts.
+- **Cases**: every scored case. Filter by alert class, by result (all, disagreements, or dangerous false closes) and by case ID. Open a notable case's row to see its tool calls and the checklist steps it missed.
+- **Data notes**: the coverage lines and every input problem, with how to fix it.
+- **Limits**: what the dashboard does not tell you.
+
+Each page has its own address after the `#`, such as `#/cases?class=class-1&result=dangerous`. A bookmark or a reload keeps the page, the selected alert class and the case filters. These links stay inside the file. The footer names the DetectTrace version that wrote the page and says which network requests it makes.
+
 ## Run it on your data
 
 ### 1. Propose a configuration
@@ -172,7 +185,7 @@ An item is satisfied when the case has a successful call to that tool and every 
 
 ## Privacy
 
-DetectTrace itself never sends data anywhere: no telemetry, no usage statistics, no update checks. `demo`, `check` and `init` read files and write one self-contained HTML page that opens without a network. `serve` listens on the network, stores spans and verdicts in a SQLite database, and shows the dashboard only to people with a read token; see [docs/serve.md](docs/serve.md#privacy). Tool results are never copied into the output, and `serve` drops them before anything is stored. The dashboard does include every scored case's ID, alert class, prompt version and verdicts, plus the tool names and arguments of up to `dashboard.max_detail_cases` notable cases (2,000 by default), so treat it like the traces it came from before you share it.
+DetectTrace itself never sends data anywhere: no telemetry, no usage statistics, no update checks. `demo`, `check` and `init` read files and write one self-contained HTML page that opens without a network. The page makes no network requests, and its Content-Security-Policy lets the browser load nothing from outside the file. `serve` listens on the network, stores spans and verdicts in a SQLite database, and shows the dashboard only to people with a read token; see [docs/serve.md](docs/serve.md#privacy). Tool results are never copied into the output, and `serve` drops them before anything is stored. The dashboard does include every scored case's ID, alert class, prompt version and verdicts, plus the tool names and arguments of up to `dashboard.max_detail_cases` notable cases (2,000 by default), so treat it like the traces it came from before you share it.
 
 ## Development
 
@@ -182,6 +195,8 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 uv run pyright
 ```
+
+The dashboard's source is a React app in `dashboard/`. You need Node only to change it; see [dashboard/README.md](dashboard/README.md).
 
 ## License
 
