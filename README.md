@@ -2,7 +2,7 @@
 
 Agent assurance for AI SOC agents. DetectTrace reads your agent's OpenTelemetry traces and your analysts' verdicts, then shows how the agent compares with the analysts, per alert class and per prompt version, and which investigation steps the agent skips.
 
-> **Status: in development.** `detecttrace demo` and `detecttrace check` run every check and write one self-contained HTML dashboard that opens without a network. `detecttrace init` proposes a configuration from your traces and verdicts. Traces can come from OTLP JSON files or a Langfuse export. `detecttrace serve` runs the same dashboard as a service for a team, fed by an OpenTelemetry Collector and a verdict API. The first PyPI release is being prepared.
+> **Status: in development.** `detecttrace demo` and `detecttrace check` run every check and write one self-contained HTML dashboard that opens without a network. `detecttrace init` proposes a configuration from your traces and verdicts. Traces can come from OTLP JSON files or a Langfuse export. `detecttrace ui` runs the same checks as a local app in your browser: upload your files, confirm the proposed configuration, and see the dashboard. `detecttrace serve` runs the same dashboard as a service for a team, fed by an OpenTelemetry Collector and a verdict API. The first PyPI release is being prepared.
 
 ## The problem
 
@@ -18,7 +18,7 @@ The most costly mistake is also the one agreement hides best: the agent closes a
 
 ## What the POC gives you
 
-A command-line tool that turns traces and verdicts into a view that goes beyond one agreement number. Run it on files, or as a service that your Collector feeds.
+A command-line tool that turns traces and verdicts into a view that goes beyond one agreement number. Run it on files, as a local app in your browser, or as a service that your Collector feeds.
 
 - **Verdict agreement with chance corrected.** Agreement rate and Cohen's kappa per alert class, with a 3 × 3 confusion matrix. Kappa shows when high agreement comes only from the base rate. Chance-corrected agreement is Cohen's kappa: 0 means no better than chance, 1 means perfect agreement.
 - **Dangerous false closes.** Cases where the analyst said true positive and the agent said benign or false positive, as a count with the case IDs.
@@ -27,7 +27,7 @@ A command-line tool that turns traces and verdicts into a view that goes beyond 
 - **Weekly trend.** Per alert class, split by version, with the number of cases each week.
 - **Honest uncertainty.** Every value carries its number of cases (n). Agreement, chance-corrected agreement and evidence completeness also carry a 95% confidence interval. Small samples are marked as such. The definitions are in [docs/metrics.md](docs/metrics.md).
 - **Case detail.** Each case with the agent verdict, the analyst verdict and checklist coverage, and, for notable cases (dangerous closes, disagreements, failed calls, missed steps), its tool calls.
-- **Data notes.** Bad input is reported, not hidden: orphan traces and verdicts, duplicates, unmapped labels, and tool arguments that couldn't be read.
+- **Data notes.** Bad input is reported, not hidden: orphan traces and verdicts, duplicates, unmapped labels, and tool arguments that couldn't be read. They are on the dashboard's Data page.
 
 It shows the numbers. It doesn't explain why a number changed, check whether the agent's conclusions are supported by its tool results, or fail builds.
 
@@ -64,7 +64,7 @@ The dashboard is one HTML file with eight pages, listed in a sidebar:
 - **Weekly trend**: completeness and agreement per week, one line per version. Each chart can also be read as a table, and its points can be stepped through with the arrow keys.
 - **Verdict matrix**: agent verdicts against analyst verdicts.
 - **Cases**: every scored case. Filter by alert class, by result (all, disagreements, or dangerous false closes) and by case ID. Open a notable case's row to see its tool calls and the checklist steps it missed.
-- **Data notes**: the coverage lines and every input problem, with how to fix it.
+- **Data**: the coverage lines and every input problem, with how to fix it. In `detecttrace ui`, this is also where you upload files and confirm the configuration.
 - **Limits**: what the dashboard does not tell you.
 
 Each page has its own address after the `#`, such as `#/cases?class=class-1&result=dangerous`. A bookmark or a reload keeps the page, the selected alert class and the case filters. These links stay inside the file. The footer names the DetectTrace version that wrote the page and says which network requests it makes.
@@ -179,13 +179,40 @@ items:
 
 An item is satisfied when the case has a successful call to that tool and every argument rule passes. Argument rules: `equals`, `in`, `exists`, `matches`, `min`, `max`, `min_duration`, and `kql_min_ago`. Without a checklist, an alert class gets verdict metrics only. Files ending in `.yaml.example` are ignored, and `check` notes each one. Every rule, with examples, is in [docs/checklists.md](docs/checklists.md).
 
+## Run it in your browser
+
+`detecttrace ui` runs DetectTrace as a small app on your computer, with no configuration file to write. DetectTrace isn't on PyPI yet. Once it is, install the `serve` extra, which adds the web server:
+
+```sh
+pip install "detecttrace[serve]"
+detecttrace ui
+```
+
+From a clone, run `uv sync --extra serve`, then `uv run detecttrace ui`.
+
+It starts an app on `http://127.0.0.1:4321/` and opens it in your browser, on the Data page:
+
+1. Upload your traces, your verdict CSV and your checklist YAML files. Each file shows what was stored and any problems found in it.
+2. Confirm the configuration DetectTrace proposes from your data, as `init` does. Correct an attribute or map a verdict label first if you need to.
+3. The dashboard appears once it is computed, with the same pages as the file from `check`. New uploads update it by themselves.
+
+The app keeps the uploaded data, the configuration and the checklists in a data folder, `~/.detecttrace` by default. It listens on `127.0.0.1` only, and stops with Ctrl+C.
+
+| Option | What it does |
+|---|---|
+| `--data-dir PATH` | The folder that keeps the uploaded data and the configuration. Default: `~/.detecttrace`. |
+| `--port PORT` | The port to listen on, on `127.0.0.1`. Default: `4321`. |
+| `--no-open` | Don't open the browser. |
+
+Accepted files and their size limits, the configuration step, the data folder, clearing data, the security model and how the app differs from `check` and `serve` are in [docs/ui.md](docs/ui.md).
+
 ## Run as a service
 
 `detecttrace serve` keeps the dashboard up to date for a team. Your OpenTelemetry Collector sends it spans over OTLP/HTTP, a verdict API takes analyst verdicts as JSON or CSV, and anyone with a read token opens the dashboard in a browser. It stores the data in SQLite. A `compose.yaml` runs it in a container built from this repository, behind a Collector. Setup, tokens, configuration, every endpoint, the limits and how the served dashboard differs from `check` are in [docs/serve.md](docs/serve.md).
 
 ## Privacy
 
-DetectTrace itself never sends data anywhere: no telemetry, no usage statistics, no update checks. `demo`, `check` and `init` read files and write one self-contained HTML page that opens without a network. The page makes no network requests, and its Content-Security-Policy lets the browser load nothing from outside the file. `serve` listens on the network, stores spans and verdicts in a SQLite database, and shows the dashboard only to people with a read token; see [docs/serve.md](docs/serve.md#privacy). Tool results are never copied into the output, and `serve` drops them before anything is stored. The dashboard does include every scored case's ID, alert class, prompt version and verdicts, plus the tool names and arguments of up to `dashboard.max_detail_cases` notable cases (2,000 by default), so treat it like the traces it came from before you share it.
+DetectTrace itself never sends data anywhere: no telemetry, no usage statistics, no update checks. `demo`, `check` and `init` read files and write one self-contained HTML page that opens without a network. The page makes no network requests, and its Content-Security-Policy lets the browser load nothing from outside the file. `ui` listens on `127.0.0.1` only and keeps what you upload in its data folder (`~/.detecttrace` by default): the spans, the verdicts, the configuration, the checklists and the latest results, in a SQLite database readable by you only; see [docs/ui.md](docs/ui.md#security). `serve` listens on the network, stores spans and verdicts in a SQLite database, and shows the dashboard only to people with a read token; see [docs/serve.md](docs/serve.md#privacy). Tool results are never copied into the output, and `ui` and `serve` drop them before anything is stored. The dashboard does include every scored case's ID, alert class, prompt version and verdicts, plus the tool names and arguments of up to `dashboard.max_detail_cases` notable cases (2,000 by default), so treat it like the traces it came from before you share it.
 
 ## Development
 

@@ -13,7 +13,7 @@ A case is scored when its case ID is in both the traces and the verdict file. It
 
 A verdict is missing when the label has no mapping, when the agent span has no verdict, or when a case's verdict rows disagree. Each of these is reported in the data notes.
 
-Two coverage lines, on the Overview and Data notes pages, show how many verdicts found a trace and how many traces found a verdict. A side below half is marked as low coverage, which usually means a wrong case ID mapping.
+Two coverage lines, on the Overview and Data pages, show how many verdicts found a trace and how many traces found a verdict. A side below half is marked as low coverage, which usually means a wrong case ID mapping.
 
 ## Verdict agreement
 
