@@ -60,6 +60,7 @@ PACKAGE_FILES = {
     "detecttrace/serve/ui.py",
     "detecttrace/serve/ui_config.py",
     "detecttrace/serve/ui_recompute.py",
+    "detecttrace/serve/ui_server.py",
     "detecttrace/serve/ui_uploads.py",
     "detecttrace/serve/verdict_api.py",
     "detecttrace/served_page.py",

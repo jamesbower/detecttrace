@@ -73,9 +73,9 @@ class ServedProcess:
             time.sleep(0.5)
         raise TimeoutError(f"the snapshot did not reach generation {minimum}: {status}")
 
-    def stop(self) -> int:
-        """Send SIGTERM and return the exit code."""
-        self.process.send_signal(signal.SIGTERM)
+    def stop(self, signum: int = signal.SIGTERM) -> int:
+        """Send `signum` and return the exit code."""
+        self.process.send_signal(signum)
         try:
             return self.process.wait(STOP_SECONDS)
         finally:
@@ -130,6 +130,42 @@ def start_server(folder: Path) -> ServedProcess:
     served = ServedProcess(
         process, f"http://127.0.0.1:{port}", stdout_path, stderr_path, (stdout, stderr)
     )
+    return _wait_until_healthy(served, "detecttrace serve")
+
+
+def start_ui(folder: Path, data_dir: Path, args: list[str], env: dict[str, str]) -> ServedProcess:
+    """Start `detecttrace ui` with its data in `data_dir` and wait until /healthz answers."""
+    port = find_free_port()
+    stdout_path = folder / "stdout.txt"
+    stderr_path = folder / "stderr.txt"
+    stdout = stdout_path.open("wb")
+    stderr = stderr_path.open("wb")
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "detecttrace",
+            "ui",
+            "--port",
+            str(port),
+            "--data-dir",
+            str(data_dir),
+            *args,
+        ],
+        stdout=stdout,
+        stderr=stderr,
+        cwd=folder,
+        env=env,
+    )
+    served = ServedProcess(
+        process, f"http://127.0.0.1:{port}", stdout_path, stderr_path, (stdout, stderr)
+    )
+    return _wait_until_healthy(served, "detecttrace ui")
+
+
+def _wait_until_healthy(served: ServedProcess, command: str) -> ServedProcess:
+    process = served.process
+    stderr_path = served.stderr_path
     deadline = time.monotonic() + STARTUP_SECONDS
     while time.monotonic() < deadline:
         if process.poll() is not None:
@@ -142,7 +178,7 @@ def start_server(folder: Path) -> ServedProcess:
             pass
         time.sleep(0.2)
     served.close()
-    raise TimeoutError("detecttrace serve did not answer /healthz in time")
+    raise TimeoutError(f"{command} did not answer /healthz in time")
 
 
 def post_demo_data(served: ServedProcess) -> None:
