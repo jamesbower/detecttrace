@@ -22,6 +22,11 @@ export type WindowRange = {
   readonly bottomPx: number;
 };
 
+/** A run of drawn rows by position, or a spacer standing in for rows that are not drawn. */
+export type WindowPart =
+  | { readonly kind: "rows"; readonly start: number; readonly end: number }
+  | { readonly kind: "spacer"; readonly heightPx: number };
+
 /** The rows to draw for a scroll position. `extents` must be sorted by position. */
 export function computeWindow(
   rowCount: number,
@@ -42,6 +47,51 @@ export function computeWindow(
     topPx: offsetOf(start, extents),
     bottomPx: offsetOf(rowCount, extents) - offsetOf(end, extents),
   };
+}
+
+/** The window's parts in table order. A pinned row outside the window, such as the one that
+ * holds focus, is drawn in its own place too, so scrolling never removes the focused row. */
+export function toWindowParts(
+  range: WindowRange,
+  rowCount: number,
+  extents: readonly DetailExtent[],
+  pinned: number | null,
+): WindowPart[] {
+  const parts: WindowPart[] = [];
+  const addSpacer = (heightPx: number) => {
+    if (heightPx > 0) {
+      parts.push({ kind: "spacer", heightPx });
+    }
+  };
+  const isOutside = pinned !== null && pinned >= 0 && pinned < rowCount && (pinned < range.start || pinned >= range.end);
+  if (isOutside && pinned < range.start) {
+    addSpacer(offsetOf(pinned, extents));
+    parts.push({ kind: "rows", start: pinned, end: pinned + 1 });
+    addSpacer(range.topPx - offsetOf(pinned + 1, extents));
+  } else {
+    addSpacer(range.topPx);
+  }
+  parts.push({ kind: "rows", start: range.start, end: range.end });
+  if (isOutside && pinned >= range.end) {
+    addSpacer(offsetOf(pinned, extents) - offsetOf(range.end, extents));
+    parts.push({ kind: "rows", start: pinned, end: pinned + 1 });
+    addSpacer(offsetOf(rowCount, extents) - offsetOf(pinned + 1, extents));
+  } else {
+    addSpacer(range.bottomPx);
+  }
+  return parts;
+}
+
+/** A row's aria-rowindex: the header is row 1, and each opened detail above it is a row too. */
+export function toRowIndex(position: number, extents: readonly DetailExtent[]): number {
+  let detailsAbove = 0;
+  for (const extent of extents) {
+    if (extent.position >= position) {
+      break;
+    }
+    detailsAbove += 1;
+  }
+  return position + detailsAbove + 2;
 }
 
 // Where a row starts: the rows above it plus the details opened above it.

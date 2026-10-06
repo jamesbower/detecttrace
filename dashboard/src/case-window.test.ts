@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { computeWindow, ROW_HEIGHT_PX, WINDOW_THRESHOLD } from "./case-window";
+import { computeWindow, ROW_HEIGHT_PX, toRowIndex, toWindowParts, WINDOW_THRESHOLD } from "./case-window";
 
 const VIEWPORT_PX = 10 * ROW_HEIGHT_PX;
 
@@ -45,4 +45,40 @@ it("keeps an opened row drawn while its detail fills the viewport", () => {
 
 it("never starts past the last row", () => {
   expect(computeWindow(5000, [], 10_000 * ROW_HEIGHT_PX, VIEWPORT_PX).end).toBe(5000);
+});
+
+it("draws a pinned row above the window in its place, with spacers either side", () => {
+  const range = computeWindow(5000, [], 2500 * ROW_HEIGHT_PX, VIEWPORT_PX);
+
+  expect(toWindowParts(range, 5000, [], 10)).toEqual([
+    { kind: "spacer", heightPx: 10 * ROW_HEIGHT_PX },
+    { kind: "rows", start: 10, end: 11 },
+    { kind: "spacer", heightPx: (range.start - 11) * ROW_HEIGHT_PX },
+    { kind: "rows", start: range.start, end: range.end },
+    { kind: "spacer", heightPx: range.bottomPx },
+  ]);
+});
+
+it("draws a pinned row below the window in its place, with spacers either side", () => {
+  const range = computeWindow(5000, [], 0, VIEWPORT_PX);
+
+  expect(toWindowParts(range, 5000, [], 4000)).toEqual([
+    { kind: "rows", start: 0, end: range.end },
+    { kind: "spacer", heightPx: (4000 - range.end) * ROW_HEIGHT_PX },
+    { kind: "rows", start: 4000, end: 4001 },
+    { kind: "spacer", heightPx: 999 * ROW_HEIGHT_PX },
+  ]);
+});
+
+it("draws a pinned row inside the window only once", () => {
+  const range = computeWindow(5000, [], 0, VIEWPORT_PX);
+
+  expect(toWindowParts(range, 5000, [], 3)).toEqual([
+    { kind: "rows", start: 0, end: range.end },
+    { kind: "spacer", heightPx: range.bottomPx },
+  ]);
+});
+
+it("counts the header and each opened detail above a row in its row index", () => {
+  expect(toRowIndex(10, [{ position: 2, heightPx: 300 }, { position: 12, heightPx: 300 }])).toBe(13);
 });

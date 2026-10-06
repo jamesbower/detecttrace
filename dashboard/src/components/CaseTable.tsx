@@ -1,6 +1,8 @@
 // The case table. Each row opens with a real button; above WINDOW_THRESHOLD rows only the
 // rows near the scroll position are drawn. Which rows are open is kept by case, not by DOM
-// node, so an opened row is still open when it scrolls out of the window and back.
+// node, so an opened row is still open when it scrolls out of the window and back. The row
+// holding focus stays drawn wherever the table scrolls, and aria-rowcount and aria-rowindex
+// tell a screen reader where each drawn row sits in the whole table.
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -11,7 +13,7 @@ import {
   verdictLabel,
   versionLabel,
 } from "../case-rows";
-import { computeWindow, DETAIL_ESTIMATE_PX } from "../case-window";
+import { computeWindow, DETAIL_ESTIMATE_PX, toRowIndex, toWindowParts } from "../case-window";
 import { CaseDetail } from "./CaseDetail";
 import { PanelSlot } from "./PanelSlot";
 import { WarnIcon } from "./WarnIcon";
@@ -43,6 +45,7 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
   const [scroll, setScroll] = useState<ScrollState>({ topPx: 0, viewportPx: FALLBACK_VIEWPORT_PX });
   const [shownRows, setShownRows] = useState(rows);
   const [observer] = useState(() => createHeightObserver(setDetailHeights));
+  const [focusedCase, setFocusedCase] = useState<number | null>(null);
 
   // New filters start the table at its top.
   if (shownRows !== rows) {
@@ -78,10 +81,27 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
     [rows, openCases, detailHeights],
   );
   const range = computeWindow(rows.length, extents, scroll.topPx, scroll.viewportPx);
+  const focusedPosition = useMemo(
+    () => (focusedCase === null ? -1 : rows.findIndex((row) => row.index === focusedCase)),
+    [rows, focusedCase],
+  );
+  const parts = toWindowParts(range, rows.length, extents, focusedPosition === -1 ? null : focusedPosition);
 
   function handleScroll(event: React.UIEvent<HTMLDivElement>) {
     const { scrollTop, clientHeight } = event.currentTarget;
     setScroll({ topPx: scrollTop, viewportPx: clientHeight > 0 ? clientHeight : FALLBACK_VIEWPORT_PX });
+  }
+
+  function handleFocus(event: React.FocusEvent<HTMLTableSectionElement>) {
+    const caseIndex = (event.target as Element).closest("tr[data-case-index]")?.getAttribute("data-case-index");
+    setFocusedCase(caseIndex === null || caseIndex === undefined ? null : Number(caseIndex));
+  }
+
+  // Focus that leaves for no element, as when the window loses focus, keeps the row drawn.
+  function handleBlur(event: React.FocusEvent<HTMLTableSectionElement>) {
+    if (event.relatedTarget !== null && !event.currentTarget.contains(event.relatedTarget)) {
+      setFocusedCase(null);
+    }
   }
 
   function toggleCase(index: number) {
@@ -94,6 +114,68 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
     });
   }
 
+  function renderRow(row: CaseRow, position: number) {
+    const isOpen = openCases.has(row.index);
+    const rowIndex = toRowIndex(position, extents);
+    const detailId = `${idPrefix}-detail-${row.index}`;
+    const caseText = toVisibleText(row.caseId);
+    return (
+      <Fragment key={row.index}>
+        <tr
+          className="case-row"
+          data-case-index={row.index}
+          data-dangerous={isDangerous(row)}
+          aria-rowindex={rowIndex}
+        >
+          <td>
+            <button
+              type="button"
+              className="case-toggle"
+              aria-expanded={isOpen}
+              // Set only while open: aria-controls must name an element that exists.
+              aria-controls={isOpen ? detailId : undefined}
+              title={caseText}
+              onClick={() => toggleCase(row.index)}
+            >
+              <span className="case-cell-text">{caseText}</span>
+            </button>
+          </td>
+          <td>
+            <code className="case-cell-text">{toVisibleText(row.alertClass)}</code>
+          </td>
+          <td>{toVisibleText(row.week)}</td>
+          <td>
+            <span className="case-cell-text">{versionLabel(row.version)}</span>
+          </td>
+          <td>
+            {renderVerdict(row.analyst)}
+          </td>
+          <td>
+            {renderVerdict(row.agent)}
+          </td>
+          <td>
+            {renderResult(row)}
+          </td>
+          <td className="case-num">{checklistLabel(row)}</td>
+        </tr>
+        {isOpen && (
+          <tr
+            id={detailId}
+            className="case-detail-row"
+            data-case-index={row.index}
+            aria-rowindex={rowIndex + 1}
+            ref={observeDetail}
+          >
+            <td colSpan={COLUMN_COUNT}>
+              <CaseDetail row={row} detail={details.get(row.caseId) ?? null} />
+              <PanelSlot name="case-detail" view={view} results={results} caseId={row.caseId} />
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  }
+
   const captionId = `${idPrefix}-caption`;
   return (
     <div
@@ -104,10 +186,10 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
       tabIndex={0}
       onScroll={handleScroll}
     >
-      <table className="case-table">
+      <table className="case-table" aria-rowcount={rows.length === 0 ? 2 : rows.length + extents.length + 1}>
         <caption id={captionId}>Cases, newest week first, then by case ID.</caption>
         <thead>
-          <tr>
+          <tr aria-rowindex={1}>
             <th scope="col">Case</th>
             <th scope="col">Alert class</th>
             <th scope="col">Week</th>
@@ -120,70 +202,20 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody onFocus={handleFocus} onBlur={handleBlur}>
           {rows.length === 0 && (
-            <tr>
+            <tr aria-rowindex={2}>
               <td colSpan={COLUMN_COUNT} className="case-table-empty">
                 No cases match these filters.
               </td>
             </tr>
           )}
-          {range.topPx > 0 && renderSpacer(range.topPx)}
-          {rows.slice(range.start, range.end).map((row) => {
-            const isOpen = openCases.has(row.index);
-            const detailId = `${idPrefix}-detail-${row.index}`;
-            const caseText = toVisibleText(row.caseId);
-            return (
-              <Fragment key={row.index}>
-                <tr className="case-row" data-dangerous={isDangerous(row)}>
-                  <td>
-                    <button
-                      type="button"
-                      className="case-toggle"
-                      aria-expanded={isOpen}
-                      // Set only while open: aria-controls must name an element that exists.
-                      aria-controls={isOpen ? detailId : undefined}
-                      title={caseText}
-                      onClick={() => toggleCase(row.index)}
-                    >
-                      <span className="case-cell-text">{caseText}</span>
-                    </button>
-                  </td>
-                  <td>
-                    <code className="case-cell-text">{toVisibleText(row.alertClass)}</code>
-                  </td>
-                  <td>{toVisibleText(row.week)}</td>
-                  <td>
-                    <span className="case-cell-text">{versionLabel(row.version)}</span>
-                  </td>
-                  <td>
-                    {renderVerdict(row.analyst)}
-                  </td>
-                  <td>
-                    {renderVerdict(row.agent)}
-                  </td>
-                  <td>
-                    {renderResult(row)}
-                  </td>
-                  <td className="case-num">{checklistLabel(row)}</td>
-                </tr>
-                {isOpen && (
-                  <tr
-                    id={detailId}
-                    className="case-detail-row"
-                    data-case-index={row.index}
-                    ref={observeDetail}
-                  >
-                    <td colSpan={COLUMN_COUNT}>
-                      <CaseDetail row={row} detail={details.get(row.caseId) ?? null} />
-                      <PanelSlot name="case-detail" view={view} results={results} caseId={row.caseId} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
-          {range.bottomPx > 0 && renderSpacer(range.bottomPx)}
+          {/* One flat keyed list, so a row that moves between parts is kept, not remounted. */}
+          {parts.flatMap((part, partIndex) =>
+            part.kind === "spacer"
+              ? [renderSpacer(part.heightPx, partIndex)]
+              : rows.slice(part.start, part.end).map((row, offset) => renderRow(row, part.start + offset)),
+          )}
         </tbody>
       </table>
     </div>
@@ -191,9 +223,9 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
 }
 
 // Stands in for the rows outside the window, so the scrollbar keeps the whole table's length.
-function renderSpacer(heightPx: number) {
+function renderSpacer(heightPx: number, partIndex: number) {
   return (
-    <tr className="case-table-spacer" aria-hidden="true" style={{ height: heightPx }}>
+    <tr key={`spacer-${partIndex}`} className="case-table-spacer" aria-hidden="true" style={{ height: heightPx }}>
       <td colSpan={COLUMN_COUNT} />
     </tr>
   );

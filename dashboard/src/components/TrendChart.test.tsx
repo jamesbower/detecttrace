@@ -44,25 +44,91 @@ it("moves Tab to the first point, named by week, series and value", async () => 
   expect(document.activeElement).toBe(screen.getByRole("img", { name: "2026-W32, All versions: 94% (n 17)" }));
 });
 
-it("reaches a version's point by Tab", async () => {
+function focusedName(): string | null | undefined {
+  return document.activeElement?.getAttribute("aria-label");
+}
+
+it("makes the chart one tab stop", () => {
   renderDemo();
 
-  // Six all-versions weeks come first, then v1's two weeks.
-  await userEvent.tab();
-  await userEvent.tab();
-  await userEvent.tab();
-  await userEvent.tab();
-  await userEvent.tab();
-  await userEvent.tab();
-  await userEvent.tab();
-
-  expect(document.activeElement?.getAttribute("aria-label")).toBe("2026-W32, v1: 94% (n 17)");
+  expect(screen.getAllByRole("img").filter((point) => point.tabIndex === 0)).toHaveLength(1);
 });
 
-it("gives every week with a value a focusable point", () => {
+it("leaves the chart on the second Tab", async () => {
   renderDemo();
 
-  expect(screen.getAllByRole("img").filter((point) => point.tabIndex === 0)).toHaveLength(12);
+  await userEvent.tab();
+  await userEvent.tab();
+
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Show table/ }));
+});
+
+it("moves ArrowRight to the series' next week", async () => {
+  renderDemo();
+  await userEvent.tab();
+
+  await userEvent.keyboard("{ArrowRight}");
+
+  expect(focusedName()).toBe("2026-W33, All versions: 92% (n 19)");
+});
+
+it("moves ArrowLeft back to the series' previous week", async () => {
+  renderDemo();
+  await userEvent.tab();
+  await userEvent.keyboard("{End}");
+
+  await userEvent.keyboard("{ArrowLeft}");
+
+  expect(focusedName()).toBe("2026-W36, All versions: 79% (n 20)");
+});
+
+it("moves End to the series' last week", async () => {
+  renderDemo();
+  await userEvent.tab();
+
+  await userEvent.keyboard("{End}");
+
+  expect(focusedName()).toBe("2026-W37, All versions: 73% (n 14)");
+});
+
+it("moves ArrowDown to the next series in the same week", async () => {
+  renderDemo();
+  await userEvent.tab();
+
+  await userEvent.keyboard("{ArrowDown}");
+
+  expect(focusedName()).toBe("2026-W32, v1: 94% (n 17)");
+});
+
+it("moves ArrowDown to the next series' nearest week when it has none that week", async () => {
+  renderDemo();
+  await userEvent.tab();
+  await userEvent.keyboard("{ArrowDown}{ArrowRight}");
+
+  await userEvent.keyboard("{ArrowDown}");
+
+  expect(focusedName()).toBe("2026-W34, v2: 74% (n 18)");
+});
+
+it("moves ArrowUp to the previous series' nearest week", async () => {
+  renderDemo();
+  await userEvent.tab();
+  await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+
+  await userEvent.keyboard("{ArrowUp}");
+
+  expect(focusedName()).toBe("2026-W33, v1: 92% (n 19)");
+});
+
+it("returns Tab to the last point moved to", async () => {
+  renderDemo();
+  await userEvent.tab();
+  await userEvent.keyboard("{ArrowRight}");
+  await userEvent.tab();
+
+  await userEvent.tab({ shift: true });
+
+  expect(focusedName()).toBe("2026-W33, All versions: 92% (n 19)");
 });
 
 it("shows the focused point's name beside the chart", async () => {

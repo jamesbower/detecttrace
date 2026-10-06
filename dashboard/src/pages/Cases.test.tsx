@@ -343,6 +343,57 @@ describe("windowing", () => {
     expect(caseButton("C00000").getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("counts every row of the whole table for a screen reader", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+
+    expect(screen.getByRole("table").getAttribute("aria-rowcount")).toBe("5001");
+  });
+
+  it("gives a drawn row its place in the whole table", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+
+    scrollTable(2500 * 52);
+
+    expect(caseButton("C02500").closest("tr")?.getAttribute("aria-rowindex")).toBe("2502");
+  });
+
+  it("counts an opened detail as a row", async () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+
+    await userEvent.click(caseButton("C00000"));
+
+    expect(caseButton("C00001").closest("tr")?.getAttribute("aria-rowindex")).toBe("4");
+  });
+
+  it("keeps focus on a row when the table scrolls far from it", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    act(() => caseButton("C00000").focus());
+
+    scrollTable(2500 * 52);
+
+    expect(document.activeElement?.textContent).toBe("C00000");
+  });
+
+  it("keeps a focused row below the window when the table scrolls back up", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    scrollTable(2500 * 52);
+    act(() => caseButton("C02500").focus());
+
+    scrollTable(0);
+
+    expect(document.activeElement?.textContent).toBe("C02500");
+  });
+
+  it("drops the row once focus moves out of the table", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    act(() => caseButton("C00000").focus());
+    act(() => screen.getByRole("searchbox", { name: "Search case ID" }).focus());
+
+    scrollTable(2500 * 52);
+
+    expect(screen.queryByRole("button", { name: "C00000" })).toBeNull();
+  });
+
   it("still counts every case", () => {
     render(<Cases view={DEMO_VIEW} results={results} />);
 
