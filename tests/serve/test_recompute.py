@@ -972,6 +972,39 @@ def test_the_waiting_page_shows_the_future_dated_case_note(tmp_path: Path, store
     assert FUTURE_NOTE in [note["message"] for note in notes]
 
 
+def results_without_settling(tmp_path: Path, now_ns: int) -> dict[str, Any]:
+    """Results for complete input, as the local app's uploads are: no settle window."""
+    settings = replace(to_settings(write_serve_config(tmp_path)), settle_seconds=None)
+    outcome = compute_snapshot(tmp_path / "detecttrace.db", settings, now_ns)
+    return json.loads(outcome.snapshot.results_json)
+
+
+def test_without_a_settle_window_a_future_dated_case_is_scored(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    results = results_without_settling(tmp_path, FUTURE_NOW_NS)
+
+    assert results["case_rows"]["columns"]["case_id"] == ["DT-1", "DT-2"]
+
+
+def test_without_a_settle_window_a_future_dated_case_gets_no_data_note(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    results = results_without_settling(tmp_path, FUTURE_NOW_NS)
+
+    assert results["data_notes"] == []
+
+
+def test_without_a_settle_window_the_outcome_has_no_settle_time(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    settings = replace(to_settings(write_serve_config(tmp_path)), settle_seconds=None)
+
+    outcome = compute_snapshot(tmp_path / "detecttrace.db", settings, FUTURE_NOW_NS)
+
+    assert outcome.next_settle_at_ns is None
+
+
 def test_a_case_exactly_a_settle_window_ahead_gets_no_data_note(
     tmp_path: Path, store: Store
 ) -> None:
