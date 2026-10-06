@@ -1,4 +1,4 @@
-// The registry is the extension point: a downstream build adds a page or a panel by
+// The registry is the extension point: a custom build that imports this source adds a page or a panel by
 // registering it, without editing the shell.
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it } from "vitest";

@@ -1,5 +1,5 @@
 // The build-time extension point: a page or panel registers itself when its module loads,
-// so a downstream build can add views without editing the shell.
+// so a custom build that imports this source can add views without editing the shell.
 import type * as React from "react";
 
 import type { Results } from "./results";
