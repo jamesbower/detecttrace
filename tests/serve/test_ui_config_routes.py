@@ -31,6 +31,8 @@ EDITED_KEY = "detecttrace.alert_class"
 PROMPT_EDIT = {"fields": {"prompt_version": EDITED_KEY}, "labels": {}}
 MALICIOUS_BENIGN = {"label_map": {"Malicious": "benign"}}
 CONFIG_ROUTES = ["/api/config/proposal", "/api/config"]
+# Named relative to the data folder, with this OS's separator, as the reader's own paths are.
+BAD_CHECKLIST = str(Path(CHECKLISTS_FOLDER) / "a.yaml")
 BAD_EDITS = [
     pytest.param({"fields": {"case": "x.case"}, "labels": {}}, id="unknown field"),
     pytest.param({"fields": {"case_id": " "}, "labels": {}}, id="empty key"),
@@ -433,7 +435,7 @@ def test_a_second_save_recomputes_with_the_new_settings(
 
 
 def _fail_recompute(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
-    path = data_dir.absolute() / CHECKLISTS_FOLDER / "a.yaml"
+    path = data_dir.absolute() / BAD_CHECKLIST
     error = f"ChecklistFileError: {path}: not valid YAML"
     monkeypatch.setattr(UiState, "read_status", lambda _: RecomputeStatus(False, error, 1_000, 0))
 
@@ -448,7 +450,7 @@ def test_the_status_says_why_the_first_update_failed(
     _fail_recompute(monkeypatch, data_dir)
 
     assert uploaded.get("/api/status").json()["last_error_text"] == (
-        "The dashboard could not be computed: ChecklistFileError: checklists/a.yaml: not valid YAML"
+        f"The dashboard could not be computed: ChecklistFileError: {BAD_CHECKLIST}: not valid YAML"
     )
 
 
@@ -460,7 +462,7 @@ def test_the_status_says_earlier_results_are_shown_when_an_update_failed(
 
     assert uploaded.get("/api/status").json()["last_error_text"] == (
         "Showing the results from before the last update, which failed: "
-        "ChecklistFileError: checklists/a.yaml: not valid YAML"
+        f"ChecklistFileError: {BAD_CHECKLIST}: not valid YAML"
     )
 
 
