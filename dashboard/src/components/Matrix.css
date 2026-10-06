@@ -1,0 +1,117 @@
+.matrix-scroll {
+  overflow-x: auto;
+}
+
+.matrix {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--fs-sm);
+}
+
+.matrix-caption {
+  padding-bottom: var(--sp-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-align: left;
+}
+
+.matrix th {
+  padding: var(--sp-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.matrix thead th {
+  border-bottom: var(--border-thin) solid var(--accent);
+  text-align: center;
+}
+
+.matrix tbody th {
+  text-align: left;
+}
+
+.matrix-cell {
+  padding: var(--sp-3) var(--sp-2);
+  border: var(--outline-danger) solid var(--frame);
+  color: var(--text);
+  text-align: center;
+}
+
+.matrix-count {
+  display: block;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+}
+
+.matrix-h-0 {
+  background: var(--heat-0);
+}
+
+.matrix-h-ok-1 {
+  background: var(--heat-ok-1);
+}
+
+.matrix-h-ok-2 {
+  background: var(--heat-ok-2);
+}
+
+.matrix-h-ok-3 {
+  background: var(--heat-ok-3);
+}
+
+.matrix-h-ok-4 {
+  background: var(--heat-ok-4);
+}
+
+.matrix-h-off-1 {
+  background: var(--heat-off-1);
+}
+
+.matrix-h-off-2 {
+  background: var(--heat-off-2);
+}
+
+.matrix-h-off-3 {
+  background: var(--heat-off-3);
+}
+
+.matrix-h-off-4 {
+  background: var(--heat-off-4);
+}
+
+/* The outline and the "Dangerous" label mark where a dangerous false close would fall. */
+.matrix-cell.is-dangerous {
+  outline: var(--outline-danger) solid var(--danger);
+  outline-offset: calc(-2 * var(--outline-danger));
+}
+
+/* A dangerous cell holding any case: a heavier outline, a tint and a warning icon. */
+.matrix-cell.is-flagged {
+  outline-width: var(--outline-flagged);
+  background-image: linear-gradient(var(--danger-tint), var(--danger-tint));
+}
+
+.matrix-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.is-flagged .matrix-flag {
+  font-weight: var(--fw-bold);
+}
+
+.matrix-flag-icon {
+  width: var(--fs-sm);
+  height: var(--fs-sm);
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: var(--icon-stroke);
+}

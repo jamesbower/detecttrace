@@ -1,0 +1,69 @@
+.trend-table {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-3);
+}
+
+.trend-table-toggle {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: var(--sp-2) var(--sp-4);
+  background: transparent;
+  border: var(--border-thin) solid var(--line);
+  border-radius: var(--r-none);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.trend-table-toggle:hover,
+.trend-table-toggle[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.trend-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.trend-table-scroll[hidden] {
+  display: none;
+}
+
+.trend-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.trend-table caption {
+  padding-bottom: var(--sp-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-align: left;
+}
+
+.trend-table th,
+.trend-table td {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-thin) solid var(--line);
+  text-align: left;
+}
+
+.trend-table thead th {
+  max-width: var(--label-max);
+  border-bottom-color: var(--accent);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.trend-table tbody th {
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}

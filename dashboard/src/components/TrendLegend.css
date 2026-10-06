@@ -1,0 +1,27 @@
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  padding: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  list-style: none;
+}
+
+.trend-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.trend-swatch {
+  flex: none;
+  width: var(--swatch-width);
+  height: var(--swatch-height);
+}
+
+.trend-legend-label {
+  max-width: var(--label-max);
+  overflow-wrap: anywhere;
+}
