@@ -21,7 +21,14 @@ from builders import (
 )
 
 from detecttrace.model import IssueKind, Span
-from detecttrace.traces import MAX_DOCUMENT_BYTES, TraceFileError, detect_format, load_spans
+from detecttrace.traces import (
+    MAX_DOCUMENT_BYTES,
+    TraceFileError,
+    TraceLimitError,
+    TraceReadLimits,
+    detect_format,
+    load_spans,
+)
 
 S1 = span_hex(1)
 S2 = span_hex(2)
@@ -1099,3 +1106,106 @@ def test_detection_reads_past_a_first_line_of_another_shape(tmp_path: Path) -> N
 def test_detection_of_a_missing_path_raises(tmp_path: Path) -> None:
     with pytest.raises(TraceFileError):
         detect_format(tmp_path / "missing")
+
+
+# Read limits, for files from an untrusted source
+
+# A megabyte of one long blank line, so a reader that ignores the limit would read on.
+BLANK_MEGABYTE = b" " * (MIB - 1) + b"\n"
+SMALL_LIMITS = TraceReadLimits(max_decompressed_bytes=MIB, max_lines=10, max_issues=10)
+
+
+def _gzip_bomb(tail: bytes = b"") -> bytes:
+    """A span line, then many one-megabyte members, each a few kilobytes compressed."""
+    return gzip.compress(_line(S1).encode()) + gzip.compress(BLANK_MEGABYTE) * 8 + tail
+
+
+def _zstd_bomb(tail: bytes = b"") -> bytes:
+    return _zstd(_line(S1)) + zstandard.ZstdCompressor().compress(BLANK_MEGABYTE) * 8 + tail
+
+
+def test_gzip_file_over_the_decompressed_limit_raises(tmp_path: Path) -> None:
+    path = tmp_path / "bomb.jsonl.gz"
+    path.write_bytes(_gzip_bomb())
+
+    with pytest.raises(TraceLimitError, match=r"bomb\.jsonl\.gz is over 1 MiB once decompressed"):
+        load_spans(path, limits=SMALL_LIMITS)
+
+
+def test_gzip_reading_stops_at_the_decompressed_limit(tmp_path: Path) -> None:
+    # Corrupt bytes after the limit: reaching them would report an issue, not raise.
+    path = tmp_path / "bomb.jsonl.gz"
+    path.write_bytes(_gzip_bomb(tail=b"not gzip"))
+
+    with pytest.raises(TraceLimitError):
+        load_spans(path, limits=SMALL_LIMITS)
+
+
+def test_zstd_file_over_the_decompressed_limit_raises(tmp_path: Path) -> None:
+    path = tmp_path / "bomb.jsonl.zst"
+    path.write_bytes(_zstd_bomb())
+
+    with pytest.raises(TraceLimitError, match=r"bomb\.jsonl\.zst is over 1 MiB once decompressed"):
+        load_spans(path, limits=SMALL_LIMITS)
+
+
+def test_zstd_reading_stops_at_the_decompressed_limit(tmp_path: Path) -> None:
+    path = tmp_path / "bomb.jsonl.zst"
+    path.write_bytes(_zstd_bomb(tail=b"not zstd"))
+
+    with pytest.raises(TraceLimitError):
+        load_spans(path, limits=SMALL_LIMITS)
+
+
+def test_file_at_the_decompressed_limit_loads(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl.gz"
+    text = _line(S1).encode()
+    path.write_bytes(gzip.compress(text))
+    limits = TraceReadLimits(max_decompressed_bytes=len(text), max_lines=10, max_issues=10)
+
+    spans, _ = load_spans(path, limits=limits)
+
+    assert [s.span_id for s in spans] == [S1]
+
+
+def test_file_with_more_lines_than_the_limit_raises(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text("".join(_line(span_hex(index)) for index in range(1, 12)), encoding="utf-8")
+
+    with pytest.raises(TraceLimitError, match=r"t\.jsonl has more than 10 lines"):
+        load_spans(path, limits=SMALL_LIMITS)
+
+
+def test_file_with_more_issues_than_the_limit_raises(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_line(S1) + "x\n" * 5 + _line(S1) * 7, encoding="utf-8")
+    limits = TraceReadLimits(max_decompressed_bytes=MIB, max_lines=100, max_issues=10)
+
+    with pytest.raises(TraceLimitError, match=r"t\.jsonl has more than 10 problems"):
+        load_spans(path, limits=limits)
+
+
+def test_invalid_lines_past_the_issue_limit_raise(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_line(S1) + "x\n" * 11, encoding="utf-8")
+    limits = TraceReadLimits(max_decompressed_bytes=MIB, max_lines=100, max_issues=10)
+
+    with pytest.raises(TraceLimitError):
+        load_spans(path, limits=limits)
+
+
+def test_detection_with_limits_raises_for_a_file_over_them(tmp_path: Path) -> None:
+    path = tmp_path / "bomb.jsonl.gz"
+    path.write_bytes(gzip.compress(BLANK_MEGABYTE) * 8)
+
+    with pytest.raises(TraceLimitError):
+        detect_format(path, limits=SMALL_LIMITS)
+
+
+def test_file_over_the_limits_loads_without_them(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    path.write_text(_line(S1) + "x\n" * 11, encoding="utf-8")
+
+    _, issues = load_spans(path)
+
+    assert len(issues) == 11

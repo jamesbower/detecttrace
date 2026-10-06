@@ -1,4 +1,6 @@
+import gzip
 import importlib.util
+import json
 import shutil
 from pathlib import Path
 
@@ -230,6 +232,120 @@ def test_non_utf8_verdict_file_is_refused(app_store: Store, tmp_path: Path) -> N
 
     with pytest.raises(UploadRefused, match="is not UTF-8"):
         store_verdict_file(app_store, path)
+
+
+# Upload limits
+
+MIB = 1 << 20
+# A megabyte of one long blank line; eight of them compress to a few kilobytes.
+BLANK_MEGABYTE = b" " * (MIB - 1) + b"\n"
+
+
+@pytest.fixture
+def small_trace_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ui_uploads, "MAX_TRACE_DECOMPRESSED_BYTES", MIB)
+    monkeypatch.setattr(ui_uploads, "MAX_TRACE_LINES", 10)
+    monkeypatch.setattr(ui_uploads, "MAX_TRACE_ISSUES", 10)
+
+
+def write_gzip_bomb(tmp_path: Path) -> Path:
+    path = tmp_path / "bomb.jsonl.gz"
+    span_line = json.dumps(otlp_document([otlp_span(span_hex(1))])) + "\n"
+    path.write_bytes(gzip.compress(span_line.encode()) + gzip.compress(BLANK_MEGABYTE) * 8)
+    return path
+
+
+@pytest.mark.usefixtures("small_trace_limits")
+def test_gzip_bomb_upload_is_refused(app_store: Store, tmp_path: Path) -> None:
+    path = write_gzip_bomb(tmp_path)
+
+    with pytest.raises(
+        UploadRefused,
+        match=r"^bomb\.jsonl\.gz is over 1 MiB once decompressed; split it into smaller files\.$",
+    ):
+        store_trace_file(app_store, path)
+
+
+@pytest.mark.usefixtures("small_trace_limits")
+def test_refused_gzip_bomb_leaves_the_store_unchanged(app_store: Store, tmp_path: Path) -> None:
+    store_trace_file(app_store, TRUNCATED_TRACES)
+    before = app_store.read_counts()
+
+    with pytest.raises(UploadRefused):
+        store_trace_file(app_store, write_gzip_bomb(tmp_path))
+
+    assert app_store.read_counts() == before
+
+
+@NEEDS_ZSTD
+@pytest.mark.usefixtures("small_trace_limits")
+def test_zstd_bomb_upload_is_refused(app_store: Store, tmp_path: Path) -> None:
+    import zstandard
+
+    path = tmp_path / "bomb.jsonl.zst"
+    compressor = zstandard.ZstdCompressor()
+    path.write_bytes(compressor.compress(BLANK_MEGABYTE) * 8)
+
+    with pytest.raises(UploadRefused, match=r"bomb\.jsonl\.zst is over 1 MiB once decompressed"):
+        store_trace_file(app_store, path)
+
+
+@pytest.mark.usefixtures("small_trace_limits")
+def test_trace_upload_with_too_many_lines_is_refused(app_store: Store, tmp_path: Path) -> None:
+    path = write_jsonl(
+        tmp_path / "many.jsonl", [otlp_document([otlp_span(span_hex(i))]) for i in range(1, 12)]
+    )
+
+    with pytest.raises(
+        UploadRefused, match=r"^many\.jsonl has more than 10 lines; split it into smaller files\.$"
+    ):
+        store_trace_file(app_store, path)
+
+
+@pytest.mark.usefixtures("small_trace_limits")
+def test_trace_upload_with_too_many_problems_is_refused(
+    app_store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ui_uploads, "MAX_TRACE_LINES", 100)
+    span_line = json.dumps(otlp_document([otlp_span(span_hex(1))])) + "\n"
+    path = tmp_path / "notes.jsonl"
+    path.write_text(span_line + "x\n" * 11, encoding="utf-8")
+
+    with pytest.raises(UploadRefused, match=r"^notes\.jsonl has more than 10 problems"):
+        store_trace_file(app_store, path)
+
+
+def test_verdict_upload_with_too_many_rows_is_refused(
+    app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ui_uploads, "MAX_VERDICT_ROWS", 200)
+
+    with pytest.raises(
+        UploadRefused,
+        match=r"^verdicts\.csv has more than 200 rows; split it into smaller files\.$",
+    ):
+        store_verdict_file(app_store, DEMO_VERDICTS)
+
+
+def test_refused_verdict_upload_over_the_row_limit_stores_nothing(
+    app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ui_uploads, "MAX_VERDICT_ROWS", 200)
+
+    with pytest.raises(UploadRefused):
+        store_verdict_file(app_store, DEMO_VERDICTS)
+
+    assert app_store.read_counts().verdict_count == 0
+
+
+def test_verdict_upload_at_the_row_limit_is_stored(
+    app_store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ui_uploads, "MAX_VERDICT_ROWS", 201)
+
+    report = store_verdict_file(app_store, DEMO_VERDICTS)
+
+    assert report.stored_text == "201 verdicts added."
 
 
 # Checklists

@@ -7,6 +7,7 @@ import os
 import re
 import zlib
 from collections.abc import Callable, Generator, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -83,8 +84,33 @@ class TraceFileError(InputFileError):
     """The trace path cannot be used at all: missing, unreadable, or holding no trace files."""
 
 
+class TraceLimitError(TraceFileError):
+    """A trace file is past one of the TraceReadLimits; nothing from the read is returned."""
+
+
+@dataclass(frozen=True, slots=True)
+class TraceReadLimits:
+    """Bounds on what one trace file may expand to, for files from an untrusted source."""
+
+    max_decompressed_bytes: int
+    max_lines: int
+    max_issues: int
+
+
+class _OverByteLimitError(Exception):
+    """Raised by _LimitedReader; not an OSError, so no reader reports it as a file problem."""
+
+    def __init__(self, max_bytes: int) -> None:
+        super().__init__(max_bytes)
+        self.max_bytes = max_bytes
+
+
 def load_spans(
-    path: Path, *, format: TraceFormat = "otlp_jsonl", path_hint: str = PATH_HINT
+    path: Path,
+    *,
+    format: TraceFormat = "otlp_jsonl",
+    path_hint: str = PATH_HINT,
+    limits: TraceReadLimits | None = None,
 ) -> tuple[list[Span], list[Issue]]:
     """Read every trace file at `path` (a file or a folder) and return unique spans.
 
@@ -93,7 +119,8 @@ def load_spans(
     Issue; TraceFileError is raised only when there is nothing to read. `format` picks the
     document parser, made new for each call; every format reads JSON lines and one-document
     files alike, and the parser adds its own issues about each whole file when the file ends.
-    `path_hint` ends the error for a missing path or one with no trace files.
+    `path_hint` ends the error for a missing path or one with no trace files. With `limits`,
+    TraceLimitError is raised as soon as any one file is past them.
     """
     issues: list[Issue] = []
     trace_files = _find_trace_files(path, issues, path_hint)
@@ -103,7 +130,7 @@ def load_spans(
     for file_path, subject in trace_files:
         file_issues: list[Issue] = []
         span_count = 0
-        for document, line_number in _read_documents(file_path, subject, file_issues):
+        for document, line_number in _read_documents(file_path, subject, file_issues, limits):
             for span in parser.parse_document(document, subject, line_number, file_issues):
                 span_count += 1
                 key = (span.trace_id, span.span_id)
@@ -120,7 +147,9 @@ def load_spans(
                     continue
                 seen[key] = span
                 spans.append(span)
+            _check_issue_count(file_issues, subject, limits)
         file_issues.extend(parser.finish(subject))
+        _check_issue_count(file_issues, subject, limits)
         # Only a file with no OTLP spans is sniffed, so OTLP text quoting the marker is safe.
         if span_count == 0 and file_issues and _is_console_exporter_output(file_path):
             # One clear issue beats a line-by-line flood about a format we don't read.
@@ -131,7 +160,7 @@ def load_spans(
 
 
 def detect_format(
-    path: Path, *, path_hint: str = PATH_HINT
+    path: Path, *, path_hint: str = PATH_HINT, limits: TraceReadLimits | None = None
 ) -> tuple[TraceFormat | None, list[Issue]]:
     """Name the format of the trace files at `path` from the first file with a known document.
 
@@ -140,12 +169,13 @@ def detect_format(
     say why, as load_spans would: a console exporter file gives one CONSOLE_EXPORTER_OUTPUT
     issue in place of its line issues, and files that cannot be read give theirs. No format
     and no issue means no file holds a document of a known shape. With a format, no issues
-    are returned: load_spans reports them. Raises TraceFileError as load_spans does.
+    are returned: load_spans reports them. Raises TraceFileError, and with `limits`
+    TraceLimitError, as load_spans does.
     """
     issues: list[Issue] = []
     for file_path, subject in _find_trace_files(path, issues, path_hint):
         file_issues: list[Issue] = []
-        documents = _read_documents(file_path, subject, file_issues)
+        documents = _read_documents(file_path, subject, file_issues, limits)
         try:
             for document, line_number in itertools.islice(documents, _MAX_SNIFFED_DOCUMENTS):
                 if isinstance(document, dict) and isinstance(document.get("resourceSpans"), list):
@@ -217,11 +247,12 @@ def _list_trace_files(path: Path, issues: list[Issue]) -> list[tuple[Path, str]]
 
 
 def _read_documents(
-    file_path: Path, subject: str, issues: list[Issue]
+    file_path: Path, subject: str, issues: list[Issue], limits: TraceReadLimits | None
 ) -> Generator[tuple[Json, int | None], None, None]:
     """Yield (document, line number); the line number is None for a one-document file."""
+    max_bytes = None if limits is None else limits.max_decompressed_bytes
     try:
-        first_line = _first_content_line(file_path)
+        first_line = _first_content_line(file_path, max_bytes)
         if first_line is None:
             issues.append(Issue(IssueKind.EMPTY_FILE, subject))
         elif _UTF16_OR_UTF32_START.match(first_line):
@@ -232,7 +263,12 @@ def _read_documents(
         elif _may_open_document(first_line) and (document := _load_document(file_path)) is not None:
             yield document, None
         else:
-            yield from _read_json_lines(file_path, subject, issues)
+            yield from _read_json_lines(file_path, subject, issues, limits)
+    except _OverByteLimitError as error:
+        raise TraceLimitError(
+            f"{subject} is over {error.max_bytes >> 20:,} MiB once decompressed; "
+            "split it into smaller files."
+        ) from None
     except _COMPRESSION_ERRORS as error:
         issues.append(_compression_issue(error, subject))
     except _MissingZstdError:
@@ -253,9 +289,9 @@ def _compression_issue(error: Exception, subject: str, suffix: str = "") -> Issu
     return Issue(IssueKind.INVALID_FILE, subject, "corrupt compressed data" + suffix)
 
 
-def _first_content_line(file_path: Path) -> bytes | None:
+def _first_content_line(file_path: Path, max_bytes: int | None) -> bytes | None:
     """Return the first non-blank line, stripped, or None when the file has no content."""
-    with _open_binary(file_path) as handle:
+    with _open_binary(file_path, max_bytes) as handle:
         # Pieces, not whole lines: the start of a line is enough to tell the format.
         for piece in iter(lambda: handle.readline(_READ_SIZE), b""):
             stripped = piece.removeprefix(_BOM).strip()
@@ -314,11 +350,18 @@ def _read_document_bytes(file_path: Path) -> bytes | None:
 
 
 def _read_json_lines(
-    file_path: Path, subject: str, issues: list[Issue]
+    file_path: Path, subject: str, issues: list[Issue], limits: TraceReadLimits | None
 ) -> Iterator[tuple[Json, int]]:
-    with _open_binary(file_path) as handle:
+    max_bytes = None if limits is None else limits.max_decompressed_bytes
+    with _open_binary(file_path, max_bytes) as handle:
         try:
             for line_number, line in enumerate(_read_lines(handle), start=1):
+                if limits is not None and line_number > limits.max_lines:
+                    raise TraceLimitError(
+                        f"{subject} has more than {limits.max_lines:,} lines; "
+                        "split it into smaller files."
+                    )
+                _check_issue_count(issues, subject, limits)
                 if line is None:
                     detail = f"line {line_number} is over {_MAX_LINE_TEXT}"
                     issues.append(Issue(IssueKind.INVALID_LINE, subject, detail))
@@ -358,7 +401,23 @@ def _read_lines(handle: io.BufferedIOBase) -> Iterator[bytes | None]:
         yield b"".join(pieces) if size <= MAX_DOCUMENT_BYTES else None
 
 
-def _open_binary(file_path: Path) -> io.BufferedIOBase:
+def _check_issue_count(issues: list[Issue], subject: str, limits: TraceReadLimits | None) -> None:
+    if limits is not None and len(issues) > limits.max_issues:
+        raise TraceLimitError(
+            f"{subject} has more than {limits.max_issues:,} problems; check that it is a trace "
+            "file, or split it into smaller files."
+        )
+
+
+def _open_binary(file_path: Path, max_bytes: int | None = None) -> io.BufferedIOBase:
+    """Open the file, decompressing it; past `max_bytes` of output, reads raise _OverByteLimitError."""
+    handle = _open_decompressed(file_path)
+    if max_bytes is None:
+        return handle
+    return io.BufferedReader(_LimitedReader(handle, max_bytes))
+
+
+def _open_decompressed(file_path: Path) -> io.BufferedIOBase:
     with file_path.open("rb") as probe:
         magic = probe.read(len(_ZSTD_MAGIC))
     if magic.startswith(_GZIP_MAGIC):
@@ -372,6 +431,35 @@ def _open_binary(file_path: Path) -> io.BufferedIOBase:
             _ZstdReader(file_path.open("rb"), zstandard.ZstdDecompressor(), zstandard.ZstdError)
         )
     return file_path.open("rb")
+
+
+class _LimitedReader(io.RawIOBase):
+    """Pass on a decompressed stream, raising _OverByteLimitError once it yields over `max_bytes`.
+
+    The count is of bytes as they are decompressed, so a small file that expands without
+    bound costs at most one read buffer past the limit.
+    """
+
+    def __init__(self, source: io.BufferedIOBase, max_bytes: int) -> None:
+        self._source = source
+        self._max_bytes = max_bytes
+        self._remaining = max_bytes
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: "WriteableBuffer", /) -> int:
+        target = memoryview(buffer).cast("B")
+        # One byte past the remaining budget is enough to tell the stream is over it.
+        size = self._source.readinto(target[: self._remaining + 1])
+        self._remaining -= size
+        if self._remaining < 0:
+            raise _OverByteLimitError(self._max_bytes)
+        return size
+
+    def close(self) -> None:
+        self._source.close()
+        super().close()
 
 
 class _ZstdReader(io.RawIOBase):

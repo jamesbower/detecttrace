@@ -43,15 +43,15 @@ class VerdictRowLimitError(VerdictFileError):
 
 
 def read_verdicts(
-    path: Path, *, path_hint: str = PATH_HINT
+    path: Path, *, path_hint: str = PATH_HINT, max_rows: int | None = None
 ) -> tuple[list[VerdictRow], list[Issue]]:
     """Read every verdict row. Rows that share a case ID are all returned; the join resolves them.
 
-    `path_hint` ends the error for a missing file.
+    `path_hint` ends the error for a missing file; `max_rows` is as in read_verdict_rows.
     """
     try:
         with path.open(encoding="utf-8-sig", newline="") as handle:
-            return read_verdict_rows(handle, path.name, error_subject=str(path))
+            return read_verdict_rows(handle, path.name, error_subject=str(path), max_rows=max_rows)
     except FileNotFoundError as error:
         raise VerdictFileError(f"Verdict file not found: {path}. {path_hint}") from error
     except UnicodeDecodeError as error:

@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from detecttrace import traces
-from detecttrace.serve import ui
+from detecttrace.serve import ui, ui_uploads
 from detecttrace.serve.store import Store
 from detecttrace.serve.ui import UiState, create_ui_app
 from detecttrace.serve.ui_uploads import MAX_TRACE_FILE_BYTES, MAX_VERDICT_FILE_BYTES
@@ -167,3 +167,18 @@ def test_a_compressed_document_past_the_document_limit_stores_no_spans(
     upload(client, "traces", "bomb.jsonl.gz", bomb)
 
     assert store.read_counts().span_count == 0
+
+
+def test_a_compressed_file_over_the_decompressed_limit_answers_422_with_the_reason(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ui_uploads, "MAX_TRACE_DECOMPRESSED_BYTES", 1 << 20)
+    blank_megabyte = b" " * ((1 << 20) - 1) + b"\n"
+    bomb = gzip.compress(blank_megabyte) * 8
+
+    response = upload(client, "traces", "bomb.jsonl.gz", bomb)
+
+    assert (response.status_code, response.json()["message"]) == (
+        422,
+        "bomb.jsonl.gz is over 1 MiB once decompressed; split it into smaller files.",
+    )

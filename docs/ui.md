@@ -152,13 +152,19 @@ The app has a single user: you, in a browser on the same computer.
 | Limit | Value |
 |---|---|
 | Trace file | 256 MiB |
+| Trace file once decompressed | 1 GiB |
+| Lines in one trace file | 2,000,000 |
+| Problems found in one trace file | 100,000 |
 | Verdict file | 64 MiB |
+| Rows in one verdict file | 1,000,000 |
 | Checklist file | 1 MiB |
 | Checklists per data folder | 100 |
 | Trace uploads handled at once | 4; more wait their turn |
 | Verdict and checklist uploads handled at once | 2; more wait their turn |
 | Time to receive one file | 30 seconds |
 | File name | 128 characters, longer names are cut; characters other than letters, digits, `.`, `_` and `-` become `_` |
+
+A file past any of these limits is refused and nothing from it is stored; split it into smaller files. `check` has no such limits on the files it reads.
 
 The app runs on the same storage and recompute as `detecttrace serve`, so the scale and memory figures in [docs/serve.md](serve.md#limits) apply. Keep the data folder on a local disk.
 

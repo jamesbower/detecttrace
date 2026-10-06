@@ -17,10 +17,19 @@ from detecttrace.model import Issue
 from detecttrace.serve.receiver import remove_tool_result
 from detecttrace.serve.store import Store, TraceFamily
 from detecttrace.summary import SummaryLine, summarize_issues
-from detecttrace.traces import TraceFileError, detect_format, load_spans
-from detecttrace.verdicts import VerdictFileError, read_verdicts
+from detecttrace.traces import TraceFileError, TraceReadLimits, detect_format, load_spans
+from detecttrace.verdicts import VerdictFileError, VerdictRowLimitError, read_verdicts
 
 MAX_TRACE_FILE_BYTES = 256 << 20
+# The 50,000-case benchmark is 636 MB and 815,000 spans once decompressed, so a file holding
+# all of it fits, even written one span per line; a gzip file 256 MiB long could expand to
+# hundreds of gigabytes.
+MAX_TRACE_DECOMPRESSED_BYTES = 1 << 30
+MAX_TRACE_LINES = 2_000_000
+# Each issue is held in memory and stored as a row; a two-byte bad line would otherwise cost one.
+MAX_TRACE_ISSUES = 100_000
+# 20 times the 50,000-case benchmark; 64 MiB of short rows would otherwise be millions of rows.
+MAX_VERDICT_ROWS = 1_000_000
 MAX_VERDICT_FILE_BYTES = 64 << 20
 MAX_CHECKLIST_FILE_BYTES = MAX_FILE_BYTES
 MAX_CHECKLISTS = 100
@@ -77,11 +86,16 @@ def to_safe_upload_name(name: str, suffixes: tuple[str, ...]) -> str:
 def store_trace_file(store: Store, file_path: Path) -> UploadReport:
     """Store the spans of one trace file, without tool results, and the issues found in it.
 
-    Raises UploadRefused when the file holds no trace format we read, or a format other
-    than the one already stored; the store is then unchanged.
+    Raises UploadRefused when the file holds no trace format we read, a format other than
+    the one already stored, or more than the upload limits allow; the store is then unchanged.
     """
+    limits = TraceReadLimits(
+        max_decompressed_bytes=MAX_TRACE_DECOMPRESSED_BYTES,
+        max_lines=MAX_TRACE_LINES,
+        max_issues=MAX_TRACE_ISSUES,
+    )
     try:
-        trace_format, format_issues = detect_format(file_path)
+        trace_format, format_issues = detect_format(file_path, limits=limits)
     except TraceFileError as error:
         raise _to_refusal(error, file_path) from None
     if trace_format is None:
@@ -94,7 +108,7 @@ def store_trace_file(store: Store, file_path: Path) -> UploadReport:
             f"Clear the data to switch to {_FAMILY_NAMES[family]}."
         )
     try:
-        spans, issues = load_spans(file_path, format=trace_format)
+        spans, issues = load_spans(file_path, format=trace_format, limits=limits)
     except TraceFileError as error:
         raise _to_refusal(error, file_path) from None
     result = store.add_spans(
@@ -113,10 +127,15 @@ def store_trace_file(store: Store, file_path: Path) -> UploadReport:
 def store_verdict_file(store: Store, file_path: Path) -> UploadReport:
     """Store each verdict row as its case's current verdict, and the issues found in the file.
 
-    Raises UploadRefused when the file cannot be read as a verdict CSV at all.
+    Raises UploadRefused when the file cannot be read as a verdict CSV at all, or holds
+    more than MAX_VERDICT_ROWS rows.
     """
     try:
-        rows, issues = read_verdicts(file_path)
+        rows, issues = read_verdicts(file_path, max_rows=MAX_VERDICT_ROWS)
+    except VerdictRowLimitError:
+        raise UploadRefused(
+            f"{file_path.name} has more than {MAX_VERDICT_ROWS:,} rows; split it into smaller files."
+        ) from None
     except VerdictFileError as error:
         raise _to_refusal(error, file_path) from None
     result = store.put_verdicts(rows, UPLOAD_TOKEN_NAME)
