@@ -4,6 +4,7 @@ import os
 import signal
 import socket
 import stat
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -34,6 +35,10 @@ UI_MODULES = (
     "detecttrace.serve.app",
 )
 BROWSER_SCRIPT = '#!/bin/sh\nprintf %s "$1" > "$(dirname "$0")/opened.txt"\n'
+# Generous for a slow machine's start; an app that serves instead of stopping fails the test
+# rather than holding the suite until it is killed.
+FAILED_START_SECONDS = 60
+FailedStart = subprocess.CompletedProcess[str]
 
 
 @dataclass(frozen=True)
@@ -68,6 +73,22 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def invoke_ui(*args: str) -> Result:
     return CliRunner().invoke(cli.app, ["ui", *args])
+
+
+def start_ui_expecting_failure(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run `detecttrace ui` in its own process, which should stop before it serves."""
+    try:
+        return subprocess.run(
+            [sys.executable, "-m", "detecttrace", "ui", *args],
+            capture_output=True,
+            encoding="utf-8",
+            timeout=FAILED_START_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail(
+            f"detecttrace ui was still running after {FAILED_START_SECONDS} s; "
+            "it should have stopped at startup"
+        )
 
 
 # Options
@@ -134,39 +155,43 @@ def test_no_open_keeps_the_browser_closed(run_ui_calls: list[UiCall], home: Path
 
 
 @pytest.fixture
-def start_on_busy_port(tmp_path: Path) -> tuple[Result, int]:
+def start_on_busy_port(tmp_path: Path) -> tuple[FailedStart, int]:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as taken:
         taken.bind(("127.0.0.1", 0))
         taken.listen()
         port = taken.getsockname()[1]
-        result = invoke_ui("--no-open", "--port", str(port), "--data-dir", str(tmp_path / "data"))
+        result = start_ui_expecting_failure(
+            "--no-open", "--port", str(port), "--data-dir", str(tmp_path / "data")
+        )
     return result, port
 
 
-def test_a_busy_port_exits_1(start_on_busy_port: tuple[Result, int]) -> None:
-    assert start_on_busy_port[0].exit_code == 1
+def test_a_busy_port_exits_1(start_on_busy_port: tuple[FailedStart, int]) -> None:
+    assert start_on_busy_port[0].returncode == 1
 
 
-def test_a_busy_port_says_to_pass_another(start_on_busy_port: tuple[Result, int]) -> None:
+def test_a_busy_port_says_to_pass_another(start_on_busy_port: tuple[FailedStart, int]) -> None:
     result, port = start_on_busy_port
 
     assert result.stderr == f"Error: Port {port} is in use. Pass --port with a free port.\n"
 
 
 @pytest.fixture
-def start_with_broken_configuration(tmp_path: Path) -> Result:
+def start_with_broken_configuration(tmp_path: Path) -> FailedStart:
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     (data_dir / CONFIG_NAME).write_text("mapping: [\n", encoding="utf-8")
-    return invoke_ui("--no-open", "--port", str(find_free_port()), "--data-dir", str(data_dir))
+    return start_ui_expecting_failure(
+        "--no-open", "--port", str(find_free_port()), "--data-dir", str(data_dir)
+    )
 
 
-def test_a_broken_saved_configuration_exits_1(start_with_broken_configuration: Result) -> None:
-    assert start_with_broken_configuration.exit_code == 1
+def test_a_broken_saved_configuration_exits_1(start_with_broken_configuration: FailedStart) -> None:
+    assert start_with_broken_configuration.returncode == 1
 
 
 def test_a_broken_saved_configuration_says_how_to_fix_it(
-    start_with_broken_configuration: Result,
+    start_with_broken_configuration: FailedStart,
 ) -> None:
     assert "or delete it and confirm the configuration again in the app." in (
         start_with_broken_configuration.stderr
@@ -181,7 +206,9 @@ def start_with_leftover_folders(tmp_path: Path) -> Path:
         (data_dir / name).mkdir(parents=True)
         (data_dir / name / "traces.jsonl").write_text("{}", encoding="utf-8")
     (data_dir / CONFIG_NAME).write_text("mapping: [\n", encoding="utf-8")
-    invoke_ui("--no-open", "--port", str(find_free_port()), "--data-dir", str(data_dir))
+    start_ui_expecting_failure(
+        "--no-open", "--port", str(find_free_port()), "--data-dir", str(data_dir)
+    )
     return data_dir
 
 
@@ -197,9 +224,11 @@ def test_a_data_folder_that_is_a_file_exits_1(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     data_dir.write_text("not a folder", encoding="utf-8")
 
-    result = invoke_ui("--no-open", "--port", str(find_free_port()), "--data-dir", str(data_dir))
+    result = start_ui_expecting_failure(
+        "--no-open", "--port", str(find_free_port()), "--data-dir", str(data_dir)
+    )
 
-    assert result.exit_code == 1
+    assert result.returncode == 1
 
 
 @pytest.fixture
