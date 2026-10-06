@@ -2,6 +2,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { Data } from "./pages/Data";
 import { POLL_MS } from "./poller";
 import { registerPage, resetRegistryForTests } from "./registry";
 import { DEMO_RESULTS, DEMO_VIEW } from "./test-fixtures";
@@ -152,6 +153,7 @@ const SERVED = { generation: 7, updated_at: "2026-10-05T12:00:00.000000Z", held_
 const WAITING = {
   counts: [{ label: "Spans received", value: "1,200" }],
   notes: [{ message: "No verdict file yet.", hint: "Send verdicts to /v1/verdicts." }],
+  next_step_text: null,
 };
 const WAITING_DATA = { view: { ...DEMO_VIEW, served: SERVED, waiting: WAITING }, waiting: WAITING };
 
@@ -185,6 +187,77 @@ it("keeps the status bar on a waiting page", () => {
   render(<App data={WAITING_DATA} />);
 
   expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+});
+
+const UI_WAITING = { ...WAITING, next_step_text: "Upload traces and verdicts on the Data page to get started." };
+const UI_WAITING_DATA = {
+  view: { ...DEMO_VIEW, mode: "ui" as const, served: SERVED, waiting: UI_WAITING },
+  waiting: UI_WAITING,
+};
+const UI_STATE = {
+  is_configured: false,
+  can_configure: false,
+  has_results: false,
+  span_count_text: "No spans stored.",
+  verdict_count_text: "No verdicts stored.",
+  trace_family_text: null,
+  checklist_classes: [],
+  checklist_error_text: null,
+};
+
+function stubUiApp() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.resolve(new Response(JSON.stringify(UI_STATE)))),
+  );
+  registerPage({ path: "/data", title: "Data", icon: "", order: 2, component: Data });
+}
+
+it("shows the upload step on a ui waiting page's Data page", async () => {
+  stubUiApp();
+  window.history.replaceState(null, "", "#/data");
+
+  render(<App data={UI_WAITING_DATA} />);
+
+  expect(await screen.findByRole("heading", { name: "1 · Upload" })).not.toBeNull();
+});
+
+it("titles a ui waiting page's Data page after the page", async () => {
+  stubUiApp();
+  window.history.replaceState(null, "", "#/data");
+
+  render(<App data={UI_WAITING_DATA} />);
+  await screen.findByText("No spans stored.");
+
+  expect(document.title).toBe("Data · DetectTrace");
+});
+
+it("links every page in the navigation on a ui waiting page", () => {
+  stubUiApp();
+
+  render(<App data={UI_WAITING_DATA} />);
+
+  expect(screen.getByRole("navigation", { name: "Pages" }).textContent).toBe("HomeCasesData");
+});
+
+it("shows what has arrived on any other page of a ui waiting page", () => {
+  stubUiApp();
+  window.history.replaceState(null, "", "#/");
+
+  render(<App data={UI_WAITING_DATA} />);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Nothing to score yet");
+});
+
+it("links a ui waiting page's other pages to the Data page", () => {
+  stubUiApp();
+  window.history.replaceState(null, "", "#/cases");
+
+  render(<App data={UI_WAITING_DATA} />);
+
+  expect(
+    screen.getByRole("link", { name: "Upload traces and verdicts on the Data page to get started." }).getAttribute("href"),
+  ).toBe("#/data");
 });
 
 it("shows how many cases are still settling on a served page", () => {

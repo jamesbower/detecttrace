@@ -5,9 +5,10 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { listPages } from "./registry";
 
 export const HOME_PATH = "/";
+export const DATA_PATH = "/data";
 
 // A renamed page's old path forwards to its new one, so old links and bookmarks keep working.
-const PATH_ALIASES: ReadonlyMap<string, string> = new Map([["/data-notes", "/data"]]);
+const PATH_ALIASES: ReadonlyMap<string, string> = new Map([["/data-notes", DATA_PATH]]);
 
 export type ParsedHash = { readonly path: string; readonly query: URLSearchParams };
 
@@ -30,6 +31,14 @@ export function parseHash(hash: string, knownPaths: readonly string[]): ParsedHa
 export function toHash(path: string, query: URLSearchParams): string {
   const search = query.toString();
   return search === "" ? `#${path}` : `#${path}?${search}`;
+}
+
+/** Opens `path` when the address names no page at all, without a history entry. Called before
+ * the first render, so the page never shows the home route first. */
+export function replaceEmptyHash(path: string): void {
+  if (splitHash(readHash()).rawPath === "") {
+    window.history.replaceState(window.history.state, "", toHash(path, new URLSearchParams()));
+  }
 }
 
 export function useRoute(): Route {

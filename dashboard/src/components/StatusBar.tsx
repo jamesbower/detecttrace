@@ -9,11 +9,14 @@ import type { ServedView } from "../view";
 type StatusBarProps = {
   /** Set only on a page from `detecttrace serve`; without it the page never asks the network. */
   served?: ServedView | null;
+  /** In `detecttrace ui` the reader's own upload or configuration made the newer results, so
+   * the page reloads by itself instead of offering to. */
+  shouldReloadOnNewData?: boolean;
 };
 
 // The live region exists from the first render, so later messages in it are announced.
-export function StatusBar({ served = null }: StatusBarProps) {
-  const bar = useServerNews(served);
+export function StatusBar({ served = null, shouldReloadOnNewData = false }: StatusBarProps) {
+  const bar = useServerNews(served, shouldReloadOnNewData);
   const isShown = bar.isNewData || bar.errorText !== null;
   return (
     <div className="status-bar" role="status" aria-live="polite">
@@ -31,7 +34,7 @@ export function StatusBar({ served = null }: StatusBarProps) {
   );
 }
 
-function useServerNews(served: ServedView | null): Bar {
+function useServerNews(served: ServedView | null, shouldReloadOnNewData: boolean): Bar {
   const [bar, setBar] = useState<Bar>(EMPTY_BAR);
   const generation = served?.generation;
   const updatedAt = served?.updated_at;
@@ -39,8 +42,15 @@ function useServerNews(served: ServedView | null): Bar {
     if (generation === undefined || updatedAt === undefined) {
       return;
     }
-    const poll = createPoll(setBar, { generation, updatedAt }, fetchStatus, (text) => console.warn(text));
+    function show(next: Bar) {
+      if (shouldReloadOnNewData && next.isNewData) {
+        location.reload();
+        return;
+      }
+      setBar(next);
+    }
+    const poll = createPoll(show, { generation, updatedAt }, fetchStatus, (text) => console.warn(text));
     return startPolling(poll);
-  }, [generation, updatedAt]);
+  }, [generation, updatedAt, shouldReloadOnNewData]);
   return bar;
 }

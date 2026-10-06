@@ -123,7 +123,7 @@ describe("uploading", () => {
 });
 
 describe("a file's result", () => {
-  it("shows the server's problems as notes", async () => {
+  it("titles the server's problems one level below the card's own heading", async () => {
     respondWith(200, {
       stored_text: "201 verdicts added.",
       problems: [
@@ -142,7 +142,7 @@ describe("a file's result", () => {
 
     await userEvent.upload(input, [csv("x.csv")]);
 
-    expect((await screen.findByRole("heading", { level: 2 })).textContent).toBe(
+    expect((await screen.findByRole("heading", { level: 4 })).textContent).toBe(
       "3 verdict rows have an unknown label.",
     );
   });

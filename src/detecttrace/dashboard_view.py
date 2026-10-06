@@ -46,8 +46,9 @@ SERVED_FOOTER_TEXT = (
 UI_GENERATOR_TEXT = f"Written by {GENERATOR}, running locally with detecttrace ui."
 UI_FOOTER_TEXT = (
     "Every 30 seconds the page asks the detecttrace ui app on this computer whether newer results "
-    "exist, and it makes no other network requests."
+    "exist; files you upload go only to that app."
 )
+UI_NEXT_STEP_TEXT = "Upload traces and verdicts on the Data page to get started."
 FEW_CASES_BELOW = 10
 FEW_CASES_TEXT = "Few cases."
 FEW_CASES_LEGEND_TEXT = f"Hollow marker: fewer than {FEW_CASES_BELOW} cases"
@@ -326,6 +327,8 @@ class WaitingNoteView:
 class WaitingView:
     counts: tuple[CountView, ...]
     notes: tuple[WaitingNoteView, ...]
+    # Set only in `detecttrace ui`, where the reader supplies the data on the Data page.
+    next_step_text: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -455,6 +458,7 @@ def build_waiting_view(
                 WaitingNoteView(to_visible_text(line.message), to_visible_text(line.hint))
                 for line in notes
             ),
+            next_step_text=UI_NEXT_STEP_TEXT if mode == "ui" else None,
         ),
     )
 

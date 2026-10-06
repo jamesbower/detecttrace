@@ -1074,7 +1074,7 @@ def test_a_ui_view_says_the_page_asks_the_app_on_this_computer_for_newer_results
 
     assert header.footer_text == (
         "Every 30 seconds the page asks the detecttrace ui app on this computer whether newer "
-        "results exist, and it makes no other network requests."
+        "results exist; files you upload go only to that app."
     )
 
 
@@ -1082,6 +1082,20 @@ def test_a_ui_waiting_view_says_it_runs_locally() -> None:
     header = build_waiting_view(WAITING_COUNTS, [], SERVED, mode="ui").header
 
     assert header.generator_text.endswith("running locally with detecttrace ui.")
+
+
+def test_a_ui_waiting_view_points_to_the_data_page() -> None:
+    waiting = build_waiting_view(WAITING_COUNTS, [], SERVED, mode="ui").waiting
+
+    assert waiting is not None and waiting.next_step_text == (
+        "Upload traces and verdicts on the Data page to get started."
+    )
+
+
+def test_a_served_waiting_view_has_no_next_step() -> None:
+    waiting = build_waiting_view(WAITING_COUNTS, [], SERVED).waiting
+
+    assert waiting is not None and waiting.next_step_text is None
 
 
 def test_a_waiting_view_says_the_page_asks_the_server_for_newer_results() -> None:

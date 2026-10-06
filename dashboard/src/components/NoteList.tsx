@@ -7,7 +7,14 @@ import type { NoteView } from "../view";
 
 const INVALID_INPUT = "invalid_input";
 
-export function NoteList({ notes }: { notes: readonly NoteView[] }) {
+type NoteListProps = {
+  notes: readonly NoteView[];
+  /** The level of each note's title, one below the heading the list sits under. */
+  headingLevel?: 2 | 3 | 4;
+};
+
+export function NoteList({ notes, headingLevel = 2 }: NoteListProps) {
+  const Title = `h${headingLevel}` as const;
   if (notes.length === 0) {
     return <p className="note-list-empty">No input problems were found.</p>;
   }
@@ -28,9 +35,9 @@ export function NoteList({ notes }: { notes: readonly NoteView[] }) {
               )}
               {note.severity_label}
             </p>
-            <h2 className="note-title">
+            <Title className="note-title">
               <strong>{note.count_text}</strong> {note.message}
-            </h2>
+            </Title>
             {note.hint !== "" && <p className="note-hint">{note.hint}</p>}
             {note.examples.length > 0 && (
               <ul className="note-examples" aria-label="Examples">

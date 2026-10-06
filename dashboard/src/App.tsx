@@ -5,8 +5,9 @@ import { ErrorState } from "./components/ErrorState";
 import { MAIN_ID, Shell } from "./components/Shell";
 import { WaitingState } from "./components/WaitingState";
 import { isPageDataError, isWaitingData } from "./data";
+import { Data } from "./pages/Data";
 import { listPages } from "./registry";
-import { useRoute } from "./router";
+import { DATA_PATH, useRoute } from "./router";
 
 import type { PageData, PageDataError, WaitingData } from "./data";
 
@@ -25,17 +26,32 @@ export function App({ data }: AppProps) {
 function Dashboard({ data }: AppProps) {
   const { path, query } = useRoute();
   const isWaiting = !isPageDataError(data) && isWaitingData(data);
-  useAnnouncePage(path, isWaiting);
+  const isUi = !isPageDataError(data) && data.view.mode === "ui";
+  // The ui app's Data page is where the reader supplies the data, so it opens without results.
+  const isWaitingOnPage = isWaiting && !(isUi && path === DATA_PATH);
+  useAnnouncePage(path, isWaitingOnPage);
 
   if (isPageDataError(data)) {
     return <ErrorState message={data.error} />;
   }
 
-  // Every page needs results, so a waiting page links to none of them.
   if (isWaitingData(data)) {
+    // Every page but the ui app's Data page needs results, so a served waiting page links to none.
     return (
-      <Shell header={data.view.header} pages={[]} currentPath={path} served={data.view.served}>
-        <WaitingState waiting={data.waiting} />
+      <Shell
+        header={data.view.header}
+        pages={isUi ? listPages() : []}
+        currentPath={path}
+        served={data.view.served}
+        shouldReloadOnNewData={isUi}
+      >
+        {isWaitingOnPage ? (
+          <WaitingState waiting={data.waiting} />
+        ) : (
+          <ErrorBoundary key={path} subject="This page">
+            <Data view={data.view} results={null} />
+          </ErrorBoundary>
+        )}
       </Shell>
     );
   }
@@ -49,6 +65,7 @@ function Dashboard({ data }: AppProps) {
       currentPath={path}
       classAnchor={query.get("class")}
       served={data.view.served}
+      shouldReloadOnNewData={isUi}
     >
       {Page !== undefined && (
         // Keyed by path, so opening another page clears an earlier page's error.

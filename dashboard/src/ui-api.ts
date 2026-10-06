@@ -16,6 +16,8 @@ export type UiState = {
   readonly verdictCountText: string;
   readonly traceFamilyText: string | null;
   readonly checklistClasses: readonly string[];
+  /** Why the stored checklists could not be loaded; `checklistClasses` is then empty. */
+  readonly checklistErrorText: string | null;
 };
 
 /** The configuration form's edits: a field name to an attribute key, and label choices. */
@@ -85,7 +87,9 @@ export async function readUiState(): Promise<UiState | ApiError> {
     typeof state.span_count_text !== "string" ||
     typeof state.verdict_count_text !== "string" ||
     !isStringOrNull(state.trace_family_text) ||
-    !isStringArray(state.checklist_classes)
+    !isStringArray(state.checklist_classes) ||
+    // Optional, so this page still reads an app from before the field existed.
+    !(state.checklist_error_text === undefined || isStringOrNull(state.checklist_error_text))
   ) {
     return { error: BAD_RESPONSE_TEXT };
   }
@@ -97,6 +101,7 @@ export async function readUiState(): Promise<UiState | ApiError> {
     verdictCountText: state.verdict_count_text,
     traceFamilyText: state.trace_family_text,
     checklistClasses: state.checklist_classes,
+    checklistErrorText: state.checklist_error_text ?? null,
   };
 }
 

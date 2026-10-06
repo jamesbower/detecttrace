@@ -149,3 +149,35 @@ it("says the last update failed and that newer data exists, in that order", asyn
     "Showing data from 2026-10-05 12:00 UTC; the last update failed. New data is available.",
   );
 });
+
+it("reloads by itself on a ui page when newer results exist", async () => {
+  stubFetch(respondWith(status({ generation: 8 })));
+  const reload = vi.fn();
+  vi.stubGlobal("location", { reload });
+  render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+  await waitIntervals(1);
+
+  expect(reload).toHaveBeenCalledOnce();
+});
+
+it("shows no new-data bar on a ui page", async () => {
+  stubFetch(respondWith(status({ generation: 8 })));
+  vi.stubGlobal("location", { reload: vi.fn() });
+  render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+  await waitIntervals(1);
+
+  expect(screen.getByRole("status").textContent).toBe("");
+});
+
+it("never reloads a served page by itself", async () => {
+  stubFetch(respondWith(status({ generation: 8 })));
+  const reload = vi.fn();
+  vi.stubGlobal("location", { reload });
+  render(<StatusBar served={SERVED} />);
+
+  await waitIntervals(1);
+
+  expect(reload).not.toHaveBeenCalled();
+});

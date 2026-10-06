@@ -133,6 +133,7 @@ PAGE_OF = {
     "waiting.counts[].value": "/",
     "waiting.notes[].message": "/",
     "waiting.notes[].hint": "/",
+    "waiting.next_step_text": "/",
 }
 
 # Fields the page reads without printing them. Each one's name must appear in the page code.
@@ -234,8 +235,8 @@ def test_a_skipped_field_is_read_by_the_page_code(path: str) -> None:
 
 
 # The pages whose text is checked: the demo, the demo with every optional field filled, a page
-# from `detecttrace serve`, the page it shows while waiting for data, and a page from
-# `detecttrace ui`.
+# from `detecttrace serve`, the page it shows while waiting for data, and the pages from
+# `detecttrace ui` while waiting and with results.
 
 DEMO_RESULTS = json.loads((ROOT / "tests/fixtures/demo/expected.json").read_text(encoding="utf-8"))
 
@@ -285,6 +286,10 @@ VARIANTS = {
     "waiting": (
         to_view_json(build_waiting_view(WAITING_COUNTS, [WAITING_NOTE], SERVED)),
         lambda: render_waiting_page(WAITING_COUNTS, [WAITING_NOTE], SERVED),
+    ),
+    "ui-waiting": (
+        to_view_json(build_waiting_view(WAITING_COUNTS, [WAITING_NOTE], SERVED, mode="ui")),
+        lambda: render_waiting_page(WAITING_COUNTS, [WAITING_NOTE], SERVED, mode="ui"),
     ),
     "ui": (
         to_view_json(build_served_view(DEMO_RESULTS, SERVED, mode="ui")),

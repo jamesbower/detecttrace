@@ -1,0 +1,143 @@
+.config-step,
+.config-form {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.config-saved:empty {
+  display: none;
+}
+
+.config-run-count {
+  font-size: var(--fs-md);
+}
+
+.config-group {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-4);
+  border: none;
+}
+
+.config-legend {
+  float: left;
+  width: 100%;
+  font-size: var(--fs-lg);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+/* One field per row: label, input and its share text; side by side once there is room. */
+.config-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-4);
+  align-items: center;
+  min-width: 0;
+}
+
+@media (width > 700px) {
+  .config-field {
+    grid-template-columns: minmax(var(--label-min), var(--label-max)) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.config-label {
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.config-input {
+  min-height: var(--touch-target);
+  min-width: 0;
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--control-border);
+  border-radius: var(--r-none);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.config-input:hover {
+  border-color: var(--accent);
+}
+
+/* A missing field is named in the text beside Confirm; the edge only repeats it. */
+.config-field[data-missing="true"] .config-input {
+  border-color: var(--severity-warning);
+}
+
+.config-share {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.config-notes {
+  display: grid;
+  gap: var(--sp-2);
+  max-width: var(--measure);
+  padding-left: var(--sp-5);
+  font-size: var(--fs-sm);
+}
+
+.config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-4);
+}
+
+.config-confirm:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.config-confirm:disabled {
+  cursor: not-allowed;
+}
+
+.config-missing {
+  color: var(--severity-warning);
+  font-size: var(--fs-sm);
+}
+
+.config-error {
+  color: var(--danger);
+}
+
+.config-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+}
+
+.config-summary-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.config-summary-list dt {
+  color: var(--muted);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.config-summary-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

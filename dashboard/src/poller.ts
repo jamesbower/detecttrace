@@ -1,6 +1,7 @@
 // Served pages only: asks the server that sent the page whether newer results exist, and says
-// so. It never reloads by itself, so filters and scroll position stay, and it never reads more
-// into the status than "newer or not" and "did the last update fail".
+// so. A `detecttrace serve` page never reloads by itself, so filters and scroll position stay;
+// a `detecttrace ui` page does (see StatusBar). It never reads more into the status than "newer
+// or not" and "did the last update fail".
 
 export const POLL_MS = 30_000;
 export const NEW_DATA_TEXT = "New data is available.";

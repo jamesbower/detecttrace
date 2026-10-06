@@ -48,3 +48,15 @@
   color: var(--muted);
   font-size: var(--fs-sm);
 }
+
+.waiting-next-step {
+  max-width: var(--measure);
+  font-size: var(--fs-lg);
+}
+
+/* A sentence-long link: tall enough to tap, and its focus ring from base.css. */
+.waiting-next-step a {
+  display: inline-block;
+  min-height: var(--touch-target);
+  padding-block: var(--sp-2);
+}
