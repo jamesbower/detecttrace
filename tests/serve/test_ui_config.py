@@ -7,6 +7,7 @@ import pytest
 from builders import agent_span
 from page_data import read_view
 
+from detecttrace.checklist import ChecklistFileError
 from detecttrace.init_proposal import propose_init
 from detecttrace.model import Verdict, VerdictRow
 from detecttrace.serve.recompute import compute_snapshot
@@ -186,12 +187,14 @@ def test_saving_names_the_checklists_folder_when_it_holds_one(
     assert config.checklists == data_dir.absolute() / CHECKLISTS_FOLDER
 
 
-def test_saving_without_checklists_names_none(demo_store: Store, data_dir: Path) -> None:
+def test_saving_without_checklists_names_the_checklists_folder(
+    demo_store: Store, data_dir: Path
+) -> None:
     (data_dir / CHECKLISTS_FOLDER).mkdir()
 
     config = write_ui_config(demo_store, data_dir, {}, {})
 
-    assert config.checklists is None
+    assert config.checklists == data_dir.absolute() / CHECKLISTS_FOLDER
 
 
 def test_saving_with_a_required_field_missing_raises(
@@ -244,6 +247,26 @@ def test_the_app_without_checklists_loads_none(demo_store: Store, data_dir: Path
     settings = to_recompute_settings(config, data_dir / CONFIG_NAME)
 
     assert settings.checklists == {}
+
+
+def test_the_app_with_an_empty_checklists_folder_names_no_checklist_source(
+    demo_store: Store, data_dir: Path
+) -> None:
+    (data_dir / CHECKLISTS_FOLDER).mkdir()
+    config = write_ui_config(demo_store, data_dir, {}, {})
+
+    settings = to_recompute_settings(config, data_dir / CONFIG_NAME)
+
+    assert settings.checklist_source is None
+
+
+def test_a_hand_named_empty_checklists_folder_is_refused(demo_store: Store, data_dir: Path) -> None:
+    (data_dir / "other").mkdir()
+    config = write_ui_config(demo_store, data_dir, {}, {})
+    config = config.model_copy(update={"checklists": data_dir / "other"})
+
+    with pytest.raises(ChecklistFileError):
+        to_recompute_settings(config, data_dir / CONFIG_NAME)
 
 
 def test_the_app_renders_its_snapshot_as_the_ui_page(

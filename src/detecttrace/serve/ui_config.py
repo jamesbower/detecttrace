@@ -118,8 +118,17 @@ def write_ui_config(
 
 
 def to_recompute_settings(config: UiConfig, config_path: Path) -> RecomputeSettings:
-    """The settings every app recompute uses; raises ChecklistFileError as serve's do."""
-    checklists, checklist_issues = load_run_checklists(config.checklists, config_path)
+    """The settings every app recompute uses; raises ChecklistFileError as serve's do.
+
+    The app's own checklists folder holding no checklist gives none.
+    """
+    folder = config.checklists
+    app_folder = config_path.absolute().parent / CHECKLISTS_FOLDER
+    # The app's folder is empty until a checklist is uploaded; any other folder keeps the
+    # loader's refusal of one without checklists, which catches a mistyped path.
+    if folder == app_folder and not _has_checklists(app_folder):
+        folder = None
+    checklists, checklist_issues = load_run_checklists(folder, config_path)
     return RecomputeSettings(
         config=Config(
             mapping=config.mapping,
@@ -133,8 +142,8 @@ def to_recompute_settings(config: UiConfig, config_path: Path) -> RecomputeSetti
         checklist_issues=checklist_issues,
         config_name=config_path.name,
         checklist_source=None
-        if config.checklists is None
-        else to_source(config.checklists, config_path.absolute().parent),
+        if folder is None
+        else to_source(folder, config_path.absolute().parent),
         traces_source=UI_TRACES_SOURCE,
         verdicts_source=UI_VERDICTS_SOURCE,
         page_mode="ui",
@@ -160,12 +169,11 @@ def _create_ui_draft(
     draft = create_draft(
         proposal, config_path=config_path, traces_path=data_dir, verdicts_path=data_dir
     )
-    # The app never writes an example checklist; checklists are uploaded.
+    # Always named, so a checklist uploaded after saving is used without saving again. The
+    # app never writes an example checklist; checklists are uploaded.
     draft = dataclasses.replace(
         draft,
-        checklists_path=CHECKLISTS_FOLDER
-        if _has_checklists(data_dir / CHECKLISTS_FOLDER)
-        else None,
+        checklists_path=CHECKLISTS_FOLDER,
         example_class=None,
         example_tools=(),
         example_tool_count=0,

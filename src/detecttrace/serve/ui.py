@@ -20,6 +20,8 @@ both stored; saving answers `{"saved_text"}` and starts a recompute. `POST /api/
 takes `{"confirm": true}` and deletes the stored data, the configuration and the checklists.
 """
 
+import os
+import shutil
 import sqlite3
 import tempfile
 import threading
@@ -43,6 +45,7 @@ from detecttrace.dashboard_view import format_count, to_note_view
 from detecttrace.files import write_text_atomically
 from detecttrace.model import InputFileError, Verdict
 from detecttrace.results import to_note_data
+from detecttrace.runconfig import load_ui_config
 from detecttrace.serve.app import (
     IDLE_STATUS,
     MAX_CONCURRENT_INGESTS,
@@ -417,11 +420,46 @@ def _clear_data(state: UiState) -> None:
 
 
 def _save_checklist(state: UiState, file_path: Path) -> UploadReport:
-    report = save_checklist_file(file_path, state.data_dir / CHECKLISTS_FOLDER)
-    # Checklists live outside the store, so the generation is advanced for the recompute to
-    # see the change.
-    state.store.mark_changed()
-    return report
+    """Save the checklist; once configured, recompute with it, or put the folder back as it was."""
+    folder = state.data_dir / CHECKLISTS_FOLDER
+    config_path = state.data_dir / CONFIG_NAME
+    with state.lifecycle_lock:
+        if not config_path.is_file():
+            report = save_checklist_file(file_path, folder)
+            # Checklists live outside the store, so the generation is advanced for the
+            # recompute to see the change.
+            state.store.mark_changed()
+            return report
+        with tempfile.TemporaryDirectory(dir=state.data_dir) as backup_folder:
+            backup = Path(backup_folder)
+            folder.mkdir(parents=True, exist_ok=True)
+            _copy_folder_files(folder, backup)
+            report = save_checklist_file(file_path, folder)
+            # The settings hold the checklists loaded when they were built, so they are built
+            # again; a file that loads alone can still break the folder, as a second file for
+            # its class in a subfolder does, and the next start would refuse that folder.
+            try:
+                settings = to_recompute_settings(load_ui_config(config_path), config_path)
+            except InputFileError as error:
+                _restore_folder_files(folder, backup)
+                raise UploadRefused(str(error)) from None
+        state.configure(settings)
+        return report
+
+
+def _copy_folder_files(folder: Path, backup: Path) -> None:
+    for path in folder.iterdir():
+        if path.is_file() or path.is_symlink():
+            # A link is copied as a link, so restoring it never turns it into a file.
+            shutil.copy2(path, backup / path.name, follow_symlinks=False)
+
+
+def _restore_folder_files(folder: Path, backup: Path) -> None:
+    for path in folder.iterdir():
+        if (path.is_file() or path.is_symlink()) and not os.path.lexists(backup / path.name):
+            path.unlink()
+    for path in backup.iterdir():
+        os.replace(path, folder / path.name)
 
 
 def _read_state_content(state: UiState) -> dict[str, object]:
