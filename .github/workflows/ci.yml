@@ -99,8 +99,9 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run --with playwright playwright install --with-deps chromium
-      # -rs lists any skip, so a missing Playwright can't pass as a green run unnoticed.
-      - run: uv run --with playwright pytest -m browser -rs tests/browser
+      # -rs lists any skip, so a missing Playwright can't pass as a green run unnoticed. Every
+      # browser test runs, including the visible-text parity check outside tests/browser.
+      - run: uv run --with playwright pytest -m browser -rs
 
   container:
     runs-on: ubuntu-latest

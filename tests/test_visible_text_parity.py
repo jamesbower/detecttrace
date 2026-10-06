@@ -1,15 +1,32 @@
+"""The page shows a case ID exactly as the CLI summary's `to_visible_text` writes it.
+
+Runs the built page in a real browser, so it checks the escaping the shipped script does:
+
+    uv run --with playwright pytest -m browser -q tests/test_visible_text_parity.py
+"""
+
+import copy
 import json
-import shutil
-import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from detecttrace.dashboard import render_dashboard, write_dashboard
 from detecttrace.summary import to_visible_text
 
-_ROOT = Path(__file__).resolve().parent.parent
-_SCRIPT = _ROOT / "src" / "detecttrace" / "templates" / "dashboard.js"
+# Playwright is not a project dependency, so Pyright can't see its types; pages and
+# browsers are typed `Any` here.
+sync_api = pytest.importorskip(
+    "playwright.sync_api",
+    reason="Playwright is not installed; run `uv run --with playwright pytest -m browser`",
+)
 
+pytestmark = pytest.mark.browser
+
+_DEMO_RESULTS = json.loads(
+    (Path(__file__).parent / "fixtures" / "demo" / "expected.json").read_text(encoding="utf-8")
+)
 # Only characters both sides can hold: a lone surrogate from JSON stays one in JavaScript,
 # but the Python loader has already replaced it with U+FFFD. Assigned characters only, so
 # the two Unicode databases agree.
@@ -27,23 +44,30 @@ _TRICKY = [
     "\N{ZERO WIDTH NO-BREAK SPACE}case",
     "a\U0001f600b",
     "\U000e0001",
-    "Café é",
+    "Café é",
 ]
 
 
-@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
-def test_case_table_script_escapes_like_to_visible_text() -> None:
-    program = (
-        f"const {{ toVisibleText }} = require({json.dumps(str(_SCRIPT))});"
-        "const input = JSON.parse(require('fs').readFileSync(0, 'utf8'));"
-        "process.stdout.write(JSON.stringify(input.map(toVisibleText)));"
-    )
-    completed = subprocess.run(
-        ["node", "-e", program],
-        input=json.dumps(_TRICKY),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=True,
-    )
-    assert json.loads(completed.stdout) == [to_visible_text(text) for text in _TRICKY]
+def _with_tricky_case_ids() -> Any:
+    """The demo results with the tricky IDs on the cases the table shows first: the newest
+    week's, in column order."""
+    results = copy.deepcopy(_DEMO_RESULTS)
+    rows = results["case_rows"]
+    weeks = [rows["strings"][index] for index in rows["columns"]["week"]]
+    newest = [position for position, week in enumerate(weeks) if week == max(weeks)]
+    for position, case_id in zip(newest, _TRICKY, strict=False):
+        rows["columns"]["case_id"][position] = case_id
+    return results
+
+
+def test_the_case_table_shows_ids_as_to_visible_text_writes_them(tmp_path: Path) -> None:
+    path = tmp_path / "tricky.html"
+    write_dashboard(render_dashboard(_with_tricky_case_ids()), path)
+    with sync_api.sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.goto(path.as_uri() + "#/cases")
+        page.wait_for_selector(".case-toggle")
+        shown = page.locator(".case-toggle .case-cell-text").all_text_contents()
+        browser.close()
+    assert shown[: len(_TRICKY)] == [to_visible_text(text) for text in _TRICKY]
