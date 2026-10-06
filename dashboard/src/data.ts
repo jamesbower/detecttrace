@@ -1,6 +1,6 @@
 // Reads the two JSON blocks the Python side embeds in the page.
 import type { Results } from "./results";
-import type { View, WaitingView } from "./view";
+import type { View, ViewVersion, WaitingView } from "./view";
 
 export type PageData = { readonly view: View; readonly results: Results };
 /** The page `detecttrace serve` shows until a case can be scored: it has no results. */
@@ -9,7 +9,10 @@ export type PageDataError = { readonly error: string };
 
 export const VIEW_BLOCK_ID = "dt-view";
 export const RESULTS_BLOCK_ID = "dt-results";
-const SUPPORTED_VERSION = 1;
+// The view's version is generated with its types, so a new view version fails to compile here.
+const SUPPORTED_VIEW_VERSION: ViewVersion = 1;
+// The results JSON's schema_version, from src/detecttrace/results.py.
+const SUPPORTED_SCHEMA_VERSION = 1;
 
 /**
  * The page's view and results, the view alone on a waiting page (whose results block stays
@@ -20,7 +23,7 @@ export function readPageData(doc: Document): PageData | WaitingData | PageDataEr
   if ("error" in viewBlock) {
     return viewBlock;
   }
-  const viewError = checkVersion(viewBlock.value, VIEW_BLOCK_ID, "view_version");
+  const viewError = checkVersion(viewBlock.value, VIEW_BLOCK_ID, "view_version", SUPPORTED_VIEW_VERSION);
   if (viewError !== null) {
     return viewError;
   }
@@ -33,7 +36,7 @@ export function readPageData(doc: Document): PageData | WaitingData | PageDataEr
   if ("error" in results) {
     return results;
   }
-  const resultsError = checkVersion(results.value, RESULTS_BLOCK_ID, "schema_version");
+  const resultsError = checkVersion(results.value, RESULTS_BLOCK_ID, "schema_version", SUPPORTED_SCHEMA_VERSION);
   if (resultsError !== null) {
     return resultsError;
   }
@@ -70,11 +73,11 @@ function readBlock(doc: Document, id: string): { value: object } | PageDataError
   return { value: parsed };
 }
 
-function checkVersion(value: object, id: string, key: string): PageDataError | null {
+function checkVersion(value: object, id: string, key: string, supported: number): PageDataError | null {
   const version: unknown = (value as Record<string, unknown>)[key];
-  if (version === SUPPORTED_VERSION) {
+  if (version === supported) {
     return null;
   }
   const found = version === undefined ? `no ${key}` : `${key} ${JSON.stringify(version)}`;
-  return { error: `The "${id}" data block has ${found}; this page reads version ${SUPPORTED_VERSION}.` };
+  return { error: `The "${id}" data block has ${found}; this page reads version ${supported}.` };
 }

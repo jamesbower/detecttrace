@@ -220,3 +220,12 @@ it("asks the server for its status on a served page", async () => {
 
   expect(fetchMock).toHaveBeenCalledOnce();
 });
+
+it("shows an alert, not a blank page, when the shell itself fails to render", () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const brokenView = { ...DEMO_VIEW, header: undefined } as unknown as typeof DEMO_VIEW;
+
+  render(<App data={{ view: brokenView, results: DEMO_RESULTS }} />);
+
+  expect(screen.getByRole("alert").textContent).toMatch(/^The dashboard could not be shown: /);
+});

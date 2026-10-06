@@ -390,7 +390,10 @@ def _read_page(store: Store) -> str:
     if snapshot is not None:
         return snapshot.html
     counts = store.read_counts()
-    # Generation 0 and no time: any first snapshot reads as newer, so the page offers a reload.
+    # Generation 0 and no time. A snapshot is computed only after a write, which advances the
+    # generation, so the first snapshot's higher generation reads as newer and the page offers
+    # a reload. A snapshot at generation 0 would not: with no time on the page, the tie never
+    # breaks.
     served = ServedPage(generation=0, updated_at="", held_back_cases=0)
     waiting = WaitingCounts(
         span_count=counts.span_count,

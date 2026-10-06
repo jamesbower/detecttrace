@@ -4,7 +4,7 @@ version = "0.1.0.dev0"
 description = "Agent assurance for AI SOC agents: compare agent traces with analyst verdicts."
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES"]
 authors = [{ name = "James Bower" }]
 keywords = [
     "ai-agents",

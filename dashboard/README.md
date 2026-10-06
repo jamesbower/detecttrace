@@ -4,7 +4,11 @@ The DetectTrace dashboard is a React app. Vite builds it into one self-contained
 
 ## Requirements
 
-Node 22.22.2 or later, with npm.
+Node 22.22.2 exactly, with npm: the version CI builds with, pinned in `.nvmrc` and in `engines` in `package.json`.
+
+## Licences
+
+The built page inlines React, React DOM and scheduler, all MIT. Their licence texts are in `THIRD_PARTY_NOTICES` at the repository root, which ships in the wheel and the sdist beside `LICENSE`. When a production dependency is added or updated, add or update its licence text there; `node scripts/check-licences.mjs` checks every production dependency's licence against the allow-list.
 
 ## Commands
 

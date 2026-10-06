@@ -29,7 +29,15 @@ IMAGE = f"detecttrace-test-{RUN_ID}"
 BUILD_IMAGE = f"detecttrace-test-{RUN_ID}-build"
 NON_ROOT_UID = "10001"
 # What .dockerignore lets into the build stage; a new file at the repo root must not appear here.
-BUILD_CONTEXT = ["CHANGELOG.md", "LICENSE", "README.md", "pyproject.toml", "src", "uv.lock"]
+BUILD_CONTEXT = [
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY_NOTICES",
+    "pyproject.toml",
+    "src",
+    "uv.lock",
+]
 
 
 def _read_lines(name: str) -> list[str]:

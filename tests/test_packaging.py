@@ -73,12 +73,14 @@ EXPECTED_WHEEL = PACKAGE_FILES | {
     f"{DIST_INFO}/WHEEL",
     f"{DIST_INFO}/entry_points.txt",
     f"{DIST_INFO}/licenses/LICENSE",
+    f"{DIST_INFO}/licenses/THIRD_PARTY_NOTICES",
 }
 EXPECTED_SDIST = {f"src/{path}" for path in PACKAGE_FILES} | {
     "CHANGELOG.md",
     "LICENSE",
     "PKG-INFO",
     "README.md",
+    "THIRD_PARTY_NOTICES",
     "pyproject.toml",
 }
 
@@ -107,7 +109,7 @@ def test_wheel_holds_exactly_the_package_and_its_metadata(dist: Path) -> None:
     assert names == EXPECTED_WHEEL
 
 
-def test_sdist_holds_exactly_the_source_readme_license_and_changelog(dist: Path) -> None:
+def test_sdist_holds_exactly_the_source_readme_licences_and_changelog(dist: Path) -> None:
     prefix = f"detecttrace-{VERSION}/"
     with tarfile.open(dist / f"detecttrace-{VERSION}.tar.gz") as sdist:
         names = {

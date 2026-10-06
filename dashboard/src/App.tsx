@@ -10,8 +10,19 @@ import { useRoute } from "./router";
 
 import type { PageData, PageDataError, WaitingData } from "./data";
 
-/** The dashboard. `data` is read once, before the first render, by the entry point. */
-export function App({ data }: { data: PageData | WaitingData | PageDataError }) {
+type AppProps = { data: PageData | WaitingData | PageDataError };
+
+/** The dashboard. `data` is read once, before the first render, by the entry point. A render
+ * failure anywhere, the shell included, shows an alert instead of a blank page. */
+export function App({ data }: AppProps) {
+  return (
+    <ErrorBoundary subject="The dashboard">
+      <Dashboard data={data} />
+    </ErrorBoundary>
+  );
+}
+
+function Dashboard({ data }: AppProps) {
   const { path, query } = useRoute();
   const isWaiting = !isPageDataError(data) && isWaitingData(data);
   useAnnouncePage(path, isWaiting);
