@@ -52,6 +52,21 @@ const UI_STATE = {
   verdict_count_text: "No verdicts stored.",
   trace_family_text: "OTLP traces",
   checklist_classes: ["phishing", "malware"],
+  checklist_error_text: null,
+};
+
+const PROPOSAL = {
+  fields: [{ name: "case_id", label: "Case ID", value: "alert.id", share_text: "201 of 201 runs (100%)", is_missing: false }],
+  suggestions: ["alert.id"],
+  label_map: {},
+  agent_label_map: {},
+  unmapped_analyst_labels: [],
+  unmapped_agent_labels: [],
+  verdict_choices: ["true_positive", "false_positive", "benign"],
+  notes: [],
+  missing_required: [],
+  missing_text: null,
+  agent_run_count_text: "201 agent runs found.",
 };
 
 afterEach(() => {
@@ -235,6 +250,47 @@ describe("ui mode", () => {
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear all data" }));
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toContain("/api/data/clear");
+  });
+
+  it("shows why the stored checklists could not be loaded", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ ...UI_STATE, checklist_classes: [], checklist_error_text: "phishing.yaml is not valid YAML." }),
+          { status: 200 },
+        ),
+      ),
+    );
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect(await screen.findByText("phishing.yaml is not valid YAML.")).not.toBeNull();
+  });
+
+  it("leaves out the configuration step until it can be configured", async () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    await screen.findByText("2,129 spans stored.");
+
+    expect(screen.queryByRole("heading", { name: "2 · Configuration" })).toBeNull();
+  });
+
+  it("shows the configuration step once traces and verdicts are stored", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        new Response(JSON.stringify(url === "/api/ui/state" ? { ...UI_STATE, can_configure: true } : PROPOSAL), {
+          status: 200,
+        }),
+      ),
+    );
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect(await screen.findByText("201 agent runs found.")).not.toBeNull();
+  });
+
+  it("leaves out the data notes before there are results", async () => {
+    render(<Data view={UI_VIEW} results={null} />);
+    await screen.findByText("2,129 spans stored.");
+
+    expect(screen.queryByRole("heading", { name: "3 · Data notes" })).toBeNull();
   });
 
   it("shows why a clear failed and stays on the page", async () => {

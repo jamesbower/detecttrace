@@ -121,7 +121,7 @@ export function UploadCard({ kind, title, acceptText, accept, onUploaded }: Uplo
               ) : (
                 <>
                   <p className="upload-stored">{outcome.result.storedText}</p>
-                  <NoteList notes={outcome.result.problems} />
+                  <NoteList notes={outcome.result.problems} headingLevel={4} />
                 </>
               )}
             </li>

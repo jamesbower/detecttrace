@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POLL_MS } from "../poller";
+import { setReloadHeld } from "../reload-hold";
 import { StatusBar } from "./StatusBar";
 
 const SERVED = { generation: 7, updated_at: "2026-10-05T12:00:00.000000Z", held_back_text: null };
@@ -148,4 +149,91 @@ it("says the last update failed and that newer data exists, in that order", asyn
   expect(screen.getByRole("status").querySelector("p")?.textContent).toBe(
     "Showing data from 2026-10-05 12:00 UTC; the last update failed. New data is available.",
   );
+});
+
+it("reloads by itself on a ui page when newer results exist", async () => {
+  stubFetch(respondWith(status({ generation: 8 })));
+  const reload = vi.fn();
+  vi.stubGlobal("location", { reload });
+  render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+  await waitIntervals(1);
+
+  expect(reload).toHaveBeenCalledOnce();
+});
+
+it("shows no new-data bar on a ui page", async () => {
+  stubFetch(respondWith(status({ generation: 8 })));
+  vi.stubGlobal("location", { reload: vi.fn() });
+  render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+  await waitIntervals(1);
+
+  expect(screen.getByRole("status").textContent).toBe("");
+});
+
+it("never reloads a served page by itself", async () => {
+  stubFetch(respondWith(status({ generation: 8 })));
+  const reload = vi.fn();
+  vi.stubGlobal("location", { reload });
+  render(<StatusBar served={SERVED} />);
+
+  await waitIntervals(1);
+
+  expect(reload).not.toHaveBeenCalled();
+});
+
+describe("a held reload", () => {
+  afterEach(() => {
+    setReloadHeld(false);
+  });
+
+  it("offers the reload instead on a ui page with unsaved work", async () => {
+    stubFetch(respondWith(status({ generation: 8 })));
+    vi.stubGlobal("location", { reload: vi.fn() });
+    setReloadHeld(true);
+    render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+    await waitIntervals(1);
+
+    expect(screen.getByRole("status").querySelector("p")?.textContent).toBe("New data is available.");
+  });
+
+  it("does not reload while unsaved work holds it", async () => {
+    stubFetch(respondWith(status({ generation: 8 })));
+    const reload = vi.fn();
+    vi.stubGlobal("location", { reload });
+    setReloadHeld(true);
+    render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+    await waitIntervals(1);
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("reloads once the hold ends", async () => {
+    stubFetch(respondWith(status({ generation: 8 })));
+    const reload = vi.fn();
+    vi.stubGlobal("location", { reload });
+    setReloadHeld(true);
+    render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+    await waitIntervals(1);
+
+    act(() => setReloadHeld(false));
+
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("does not reload when a hold ends with no newer results", async () => {
+    stubFetch(respondWith(status({})));
+    const reload = vi.fn();
+    vi.stubGlobal("location", { reload });
+    setReloadHeld(true);
+    render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+    await waitIntervals(1);
+
+    act(() => setReloadHeld(false));
+
+    expect(reload).not.toHaveBeenCalled();
+  });
 });

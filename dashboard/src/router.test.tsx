@@ -3,7 +3,7 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { registerPage, resetRegistryForTests } from "./registry";
-import { parseHash, toHash, useRoute } from "./router";
+import { parseHash, replaceEmptyHash, toHash, useRoute } from "./router";
 
 const PATHS = ["/", "/versions", "/cases", "/data"];
 
@@ -188,5 +188,27 @@ describe("useRoute", () => {
     await userEvent.click(screen.getByRole("button", { name: "Pick class" }));
 
     expect(window.location.hash).toBe("#/?class=class-1");
+  });
+});
+
+describe("replaceEmptyHash", () => {
+  afterEach(() => {
+    window.history.replaceState(null, "", "#");
+  });
+
+  it("opens the path when the address names no page", () => {
+    window.history.replaceState(null, "", window.location.pathname);
+
+    replaceEmptyHash("/data");
+
+    expect(window.location.hash).toBe("#/data");
+  });
+
+  it("keeps a path the address names", () => {
+    window.history.replaceState(null, "", "#/");
+
+    replaceEmptyHash("/data");
+
+    expect(window.location.hash).toBe("#/");
   });
 });

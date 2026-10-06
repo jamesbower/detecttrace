@@ -32,6 +32,7 @@ const STATE = {
   verdict_count_text: "201 verdicts stored.",
   trace_family_text: "OTLP traces",
   checklist_classes: ["phishing"],
+  checklist_error_text: null,
 };
 
 const PROPOSAL = {
@@ -158,7 +159,26 @@ describe("readUiState", () => {
       verdictCountText: "201 verdicts stored.",
       traceFamilyText: "OTLP traces",
       checklistClasses: ["phishing"],
+      checklistErrorText: null,
     });
+  });
+
+  it("returns why the checklists could not be loaded", async () => {
+    mockFetch(200, { ...STATE, checklist_classes: [], checklist_error_text: "phishing.yaml is not valid YAML." });
+
+    expect(await readUiState()).toMatchObject({ checklistErrorText: "phishing.yaml is not valid YAML." });
+  });
+
+  it("reads a state without the checklist error as having none", async () => {
+    mockFetch(200, { ...STATE, checklist_error_text: undefined });
+
+    expect(await readUiState()).toMatchObject({ checklistErrorText: null });
+  });
+
+  it("returns an error for a checklist error that is not text", async () => {
+    mockFetch(200, { ...STATE, checklist_error_text: 3 });
+
+    expect(await readUiState()).toEqual({ error: BAD_RESPONSE_TEXT });
   });
 
   it("returns an error for a state with a missing count", async () => {

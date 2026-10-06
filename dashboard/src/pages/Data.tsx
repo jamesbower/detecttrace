@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ConfigStep } from "../components/ConfigStep";
 import { NoteList } from "../components/NoteList";
 import { PageHead } from "../components/PageHead";
 import { PanelSlot } from "../components/PanelSlot";
@@ -8,29 +9,39 @@ import { WarnIcon } from "../components/WarnIcon";
 import { clearData, readUiState } from "../ui-api";
 import "./Data.css";
 
-import type { PageProps } from "../registry";
+import type { ReactNode } from "react";
+import type { Results } from "../results";
 import type { ApiError, UiState } from "../ui-api";
+import type { View } from "../view";
 
-export function Data({ view, results }: PageProps) {
-  const notes = (
-    <>
-      <ul className="coverage-list" aria-label="Coverage" data-mode={view.mode}>
-        {view.coverage.map((line, index) => (
-          // The view's coverage lines are fixed for the page's life, so the index is a stable key.
-          <li key={index} className="panel coverage-line" data-low={line.is_low}>
-            {line.is_low && <WarnIcon className="coverage-icon" />}
-            <span>
-              {line.is_low && <strong>Warning: </strong>}
-              {line.text}
-              {line.hint !== null && <span className="coverage-hint">{line.hint}</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <NoteList notes={view.notes} />
-      <PanelSlot name="notes-after" view={view} results={results} />
-    </>
-  );
+type DataProps = {
+  view: View;
+  /** Null on the ui app's waiting page, which opens here before anything can be scored. */
+  results: Results | null;
+};
+
+export function Data({ view, results }: DataProps) {
+  // The data notes describe a run's results, so the ui app's waiting page has none to show.
+  const notes =
+    results === null ? null : (
+      <>
+        <ul className="coverage-list" aria-label="Coverage" data-mode={view.mode}>
+          {view.coverage.map((line, index) => (
+            // The view's coverage lines are fixed for the page's life, so the index is a stable key.
+            <li key={index} className="panel coverage-line" data-low={line.is_low}>
+              {line.is_low && <WarnIcon className="coverage-icon" />}
+              <span>
+                {line.is_low && <strong>Warning: </strong>}
+                {line.text}
+                {line.hint !== null && <span className="coverage-hint">{line.hint}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <NoteList notes={view.notes} />
+        <PanelSlot name="notes-after" view={view} results={results} />
+      </>
+    );
   return (
     <>
       <PageHead
@@ -38,30 +49,46 @@ export function Data({ view, results }: PageProps) {
         title="Data"
         description="Input problems found while reading traces and verdicts, grouped, with how to fix them. Up to three examples each."
       />
-      {view.mode === "ui" ? (
-        <div className="data-steps">
-          <UploadStep />
-          {/* Step 2, the configuration (M9 Task 13), goes here. */}
-          <section className="data-step" aria-labelledby="data-step-notes">
-            <h2 id="data-step-notes" className="data-step-title">
-              3 · Data notes
-            </h2>
-            {notes}
-          </section>
-        </div>
-      ) : (
-        notes
-      )}
+      {view.mode === "ui" ? <UiSteps notes={notes} /> : notes}
     </>
   );
 }
 
-function UploadStep() {
+// The steps keep their numbers when one is not shown yet, so "3" always means the data notes.
+function UiSteps({ notes }: { notes: ReactNode }) {
   const [state, setState] = useState<UiState | ApiError | null>(null);
   const refreshState = useCallback(() => {
     void readUiState().then(setState);
   }, []);
   useEffect(refreshState, [refreshState]);
+  const isReady = state !== null && !("error" in state);
+  return (
+    <div className="data-steps">
+      <UploadStep state={state} onUploaded={refreshState} />
+      {isReady && state.canConfigure && (
+        <section className="data-step" aria-labelledby="data-step-config">
+          <h2 id="data-step-config" className="data-step-title">
+            2 · Configuration
+          </h2>
+          <ConfigStep
+            isConfigured={state.isConfigured}
+            totalsKey={[state.spanCountText, state.verdictCountText, ...state.checklistClasses].join("\n")}
+          />
+        </section>
+      )}
+      {notes !== null && (
+        <section className="data-step" aria-labelledby="data-step-notes">
+          <h2 id="data-step-notes" className="data-step-title">
+            3 · Data notes
+          </h2>
+          {notes}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function UploadStep({ state, onUploaded }: { state: UiState | ApiError | null; onUploaded: () => void }) {
   return (
     <section className="data-step" aria-labelledby="data-step-upload">
       <h2 id="data-step-upload" className="data-step-title">
@@ -73,15 +100,15 @@ function UploadStep() {
           title="Traces"
           acceptText=".jsonl, .json, .gz, .zst"
           accept=".jsonl,.json,.gz,.zst"
-          onUploaded={refreshState}
+          onUploaded={onUploaded}
         />
-        <UploadCard kind="verdicts" title="Verdicts" acceptText=".csv" accept=".csv" onUploaded={refreshState} />
+        <UploadCard kind="verdicts" title="Verdicts" acceptText=".csv" accept=".csv" onUploaded={onUploaded} />
         <UploadCard
           kind="checklists"
           title="Checklists"
           acceptText=".yaml, .yml"
           accept=".yaml,.yml"
-          onUploaded={refreshState}
+          onUploaded={onUploaded}
         />
       </div>
       <div className="panel upload-totals">
@@ -121,6 +148,9 @@ function UploadTotals({ state }: { state: UiState | ApiError | null }) {
             </div>
           </dl>
         ))}
+      {state !== null && !("error" in state) && state.checklistErrorText !== null && (
+        <p className="upload-totals-error">{state.checklistErrorText}</p>
+      )}
     </div>
   );
 }

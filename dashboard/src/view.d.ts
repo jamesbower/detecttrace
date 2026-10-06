@@ -192,6 +192,7 @@ export type WaitingNoteView = {
 export type WaitingView = {
   readonly counts: ReadonlyArray<CountView>;
   readonly notes: ReadonlyArray<WaitingNoteView>;
+  readonly next_step_text: string | null;
 };
 
 export type DashboardView = {

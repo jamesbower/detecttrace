@@ -1,9 +1,11 @@
+import { DATA_PATH } from "../router";
 import { PageHead } from "./PageHead";
 import "./WaitingState.css";
 
 import type { WaitingView } from "../view";
 
-/** What `detecttrace serve` has received so far, shown until at least one case can be scored. */
+/** What `detecttrace serve` or `detecttrace ui` has received so far, shown until at least one
+ * case can be scored. */
 export function WaitingState({ waiting }: { waiting: WaitingView }) {
   return (
     <>
@@ -12,6 +14,11 @@ export function WaitingState({ waiting }: { waiting: WaitingView }) {
         title="Nothing to score yet"
         description="No case has both a settled trace and an analyst verdict yet, so there is nothing to score."
       />
+      {waiting.next_step_text !== null && (
+        <p className="waiting-next-step">
+          <a href={`#${DATA_PATH}`}>{waiting.next_step_text}</a>
+        </p>
+      )}
       <dl className="waiting-counts">
         {waiting.counts.map((count) => (
           <div key={count.label} className="waiting-count">

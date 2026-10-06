@@ -16,12 +16,22 @@ type ShellProps = {
   classAnchor?: string | null;
   /** Set only on a page from `detecttrace serve`. */
   served?: ServedView | null;
+  /** Set in `detecttrace ui`, where the reader caused any newer results. */
+  shouldReloadOnNewData?: boolean;
   children: React.ReactNode;
 };
 
 export const MAIN_ID = "main-content";
 
-export function Shell({ header, pages, currentPath, classAnchor = null, served = null, children }: ShellProps) {
+export function Shell({
+  header,
+  pages,
+  currentPath,
+  classAnchor = null,
+  served = null,
+  shouldReloadOnNewData = false,
+  children,
+}: ShellProps) {
   const mainRef = useRef<HTMLElement>(null);
 
   // The hash holds the route, so following the link's own #main-content would leave the page.
@@ -44,7 +54,7 @@ export function Shell({ header, pages, currentPath, classAnchor = null, served =
         <p className="shell-brand">{header.title}</p>
         {served !== null && served.held_back_text !== null && <p className="shell-note">{served.held_back_text}</p>}
         {children}
-        <StatusBar served={served} />
+        <StatusBar served={served} shouldReloadOnNewData={shouldReloadOnNewData} />
       </main>
       <footer className="shell-footer">
         <p>{`${header.generator_text} ${header.footer_text}`}</p>
