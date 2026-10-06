@@ -1,4 +1,4 @@
-# DetectTrace POC
+# DetectTrace
 
 Agent assurance for AI SOC agents. DetectTrace reads your agent's OpenTelemetry traces and your analysts' verdicts, then shows how the agent compares with the analysts, per alert class and per prompt version, and which investigation steps the agent skips.
 
@@ -16,7 +16,7 @@ One agreement number hides three problems:
 
 The most costly mistake is also the one agreement hides best: the agent closes a real attack as benign.
 
-## What the POC gives you
+## What DetectTrace gives you
 
 A command-line tool that turns traces and verdicts into a view that goes beyond one agreement number. Run it on files, as a local app in your browser, or as a service that your Collector feeds.
 
