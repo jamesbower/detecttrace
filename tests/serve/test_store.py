@@ -713,6 +713,99 @@ def test_later_snapshot_replaces_the_earlier(store: Store) -> None:
     assert store.read_snapshot() == Snapshot(2, 20, "new", "{}")
 
 
+# Clearing, changes and the trace family
+
+
+def fill_store(store: Store) -> None:
+    store.add_spans([make_span()], [Issue(IssueKind.CONFLICTING_DUPLICATE_SPAN, "x", "y")])
+    store.put_verdicts([make_verdict(label="TP")], "analysts")
+    store.put_verdicts([make_verdict(label="FP")], "analysts")
+    store.write_snapshot(Snapshot(3, 10, "<html>", "{}"))
+    store.set_trace_family("langfuse")
+
+
+def test_clear_removes_spans_verdicts_and_issues(store: Store) -> None:
+    fill_store(store)
+
+    store.clear()
+
+    inputs = store.read_inputs()
+    assert (inputs.spans, inputs.verdict_rows, inputs.issues) == ([], [], [])
+
+
+@pytest.mark.parametrize(
+    "table", ["spans", "resources", "verdicts", "verdict_history", "ingest_issues", "snapshot"]
+)
+def test_clear_empties_every_data_table(store: Store, db_path: Path, table: str) -> None:
+    fill_store(store)
+
+    store.clear()
+
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute(f"SELECT count(*) FROM {table}").fetchone() == (0,)
+
+
+def test_clear_removes_the_snapshot(store: Store) -> None:
+    fill_store(store)
+
+    store.clear()
+
+    assert store.read_snapshot() is None
+
+
+def test_clear_advances_the_generation(store: Store) -> None:
+    fill_store(store)
+
+    store.clear()
+
+    assert store.generation() == 4
+
+
+def test_clear_forgets_the_trace_family(store: Store) -> None:
+    fill_store(store)
+
+    store.clear()
+
+    assert store.read_trace_family() is None
+
+
+def test_mark_changed_advances_the_generation(store: Store) -> None:
+    store.mark_changed()
+
+    assert store.generation() == 1
+
+
+def test_mark_changed_changes_no_data(store: Store) -> None:
+    fill_store(store)
+    before = store.read_inputs()
+
+    store.mark_changed()
+
+    after = store.read_inputs()
+    assert (after.spans, after.verdict_rows, after.issues, store.read_snapshot()) == (
+        before.spans,
+        before.verdict_rows,
+        before.issues,
+        Snapshot(3, 10, "<html>", "{}"),
+    )
+
+
+def test_new_store_has_no_trace_family(store: Store) -> None:
+    assert store.read_trace_family() is None
+
+
+def test_trace_family_round_trips(store: Store) -> None:
+    store.set_trace_family("otlp")
+
+    assert store.read_trace_family() == "otlp"
+
+
+def test_setting_the_trace_family_leaves_the_generation(store: Store) -> None:
+    store.set_trace_family("otlp")
+
+    assert store.generation() == 0
+
+
 # Migrations and integrity
 
 

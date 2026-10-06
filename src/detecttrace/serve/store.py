@@ -18,13 +18,16 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from detecttrace.model import Issue, IssueKind, Span, VerdictRow
 
 SCHEMA_VERSION = 1
 # Spans and parser issues from the OTLP endpoint have no file to name.
 INGEST_SUBJECT = "OTLP/HTTP ingest"
+
+# The trace formats that can share one store: OTLP JSON and JSON Lines hold the same spans.
+TraceFamily = Literal["otlp", "langfuse"]
 
 
 class StoreVersionError(Exception):
@@ -204,6 +207,37 @@ class Store:
             if _count_issues(self._connection, issues, now):
                 _advance_generation(self._connection, now)
 
+    def clear(self) -> None:
+        """Delete all input, issues, the snapshot and the trace family, in one transaction.
+
+        The generation advances, so the worker recomputes from the empty input.
+        """
+        with self._write() as now:
+            # Spans first: each one references a resource row.
+            for table in (
+                "spans",
+                "resources",
+                "verdicts",
+                "verdict_history",
+                "ingest_issues",
+                "snapshot",
+            ):
+                self._connection.execute(f"DELETE FROM {table}")
+            self._connection.execute("DELETE FROM meta WHERE key = 'trace_family'")
+            _advance_generation(self._connection, now)
+
+    def mark_changed(self) -> None:
+        """Advance the generation alone: a configuration change needs a recompute."""
+        with self._write() as now:
+            _advance_generation(self._connection, now)
+
+    def set_trace_family(self, family: TraceFamily) -> None:
+        """Record the format of the stored spans. It changes no input, so the generation stays."""
+        with self._write():
+            self._connection.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('trace_family', ?)", (family,)
+            )
+
     def read_inputs(self) -> StoredInputs:
         """Read everything the pipeline needs, from one consistent snapshot of the database."""
         with self._read() as connection:
@@ -265,6 +299,12 @@ class Store:
                 "SELECT generation, finished_at_ns, html, results_json FROM snapshot"
             ).fetchone()
         return None if row is None else Snapshot(*row)
+
+    def read_trace_family(self) -> TraceFamily | None:
+        """Return the format recorded by set_trace_family, or None if none is recorded."""
+        with self._read() as connection:
+            row = connection.execute("SELECT value FROM meta WHERE key = 'trace_family'").fetchone()
+        return None if row is None else row[0]
 
     def generation(self) -> int:
         with self._read() as connection:
