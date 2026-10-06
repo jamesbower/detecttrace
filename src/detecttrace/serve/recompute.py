@@ -31,6 +31,7 @@ from pathlib import Path
 
 from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import Checklist
+from detecttrace.config import Config
 from detecttrace.dashboard import render_dashboard, render_waiting_page
 from detecttrace.model import Issue, IssueKind
 from detecttrace.pipeline import load_run_checklists, run_stages, to_source
@@ -58,11 +59,15 @@ class RecomputeOutcome:
 class RecomputeSettings:
     """What the server read at startup that every run uses; it is pickled to the worker."""
 
-    config: ServeConfig
+    config: Config  # the mapping and the label maps, as the verdict API applies them
+    settle_seconds: int
+    max_detail_cases: int
     checklists: dict[str, Checklist]
     checklist_issues: list[Issue]
     config_name: str  # the configuration file's name, as the page's source names it
     checklist_source: str | None  # the checklist folder relative to the configuration
+    traces_source: str  # where the page's source says the traces came from
+    verdicts_source: str
 
 
 def load_recompute_settings(config: ServeConfig, config_path: Path) -> RecomputeSettings:
@@ -70,13 +75,21 @@ def load_recompute_settings(config: ServeConfig, config_path: Path) -> Recompute
     checklists, checklist_issues = load_run_checklists(config.checklists, config_path)
     folder = config_path.absolute().parent
     return RecomputeSettings(
-        config=config,
+        config=Config(
+            mapping=config.mapping,
+            label_map=config.label_map,
+            agent_label_map=config.agent_label_map,
+        ),
+        settle_seconds=config.serve.settle_seconds,
+        max_detail_cases=config.dashboard.max_detail_cases,
         checklists=checklists,
         checklist_issues=checklist_issues,
         config_name=config_path.name,
         checklist_source=None
         if config.checklists is None
         else to_source(config.checklists, folder),
+        traces_source=TRACES_SOURCE,
+        verdicts_source=VERDICTS_SOURCE,
     )
 
 
@@ -85,14 +98,13 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
 
     `now_ns` is the cut-off for settling and the time the snapshot reports as its own.
     """
-    config = settings.config
     store = Store.open_read_only(database)
     try:
         inputs = store.read_inputs()
     finally:
         store.close()
-    trace_cases, case_issues = build_trace_cases(inputs.spans, config.mapping)
-    settle_ns = config.serve.settle_seconds * _NS_PER_SECOND
+    trace_cases, case_issues = build_trace_cases(inputs.spans, settings.config.mapping)
+    settle_ns = settings.settle_seconds * _NS_PER_SECOND
     settled = [case for case in trace_cases if now_ns - case.end_ns >= settle_ns]
     held_back = [case for case in trace_cases if now_ns - case.end_ns < settle_ns]
     held_back_ids = {case.case_id for case in held_back}
@@ -111,8 +123,8 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
         if case.end_ns - now_ns > settle_ns
     )
     source = {
-        "traces": TRACES_SOURCE,
-        "verdicts": VERDICTS_SOURCE,
+        "traces": settings.traces_source,
+        "verdicts": settings.verdicts_source,
         "checklists": settings.checklist_source,
         "config": settings.config_name,
     }
@@ -120,10 +132,10 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
         settled,
         verdict_rows,
         settings.checklists,
-        config,
+        settings.config,
         issues=issues,
         source=source,
-        max_detail_cases=config.dashboard.max_detail_cases,
+        max_detail_cases=settings.max_detail_cases,
         config_name=settings.config_name,
         # One row per repeated issue in the store; counting it as one would hide a flood.
         issue_counts=[stored.count for stored in inputs.issues],
@@ -157,7 +169,7 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
         **run.results,
         "served": {
             "generation": inputs.generation,
-            "settle_seconds": config.serve.settle_seconds,
+            "settle_seconds": settings.settle_seconds,
             "held_back_cases": len(held_back_ids),
         },
     }

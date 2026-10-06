@@ -4,6 +4,7 @@ import re
 import shutil
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ProcessPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -991,6 +992,16 @@ def test_the_served_results_name_where_the_input_came_from(
         "checklists": None,
         "config": "serve.yaml",
     }
+
+
+def test_the_served_results_name_the_traces_source_the_settings_give(
+    tmp_path: Path, boundary_store: Store
+) -> None:
+    settings = replace(to_settings(write_serve_config(tmp_path)), traces_source="uploaded traces")
+
+    outcome = compute_snapshot(tmp_path / "detecttrace.db", settings, LATE_NS)
+
+    assert json.loads(outcome.snapshot.results_json)["source"]["traces"] == "uploaded traces"
 
 
 def test_the_served_results_say_what_was_held_back(tmp_path: Path, boundary_store: Store) -> None:
