@@ -25,15 +25,18 @@ from detecttrace.init_writer import (
     RoundTripError,
     apply_overrides,
     check_round_trip,
+    check_ui_round_trip,
     choose_example_class,
     create_draft,
     render_config_yaml,
     render_example_checklist,
+    render_ui_config_yaml,
+    set_label,
     to_checklist_file_name,
 )
 from detecttrace.model import Verdict
 from detecttrace.pipeline import run_check
-from detecttrace.runconfig import load_run_config
+from detecttrace.runconfig import UiConfig, load_run_config, to_ui_config
 from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
 from detecttrace.yaml12 import parse_yaml12
@@ -699,3 +702,55 @@ def test_demo_config_scores_the_same_cases_as_the_demo(
     expected = run_check(load_run_config(demo_path), demo_path).case_count
 
     assert run_check(load_run_config(config_path), config_path).case_count == expected
+
+
+# The local app's configuration
+
+
+def load_ui(text: str) -> UiConfig:
+    return to_ui_config(parse(text), Path("detecttrace.yaml"))
+
+
+def test_demo_ui_config_passes_the_round_trip_check(demo_draft: tuple[Path, InitDraft]) -> None:
+    _, created = demo_draft
+
+    check_ui_round_trip(render_ui_config_yaml(created), created)
+
+
+@pytest.mark.parametrize("key", ["traces", "verdicts", "output"])
+def test_ui_config_names_no_inputs_or_output(demo_draft: tuple[Path, InitDraft], key: str) -> None:
+    _, created = demo_draft
+
+    assert key not in parse(render_ui_config_yaml(created))
+
+
+def test_ui_config_header_names_the_ui_command() -> None:
+    text = render_ui_config_yaml(draft())
+
+    assert text.startswith("# Configuration written by `detecttrace ui`.")
+
+
+def test_ui_config_keeps_an_override(demo_draft: tuple[Path, InitDraft]) -> None:
+    _, created = demo_draft
+
+    edited = apply_overrides(created, ["mapping.case_id=x.case"])
+
+    assert load_ui(render_ui_config_yaml(edited)).mapping.case_id == "x.case"
+
+
+def test_ui_config_keeps_a_set_label(demo_draft: tuple[Path, InitDraft]) -> None:
+    _, created = demo_draft
+
+    edited = set_label(created, "label_map", "Escalated", Verdict.TRUE_POSITIVE)
+
+    assert load_ui(render_ui_config_yaml(edited)).label_map["escalated"] == Verdict.TRUE_POSITIVE
+
+
+def test_ui_round_trip_check_rejects_the_run_configuration() -> None:
+    with pytest.raises(RoundTripError, match="does not load"):
+        check_ui_round_trip(render_config_yaml(BASE), BASE)
+
+
+def test_ui_round_trip_check_rejects_a_changed_value() -> None:
+    with pytest.raises(RoundTripError, match="different values"):
+        check_ui_round_trip(render_ui_config_yaml(BASE), draft(checklists_path="other"))

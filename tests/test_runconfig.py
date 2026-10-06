@@ -5,7 +5,7 @@ import pytest
 
 from detecttrace.config import Config, MappingConfig
 from detecttrace.model import InputFileError, Verdict
-from detecttrace.runconfig import ConfigFileError, RunConfig, load_run_config
+from detecttrace.runconfig import ConfigFileError, RunConfig, load_run_config, load_ui_config
 
 APPENDIX_EXAMPLE = """\
 # detecttrace.yaml
@@ -345,3 +345,34 @@ def test_run_config_is_frozen(tmp_path: Path) -> None:
     config = _load(tmp_path, MINIMAL)
     with pytest.raises(ValueError, match="frozen"):
         config.output = Path("other.html")  # type: ignore[misc]
+
+
+# The local app's configuration
+
+
+def test_ui_config_loads_a_minimal_file(tmp_path: Path) -> None:
+    path = _write(tmp_path, "label_map: {TP: true_positive}\n")
+
+    assert load_ui_config(path).label_map == {"tp": Verdict.TRUE_POSITIVE}
+
+
+def test_ui_config_checklists_path_is_under_the_config_folder(tmp_path: Path) -> None:
+    path = _write(tmp_path, "checklists: checklists\n")
+
+    assert load_ui_config(path).checklists == tmp_path / "checklists"
+
+
+@pytest.mark.parametrize("key", ["traces", "verdicts", "output"])
+def test_ui_config_rejects_input_and_output_keys(tmp_path: Path, key: str) -> None:
+    path = _write(tmp_path, f"{key}: x\n")
+
+    with pytest.raises(ConfigFileError, match=rf"\n  {key}: Extra inputs are not permitted"):
+        load_ui_config(path)
+
+
+@pytest.mark.parametrize("text", ["- a\n- b\n", ""], ids=["list", "empty"])
+def test_ui_config_rejects_a_document_that_is_not_a_mapping(tmp_path: Path, text: str) -> None:
+    path = _write(tmp_path, text)
+
+    with pytest.raises(ConfigFileError, match=r"detecttrace\.yaml: expected a mapping"):
+        load_ui_config(path)

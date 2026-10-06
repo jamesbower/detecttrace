@@ -26,6 +26,7 @@ from detecttrace.runconfig import (
     TraceFormat,
     describe_validation_error,
     to_run_config,
+    to_ui_config,
 )
 from detecttrace.yaml12 import Yaml12Error, parse_yaml12
 
@@ -34,6 +35,16 @@ MAX_EXAMPLE_ITEMS = 50
 MAX_FILE_NAME_LENGTH = 64
 
 _LABEL_KEYS = ("label_map", "agent_label_map")
+# The app keeps its inputs in its database and serves the dashboard, so its file omits these.
+_APP_OMITTED_KEYS = ("traces", "verdicts", "output")
+_INIT_INTRO = (
+    "Configuration written by `detecttrace init`. Paths are relative to this file.",
+    "Run `detecttrace check` to build the dashboard.",
+)
+_UI_INTRO = (
+    "Configuration written by `detecttrace ui`. Paths are relative to this file.",
+    "Traces and verdicts are uploaded in the app, so this file does not name them.",
+)
 _MAPPING_FIELDS = (
     "case_id",
     "alert_class",
@@ -225,29 +236,14 @@ def render_config_yaml(draft: InitDraft) -> str:
     Every string is double-quoted with only printable ASCII inside, so a label such as
     `yes`, `null`, `: x` or one with a line break keeps its meaning and its line.
     """
-    lines = _render_header(draft)
-    lines += ["traces:", f"  path: {to_yaml_string(draft.traces_path)}"]
-    lines.append(f"  format: {to_yaml_string(draft.trace_format)}")
-    lines += ["verdicts:", f"  path: {to_yaml_string(draft.verdicts_path)}"]
-    lines += _render_label_map(
-        "label_map",
-        draft.label_map,
-        draft.unmapped_analyst_labels,
-        "Analyst labels not mapped yet; check reports them as unmapped.",
-    )
-    lines += _render_label_map(
-        "agent_label_map",
-        draft.agent_label_map,
-        draft.unmapped_agent_labels,
-        "Agent labels that match no analyst label and are not mapped yet.",
-    )
-    if draft.checklists_path is not None:
-        lines.append(f"checklists: {to_yaml_string(draft.checklists_path)}")
-    lines.append(f"output: {to_yaml_string(draft.output)}")
-    if draft.max_detail_cases != _DEFAULT_MAX_DETAIL_CASES:
-        lines += ["dashboard:", f"  max_detail_cases: {draft.max_detail_cases}"]
-    lines += _render_mapping(draft.mapping)
-    return "\n".join(lines) + "\n"
+    return _render_config(draft, is_for_app=False)
+
+
+def render_ui_config_yaml(draft: InitDraft) -> str:
+    """The local app's detecttrace.yaml: as render_config_yaml, but without the traces,
+    verdicts and output keys, and with a header for `detecttrace ui`.
+    """
+    return _render_config(draft, is_for_app=True)
 
 
 def check_round_trip(text: str, draft: InitDraft) -> None:
@@ -256,17 +252,17 @@ def check_round_trip(text: str, draft: InitDraft) -> None:
     The parsed document must equal the draft's exactly, spellings included, and must pass
     the configuration models.
     """
-    source = Path("detecttrace.yaml")
-    if len(text.encode()) > MAX_CONFIG_BYTES:
-        raise RoundTripError(f"rendered configuration is over {MAX_CONFIG_BYTES:,} bytes")
-    try:
-        document = parse_yaml12(text, source)
-        to_run_config(document, source)
-    except (Yaml12Error, ConfigFileError) as error:
-        raise RoundTripError(f"rendered configuration does not load: {error}") from None
-    expected = _to_document(draft)
-    if document != expected:
-        raise RoundTripError("rendered configuration loads to different values than proposed")
+    _check_round_trip(text, _to_document(draft), to_run_config)
+
+
+def check_ui_round_trip(text: str, draft: InitDraft) -> None:
+    """Raise RoundTripError unless `text` loads, as the app would load it, to `draft`'s values
+    without the traces, verdicts and output keys; otherwise as check_round_trip.
+    """
+    expected = {
+        key: value for key, value in _to_document(draft).items() if key not in _APP_OMITTED_KEYS
+    }
+    _check_round_trip(text, expected, to_ui_config)
 
 
 def choose_example_class(proposal: Proposal) -> str | None:
@@ -467,10 +463,52 @@ def _changed_fields(
     }
 
 
-def _render_header(draft: InitDraft) -> list[str]:
+def _render_config(draft: InitDraft, *, is_for_app: bool) -> str:
+    lines = _render_header(draft, _UI_INTRO if is_for_app else _INIT_INTRO)
+    if not is_for_app:
+        lines += ["traces:", f"  path: {to_yaml_string(draft.traces_path)}"]
+        lines.append(f"  format: {to_yaml_string(draft.trace_format)}")
+        lines += ["verdicts:", f"  path: {to_yaml_string(draft.verdicts_path)}"]
+    lines += _render_label_map(
+        "label_map",
+        draft.label_map,
+        draft.unmapped_analyst_labels,
+        "Analyst labels not mapped yet; check reports them as unmapped.",
+    )
+    lines += _render_label_map(
+        "agent_label_map",
+        draft.agent_label_map,
+        draft.unmapped_agent_labels,
+        "Agent labels that match no analyst label and are not mapped yet.",
+    )
+    if draft.checklists_path is not None:
+        lines.append(f"checklists: {to_yaml_string(draft.checklists_path)}")
+    if not is_for_app:
+        lines.append(f"output: {to_yaml_string(draft.output)}")
+    if draft.max_detail_cases != _DEFAULT_MAX_DETAIL_CASES:
+        lines += ["dashboard:", f"  max_detail_cases: {draft.max_detail_cases}"]
+    lines += _render_mapping(draft.mapping)
+    return "\n".join(lines) + "\n"
+
+
+def _check_round_trip(
+    text: str, expected: dict[str, Any], validate: Callable[[object, Path], object]
+) -> None:
+    source = Path("detecttrace.yaml")
+    if len(text.encode()) > MAX_CONFIG_BYTES:
+        raise RoundTripError(f"rendered configuration is over {MAX_CONFIG_BYTES:,} bytes")
+    try:
+        document = parse_yaml12(text, source)
+        validate(document, source)
+    except (Yaml12Error, ConfigFileError) as error:
+        raise RoundTripError(f"rendered configuration does not load: {error}") from None
+    if document != expected:
+        raise RoundTripError("rendered configuration loads to different values than proposed")
+
+
+def _render_header(draft: InitDraft, intro: tuple[str, ...]) -> list[str]:
     lines = [
-        "Configuration written by `detecttrace init`. Paths are relative to this file.",
-        "Run `detecttrace check` to build the dashboard.",
+        *intro,
         "",
         f"Found: {draft.trace_format} traces, {draft.agent_run_count:,} agent runs.",
         *(f"  {name}: {text}" for name, text in draft.coverage.items()),
