@@ -337,7 +337,7 @@ async def _receive_upload(
         file_path = Path(folder) / safe_name
         await save_body(request, file_path, max_bytes)
         try:
-            report = await run_in_threadpool(store_file, file_path)
+            report = await run_in_threadpool(_store_upload, state, store_file, file_path)
         except UploadRefused as error:
             return create_status_response(422, str(error))
         except sqlite3.OperationalError:
@@ -345,6 +345,16 @@ async def _receive_upload(
     state.notify_write()
     problems = [asdict(to_note_view(to_note_data(line))) for line in report.problems]
     return JSONResponse({"stored_text": report.stored_text, "problems": problems})
+
+
+def _store_upload(
+    state: UiState, store_file: Callable[[Path], UploadReport], file_path: Path
+) -> UploadReport:
+    # One at a time with every other upload, save and clear: a trace file's format is checked
+    # against the stored one and then stored, and nothing may change the store in between.
+    # The parse is inside too; this app has one user, so the wait is short and rare.
+    with state.lifecycle_lock:
+        return store_file(file_path)
 
 
 class _ConfigEdits(BaseModel):
@@ -408,17 +418,42 @@ def _save_config(state: UiState, edits: _ConfigEdits) -> None:
 
 
 def _clear_data(state: UiState) -> None:
+    config_path = state.data_dir / CONFIG_NAME
+    # The lock keeps the timer from ticking until the clear ends, so the coordinator is
+    # dropped last: a clear that fails partway still recomputes while a configuration exists.
     with state.lifecycle_lock:
-        state.unconfigure()
-        state.store.clear()
-        (state.data_dir / CONFIG_NAME).unlink(missing_ok=True)
-        folder = state.data_dir / CHECKLISTS_FOLDER
-        # A linked folder is left alone, so a clear never deletes files outside the data
-        # folder; unlink removes a linked file's link, never its target.
-        if folder.is_dir() and not folder.is_symlink():
-            for entry in folder.iterdir():
-                if entry.is_symlink() or entry.is_file():
-                    entry.unlink()
+        try:
+            state.store.clear()
+            config_path.unlink(missing_ok=True)
+            _delete_checklist_files(state.data_dir / CHECKLISTS_FOLDER)
+        finally:
+            if not config_path.exists():
+                state.unconfigure()
+
+
+def _delete_checklist_files(folder: Path) -> None:
+    """Delete every file and link under `folder` and the subfolders they leave; keep `folder`.
+
+    A linked folder is never entered, so a clear never deletes files outside the data folder;
+    unlink removes a link, never its target.
+    """
+    if not folder.is_dir() or folder.is_symlink():
+        return
+
+    def report(error: OSError) -> None:
+        raise error
+
+    # Bottom up, so each subfolder is empty by the time it is removed. os.walk lists a linked
+    # folder among the folders but, without followlinks, never enters it.
+    for parent, folder_names, file_names in os.walk(folder, topdown=False, onerror=report):
+        for name in file_names:
+            Path(parent, name).unlink()
+        for name in folder_names:
+            path = Path(parent, name)
+            if path.is_symlink():
+                path.unlink()
+            else:
+                path.rmdir()
 
 
 def _save_checklist(state: UiState, file_path: Path) -> UploadReport:
