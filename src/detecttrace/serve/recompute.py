@@ -59,7 +59,7 @@ class RecomputeOutcome:
 class RecomputeSettings:
     """What the server read at startup that every run uses; it is pickled to the worker."""
 
-    config: Config  # the mapping and the label maps, as the verdict API applies them
+    config: Config  # the mapping and the label maps every run applies
     settle_seconds: int
     max_detail_cases: int
     checklists: dict[str, Checklist]
