@@ -76,3 +76,18 @@
 .trend-point:hover .trend-point-ring {
   stroke: var(--focus);
 }
+
+/* Forced colours change the background, so the axes and labels take system colours to stay
+   readable on it. */
+@media (forced-colors: active) {
+  .trend-axis,
+  .trend-count,
+  .trend-vmark-text {
+    fill: CanvasText;
+  }
+
+  .trend-grid,
+  .trend-vmark {
+    stroke: GrayText;
+  }
+}

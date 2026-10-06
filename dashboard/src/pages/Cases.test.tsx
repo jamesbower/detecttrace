@@ -275,6 +275,15 @@ describe("expansion", () => {
     expect(detail?.textContent).toContain("Checklist steps not satisfied");
   });
 
+  it("an expanded row's headings sit one level under the page heading", async () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+
+    await userEvent.click(caseButton("A"));
+
+    const detail = document.getElementById(caseButton("A").getAttribute("aria-controls")!)!;
+    expect(within(detail).getAllByRole("heading").map((heading) => heading.tagName)).toEqual(["H2", "H2"]);
+  });
+
   it("a collapsed row's button controls nothing", () => {
     render(<Cases view={DEMO_VIEW} results={results} />);
 

@@ -178,3 +178,14 @@
   color: var(--muted);
   font-size: var(--fs-sm);
 }
+
+/* Forced colours: the interval strip keeps its track and point in system colours. */
+@media (forced-colors: active) {
+  .strip-track {
+    fill: GrayText;
+  }
+
+  .strip-point {
+    fill: CanvasText;
+  }
+}

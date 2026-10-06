@@ -1,5 +1,5 @@
 // Hash routing: the page is one offline file, so the route and its filters live after the `#`,
-// as `#/versions?class=class-1&dangerous=1`.
+// as `#/cases?class=class-1&result=dangerous`.
 import { useMemo, useSyncExternalStore } from "react";
 
 import { listPages } from "./registry";

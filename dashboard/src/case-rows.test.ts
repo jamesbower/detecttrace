@@ -310,6 +310,10 @@ describe("detail lookup", () => {
     expect(indexDetails([]).get("__proto__")).toBeUndefined();
   });
 
+  it("a toString case ID without detail does not reach the prototype", () => {
+    expect(indexDetails([]).get("toString")).toBeUndefined();
+  });
+
   it("a __proto__ case ID with detail finds its own detail", () => {
     const detail: CaseDetail = { case_id: "__proto__", calls: [], outcomes: [] };
 

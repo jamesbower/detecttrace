@@ -1,10 +1,10 @@
 """The dashboard view model: the results object turned into display-ready values.
 
-`build_view` does every lookup, label and number format the page needs, so the template only
-loops and branches. Labels are raw text for an autoescaping template; text that comes from the
-input (classes, versions, checklist items, paths, data notes) has its control and bidirectional
+`build_view` does every lookup, label and number format the page needs, so the page only
+loops and branches. Labels are raw text, which React escapes; text that comes from the input
+(classes, versions, checklist items, paths, data notes) has its control and bidirectional
 characters made visible first. Numbers are formatted without the locale, so every machine writes
-the same page. Chart geometry is not computed here: `charts.trend_chart` lays out `TrendView`.
+the same page. Chart geometry is not computed here: the page lays out `TrendView` itself.
 
 `to_view_json` turns the view into JSON-ready data for the React dashboard, whose TypeScript
 types `scripts/generate_view_types.py` generates from these dataclasses.

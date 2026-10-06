@@ -81,3 +81,20 @@
   height: var(--swatch-height);
   overflow: visible;
 }
+
+/* Forced colours: the all-versions band and markers, and the hollow few-case markers, stay
+   visible in system colours. */
+@media (forced-colors: active) {
+  .series-line-all {
+    stroke: CanvasText;
+  }
+
+  .series-marker.series-all {
+    fill: CanvasText;
+    stroke: CanvasText;
+  }
+
+  .series-marker.is-few {
+    fill: Canvas;
+  }
+}

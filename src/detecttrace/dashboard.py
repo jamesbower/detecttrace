@@ -37,7 +37,7 @@ _HASHES_NAME = "dashboard.hashes.json"
 _HASH_SOURCE = re.compile(r"sha256-[A-Za-z0-9+/]{43}=")
 _DOCTYPE = b"<!doctype html>"
 # The prefix, one space, then a version; "detecttrace-like" or a bare prefix is someone else's.
-# The built page closes its void elements with " />", the Jinja page did not.
+# The built page closes its void elements with " />"; pages from earlier versions did not.
 _MARKER = re.compile(
     rb'<meta name="generator" content="'
     + re.escape(GENERATOR_PREFIX.encode())

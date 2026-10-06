@@ -305,3 +305,86 @@ def test_styles_use_no_important_outside_the_reduced_motion_block(path: Path) ->
     if path == BASE:
         css = css.replace(_reduced_motion_block(), "")
     assert "!important" not in css
+
+
+# Rules whose loss no rendering test would notice.
+
+MEDIA_BLOCK = re.compile(r"@media\s*([^{]*)\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}")
+FORCED_COLORS = "(forced-colors: active)"
+
+
+def _scoped_declarations(selector: str, media: str | None = None) -> dict[str, str]:
+    """The merged declarations for `selector` at the top level or, with `media`, only inside the
+    `@media` blocks with that exact condition. Later declarations win, as in the cascade."""
+    merged: dict[str, str] = {}
+    for path in COMPONENT_STYLES:
+        css = _strip_comments(path.read_text("utf-8"))
+        if media is None:
+            scopes = [MEDIA_BLOCK.sub("", css)]
+        else:
+            scopes = [
+                body for condition, body in MEDIA_BLOCK.findall(css) if condition.strip() == media
+            ]
+        for scope in scopes:
+            for selectors, body in re.findall(r"([^{}]+)\{([^{}]*)\}", scope):
+                if selector in [part.strip() for part in selectors.split(",")]:
+                    pairs = (part.split(":", 1) for part in body.split(";") if ":" in part)
+                    merged.update({name.strip(): value.strip() for name, value in pairs})
+    return merged
+
+
+def test_a_dangerous_matrix_cell_has_an_outline() -> None:
+    assert (
+        _scoped_declarations(".matrix-cell.is-dangerous")["outline"]
+        == "var(--outline-danger) solid var(--danger)"
+    )
+
+
+def test_a_skipped_step_rate_with_few_cases_is_italic() -> None:
+    assert _scoped_declarations(".is-few .heatmap-rate")["font-style"] == "italic"
+
+
+@pytest.mark.parametrize("selector", [".case-call-tool", ".case-call-args"])
+def test_long_unbroken_tool_call_text_wraps(selector: str) -> None:
+    assert _scoped_declarations(selector)["overflow-wrap"] == "anywhere"
+
+
+def test_a_case_detail_is_no_wider_than_its_table_frame() -> None:
+    assert _scoped_declarations(".case-detail")["max-width"] == "100cqi"
+
+
+def test_the_case_table_frame_is_the_width_container() -> None:
+    assert _scoped_declarations(".case-table-scroll")["container-type"] == "inline-size"
+
+
+def test_the_all_versions_band_uses_its_contrast_token() -> None:
+    assert _scoped_declarations(".series-line-all")["stroke"] == "var(--s-all-halo)"
+
+
+def test_the_all_versions_band_is_opaque() -> None:
+    assert "opacity" not in _scoped_declarations(".series-line-all")
+
+
+def test_trend_grid_lines_use_the_line_token() -> None:
+    assert _scoped_declarations(".trend-grid")["stroke"] == "var(--line)"
+
+
+@pytest.mark.parametrize(
+    ("selector", "property_name", "value"),
+    [
+        (".trend-axis", "fill", "CanvasText"),
+        (".trend-count", "fill", "CanvasText"),
+        (".trend-vmark-text", "fill", "CanvasText"),
+        (".trend-grid", "stroke", "GrayText"),
+        (".trend-vmark", "stroke", "GrayText"),
+        (".strip-track", "fill", "GrayText"),
+        (".strip-point", "fill", "CanvasText"),
+        (".series-line-all", "stroke", "CanvasText"),
+        (".series-marker.series-all", "fill", "CanvasText"),
+        (".series-marker.is-few", "fill", "Canvas"),
+    ],
+)
+def test_forced_colors_keep_chart_parts_visible(
+    selector: str, property_name: str, value: str
+) -> None:
+    assert _scoped_declarations(selector, media=FORCED_COLORS)[property_name] == value
