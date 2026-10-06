@@ -3,6 +3,7 @@ import { Fragment, useId } from "react";
 
 import { listPanels } from "../registry";
 import { PanelSlot } from "./PanelSlot";
+import { SeriesSwatch, toSeriesClass } from "./SeriesSwatch";
 import "./VersionTable.css";
 
 import type { PageProps } from "../registry";
@@ -19,7 +20,7 @@ export function VersionTable({ alertClass, view, results }: VersionTableProps) {
   return (
     <div className="version-table">
       <h2 className="version-table-heading">
-        <span className="version-table-class">{alertClass.name}</span>
+        <span className="version-table-class">{alertClass.name}</span>{" "}
         <span className="version-table-sub">
           {alertClass.cases_text}
           {alertClass.versions_text !== "" && ` · ${alertClass.versions_text}`}
@@ -52,7 +53,13 @@ export function VersionTable({ alertClass, view, results }: VersionTableProps) {
                 {hasRowPanels && (
                   <tr className="version-table-detail">
                     <td colSpan={COLUMN_COUNT}>
-                      <PanelSlot name="version-row-detail" view={view} results={results} />
+                      <PanelSlot
+                        name="version-row-detail"
+                        view={view}
+                        results={results}
+                        classAnchor={alertClass.anchor}
+                        versionLabel={row.label}
+                      />
                     </td>
                   </tr>
                 )}
@@ -132,14 +139,6 @@ function IntervalStrip({ strip, style }: { strip: StripView; style: string }) {
   );
 }
 
-function SeriesSwatch({ style }: { style: string }) {
-  return (
-    <svg className={`series-swatch ${toSeriesClass(style)}`} viewBox="0 0 30 12" aria-hidden="true" focusable="false">
-      <line x1="1" y1="6" x2="29" y2="6" />
-    </svg>
-  );
-}
-
 function FewNote({ text }: { text: string }) {
   return (
     <span className="version-table-few">
@@ -159,8 +158,4 @@ function WarnIcon() {
       <path d="M8 6.2v3.6M8 11.8v.2" />
     </svg>
   );
-}
-
-function toSeriesClass(style: string): string {
-  return `series-${style}`;
 }

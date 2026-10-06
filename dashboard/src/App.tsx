@@ -23,7 +23,7 @@ export function App({ data }: { data: PageData | WaitingData | PageDataError }) 
   // Every page needs results, so a waiting page links to none of them.
   if (isWaitingData(data)) {
     return (
-      <Shell pages={[]} currentPath={path} served={data.view.served}>
+      <Shell header={data.view.header} pages={[]} currentPath={path} served={data.view.served}>
         <WaitingState waiting={data.waiting} />
       </Shell>
     );
@@ -32,7 +32,13 @@ export function App({ data }: { data: PageData | WaitingData | PageDataError }) 
   const pages = listPages();
   const Page = pages.find((page) => page.path === path)?.component;
   return (
-    <Shell pages={pages} currentPath={path} classAnchor={query.get("class")} served={data.view.served}>
+    <Shell
+      header={data.view.header}
+      pages={pages}
+      currentPath={path}
+      classAnchor={query.get("class")}
+      served={data.view.served}
+    >
       {Page !== undefined && (
         // Keyed by path, so opening another page clears an earlier page's error.
         <ErrorBoundary key={path} subject="This page">

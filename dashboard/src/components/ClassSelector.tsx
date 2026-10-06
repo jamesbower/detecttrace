@@ -18,9 +18,36 @@ type ClassSelectorProps = {
   panelId: string;
 };
 
+type ClassPanelProps = {
+  classes: readonly ClassView[];
+  selected: ClassView;
+  /** The id the page passed to its ClassSelector. */
+  panelId: string;
+  className?: string;
+  children: React.ReactNode;
+};
+
 /** The id of a class's tab, for the panel's aria-labelledby. */
 export function getClassTabId(anchor: string): string {
   return `class-tab-${anchor}`;
+}
+
+/** The element that shows the selected class. Tabs name it; a drop-down has no tab to point
+ * at, so the panel is a region named by the class. Keyed by class, so a new class starts fresh. */
+export function ClassPanel({ classes, selected, panelId, className, children }: ClassPanelProps) {
+  const hasTabs = classes.length <= MAX_CLASS_TABS;
+  return (
+    <section
+      key={selected.anchor}
+      id={panelId}
+      className={className}
+      role={hasTabs ? "tabpanel" : "region"}
+      aria-labelledby={hasTabs ? getClassTabId(selected.anchor) : undefined}
+      aria-label={hasTabs ? undefined : selected.name}
+    >
+      {children}
+    </section>
+  );
 }
 
 export function ClassSelector({ classes, panelId }: ClassSelectorProps) {

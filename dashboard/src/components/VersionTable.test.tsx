@@ -39,12 +39,6 @@ it("names the table by the class in its caption", () => {
   expect(screen.queryByRole("table", { name: /^impossible_travel: metrics per version/ })).not.toBeNull();
 });
 
-it("shows the class's cases and versions under its name", () => {
-  renderTable(DEMO_CLASS);
-
-  expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("impossible_travel106 cases · v1, v2");
-});
-
 it("shows one row per version row in the view", () => {
   renderTable(DEMO_CLASS);
 
@@ -142,4 +136,21 @@ it("adds a detail row under each version when a panel is registered", () => {
   renderTable(DEMO_CLASS);
 
   expect(screen.getAllByText("Row detail")).toHaveLength(DEMO_CLASS.rows.length);
+});
+
+it("names the heading by the class, its cases and its versions", () => {
+  renderTable(DEMO_CLASS);
+
+  expect(screen.queryByRole("heading", { name: "impossible_travel 106 cases · v1, v2" })).not.toBeNull();
+});
+
+it("tells each version row's panel its class and version", () => {
+  registerPanel("version-row-detail", ({ classAnchor, versionLabel }) => <p>{`Panel: ${classAnchor} ${versionLabel}`}</p>);
+  renderTable(DEMO_CLASS);
+
+  expect(screen.getAllByText(/^Panel: /).map((panel) => panel.textContent)).toEqual([
+    "Panel: class-0 All versions",
+    "Panel: class-0 v1",
+    "Panel: class-0 v2",
+  ]);
 });

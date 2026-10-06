@@ -43,7 +43,7 @@ it("shows another class's rows after its tab is clicked", async () => {
 
   await userEvent.click(screen.getByRole("tab", { name: "oauth_consent" }));
 
-  expect(screen.queryByRole("heading", { level: 2, name: /^oauth_consent95 cases/ })).not.toBeNull();
+  expect(screen.queryByRole("heading", { level: 2, name: /^oauth_consent 95 cases/ })).not.toBeNull();
 });
 
 it("shows every version of a class with more than six", () => {

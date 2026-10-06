@@ -230,7 +230,7 @@ def normalize_dashboard(html: str) -> str:
     the footer, and put placeholders in place of the stylesheet, the script, the results block
     and the two policy hashes. Those parts have tests of their own, and a golden full of them
     would change with every stylesheet or script edit and hide the markup changes."""
-    from detecttrace.dashboard import GENERATOR_PREFIX
+    from detecttrace.dashboard_view import GENERATOR_PREFIX
 
     text = html.replace(f"{GENERATOR_PREFIX} {__version__}", GENERATOR_PREFIX)
     for pattern, replacement in _DASHBOARD_PLACEHOLDERS:
@@ -243,11 +243,13 @@ def to_golden_text(results: object) -> str:
 
 
 def to_view_golden_text(results: Mapping[str, object]) -> str:
-    """The dashboard view model as the React tests read it, its field order kept."""
-    from detecttrace.dashboard_view import build_view, to_view_json
+    """The dashboard view model as the React tests read it, its field order kept, without the
+    version in the footer, so the golden file changes only with the view."""
+    from detecttrace.dashboard_view import GENERATOR, GENERATOR_PREFIX, build_view, to_view_json
 
     view = to_view_json(build_view(results))
-    return json.dumps(view, ensure_ascii=False, allow_nan=False, indent=2) + "\n"
+    text = json.dumps(view, ensure_ascii=False, allow_nan=False, indent=2) + "\n"
+    return text.replace(GENERATOR, GENERATOR_PREFIX)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

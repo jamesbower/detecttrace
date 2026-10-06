@@ -1,23 +1,25 @@
-// The case table's filters. Each lives in the hash query (`class` by anchor, `dangerous`, `q`),
+// The case table's filters. Each lives in the hash query (`class` by anchor, `result`, `q`),
 // so a link or a reload keeps them.
 import { useId } from "react";
 
 import { useRoute } from "../router";
 import "./CaseFilters.css";
 
+import type { ResultFilter } from "../case-rows";
 import type { ClassFilterView } from "../view";
 
 type CaseFiltersProps = {
   classFilters: readonly ClassFilterView[];
   /** The selected class's anchor, or "" for every class. */
   classAnchor: string;
-  isDangerousOnly: boolean;
+  result: ResultFilter;
   search: string;
 };
 
-export function CaseFilters({ classFilters, classAnchor, isDangerousOnly, search }: CaseFiltersProps) {
+export function CaseFilters({ classFilters, classAnchor, result, search }: CaseFiltersProps) {
   const { setQuery } = useRoute();
   const classId = useId();
+  const resultId = useId();
   const searchId = useId();
 
   return (
@@ -37,14 +39,21 @@ export function CaseFilters({ classFilters, classAnchor, isDangerousOnly, search
           ))}
         </select>
       </div>
-      <label className="case-filter-check">
-        <input
-          type="checkbox"
-          checked={isDangerousOnly}
-          onChange={(event) => setQuery({ dangerous: event.target.checked ? "1" : null })}
-        />
-        Dangerous false closes only
-      </label>
+      <div className="case-filter">
+        <label htmlFor={resultId}>Result</label>
+        <select
+          id={resultId}
+          value={result}
+          // Drops an old link's `dangerous=1` too, so it cannot come back when `result` is cleared.
+          onChange={(event) =>
+            setQuery({ result: event.target.value === "all" ? null : event.target.value, dangerous: null })
+          }
+        >
+          <option value="all">All results</option>
+          <option value="disagree">Disagreements</option>
+          <option value="dangerous">Dangerous false closes</option>
+        </select>
+      </div>
       <div className="case-filter">
         <label htmlFor={searchId}>Search case ID</label>
         <input

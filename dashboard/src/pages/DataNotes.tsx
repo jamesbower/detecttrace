@@ -11,7 +11,7 @@ export function DataNotes({ view, results }: PageProps) {
       <PageHead
         eyebrow="Data notes"
         title="Data notes"
-        description="Input problems found while reading traces and verdicts, grouped, with how to fix them."
+        description="Input problems found while reading traces and verdicts, grouped, with how to fix them. Up to three examples each."
       />
       <ul className="coverage-list" aria-label="Coverage">
         {view.coverage.map((line, index) => (

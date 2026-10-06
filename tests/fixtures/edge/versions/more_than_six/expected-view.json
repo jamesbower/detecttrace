@@ -19,7 +19,9 @@
     "cases_text": "33 in 1 alert class",
     "period_text": "2026-W32 to 2026-W39 (8 weeks, UTC)",
     "versions_text": "v1, v2, v3, v4, v5, v6, v7, v8",
-    "low_coverage_text": null
+    "low_coverage_text": null,
+    "generator_text": "Written by detecttrace.",
+    "footer_text": "Everything on this page was computed on your machine, and the page makes no network requests."
   },
   "classes": [
     {
@@ -52,7 +54,6 @@
             "strip": {
               "range_x": 72.7,
               "range_width": 22.5,
-              "point_x": 87.9,
               "point_left": 87.3,
               "point_width": 1.2
             }
@@ -66,14 +67,12 @@
             "strip": {
               "range_x": 80.6,
               "range_width": 17.1,
-              "point_x": 90.4,
               "point_left": 89.8,
               "point_width": 1.2
             }
           },
           "dangerous_text": "1",
           "is_dangerous": true,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -99,7 +98,6 @@
             "strip": {
               "range_x": 43.9,
               "range_width": 56.1,
-              "point_x": 100.0,
               "point_left": 99.4,
               "point_width": 1.2
             }
@@ -114,7 +112,6 @@
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -140,7 +137,6 @@
             "strip": {
               "range_x": 51.0,
               "range_width": 49.0,
-              "point_x": 100.0,
               "point_left": 99.4,
               "point_width": 1.2
             }
@@ -155,7 +151,6 @@
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -181,7 +176,6 @@
             "strip": {
               "range_x": 48.7,
               "range_width": 48.7,
-              "point_x": 85.7,
               "point_left": 85.1,
               "point_width": 1.2
             }
@@ -195,14 +189,12 @@
             "strip": {
               "range_x": 50.0,
               "range_width": 50.0,
-              "point_x": 86.5,
               "point_left": 85.9,
               "point_width": 1.2
             }
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -228,7 +220,6 @@
             "strip": {
               "range_x": 35.9,
               "range_width": 55.9,
-              "point_x": 71.4,
               "point_left": 70.8,
               "point_width": 1.2
             }
@@ -242,14 +233,12 @@
             "strip": {
               "range_x": 50.0,
               "range_width": 50.0,
-              "point_x": 75.9,
               "point_left": 75.3,
               "point_width": 1.2
             }
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -275,7 +264,6 @@
             "strip": {
               "range_x": 51.0,
               "range_width": 49.0,
-              "point_x": 100.0,
               "point_left": 99.4,
               "point_width": 1.2
             }
@@ -290,7 +278,6 @@
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -316,7 +303,6 @@
             "strip": {
               "range_x": 30.1,
               "range_width": 65.3,
-              "point_x": 75.0,
               "point_left": 74.4,
               "point_width": 1.2
             }
@@ -330,14 +316,12 @@
             "strip": {
               "range_x": 50.0,
               "range_width": 50.0,
-              "point_x": 80.0,
               "point_left": 79.4,
               "point_width": 1.2
             }
           },
           "dangerous_text": "1",
           "is_dangerous": true,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -363,7 +347,6 @@
             "strip": {
               "range_x": 51.0,
               "range_width": 49.0,
-              "point_x": 100.0,
               "point_left": 99.4,
               "point_width": 1.2
             }
@@ -377,14 +360,12 @@
             "strip": {
               "range_x": 100.0,
               "range_width": 0.8,
-              "point_x": 100.0,
               "point_left": 99.4,
               "point_width": 1.2
             }
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         }
       ],
@@ -417,7 +398,6 @@
           "lines": [
             {
               "style": "all",
-              "scope": "all",
               "label": "All versions",
               "values": [
                 1.0,
@@ -452,7 +432,6 @@
             },
             {
               "style": "1",
-              "scope": "version",
               "label": "v1",
               "values": [
                 1.0,
@@ -487,7 +466,6 @@
             },
             {
               "style": "2",
-              "scope": "version",
               "label": "v3",
               "values": [
                 null,
@@ -522,7 +500,6 @@
             },
             {
               "style": "3",
-              "scope": "version",
               "label": "v4",
               "values": [
                 null,
@@ -557,7 +534,6 @@
             },
             {
               "style": "4",
-              "scope": "version",
               "label": "v6",
               "values": [
                 null,
@@ -592,7 +568,6 @@
             },
             {
               "style": "5",
-              "scope": "version",
               "label": "v7",
               "values": [
                 null,
@@ -627,7 +602,6 @@
             },
             {
               "style": "6",
-              "scope": "version",
               "label": "v8",
               "values": [
                 null,
@@ -662,7 +636,6 @@
             },
             {
               "style": "other",
-              "scope": "other",
               "label": "(other versions: v2, v5)",
               "values": [
                 null,
@@ -898,7 +871,6 @@
   ],
   "cases": {
     "total_text": "33",
-    "detail_count_text": "4",
     "detail_sentence": "Tool calls are included for 4 notable cases (dashboard.max_detail_cases); tool results are never included.",
     "class_filters": [
       {

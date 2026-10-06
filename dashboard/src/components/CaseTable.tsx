@@ -1,7 +1,7 @@
 // The case table. Each row opens with a real button; above WINDOW_THRESHOLD rows only the
 // rows near the scroll position are drawn. Which rows are open is kept by case, not by DOM
 // node, so an opened row is still open when it scrolls out of the window and back.
-import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   checklistLabel,
@@ -54,6 +54,18 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
     }
   }, [rows]);
   useEffect(() => () => observer?.disconnect(), [observer]);
+  // One callback for every detail row: a new one each render would make React detach and
+  // reattach it, and each new observe() reports a size, which renders again.
+  const observeDetail = useCallback(
+    (element: HTMLTableRowElement) => {
+      if (observer === null) {
+        return;
+      }
+      observer.observe(element);
+      return () => observer.unobserve(element);
+    },
+    [observer],
+  );
 
   const extents = useMemo<DetailExtent[]>(
     () =>
@@ -159,17 +171,11 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
                     id={detailId}
                     className="case-detail-row"
                     data-case-index={row.index}
-                    ref={(element) => {
-                      if (element === null || observer === null) {
-                        return;
-                      }
-                      observer.observe(element);
-                      return () => observer.unobserve(element);
-                    }}
+                    ref={observeDetail}
                   >
                     <td colSpan={COLUMN_COUNT}>
                       <CaseDetail row={row} detail={details.get(row.caseId) ?? null} />
-                      <PanelSlot name="case-detail" view={view} results={results} />
+                      <PanelSlot name="case-detail" view={view} results={results} caseId={row.caseId} />
                     </td>
                   </tr>
                 )}
@@ -246,15 +252,17 @@ function createHeightObserver(
   }
   return new ResizeObserver((entries) => {
     setDetailHeights((current) => {
-      const next = new Map(current);
+      let next: Map<number, number> | null = null;
       for (const entry of entries) {
         const index = Number(entry.target.getAttribute("data-case-index"));
         const heightPx = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
-        if (heightPx > 0) {
+        if (heightPx > 0 && current.get(index) !== heightPx) {
+          next ??= new Map(current);
           next.set(index, heightPx);
         }
       }
-      return next;
+      // The same map when nothing changed, so React skips the render.
+      return next ?? current;
     });
   });
 }

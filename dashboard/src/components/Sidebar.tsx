@@ -4,13 +4,15 @@ import "./Sidebar.css";
 import type { PageDef } from "../registry";
 
 type SidebarProps = {
+  /** The product name the view gives, shown as the brand. */
+  title: string;
   pages: readonly PageDef[];
   currentPath: string;
   /** The selected class, carried to every page; page-specific filters are not. */
   classAnchor?: string | null;
 };
 
-export function Sidebar({ pages, currentPath, classAnchor = null }: SidebarProps) {
+export function Sidebar({ title, pages, currentPath, classAnchor = null }: SidebarProps) {
   const query = new URLSearchParams(classAnchor === null ? {} : { class: classAnchor });
   return (
     <aside className="sidebar">
@@ -18,9 +20,7 @@ export function Sidebar({ pages, currentPath, classAnchor = null }: SidebarProps
         <span className="sidebar-brand-mark" aria-hidden="true">
           DT
         </span>
-        <span>
-          Detect<span className="sidebar-brand-accent">Trace</span>
-        </span>
+        <span>{title}</span>
       </p>
       <nav aria-label="Pages">
         <ul className="sidebar-links">

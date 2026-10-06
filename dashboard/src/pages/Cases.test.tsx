@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { Profiler } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WINDOW_THRESHOLD } from "../case-window";
 import { registerPanel, resetRegistryForTests } from "../registry";
@@ -148,20 +149,61 @@ describe("filters", () => {
     expect(countText()).toBe("Showing 201 of 201 cases.");
   });
 
-  it("dangerous only keeps the dangerous false closes", async () => {
+  it("dangerous false closes keeps only those cases", async () => {
     render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "Dangerous false closes only" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Result" }), "Dangerous false closes");
 
     expect(countText()).toBe("Showing 4 of 201 cases.");
   });
 
-  it("dangerous only is stored in the hash", async () => {
+  it("dangerous false closes is stored in the hash", async () => {
     render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "Dangerous false closes only" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Result" }), "Dangerous false closes");
 
-    expect(window.location.hash).toBe("#/?dangerous=1");
+    expect(window.location.hash).toBe("#/?result=dangerous");
+  });
+
+  it("disagreements keeps every case where the verdicts differ", async () => {
+    render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Result" }), "Disagreements");
+
+    expect(countText()).toBe("Showing 19 of 201 cases.");
+  });
+
+  it("disagreements is stored in the hash", async () => {
+    render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Result" }), "Disagreements");
+
+    expect(window.location.hash).toBe("#/?result=disagree");
+  });
+
+  it("all results removes the result from the hash", async () => {
+    window.history.replaceState(null, "", "#/?result=disagree");
+    render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Result" }), "All results");
+
+    expect(window.location.hash).toBe("#/");
+  });
+
+  it("an old link's dangerous=1 keeps the dangerous false closes", () => {
+    window.history.replaceState(null, "", "#/?dangerous=1");
+    render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+    expect(countText()).toBe("Showing 4 of 201 cases.");
+  });
+
+  it("a new result choice drops an old link's dangerous=1", async () => {
+    window.history.replaceState(null, "", "#/?dangerous=1");
+    render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Result" }), "All results");
+
+    expect(window.location.hash).toBe("#/");
   });
 
   it("a search keeps the matching case IDs", async () => {
@@ -181,7 +223,7 @@ describe("filters", () => {
   });
 
   it("filters from the hash combine", () => {
-    window.history.replaceState(null, "", "#/?class=class-1&dangerous=1&q=DT-IT");
+    window.history.replaceState(null, "", "#/?class=class-1&result=dangerous&q=DT-IT");
     render(<Cases view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
     expect(screen.queryByText("No cases match these filters.")).not.toBeNull();
@@ -255,6 +297,15 @@ describe("expansion", () => {
 
     expect(screen.getByText("Case panel").closest("tr")?.id).toBe(caseButton("A").getAttribute("aria-controls"));
   });
+
+  it("tells a case-detail panel which case it is in", async () => {
+    registerPanel("case-detail", ({ caseId }) => <p>{`Panel for ${caseId}`}</p>);
+    render(<Cases view={DEMO_VIEW} results={results} />);
+
+    await userEvent.click(caseButton("A"));
+
+    expect(screen.queryByText("Panel for A")).not.toBeNull();
+  });
 });
 
 describe("windowing", () => {
@@ -296,6 +347,86 @@ describe("windowing", () => {
     render(<Cases view={DEMO_VIEW} results={results} />);
 
     expect(countText()).toBe("Showing 5,000 of 5,000 cases.");
+  });
+});
+
+// Stands in for the browser's ResizeObserver: it records what it observes and reports sizes
+// only when a test asks, so a render loop shows up as extra observe calls or commits.
+class FakeResizeObserver {
+  static latest: FakeResizeObserver | null = null;
+  observeCount = 0;
+  private readonly targets = new Set<Element>();
+
+  constructor(private readonly callback: ResizeObserverCallback) {
+    FakeResizeObserver.latest = this;
+  }
+
+  observe(target: Element): void {
+    this.observeCount += 1;
+    this.targets.add(target);
+  }
+
+  unobserve(target: Element): void {
+    this.targets.delete(target);
+  }
+
+  disconnect(): void {
+    this.targets.clear();
+  }
+
+  report(heightPx: number): void {
+    const entries = [...this.targets].map((target) => ({
+      target,
+      borderBoxSize: [{ blockSize: heightPx, inlineSize: 0 }],
+      contentRect: { height: heightPx },
+    }));
+    this.callback(entries as unknown as ResizeObserverEntry[], this as unknown as ResizeObserver);
+  }
+}
+
+function reportHeight(heightPx: number): void {
+  act(() => FakeResizeObserver.latest!.report(heightPx));
+}
+
+describe("measuring an opened row", () => {
+  const results = createResults([{ id: "A", analyst: TRUE_POSITIVE, agent: TRUE_POSITIVE }]);
+
+  beforeEach(() => {
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("observes the detail once however often its height changes", async () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    await userEvent.click(caseButton("A"));
+
+    reportHeight(300);
+    reportHeight(310);
+    reportHeight(320);
+
+    expect(FakeResizeObserver.latest!.observeCount).toBe(1);
+  });
+
+  it("does not render again when the reported height is unchanged", async () => {
+    let commits = 0;
+    render(
+      <Profiler id="cases" onRender={() => (commits += 1)}>
+        <Cases view={DEMO_VIEW} results={results} />
+      </Profiler>,
+    );
+    await userEvent.click(caseButton("A"));
+    // React may render once more after the first same-value update before it bails out early.
+    reportHeight(300);
+    reportHeight(300);
+    const commitsBefore = commits;
+
+    reportHeight(300);
+    reportHeight(300);
+
+    expect(commits).toBe(commitsBefore);
   });
 });
 

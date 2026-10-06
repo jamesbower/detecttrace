@@ -1,4 +1,6 @@
-import { ClassSelector, getClassTabId, MAX_CLASS_TABS } from "../components/ClassSelector";
+import { useId } from "react";
+
+import { ClassPanel, ClassSelector } from "../components/ClassSelector";
 import { Kpi } from "../components/Kpi";
 import { PageHead } from "../components/PageHead";
 import { PanelSlot } from "../components/PanelSlot";
@@ -10,13 +12,10 @@ import "./Overview.css";
 import type { PageProps } from "../registry";
 import type { ClassView, CoverageView } from "../view";
 
-const PANEL_ID = "overview-class-panel";
-
 export function Overview({ view, results }: PageProps) {
+  const panelId = useId();
   const selected = useSelectedClass(view.classes);
   const classQuery = new URLSearchParams(selected === undefined ? {} : { class: selected.anchor });
-  // A drop-down has no tab to name the panel, so the panel names itself.
-  const hasTabs = view.classes.length <= MAX_CLASS_TABS;
 
   return (
     <>
@@ -69,15 +68,9 @@ export function Overview({ view, results }: PageProps) {
           </li>
         ))}
       </ul>
-      <ClassSelector classes={view.classes} panelId={PANEL_ID} />
+      <ClassSelector classes={view.classes} panelId={panelId} />
       {selected !== undefined && (
-        <section
-          id={PANEL_ID}
-          className="overview-panel"
-          role={hasTabs ? "tabpanel" : undefined}
-          aria-labelledby={hasTabs ? getClassTabId(selected.anchor) : undefined}
-          aria-label={hasTabs ? undefined : selected.name}
-        >
+        <ClassPanel classes={view.classes} selected={selected} panelId={panelId} className="overview-panel">
           <VersionTable alertClass={selected} view={view} results={results} />
           <nav className="overview-tiles" aria-label={`More for ${selected.name}`}>
             {listTiles(selected).map((tile) => (
@@ -88,7 +81,7 @@ export function Overview({ view, results }: PageProps) {
               </a>
             ))}
           </nav>
-        </section>
+        </ClassPanel>
       )}
     </>
   );

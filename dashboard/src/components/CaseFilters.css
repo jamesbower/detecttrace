@@ -39,18 +39,3 @@
 }
 
 /* The whole label is the target, so the small box still meets the 44px minimum. */
-.case-filter-check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: var(--touch-target);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-}
-
-.case-filter-check input {
-  width: var(--sp-4);
-  height: var(--sp-4);
-  margin: 0;
-  accent-color: var(--accent);
-}

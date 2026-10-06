@@ -22,10 +22,13 @@ export type CaseRow = {
   readonly failed: readonly number[];
 };
 
+/** Which results a filter keeps: every case, the disagreements, or the dangerous false closes. */
+export type ResultFilter = "all" | "disagree" | "dangerous";
+
 export type CaseFilter = {
   /** Keeps only this class's cases; null keeps every class. */
   readonly classIndex: number | null;
-  readonly isDangerousOnly: boolean;
+  readonly result: ResultFilter;
   /** Keeps cases whose ID contains this text, ignoring case; empty keeps every case. */
   readonly search: string;
 };
@@ -134,9 +137,24 @@ export function filterRows(rows: readonly CaseRow[], filter: CaseFilter): CaseRo
   return rows.filter(
     (row) =>
       (filter.classIndex === null || row.classIndex === filter.classIndex) &&
-      (!filter.isDangerousOnly || isDangerous(row)) &&
+      matchesResult(row, filter.result) &&
       (search === "" || row.caseId.toLowerCase().includes(search)),
   );
+}
+
+/** The result filter a hash names. A link shared before `result` existed says `dangerous=1`. */
+export function toResultFilter(result: string | null, legacyDangerous: string | null): ResultFilter {
+  if (result === "disagree" || result === "dangerous") {
+    return result;
+  }
+  return legacyDangerous === "1" ? "dangerous" : "all";
+}
+
+function matchesResult(row: CaseRow, result: ResultFilter): boolean {
+  if (result === "disagree") {
+    return isDisagreement(row);
+  }
+  return result === "all" || isDangerous(row);
 }
 
 export function formatCount(count: number): string {

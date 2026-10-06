@@ -16,6 +16,7 @@ from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date
 from typing import Any
 
+from detecttrace import __version__
 from detecttrace.results import SCHEMA_VERSION
 from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.stats import BOOTSTRAP_RESAMPLES
@@ -31,6 +32,17 @@ from detecttrace.summary import (
 # Raised whenever the JSON shape of the view changes, so the React app can refuse a view it
 # does not know.
 VIEW_VERSION = 1
+GENERATOR_PREFIX = "detecttrace"
+GENERATOR = f"{GENERATOR_PREFIX} {__version__}"
+OFFLINE_GENERATOR_TEXT = f"Written by {GENERATOR}."
+OFFLINE_FOOTER_TEXT = (
+    "Everything on this page was computed on your machine, and the page makes no network requests."
+)
+SERVED_GENERATOR_TEXT = f"Written by {GENERATOR} on the server that runs detecttrace serve."
+SERVED_FOOTER_TEXT = (
+    "Every 30 seconds the page asks that server whether newer results exist, and it makes no "
+    "other network requests."
+)
 FEW_CASES_BELOW = 10
 FEW_CASES_TEXT = "Few cases."
 FEW_CASES_LEGEND_TEXT = f"Hollow marker: fewer than {FEW_CASES_BELOW} cases"
@@ -100,6 +112,8 @@ class HeaderView:
     period_text: str  # "2026-W27 to 2026-W38 (12 weeks, UTC)"
     versions_text: str  # page order, then "(no version)"
     low_coverage_text: str | None  # set only when a side of the join is below half
+    generator_text: str  # "Written by detecttrace 0.1.0." and, when served, where
+    footer_text: str  # which network requests the page makes, offline or served
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,7 +125,6 @@ class StripView:
 
     range_x: float
     range_width: float
-    point_x: float
     point_left: float  # the point's mark is drawn from here, `point_width` wide
     point_width: float
 
@@ -138,7 +151,6 @@ class VersionRowView:
     kappa: MetricView
     dangerous_text: str
     is_dangerous: bool
-    tp_without_agent_count: int
     tp_without_agent_text: str | None  # "2 true positives with no agent verdict: DT-1, DT-2"
 
 
@@ -177,7 +189,6 @@ class TrendLineView:
     """One series, aligned with `TrendView.weeks`: a None value is a week without cases."""
 
     style: str
-    scope: str  # "all", "version" or "other"
     label: str
     values: tuple[float | None, ...]
     counts: tuple[int, ...]
@@ -253,7 +264,6 @@ class ClassFilterView:
 @dataclass(frozen=True, slots=True)
 class CasesView:
     total_text: str
-    detail_count_text: str
     detail_sentence: str  # how many cases carry tool calls, with the right plural
     class_filters: tuple[ClassFilterView, ...]
 
@@ -378,7 +388,8 @@ def build_served_view(results: Mapping[str, object], served: ServedPage) -> Dash
 
     Raises ValueError for a schema version this code does not know.
     """
-    return replace(build_view(results), served=_to_served_view(served))
+    view = build_view(results)
+    return replace(view, header=_to_served_header(view.header), served=_to_served_view(served))
 
 
 def build_waiting_view(
@@ -390,16 +401,20 @@ def build_waiting_view(
     show the cases still settling, so the served block leaves that text out.
     """
     return DashboardView(
-        header=HeaderView(
-            title="DetectTrace",
-            sources=(),
-            cases_text="",
-            period_text="",
-            versions_text="",
-            low_coverage_text=None,
+        header=_to_served_header(
+            HeaderView(
+                title="DetectTrace",
+                sources=(),
+                cases_text="",
+                period_text="",
+                versions_text="",
+                low_coverage_text=None,
+                generator_text=OFFLINE_GENERATOR_TEXT,
+                footer_text=OFFLINE_FOOTER_TEXT,
+            )
         ),
         classes=(),
-        cases=CasesView(total_text="", detail_count_text="", detail_sentence="", class_filters=()),
+        cases=CasesView(total_text="", detail_sentence="", class_filters=()),
         coverage=(),
         notes=(),
         limits=(),
@@ -559,7 +574,13 @@ def _to_header(data: Any, page_versions: Sequence[str], has_no_version: bool) ->
         period_text=_to_period_text(totals["period"]["first_week"], totals["period"]["last_week"]),
         versions_text=", ".join(labels) if labels else "none",
         low_coverage_text=_to_low_coverage_text(totals["coverage"]),
+        generator_text=OFFLINE_GENERATOR_TEXT,
+        footer_text=OFFLINE_FOOTER_TEXT,
     )
+
+
+def _to_served_header(header: HeaderView) -> HeaderView:
+    return replace(header, generator_text=SERVED_GENERATOR_TEXT, footer_text=SERVED_FOOTER_TEXT)
 
 
 def _to_period_text(first_week: str | None, last_week: str | None) -> str:
@@ -694,7 +715,6 @@ def _to_version_row(
         kappa=_to_kappa_metric(metrics["kappa"], metrics["agreement"]["n"]),
         dangerous_text=format_count(dangerous),
         is_dangerous=dangerous > 0,
-        tp_without_agent_count=len(without_agent),
         tp_without_agent_text=_to_tp_without_agent_text(without_agent),
     )
 
@@ -779,7 +799,6 @@ def _to_strip(low: float, high: float, value: float) -> StripView:
     return StripView(
         range_x=low_x,
         range_width=round(max(high_x - low_x, _MIN_STRIP_WIDTH), 1),
-        point_x=point_x,
         point_left=round(point_x - _STRIP_POINT_WIDTH / 2, 1),
         point_width=_STRIP_POINT_WIDTH,
     )
@@ -869,7 +888,6 @@ def _to_trend_metric(
         lines.append(
             TrendLineView(
                 style=style,
-                scope=scope,
                 label=label,
                 values=values,
                 counts=counts,
@@ -938,7 +956,6 @@ def _to_cases_view(data: Any) -> CasesView:
     detail_count = len(data["case_detail"])
     return CasesView(
         total_text=format_count(data["totals"]["cases"]),
-        detail_count_text=format_count(detail_count),
         detail_sentence=(
             f"Tool calls are included for {_plural(detail_count, 'notable case', 'notable cases')} "
             "(dashboard.max_detail_cases); tool results are never included."

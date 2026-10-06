@@ -14,6 +14,7 @@ import {
   orderRows,
   toDetailModel,
   toOutcomes,
+  toResultFilter,
   toVisibleText,
   verdictLabel,
   versionLabel,
@@ -25,7 +26,7 @@ import type { CaseDetail, CaseRows } from "./results";
 
 const demoRows = decodeRows(DEMO_RESULTS.case_rows);
 const demoDetails = indexDetails(DEMO_RESULTS.case_detail);
-const NO_FILTER: CaseFilter = { classIndex: null, isDangerousOnly: false, search: "" };
+const NO_FILTER: CaseFilter = { classIndex: null, result: "all", search: "" };
 
 function findRow(rows: readonly CaseRow[], caseId: string): CaseRow {
   return rows.find((row) => row.caseId === caseId)!;
@@ -106,7 +107,11 @@ describe("filters", () => {
   });
 
   it("the dangerous filter finds the demo dangerous false closes", () => {
-    expect(filterRows(demoRows, { ...NO_FILTER, isDangerousOnly: true })).toHaveLength(4);
+    expect(filterRows(demoRows, { ...NO_FILTER, result: "dangerous" })).toHaveLength(4);
+  });
+
+  it("the disagreement filter finds every demo case whose verdicts differ", () => {
+    expect(filterRows(demoRows, { ...NO_FILTER, result: "disagree" })).toHaveLength(19);
   });
 
   it("a class filter keeps the first demo class", () => {
@@ -126,7 +131,7 @@ describe("filters", () => {
   });
 
   it("filters combine", () => {
-    expect(filterRows(demoRows, { classIndex: 6, isDangerousOnly: true, search: "DT-IT" })).toHaveLength(0);
+    expect(filterRows(demoRows, { classIndex: 6, result: "dangerous", search: "DT-IT" })).toHaveLength(0);
   });
 
   it("a case with an unknown agent verdict is not a disagreement", () => {
@@ -139,6 +144,24 @@ describe("filters", () => {
 
   it("a true positive with no agent verdict is not dangerous", () => {
     expect(isDangerous(rowC)).toBe(false);
+  });
+});
+
+describe("the result filter in a hash", () => {
+  it("reads disagree", () => {
+    expect(toResultFilter("disagree", null)).toBe("disagree");
+  });
+
+  it("reads an old link's dangerous=1 as dangerous", () => {
+    expect(toResultFilter(null, "1")).toBe("dangerous");
+  });
+
+  it("prefers result over an old dangerous=1", () => {
+    expect(toResultFilter("disagree", "1")).toBe("disagree");
+  });
+
+  it("reads an unknown result as all", () => {
+    expect(toResultFilter("everything", null)).toBe("all");
   });
 });
 

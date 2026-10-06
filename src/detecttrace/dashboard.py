@@ -23,6 +23,7 @@ from markupsafe import Markup
 from detecttrace import __version__
 from detecttrace.charts import SHAPE_BY_STYLE, Chart, SeriesInput, create_marker, trend_chart
 from detecttrace.dashboard_view import (
+    GENERATOR_PREFIX,
     TrendMetricView,
     TrendView,
     build_view,
@@ -33,7 +34,6 @@ from detecttrace.files import MARKER_READ_BYTES, read_head, write_text_atomicall
 from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.summary import SummaryLine, to_visible_text
 
-GENERATOR_PREFIX = "detecttrace"
 _DOCTYPE = b"<!DOCTYPE html>"
 _HEAD_END = b"</head>"
 # The prefix, one space, then a version; "detecttrace-like" or a bare prefix is someone else's.

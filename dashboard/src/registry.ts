@@ -6,7 +6,9 @@ import type { Results } from "./results";
 import type { View } from "./view";
 
 export type PageProps = { view: View; results: Results };
-export type PanelProps = PageProps;
+/** A panel gets the page data, plus what its slot is about: the case in `case-detail`, the
+ * class and version row in `version-row-detail`. */
+export type PanelProps = PageProps & { caseId?: string; classAnchor?: string; versionLabel?: string };
 export type PageDef = {
   path: string;
   title: string;

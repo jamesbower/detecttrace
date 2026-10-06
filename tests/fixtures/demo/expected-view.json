@@ -23,7 +23,9 @@
     "cases_text": "201 in 2 alert classes",
     "period_text": "2026-W32 to 2026-W37 (6 weeks, UTC)",
     "versions_text": "v1, v2",
-    "low_coverage_text": null
+    "low_coverage_text": null,
+    "generator_text": "Written by detecttrace.",
+    "footer_text": "Everything on this page was computed on your machine, and the page makes no network requests."
   },
   "classes": [
     {
@@ -48,7 +50,6 @@
             "strip": {
               "range_x": 78.1,
               "range_width": 6.4,
-              "point_x": 81.3,
               "point_left": 80.7,
               "point_width": 1.2
             }
@@ -62,7 +63,6 @@
             "strip": {
               "range_x": 82.4,
               "range_width": 11.7,
-              "point_x": 89.6,
               "point_left": 89.0,
               "point_width": 1.2
             }
@@ -76,14 +76,12 @@
             "strip": {
               "range_x": 86.4,
               "range_width": 9.8,
-              "point_x": 91.3,
               "point_left": 90.7,
               "point_width": 1.2
             }
           },
           "dangerous_text": "3",
           "is_dangerous": true,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -101,7 +99,6 @@
             "strip": {
               "range_x": 88.8,
               "range_width": 8.0,
-              "point_x": 92.8,
               "point_left": 92.2,
               "point_width": 1.2
             }
@@ -115,7 +112,6 @@
             "strip": {
               "range_x": 74.7,
               "range_width": 20.9,
-              "point_x": 88.9,
               "point_left": 88.3,
               "point_width": 1.2
             }
@@ -129,14 +125,12 @@
             "strip": {
               "range_x": 82.1,
               "range_width": 15.8,
-              "point_x": 91.1,
               "point_left": 90.5,
               "point_width": 1.2
             }
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -154,7 +148,6 @@
             "strip": {
               "range_x": 71.7,
               "range_width": 7.5,
-              "point_x": 75.4,
               "point_left": 74.8,
               "point_width": 1.2
             }
@@ -168,7 +161,6 @@
             "strip": {
               "range_x": 80.8,
               "range_width": 14.3,
-              "point_x": 90.0,
               "point_left": 89.4,
               "point_width": 1.2
             }
@@ -182,14 +174,12 @@
             "strip": {
               "range_x": 84.5,
               "range_width": 12.7,
-              "point_x": 91.3,
               "point_left": 90.7,
               "point_width": 1.2
             }
           },
           "dangerous_text": "3",
           "is_dangerous": true,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         }
       ],
@@ -313,7 +303,6 @@
           "lines": [
             {
               "style": "all",
-              "scope": "all",
               "label": "All versions",
               "values": [
                 0.9411764705882353,
@@ -342,7 +331,6 @@
             },
             {
               "style": "1",
-              "scope": "version",
               "label": "v1",
               "values": [
                 0.9411764705882353,
@@ -371,7 +359,6 @@
             },
             {
               "style": "2",
-              "scope": "version",
               "label": "v2",
               "values": [
                 null,
@@ -456,7 +443,6 @@
           "lines": [
             {
               "style": "all",
-              "scope": "all",
               "label": "All versions",
               "values": [
                 0.8823529411764706,
@@ -485,7 +471,6 @@
             },
             {
               "style": "1",
-              "scope": "version",
               "label": "v1",
               "values": [
                 0.8823529411764706,
@@ -514,7 +499,6 @@
             },
             {
               "style": "2",
-              "scope": "version",
               "label": "v2",
               "values": [
                 null,
@@ -703,7 +687,6 @@
             "strip": {
               "range_x": 92.4,
               "range_width": 4.7,
-              "point_x": 94.7,
               "point_left": 94.1,
               "point_width": 1.2
             }
@@ -717,7 +700,6 @@
             "strip": {
               "range_x": 84.3,
               "range_width": 11.4,
-              "point_x": 91.6,
               "point_left": 91.0,
               "point_width": 1.2
             }
@@ -731,14 +713,12 @@
             "strip": {
               "range_x": 87.7,
               "range_width": 9.7,
-              "point_x": 92.9,
               "point_left": 92.3,
               "point_width": 1.2
             }
           },
           "dangerous_text": "1",
           "is_dangerous": true,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -756,7 +736,6 @@
             "strip": {
               "range_x": 89.5,
               "range_width": 9.4,
-              "point_x": 94.2,
               "point_left": 93.6,
               "point_width": 1.2
             }
@@ -770,7 +749,6 @@
             "strip": {
               "range_x": 74.4,
               "range_width": 22.1,
-              "point_x": 90.0,
               "point_left": 89.4,
               "point_width": 1.2
             }
@@ -784,14 +762,12 @@
             "strip": {
               "range_x": 80.8,
               "range_width": 19.2,
-              "point_x": 91.6,
               "point_left": 91.0,
               "point_width": 1.2
             }
           },
           "dangerous_text": "0",
           "is_dangerous": false,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         },
         {
@@ -809,7 +785,6 @@
             "strip": {
               "range_x": 92.3,
               "range_width": 5.4,
-              "point_x": 95.0,
               "point_left": 94.4,
               "point_width": 1.2
             }
@@ -823,7 +798,6 @@
             "strip": {
               "range_x": 83.2,
               "range_width": 13.5,
-              "point_x": 92.3,
               "point_left": 91.7,
               "point_width": 1.2
             }
@@ -837,14 +811,12 @@
             "strip": {
               "range_x": 86.9,
               "range_width": 11.7,
-              "point_x": 93.3,
               "point_left": 92.7,
               "point_width": 1.2
             }
           },
           "dangerous_text": "1",
           "is_dangerous": true,
-          "tp_without_agent_count": 0,
           "tp_without_agent_text": null
         }
       ],
@@ -951,7 +923,6 @@
           "lines": [
             {
               "style": "all",
-              "scope": "all",
               "label": "All versions",
               "values": [
                 0.9,
@@ -980,7 +951,6 @@
             },
             {
               "style": "1",
-              "scope": "version",
               "label": "v1",
               "values": [
                 0.9,
@@ -1009,7 +979,6 @@
             },
             {
               "style": "2",
-              "scope": "version",
               "label": "v2",
               "values": [
                 null,
@@ -1094,7 +1063,6 @@
           "lines": [
             {
               "style": "all",
-              "scope": "all",
               "label": "All versions",
               "values": [
                 0.9333333333333333,
@@ -1123,7 +1091,6 @@
             },
             {
               "style": "1",
-              "scope": "version",
               "label": "v1",
               "values": [
                 0.9333333333333333,
@@ -1152,7 +1119,6 @@
             },
             {
               "style": "2",
-              "scope": "version",
               "label": "v2",
               "values": [
                 null,
@@ -1322,7 +1288,6 @@
   ],
   "cases": {
     "total_text": "201",
-    "detail_count_text": "112",
     "detail_sentence": "Tool calls are included for 112 notable cases (dashboard.max_detail_cases); tool results are never included.",
     "class_filters": [
       {

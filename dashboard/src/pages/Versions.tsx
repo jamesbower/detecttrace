@@ -1,16 +1,15 @@
-import { ClassSelector, getClassTabId, MAX_CLASS_TABS } from "../components/ClassSelector";
+import { useId } from "react";
+
+import { ClassPanel, ClassSelector } from "../components/ClassSelector";
 import { PageHead } from "../components/PageHead";
 import { VersionTable } from "../components/VersionTable";
 import { useSelectedClass } from "../use-selected-class";
 
 import type { PageProps } from "../registry";
 
-const PANEL_ID = "versions-class-panel";
-
 export function Versions({ view, results }: PageProps) {
+  const panelId = useId();
   const selected = useSelectedClass(view.classes);
-  // A drop-down has no tab to name the panel, so the panel names itself.
-  const hasTabs = view.classes.length <= MAX_CLASS_TABS;
 
   return (
     <>
@@ -19,16 +18,11 @@ export function Versions({ view, results }: PageProps) {
         title="By version"
         description="Evidence completeness, verdict agreement and chance-corrected agreement for each version, in the order each version first appeared, with n and 95% intervals. Chance-corrected agreement is Cohen's kappa: 0 means no better than chance, 1 means perfect agreement. Wide intervals mean few cases."
       />
-      <ClassSelector classes={view.classes} panelId={PANEL_ID} />
+      <ClassSelector classes={view.classes} panelId={panelId} />
       {selected !== undefined && (
-        <section
-          id={PANEL_ID}
-          role={hasTabs ? "tabpanel" : undefined}
-          aria-labelledby={hasTabs ? getClassTabId(selected.anchor) : undefined}
-          aria-label={hasTabs ? undefined : selected.name}
-        >
+        <ClassPanel classes={view.classes} selected={selected} panelId={panelId}>
           <VersionTable alertClass={selected} view={view} results={results} />
-        </section>
+        </ClassPanel>
       )}
     </>
   );

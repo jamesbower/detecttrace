@@ -2,6 +2,7 @@
 // skipped as text; its tint only repeats that share.
 import { useId } from "react";
 
+import { SeriesSwatch } from "./SeriesSwatch";
 import "./Heatmap.css";
 
 import type * as React from "react";
@@ -33,7 +34,10 @@ export function Heatmap({ table, alertClassName }: HeatmapProps) {
               <th scope="col">Checklist step</th>
               {table.columns.map((column, index) => (
                 <th key={index} scope="col" className={column.few_note === null ? undefined : "is-few"}>
-                  <span className="heatmap-label">{column.label}</span>{" "}
+                  <span className="heatmap-label">
+                    <SeriesSwatch style={column.style} />
+                    {column.label}
+                  </span>{" "}
                   <span className="heatmap-of">{column.n_text}</span>
                   {column.few_note !== null && <>{" "}<span className="heatmap-few">{column.few_note}</span></>}
                 </th>

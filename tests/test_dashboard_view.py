@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from detecttrace import __version__
 from detecttrace.dashboard_view import (
     CountView,
     DashboardView,
@@ -325,7 +326,7 @@ def test_a_kappa_strip_uses_a_minus_one_to_one_scale() -> None:
     kappa = metrics(kappa_value=0.0, kappa_interval=interval(-0.5, 0.5))
     row = first_version_row(results([class_data(entries=[version_entry("v1", slice_data=kappa)])]))
     strip = row.kappa.strip
-    assert (strip.range_x, strip.range_width, strip.point_x) == (25.0, 50.0, 50.0)
+    assert (strip.range_x, strip.range_width, strip.point_left) == (25.0, 50.0, 49.4)
 
 
 def test_a_strip_point_carries_its_left_edge_and_width() -> None:
@@ -467,11 +468,6 @@ def test_each_version_row_shows_its_dangerous_false_close_count() -> None:
 def without_agent_class(ids: tuple[str, ...]) -> dict[str, object]:
     slice_data = metrics(without_agent=ids)
     return class_data(entries=[version_entry("v1", slice_data=slice_data)], overall=slice_data)
-
-
-def test_a_row_counts_true_positives_without_an_agent_verdict() -> None:
-    data = results([without_agent_class(("DT-1", "DT-2"))])
-    assert first_version_row(data).tp_without_agent_count == 2
 
 
 def test_a_row_names_true_positives_without_an_agent_verdict() -> None:
@@ -931,7 +927,7 @@ def test_the_view_json_holds_the_visible_form_of_a_hostile_class_name() -> None:
 def test_the_view_json_refuses_a_number_json_cannot_hold() -> None:
     view = build_view(results())
     row = view.classes[0].rows[0]
-    strip = StripView(float("nan"), 1.0, 50.0, 49.4, 1.2)
+    strip = StripView(float("nan"), 1.0, 49.4, 1.2)
     bad_row = replace(row, agreement=replace(row.agreement, strip=strip))
     bad_view = replace(view, classes=(replace(view.classes[0], rows=(bad_row,)),))
 
@@ -998,8 +994,47 @@ def test_a_served_view_says_how_many_cases_are_still_settling(
 
 def test_a_served_view_shows_the_same_results_as_the_offline_view() -> None:
     view = build_served_view(demo_results(), SERVED)
+    offline = build_view(demo_results())
 
-    assert replace(view, served=None) == build_view(demo_results())
+    assert replace(view, served=None, header=offline.header) == offline
+
+
+def test_an_offline_view_names_the_version_that_wrote_it() -> None:
+    header = build_view(demo_results()).header
+
+    assert header.generator_text == f"Written by detecttrace {__version__}."
+
+
+def test_an_offline_view_says_the_page_makes_no_network_requests() -> None:
+    header = build_view(demo_results()).header
+
+    assert header.footer_text == (
+        "Everything on this page was computed on your machine, and the page makes no network "
+        "requests."
+    )
+
+
+def test_a_served_view_says_which_server_wrote_it() -> None:
+    header = build_served_view(demo_results(), SERVED).header
+
+    assert header.generator_text == (
+        f"Written by detecttrace {__version__} on the server that runs detecttrace serve."
+    )
+
+
+def test_a_served_view_says_the_page_asks_the_server_for_newer_results() -> None:
+    header = build_served_view(demo_results(), SERVED).header
+
+    assert header.footer_text == (
+        "Every 30 seconds the page asks that server whether newer results exist, and it makes "
+        "no other network requests."
+    )
+
+
+def test_a_waiting_view_says_the_page_asks_the_server_for_newer_results() -> None:
+    header = build_waiting_view(WAITING_COUNTS, [], SERVED).header
+
+    assert header.footer_text.startswith("Every 30 seconds the page asks that server")
 
 
 def test_a_waiting_view_lists_each_count_under_its_label() -> None:

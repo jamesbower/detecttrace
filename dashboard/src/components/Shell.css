@@ -18,14 +18,13 @@
   transform: none;
 }
 
-/* The bottom padding keeps the last line clear of the bottom navigation bar. */
 .shell-main {
   position: relative;
   display: grid;
   align-content: start;
   gap: var(--sp-4);
   min-width: 0;
-  padding: var(--sp-5) var(--sp-4) calc(var(--touch-target) + var(--sp-7));
+  padding: var(--sp-5) var(--sp-4);
 }
 
 .shell-main > * {
@@ -35,6 +34,14 @@
 
 .shell-main > .shell-corner {
   display: none;
+}
+
+/* The bottom padding keeps the last line clear of the bottom navigation bar. */
+.shell-footer {
+  max-width: var(--measure);
+  padding: 0 var(--sp-4) calc(var(--touch-target) + var(--sp-7));
+  color: var(--muted);
+  font-size: var(--fs-xs);
 }
 
 .shell-note {
@@ -51,7 +58,12 @@
 
   .shell-main {
     grid-column: 2;
-    padding: var(--sp-6) var(--sp-6) var(--sp-8);
+    padding: var(--sp-6);
+  }
+
+  .shell-footer {
+    grid-column: 2;
+    padding: 0 var(--sp-6) var(--sp-8);
   }
 
   .shell-main > .shell-corner {

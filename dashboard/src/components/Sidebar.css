@@ -100,10 +100,6 @@
     font-size: var(--fs-md);
   }
 
-  .sidebar-brand-accent {
-    color: var(--accent-text);
-  }
-
   .sidebar-links {
     flex-direction: column;
     justify-content: flex-start;

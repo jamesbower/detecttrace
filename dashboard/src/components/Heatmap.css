@@ -44,7 +44,9 @@
 }
 
 .heatmap-label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   max-width: var(--label-max);
   color: var(--text);
   font-weight: var(--fw-semibold);

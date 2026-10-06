@@ -15,12 +15,13 @@ export type HeaderView = {
   readonly period_text: string;
   readonly versions_text: string;
   readonly low_coverage_text: string | null;
+  readonly generator_text: string;
+  readonly footer_text: string;
 };
 
 export type StripView = {
   readonly range_x: number;
   readonly range_width: number;
-  readonly point_x: number;
   readonly point_left: number;
   readonly point_width: number;
 };
@@ -45,7 +46,6 @@ export type VersionRowView = {
   readonly kappa: MetricView;
   readonly dangerous_text: string;
   readonly is_dangerous: boolean;
-  readonly tp_without_agent_count: number;
   readonly tp_without_agent_text: string | null;
 };
 
@@ -77,7 +77,6 @@ export type SkipTableView = {
 
 export type TrendLineView = {
   readonly style: string;
-  readonly scope: string;
   readonly label: string;
   readonly values: ReadonlyArray<number | null>;
   readonly counts: ReadonlyArray<number>;
@@ -144,7 +143,6 @@ export type ClassFilterView = {
 
 export type CasesView = {
   readonly total_text: string;
-  readonly detail_count_text: string;
   readonly detail_sentence: string;
   readonly class_filters: ReadonlyArray<ClassFilterView>;
 };

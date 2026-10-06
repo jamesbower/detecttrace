@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it } from "vitest";
 
+import { DEMO_VIEW } from "../test-fixtures";
 import { Shell } from "./Shell";
 
 afterEach(() => {
@@ -10,7 +11,7 @@ afterEach(() => {
 });
 
 it("moves focus to the main content from the skip link", async () => {
-  render(<Shell pages={[]} currentPath="/">content</Shell>);
+  render(<Shell header={DEMO_VIEW.header} pages={[]} currentPath="/">content</Shell>);
 
   await userEvent.click(screen.getByRole("link", { name: "Skip to content" }));
 
@@ -19,7 +20,7 @@ it("moves focus to the main content from the skip link", async () => {
 
 it("keeps the route when the skip link is followed", async () => {
   window.history.replaceState(null, "", "#/cases?class=class-1");
-  render(<Shell pages={[]} currentPath="/cases">content</Shell>);
+  render(<Shell header={DEMO_VIEW.header} pages={[]} currentPath="/cases">content</Shell>);
 
   await userEvent.click(screen.getByRole("link", { name: "Skip to content" }));
 
@@ -27,7 +28,7 @@ it("keeps the route when the skip link is followed", async () => {
 });
 
 it("puts the skip link first in the tab order", async () => {
-  render(<Shell pages={[]} currentPath="/">content</Shell>);
+  render(<Shell header={DEMO_VIEW.header} pages={[]} currentPath="/">content</Shell>);
 
   await userEvent.tab();
 
@@ -36,10 +37,18 @@ it("puts the skip link first in the tab order", async () => {
 
 it("renders the page inside the main landmark", () => {
   render(
-    <Shell pages={[]} currentPath="/">
+    <Shell header={DEMO_VIEW.header} pages={[]} currentPath="/">
       <h1>Overview</h1>
     </Shell>,
   );
 
   expect(screen.getByRole("main").contains(screen.getByRole("heading", { name: "Overview" }))).toBe(true);
+});
+
+it("says in the footer which version wrote the page and what it asks of the network", () => {
+  render(<Shell header={DEMO_VIEW.header} pages={[]} currentPath="/">content</Shell>);
+
+  expect(screen.getByRole("contentinfo").textContent).toBe(
+    "Written by detecttrace. Everything on this page was computed on your machine, and the page makes no network requests.",
+  );
 });

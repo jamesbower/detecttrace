@@ -169,18 +169,6 @@
   fill: var(--text);
 }
 
-.series-swatch {
-  flex: none;
-  width: var(--swatch-width);
-  height: var(--swatch-height);
-}
-
-.series-swatch line {
-  stroke: var(--series-color);
-  stroke-dasharray: var(--series-dash);
-  stroke-width: var(--swatch-stroke);
-}
-
 .version-table-detail td {
   background: var(--panel);
 }
@@ -189,50 +177,4 @@
   max-width: var(--measure);
   color: var(--muted);
   font-size: var(--fs-sm);
-}
-
-/* Version series: colour and dash pattern, with the label as the third cue. */
-.series-all {
-  --series-color: var(--s-all);
-  --series-dash: none;
-}
-
-.series-1 {
-  --series-color: var(--s1);
-  --series-dash: var(--s1-dash);
-}
-
-.series-2 {
-  --series-color: var(--s2);
-  --series-dash: var(--s2-dash);
-}
-
-.series-3 {
-  --series-color: var(--s3);
-  --series-dash: var(--s3-dash);
-}
-
-.series-4 {
-  --series-color: var(--s4);
-  --series-dash: var(--s4-dash);
-}
-
-.series-5 {
-  --series-color: var(--s5);
-  --series-dash: var(--s5-dash);
-}
-
-.series-6 {
-  --series-color: var(--s6);
-  --series-dash: var(--s6-dash);
-}
-
-.series-other {
-  --series-color: var(--s-other);
-  --series-dash: var(--s-other-dash);
-}
-
-.series-none {
-  --series-color: var(--s-none);
-  --series-dash: var(--s-none-dash);
 }

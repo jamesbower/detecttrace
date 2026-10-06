@@ -1,6 +1,6 @@
 import { useId } from "react";
 
-import { ClassSelector, getClassTabId } from "../components/ClassSelector";
+import { ClassPanel, ClassSelector } from "../components/ClassSelector";
 import { PageHead } from "../components/PageHead";
 import { PanelSlot } from "../components/PanelSlot";
 import { TrendChart } from "../components/TrendChart";
@@ -27,23 +27,17 @@ export function WeeklyTrend({ view, results }: PageProps) {
       <PageHead
         eyebrow="Weekly trend"
         title="Weekly trend"
-        description="One line per version, with a point only in weeks where that version has cases, plus all versions together. ISO weeks in UTC."
+        description="One line per version, with a point only in weeks where that version has cases, plus all versions together. A dashed rule marks the first week of each version. A version that appears again later is a rollback."
       />
       <ClassSelector classes={view.classes} panelId={panelId} />
       {selected !== undefined && trend !== undefined && (
-        <section
-          key={selected.anchor}
-          id={panelId}
-          role="tabpanel"
-          aria-labelledby={getClassTabId(selected.anchor)}
-          className="analysis-panel"
-        >
+        <ClassPanel classes={view.classes} selected={selected} panelId={panelId} className="analysis-panel">
           <h2 className="analysis-panel-title">{selected.name}</h2>
           <p className="analysis-panel-lead">{`ISO weeks in UTC, ${trend.period_text}. n under each week counts all versions.`}</p>
           <TrendLegend lines={legendLines} fewLegendText={trend.few_legend_text} alertClassName={selected.name} />
           <TrendChart metric={trend.completeness} trend={trend} alertClassName={selected.name} />
           <TrendChart metric={trend.agreement} trend={trend} alertClassName={selected.name} />
-        </section>
+        </ClassPanel>
       )}
       <PanelSlot name="trend-footer" view={view} results={results} />
     </>
