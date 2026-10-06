@@ -1,8 +1,9 @@
 // The case table. Each row opens with a real button; above WINDOW_THRESHOLD rows only the
 // rows near the scroll position are drawn. Which rows are open is kept by case, not by DOM
 // node, so an opened row is still open when it scrolls out of the window and back. The row
-// holding focus stays drawn wherever the table scrolls, and aria-rowcount and aria-rowindex
-// tell a screen reader where each drawn row sits in the whole table.
+// holding focus and the rows either side of it stay drawn wherever the table scrolls, so Tab
+// always has a next row to reach. aria-rowcount and aria-rowindex tell a screen reader where
+// each drawn row sits in the whole table.
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {

@@ -18,8 +18,6 @@ export type WindowRange = {
   readonly start: number;
   /** One past the last drawn row's position. */
   readonly end: number;
-  readonly topPx: number;
-  readonly bottomPx: number;
 };
 
 /** A run of drawn rows by position, or a spacer standing in for rows that are not drawn. */
@@ -35,50 +33,49 @@ export function computeWindow(
   viewportPx: number,
 ): WindowRange {
   if (rowCount <= WINDOW_THRESHOLD) {
-    return { start: 0, end: rowCount, topPx: 0, bottomPx: 0 };
+    return { start: 0, end: rowCount };
   }
   const first = findFirstVisible(rowCount, extents, scrollTopPx);
   const start = Math.max(0, first - OVERSCAN_ROWS);
   // Opened details only take room from rows, so this many rows always fill the viewport.
   const end = Math.min(rowCount, first + Math.ceil(viewportPx / ROW_HEIGHT_PX) + 1 + OVERSCAN_ROWS);
-  return {
-    start,
-    end,
-    topPx: offsetOf(start, extents),
-    bottomPx: offsetOf(rowCount, extents) - offsetOf(end, extents),
-  };
+  return { start, end };
 }
 
-/** The window's parts in table order. A pinned row outside the window, such as the one that
- * holds focus, is drawn in its own place too, so scrolling never removes the focused row. */
+/** The window's parts in table order. A pinned row, such as the one that holds focus, is drawn
+ * in its own place wherever the window is, so scrolling never removes the focused row. So are
+ * the rows either side of it: Tab and Shift+Tab move to the next drawn row, and a held key moves
+ * focus many rows within one frame, before the scroll that focus causes can move the window. */
 export function toWindowParts(
   range: WindowRange,
   rowCount: number,
   extents: readonly DetailExtent[],
   pinned: number | null,
 ): WindowPart[] {
+  const blocks = [{ start: range.start, end: range.end }];
+  if (pinned !== null && pinned >= 0 && pinned < rowCount) {
+    const near = { start: Math.max(0, pinned - 1), end: Math.min(rowCount, pinned + 2) };
+    if (near.end < range.start) {
+      blocks.unshift(near);
+    } else if (near.start > range.end) {
+      blocks.push(near);
+    } else {
+      blocks[0] = { start: Math.min(near.start, range.start), end: Math.max(near.end, range.end) };
+    }
+  }
   const parts: WindowPart[] = [];
   const addSpacer = (heightPx: number) => {
     if (heightPx > 0) {
       parts.push({ kind: "spacer", heightPx });
     }
   };
-  const isOutside = pinned !== null && pinned >= 0 && pinned < rowCount && (pinned < range.start || pinned >= range.end);
-  if (isOutside && pinned < range.start) {
-    addSpacer(offsetOf(pinned, extents));
-    parts.push({ kind: "rows", start: pinned, end: pinned + 1 });
-    addSpacer(range.topPx - offsetOf(pinned + 1, extents));
-  } else {
-    addSpacer(range.topPx);
+  let drawnTo = 0;
+  for (const block of blocks) {
+    addSpacer(offsetOf(block.start, extents) - offsetOf(drawnTo, extents));
+    parts.push({ kind: "rows", start: block.start, end: block.end });
+    drawnTo = block.end;
   }
-  parts.push({ kind: "rows", start: range.start, end: range.end });
-  if (isOutside && pinned >= range.end) {
-    addSpacer(offsetOf(pinned, extents) - offsetOf(range.end, extents));
-    parts.push({ kind: "rows", start: pinned, end: pinned + 1 });
-    addSpacer(offsetOf(rowCount, extents) - offsetOf(pinned + 1, extents));
-  } else {
-    addSpacer(range.bottomPx);
-  }
+  addSpacer(offsetOf(rowCount, extents) - offsetOf(drawnTo, extents));
   return parts;
 }
 

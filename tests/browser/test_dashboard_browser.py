@@ -188,15 +188,6 @@ def to_count_line(matching: int) -> str:
     return f"Showing {matching:,} of {CASE_COUNT:,} cases."
 
 
-def press_tab(page: Any) -> None:
-    """Tab, then wait two frames, as a person's next key press would: the case table draws
-    rows near the focused one only after the scroll that focus causes."""
-    page.keyboard.press("Tab")
-    page.evaluate(
-        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
-    )
-
-
 def read_hash_query(page: Any) -> dict[str, str]:
     query = page.evaluate("location.hash").partition("?")[2]
     return dict(pair.split("=", 1) for pair in query.split("&") if pair)
@@ -304,7 +295,7 @@ def tab_walk(
     walk: list[tuple[str, bool]] = []
     with visiting(browser, low_coverage_path, hash=f"#{request.param[0]}") as visit:
         for _ in range(600):
-            press_tab(visit.page)
+            visit.page.keyboard.press("Tab")
             name, has_ring = visit.page.evaluate(FOCUS_PROBE)
             if name == "body":
                 break
@@ -386,7 +377,7 @@ def case_tab_order(browser: Any, demo_path: Path) -> list[int]:
             if index is None:
                 break
             order.append(index)
-            press_tab(visit.page)
+            visit.page.keyboard.press("Tab")
     return order
 
 

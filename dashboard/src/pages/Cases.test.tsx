@@ -384,6 +384,36 @@ describe("windowing", () => {
     expect(document.activeElement?.textContent).toBe("C02500");
   });
 
+  it("draws the case after the last drawn one once it takes focus, before the table scrolls", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    const lastDrawn = screen.getAllByRole("button", { name: /^C\d{5}$/ }).at(-1)!;
+    const nextCase = `C${String(Number(lastDrawn.textContent!.slice(1)) + 1).padStart(5, "0")}`;
+
+    act(() => lastDrawn.focus());
+
+    expect(screen.queryByRole("button", { name: nextCase })).not.toBeNull();
+  });
+
+  it("draws the case before the first drawn one once it takes focus, before the table scrolls", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    scrollTable(2500 * 52);
+    const firstDrawn = screen.getAllByRole("button", { name: /^C\d{5}$/ })[0]!;
+    const previousCase = `C${String(Number(firstDrawn.textContent!.slice(1)) - 1).padStart(5, "0")}`;
+
+    act(() => firstDrawn.focus());
+
+    expect(screen.queryByRole("button", { name: previousCase })).not.toBeNull();
+  });
+
+  it("keeps the case after a focused row drawn when the table scrolls far from it", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+    act(() => caseButton("C00000").focus());
+
+    scrollTable(2500 * 52);
+
+    expect(screen.queryByRole("button", { name: "C00001" })).not.toBeNull();
+  });
+
   it("drops the row once focus moves out of the table", () => {
     render(<Cases view={DEMO_VIEW} results={results} />);
     act(() => caseButton("C00000").focus());
