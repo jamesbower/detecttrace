@@ -1,5 +1,6 @@
 """`detecttrace serve`: startup failures, the worker pool, and a real process end to end."""
 
+import contextlib
 import json
 import multiprocessing
 import os
@@ -11,7 +12,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
-from concurrent.futures import Executor, Future, ProcessPoolExecutor
+from concurrent.futures import CancelledError, Executor, Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass
 from pathlib import Path
@@ -402,16 +403,24 @@ def stopped_mid_run(tmp_path: Path) -> StoppedPool:
         lambda: ProcessPoolExecutor(max_workers=1, mp_context=context),
         lambda executor: executor.submit(sleep_in_worker, marker),
     )
-    # The first runs; the next two fill the executor's call queue; the last waits its turn.
+    # The first runs. The executor's call queue holds at most max_workers + EXTRA_QUEUED_CALLS
+    # (2) runs, so with the first taken by the worker only the second and third can be in it:
+    # the last is certainly still waiting its turn, where shutdown can cancel it.
     futures = [pool.submit() for _ in range(4)]
     deadline = time.monotonic() + 30
     while not marker.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
     started = time.monotonic()
     pool.shutdown()
-    return StoppedPool(
-        time.monotonic() - started, int(marker.read_text(encoding="utf-8")), futures[-1]
-    )
+    shutdown_seconds = time.monotonic() - started
+    queued = futures[-1]
+    # The executor cancels waiting runs on its own manager thread, which a busy machine may not
+    # have scheduled yet when shutdown returns. exception() wakes the moment the future is
+    # cancelled or finishes; concurrent.futures.wait would not, as it ignores a future that
+    # cancel() ended until the executor also notifies it.
+    with contextlib.suppress(CancelledError):
+        queued.exception(timeout=10)
+    return StoppedPool(shutdown_seconds, int(marker.read_text(encoding="utf-8")), queued)
 
 
 @needs_posix
