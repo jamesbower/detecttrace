@@ -13,7 +13,7 @@ from builders import (
     write_jsonl,
     write_run_folder,
 )
-from html_tree import has_tag, parse_html
+from page_data import read_view
 from typer.testing import CliRunner
 
 from detecttrace import cli
@@ -1008,9 +1008,8 @@ def test_each_langfuse_problem_is_in_the_dashboard_data_notes(
 ) -> None:
     config_path = write_langfuse_run(tmp_path, PROBLEM_ROWS[kind](run_rows()))
     CliRunner().invoke(cli.app, ["check", "--config", str(config_path)])
-    page = parse_html((tmp_path / "dashboard.html").read_text(encoding="utf-8"))
-    notes = page.find(has_tag("ol", **{"class": "notes"}))
-    assert hint_of(kind) in notes.text()
+    notes = read_view((tmp_path / "dashboard.html").read_text(encoding="utf-8"))["notes"]
+    assert hint_of(kind) in [note["hint"] for note in notes]
 
 
 def test_an_otlp_input_without_tool_calls_gets_no_langfuse_note(tmp_path: Path) -> None:

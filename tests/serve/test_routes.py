@@ -11,7 +11,7 @@ from typing import NoReturn
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from html_tree import has_tag, parse_html, read_terms
+from page_data import read_view
 
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.serve.app import create_app
@@ -117,7 +117,7 @@ def test_page_without_a_token_offers_each_scheme_in_its_own_header(
 
 
 def test_page_before_the_first_recompute_is_the_waiting_page(client: TestClient) -> None:
-    assert "Waiting for data." in client.get("/", headers=BEARER_READ).text
+    assert read_view(client.get("/", headers=BEARER_READ).text)["waiting"] is not None
 
 
 def test_waiting_page_before_the_first_recompute_is_ok(client: TestClient) -> None:
@@ -125,7 +125,7 @@ def test_waiting_page_before_the_first_recompute_is_ok(client: TestClient) -> No
 
 
 def test_waiting_page_before_the_first_recompute_is_generation_zero(client: TestClient) -> None:
-    assert 'data-generation="0"' in client.get("/", headers=BEARER_READ).text
+    assert read_view(client.get("/", headers=BEARER_READ).text)["served"]["generation"] == 0
 
 
 def test_waiting_page_with_stored_input_before_the_first_recompute_is_generation_zero(
@@ -133,15 +133,15 @@ def test_waiting_page_with_stored_input_before_the_first_recompute_is_generation
 ) -> None:
     # Any first snapshot must read as newer, whatever the input's generation.
     app_store.add_issues([Issue(IssueKind.INVALID_FILE, "file-1")])
-    assert 'data-generation="0"' in client.get("/", headers=BEARER_READ).text
+    assert read_view(client.get("/", headers=BEARER_READ).text)["served"]["generation"] == 0
 
 
 def test_waiting_page_before_the_first_recompute_counts_the_stored_verdicts(
     client: TestClient, app_store: Store
 ) -> None:
     app_store.put_verdicts([VerdictRow("DT-1", "phishing", "TP", 0)], "soar")
-    page = parse_html(client.get("/", headers=BEARER_READ).text)
-    assert read_terms(page.find(has_tag("dl", **{"class": "meta"})))["Verdicts received"] == "1"
+    counts = read_view(client.get("/", headers=BEARER_READ).text)["waiting"]["counts"]
+    assert {count["label"]: count["value"] for count in counts}["Verdicts received"] == "1"
 
 
 def test_status_generation_is_the_stored_snapshots(status_body: dict[str, object]) -> None:

@@ -19,10 +19,12 @@ from typing import Any, NoReturn
 
 import pytest
 import uvicorn
+from page_data import read_results, read_view
 from typer.testing import CliRunner, Result
 
 import detecttrace.serve
 from detecttrace import cli
+from detecttrace.results import SCHEMA_VERSION
 from detecttrace.serve import server
 from detecttrace.serve.config import ServeConfig, load_serve_config
 from detecttrace.serve.recompute import RecomputeOutcome
@@ -482,12 +484,13 @@ def test_served_status_counts_every_posted_verdict(end_to_end: EndToEnd) -> None
 
 @needs_posix
 def test_served_page_is_the_dashboard(end_to_end: EndToEnd) -> None:
-    assert 'id="case-filters"' in end_to_end.page
+    assert read_results(end_to_end.page)["schema_version"] == SCHEMA_VERSION
 
 
 @needs_posix
 def test_served_page_polls_for_newer_results(end_to_end: EndToEnd) -> None:
-    assert 'id="dt-serve"' in end_to_end.page
+    # The page's script asks the server for newer results only when its view is served.
+    assert read_view(end_to_end.page)["served"] is not None
 
 
 @needs_posix

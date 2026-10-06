@@ -146,18 +146,26 @@ def normalized_demo_page() -> str:
 
 
 def test_the_golden_page_holds_a_placeholder_for_the_stylesheet(normalized_demo_page: str) -> None:
-    assert "<style>" + generate.STYLESHEET_PLACEHOLDER + "</style>" in normalized_demo_page
+    assert (
+        generate.STYLE_OPEN_TAG + generate.STYLESHEET_PLACEHOLDER + "</style>"
+    ) in normalized_demo_page
 
 
 def test_the_golden_page_holds_a_placeholder_for_the_script(normalized_demo_page: str) -> None:
-    assert "<script>" + generate.SCRIPT_PLACEHOLDER + "</script>" in normalized_demo_page
+    assert (
+        generate.SCRIPT_OPEN_TAG + generate.SCRIPT_PLACEHOLDER + "</script>"
+    ) in normalized_demo_page
+
+
+def test_the_golden_page_holds_a_placeholder_for_the_view(normalized_demo_page: str) -> None:
+    assert (
+        generate.VIEW_OPEN_TAG + generate.VIEW_PLACEHOLDER + "</script>"
+    ) in normalized_demo_page
 
 
 def test_the_golden_page_holds_a_placeholder_for_the_results(normalized_demo_page: str) -> None:
     assert (
-        '<script type="application/json" id="dt-results">'
-        + generate.RESULTS_PLACEHOLDER
-        + "</script>"
+        generate.RESULTS_OPEN_TAG + generate.RESULTS_PLACEHOLDER + "</script>"
     ) in normalized_demo_page
 
 

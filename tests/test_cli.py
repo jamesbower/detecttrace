@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 from builders import RUN_CONFIG, RUN_VERDICTS, write_run_folder
-from html_tree import has_tag, parse_html
+from page_data import read_view
 from typer.testing import CliRunner, Result
 
 from detecttrace import __version__, cli, pipeline
@@ -297,9 +297,8 @@ def test_an_inactive_example_checklist_is_noted_in_the_dashboard_data_notes(
 ) -> None:
     _check(_write_inactive_example(tmp_path))
 
-    page = parse_html((tmp_path / "dashboard.html").read_text(encoding="utf-8"))
-    notes = page.find(has_tag("ol", **{"class": "notes"}))
-    assert "impossible_travel.yaml.example' is inactive" in notes.text()
+    notes = read_view((tmp_path / "dashboard.html").read_text(encoding="utf-8"))["notes"]
+    assert [n for n in notes if "impossible_travel.yaml.example' is inactive" in n["message"]] != []
 
 
 def test_an_inactive_example_checklist_does_not_fail_strict(tmp_path: Path) -> None:

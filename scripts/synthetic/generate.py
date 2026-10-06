@@ -45,16 +45,31 @@ INIT_GOLDEN_NAME = "expected_init.yaml"
 VIEW_GOLDEN_NAME = "expected-view.json"
 STYLESHEET_PLACEHOLDER = "/* stylesheet */"
 SCRIPT_PLACEHOLDER = "/* script */"
+VIEW_PLACEHOLDER = "{}"
 RESULTS_PLACEHOLDER = "{}"
 SCRIPT_HASH_PLACEHOLDER = "sha256-SCRIPT"
 STYLE_HASH_PLACEHOLDER = "sha256-STYLE"
+SCRIPT_OPEN_TAG = '<script type="module" crossorigin>'
+STYLE_OPEN_TAG = '<style rel="stylesheet" crossorigin>'
+VIEW_OPEN_TAG = '<script type="application/json" id="dt-view">'
+RESULTS_OPEN_TAG = '<script type="application/json" id="dt-results">'
 # Replacements are plain text: none of the placeholders holds a backslash or a group reference.
 _DASHBOARD_PLACEHOLDERS = (
-    (re.compile(r"<style>.*?</style>", re.S), f"<style>{STYLESHEET_PLACEHOLDER}</style>"),
-    (re.compile(r"<script>.*?</script>", re.S), f"<script>{SCRIPT_PLACEHOLDER}</script>"),
     (
-        re.compile(r'<script type="application/json" id="dt-results">.*?</script>', re.S),
-        f'<script type="application/json" id="dt-results">{RESULTS_PLACEHOLDER}</script>',
+        re.compile(re.escape(STYLE_OPEN_TAG) + r".*?</style>", re.S),
+        f"{STYLE_OPEN_TAG}{STYLESHEET_PLACEHOLDER}</style>",
+    ),
+    (
+        re.compile(re.escape(SCRIPT_OPEN_TAG) + r".*?</script>", re.S),
+        f"{SCRIPT_OPEN_TAG}{SCRIPT_PLACEHOLDER}</script>",
+    ),
+    (
+        re.compile(re.escape(VIEW_OPEN_TAG) + r".*?</script>", re.S),
+        f"{VIEW_OPEN_TAG}{VIEW_PLACEHOLDER}</script>",
+    ),
+    (
+        re.compile(re.escape(RESULTS_OPEN_TAG) + r".*?</script>", re.S),
+        f"{RESULTS_OPEN_TAG}{RESULTS_PLACEHOLDER}</script>",
     ),
     (re.compile(r"script-src 'sha256-[A-Za-z0-9+/=]+'"), f"script-src '{SCRIPT_HASH_PLACEHOLDER}'"),
     (re.compile(r"style-src 'sha256-[A-Za-z0-9+/=]+'"), f"style-src '{STYLE_HASH_PLACEHOLDER}'"),
@@ -226,10 +241,10 @@ def normalize_results(results: dict[str, object]) -> dict[str, object]:
 
 
 def normalize_dashboard(html: str) -> str:
-    """Keep only the template's own markup: drop the version from the generator marker and
-    the footer, and put placeholders in place of the stylesheet, the script, the results block
-    and the two policy hashes. Those parts have tests of their own, and a golden full of them
-    would change with every stylesheet or script edit and hide the markup changes."""
+    """Keep only the page's own markup: drop the version from the generator marker, and put
+    placeholders in place of the stylesheet, the script, the view and results blocks and the two
+    policy hashes. Those parts have tests and golden files of their own, and a golden full of them
+    would change with every dashboard build and hide the markup changes."""
     from detecttrace.dashboard_view import GENERATOR_PREFIX
 
     text = html.replace(f"{GENERATOR_PREFIX} {__version__}", GENERATOR_PREFIX)

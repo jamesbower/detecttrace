@@ -1,5 +1,6 @@
 import json
 import os
+from collections.abc import Iterator
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -7,17 +8,24 @@ from typing import Any
 import pytest
 from html_tree import Node, has_tag, parse_html
 
-from detecttrace import __version__
+from detecttrace import __version__, dashboard
 from detecttrace.dashboard import (
     is_dashboard_file,
     render_dashboard,
+    render_waiting_page,
     to_script_json,
     write_dashboard,
 )
-from detecttrace.dashboard_view import LIMITS, format_percent
+from detecttrace.dashboard_view import (
+    build_served_view,
+    build_view,
+    build_waiting_view,
+    to_view_json,
+)
 from detecttrace.pipeline import run_check
 from detecttrace.results import write_results_json
 from detecttrace.runconfig import load_run_config
+from detecttrace.served_page import ServedPage, WaitingCounts
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DEMO_GOLDEN = FIXTURES / "demo" / "expected.json"
@@ -28,15 +36,13 @@ FIXTURE_CONFIGS = sorted(
     for path in FIXTURES.rglob("detecttrace.yaml")
     if path.parent.name not in UNUSABLE
 )
-PART_TITLES = [
-    "header",
-    "By alert class and version",
-    "Checklist steps the agent skipped",
-    "Weekly trend",
-    "Agent verdict against analyst verdict",
-    "Cases",
-    "Data notes",
-    "What this dashboard does not tell you",
+SERVED = ServedPage(generation=7, updated_at="2026-10-05T12:00:00.000000Z", held_back_cases=3)
+WAITING_COUNTS = WaitingCounts(span_count=12, case_count=0, held_back_count=2, verdict_count=5)
+SLOTS = [
+    "__DT_CSP__",
+    "__DT_GENERATOR__",
+    '<script type="application/json" id="dt-view"></script>',
+    '<script type="application/json" id="dt-results"></script>',
 ]
 
 
@@ -56,160 +62,38 @@ def demo_page() -> Node:
 
 
 @cache
+def served_page() -> Node:
+    return parse_html(render_dashboard(demo_results(), served=SERVED))
+
+
+@cache
+def waiting_page() -> Node:
+    return parse_html(render_waiting_page(WAITING_COUNTS, [], SERVED))
+
+
+@cache
 def fixture_results(name: str) -> dict[str, object]:
     config_path = (FIXTURES / name / "detecttrace.yaml").absolute()
     return run_check(load_run_config(config_path), config_path).results
 
 
-@cache
-def fixture_page(name: str) -> Node:
-    return demo_page() if name == "demo" else parse_html(render_dashboard(fixture_results(name)))
-
-
-def version_entry(class_index: int, version: str) -> Any:
-    entries = demo_results()["classes"][class_index]["by_version"]
-    return next(entry for entry in entries if entry["version"] == version)
-
-
-def part_title(node: Node) -> str | None:
-    if node.tag == "header":
-        return "header"
-    return node.text() if node.tag == "h2" else None
-
-
-def version_rows(page: Node, class_index: int) -> dict[str, list[str]]:
-    """The versions table of one class: row label to its cell texts."""
-    table = page.find(
-        lambda node: (
-            node.tag == "table"
-            and node.find_all(has_tag("caption", id=f"class-{class_index}-v-cap")) != []
-        )
-    )
-    body = table.find(has_tag("tbody"))
-    return {
-        _row_label(row.find(has_tag("th"))): [cell.text() for cell in row.find_all(has_tag("td"))]
-        for row in body.find_all(has_tag("tr"))
-    }
-
-
-def _row_label(header: Node) -> str:
-    # The label comes first; a "Few cases." note may follow it in the same cell.
-    first = header.children[0]
-    return first if isinstance(first, str) else first.text()
-
-
-def section(page: Node, heading_id: str) -> Node:
-    return page.find(
-        lambda node: node.tag == "section" and node.attrs.get("aria-labelledby") == heading_id
-    )
+def data_block(page: Node, block_id: str) -> str:
+    return page.find(has_tag("script", id=block_id)).text()
 
 
 # Structure
-
-
-def test_the_page_has_its_nine_parts_in_order() -> None:
-    titles = [part_title(node) for node in demo_page().iter()]
-    assert [title for title in titles if title is not None] == PART_TITLES
 
 
 def test_the_page_language_is_english() -> None:
     assert demo_page().find(has_tag("html")).attrs["lang"] == "en"
 
 
-def test_the_skip_link_leads_to_the_main_content() -> None:
-    link = demo_page().find(lambda node: "skip-link" in node.classes())
-    assert (link.attrs["href"], demo_page().find(has_tag("main")).attrs["id"]) == ("#main", "main")
-
-
-def test_every_section_is_labelled_by_its_heading() -> None:
-    page = demo_page()
-    ids = {node.attrs.get("id") for node in page.iter()}
-    labels = [node.attrs.get("aria-labelledby") for node in page.find_all(has_tag("section"))]
-    assert [label for label in labels if label not in ids] == []
-
-
-def test_every_table_has_a_caption() -> None:
-    tables = demo_page().find_all(has_tag("table"))
-    assert [table for table in tables if not table.find_all(has_tag("caption"))] == []
-
-
-def test_every_header_cell_has_a_scope() -> None:
-    cells = demo_page().find_all(has_tag("th"))
-    assert [cell.text() for cell in cells if cell.attrs.get("scope") not in ("col", "row")] == []
+def test_the_page_explains_it_needs_javascript() -> None:
+    assert demo_page().find(has_tag("noscript")).text() == "This dashboard needs JavaScript."
 
 
 def test_the_page_has_no_self_reported_text() -> None:
-    assert "self-reported" not in demo_page().text().lower()
-
-
-@pytest.mark.parametrize(("term", "text"), LIMITS)
-def test_the_limits_section_states_each_limit(term: str, text: str) -> None:
-    limits = section(demo_page(), "s-limits")
-    assert f"{term}{text}" in limits.text()
-
-
-def test_the_case_table_explains_it_needs_javascript() -> None:
-    note = demo_page().find(has_tag("noscript"))
-    assert note.text() == "The case table needs JavaScript."
-
-
-def test_the_case_table_shows_a_status_line_until_the_script_runs() -> None:
-    status = section(demo_page(), "s-cases").find(has_tag("p", id="case-status"))
-    assert status.text() == (
-        "Loading the case table… If this message stays, the table script didn't run."
-    )
-
-
-def test_the_case_table_caption_is_short() -> None:
-    caption = demo_page().find(has_tag("caption", id="cases-cap"))
-    assert caption.text() == "Cases, newest week first, then by case ID."
-
-
-def test_the_case_table_explains_how_to_open_a_case() -> None:
-    hint = section(demo_page(), "s-cases").find(lambda node: "cases-hint" in node.classes())
-    assert hint.text() == "Select a case ID to open its details."
-
-
-def test_the_case_table_starts_hidden_until_the_script_runs() -> None:
-    assert "hidden" in demo_page().find(has_tag("div", id="case-ui")).attrs
-
-
-def test_each_class_has_a_filter_by_its_index_in_the_strings_table() -> None:
-    buttons = demo_page().find_all(
-        lambda node: node.tag == "button" and "data-filter" in node.attrs
-    )
-    assert [button.attrs["data-filter"] for button in buttons] == [
-        "all",
-        "disagreements",
-        "dangerous",
-        "class:0",
-        "class:6",
-    ]
-
-
-def test_the_hollow_marker_legend_uses_the_neutral_style() -> None:
-    item = demo_page().find(
-        lambda node: node.tag == "li" and node.text() == "Hollow marker: fewer than 10 cases"
-    )
-    marker = item.find(lambda node: "mk" in node.classes())
-    assert marker.classes() == ["mk", "c-none", "is-few-point"]
-
-
-@cache
-def low_coverage_page() -> Node:
-    results = json.loads(json.dumps(demo_results()))
-    results["totals"]["coverage"].update(verdicts_matched=1, verdicts_low=True)
-    return parse_html(render_dashboard(results))
-
-
-def test_the_low_coverage_alert_links_to_the_data_notes() -> None:
-    link = low_coverage_page().find(lambda node: "cov-alert" in node.classes()).find(has_tag("a"))
-    assert link.attrs["href"] == "#s-notes"
-
-
-def test_the_low_coverage_alert_target_exists() -> None:
-    targets = low_coverage_page().find_all(lambda node: node.attrs.get("id") == "s-notes")
-    assert [node.tag for node in targets] == ["h2"]
+    assert "self-reported" not in demo_html().lower()
 
 
 def test_the_generator_marker_names_this_version() -> None:
@@ -217,178 +101,129 @@ def test_the_generator_marker_names_this_version() -> None:
     assert meta.attrs["content"] == f"detecttrace {__version__}"
 
 
-# The demo's numbers, in the right sections
-
-
-@pytest.mark.parametrize(("class_index", "version"), [(0, "v1"), (0, "v2"), (1, "v1"), (1, "v2")])
-def test_completeness_per_version_matches_the_results(class_index: int, version: str) -> None:
-    mean = version_entry(class_index, version)["metrics"]["completeness"]["mean"]
-    assert version_rows(demo_page(), class_index)[version][1].startswith(format_percent(mean))
-
-
-@pytest.mark.parametrize("class_index", [0, 1])
-def test_the_case_count_per_class_matches_the_results(class_index: int) -> None:
-    overall = demo_results()["classes"][class_index]["overall"]
-    assert version_rows(demo_page(), class_index)["All versions"][0] == str(overall["case_count"])
-
-
-@pytest.mark.parametrize(
-    ("class_index", "expected"), [(0, "3 dangerous false closes"), (1, "1 dangerous false close")]
-)
-def test_the_confusion_matrix_names_the_dangerous_false_closes(
-    class_index: int, expected: str
-) -> None:
-    card = demo_page().find(has_tag("article", **{"aria-labelledby": f"class-{class_index}-c-h"}))
-    assert card.find(lambda node: "sub" in node.classes()).text().endswith(expected)
-
-
-def test_a_dangerous_cell_with_cases_is_outlined_and_flagged() -> None:
-    cell = section(demo_page(), "s-confusion").find(
-        lambda node: node.tag == "td" and node.text().startswith("3 ")
-    )
-    assert (cell.classes(), cell.text()) == (
-        ["h-off-1", "is-danger"],
-        "3 (dangerous cell)dangerous",
-    )
-
-
-def test_a_dangerous_cell_without_cases_is_outlined_but_not_flagged() -> None:
-    table = section(demo_page(), "s-confusion").find(has_tag("table"))
-    first_row = table.find(has_tag("tbody")).find(has_tag("tr"))
-    cell = first_row.find_all(has_tag("td"))[1]
-    assert (cell.classes(), cell.text()) == (["h-0", "is-danger"], "0 (dangerous cell)")
-
-
-def test_no_confusion_cell_replaces_its_content_with_a_label() -> None:
-    cells = section(demo_page(), "s-confusion").find_all(has_tag("td"))
-    assert [cell.text() for cell in cells if "aria-label" in cell.attrs] == []
-
-
-def test_the_confusion_matrix_corner_names_both_axes() -> None:
-    header_row = section(demo_page(), "s-confusion").find(has_tag("thead")).find(has_tag("tr"))
-    corner = next(node for node in header_row.children if isinstance(node, Node))
-    assert (corner.tag, corner.text()) == ("th", "Analyst verdict by agent verdict")
-
-
-def test_the_cases_section_counts_every_case() -> None:
-    lede = section(demo_page(), "s-cases").find(lambda node: "lede" in node.classes())
-    assert lede.text().startswith("Filters apply to all 201 cases.")
-
-
-def test_the_data_notes_show_coverage() -> None:
-    coverage = section(demo_page(), "s-notes").find(has_tag("ul"))
-    assert [item.text() for item in coverage.find_all(has_tag("li"))] == [
-        "201 of 201 verdicts matched a trace (100%).",
-        "201 of 201 traces matched a verdict (100%).",
-    ]
-
-
-def test_the_trend_chart_has_a_hidden_table_with_the_same_weeks() -> None:
-    trend = section(demo_page(), "s-trend")
-    hidden = trend.find(lambda node: "visually-hidden" in node.classes() and node.tag == "div")
-    weeks = [
-        row.find(has_tag("th")).text()
-        for row in hidden.find(has_tag("tbody")).find_all(has_tag("tr"))
-    ]
-    assert weeks == ["2026-W32", "2026-W33", "2026-W34", "2026-W35", "2026-W36", "2026-W37"]
-
-
-def test_the_trend_chart_draws_one_line_per_version() -> None:
-    chart = section(demo_page(), "s-trend").find(lambda node: "chart" in node.classes())
-    paths = chart.find_all(has_tag("path"))
-    assert [path.attrs["class"] for path in paths] == [
-        "series-all",
-        "series c-1 d-1",
-        "series c-2 d-2",
-    ]
-
-
-# Labels and small samples
-
-
-def test_no_version_cases_get_their_own_row() -> None:
-    assert list(version_rows(fixture_page("edge/versions/no_version"), 0)) == [
-        "All versions",
-        "v1",
-        "(no version)",
-    ]
-
-
-def test_pooled_versions_are_named_in_their_row() -> None:
-    labels = list(version_rows(fixture_page("edge/versions/more_than_six"), 0))
-    assert labels[-1] == "(other versions: v2, v5)"
-
-
-def test_pooled_versions_are_explained_under_the_table() -> None:
-    notes = fixture_page("edge/versions/more_than_six").find_all(
-        lambda node: "card-note" in node.classes()
-    )
-    assert (
-        notes[0].text().endswith("v2, v5 have the fewest cases here and are pooled as one group.")
-    )
-
-
-def test_a_small_sample_row_carries_the_few_cases_note() -> None:
-    rows = section(fixture_page("edge/kappa/fewer_than_ten_cases"), "s-versions").find_all(
-        has_tag("tr")
-    )
-    few = [row for row in rows if "is-few" in row.classes()]
-    assert [row.find(lambda node: "few-note" in node.classes()).text() for row in few] == [
-        "Few cases.",
-        "Few cases.",
-    ]
-
-
-def test_a_class_without_a_checklist_says_so_instead_of_a_chart() -> None:
-    trend = section(fixture_page("edge/versions/ab_split"), "s-trend")
-    figure = trend.find(has_tag("figure"))
-    assert figure.find(has_tag("p")).text() == "No checklist for this class."
-
-
-def test_the_kappa_column_is_headed_chance_corrected_agreement() -> None:
-    headers = section(demo_page(), "s-versions").find_all(has_tag("th"))
-    assert headers[4].text() == "Chance-corrected agreement (κ)"
-
-
-def test_cohens_kappa_is_named_once_in_the_lede() -> None:
-    assert demo_html().count("Cohen's kappa") == 1
-
-
 @pytest.mark.parametrize("name", FIXTURE_CONFIGS)
 def test_every_fixture_renders_a_page(name: str) -> None:
-    assert render_dashboard(fixture_results(name)).startswith("<!DOCTYPE html>")
+    assert render_dashboard(fixture_results(name)).startswith("<!doctype html>")
 
 
-# Inline blocks and styling
+def test_an_unknown_schema_version_is_refused() -> None:
+    with pytest.raises(ValueError):
+        render_dashboard({**demo_results(), "schema_version": 999})
 
 
-@pytest.mark.parametrize(
-    "name", ["demo", "edge/versions/more_than_six", "edge/kappa/fewer_than_ten_cases"]
-)
-def test_no_element_has_a_style_attribute(name: str) -> None:
-    assert [node.tag for node in fixture_page(name).iter() if "style" in node.attrs] == []
+# Inline blocks
 
 
-def test_the_page_has_one_stylesheet() -> None:
-    assert len(demo_page().find_all(has_tag("style"))) == 1
+@pytest.mark.parametrize("page", [demo_page, served_page, waiting_page], ids=lambda f: f.__name__)
+def test_the_page_has_one_stylesheet(page: Any) -> None:
+    assert len(page().find_all(has_tag("style"))) == 1
 
 
-def test_the_page_has_one_executable_script() -> None:
-    scripts = demo_page().find_all(has_tag("script"))
-    assert [script.attrs.get("type") for script in scripts] == ["application/json", None]
+@pytest.mark.parametrize("page", [demo_page, served_page, waiting_page], ids=lambda f: f.__name__)
+def test_the_page_has_one_executable_script_and_two_data_blocks(page: Any) -> None:
+    scripts = page().find_all(has_tag("script"))
+    assert [(script.attrs.get("type"), script.attrs.get("id")) for script in scripts] == [
+        ("module", None),
+        ("application/json", "dt-view"),
+        ("application/json", "dt-results"),
+    ]
 
 
 def test_the_page_links_no_stylesheet_or_script_file() -> None:
     assert demo_page().find_all(lambda node: node.tag == "link" or "src" in node.attrs) == []
 
 
+def test_no_element_has_a_style_attribute() -> None:
+    assert [node.tag for node in demo_page().iter() if "style" in node.attrs] == []
+
+
 def test_the_results_block_holds_the_full_results() -> None:
-    block = demo_page().find(has_tag("script", id="dt-results"))
-    assert json.loads(block.text()) == demo_results()
+    assert json.loads(data_block(demo_page(), "dt-results")) == demo_results()
+
+
+def test_the_view_block_holds_the_view_of_the_results() -> None:
+    assert json.loads(data_block(demo_page(), "dt-view")) == to_view_json(
+        build_view(demo_results())
+    )
+
+
+def test_a_served_page_holds_the_served_view() -> None:
+    assert json.loads(data_block(served_page(), "dt-view")) == to_view_json(
+        build_served_view(demo_results(), SERVED)
+    )
+
+
+def test_a_served_page_holds_the_full_results() -> None:
+    assert json.loads(data_block(served_page(), "dt-results")) == demo_results()
+
+
+def test_the_waiting_page_holds_the_waiting_view() -> None:
+    assert json.loads(data_block(waiting_page(), "dt-view")) == to_view_json(
+        build_waiting_view(WAITING_COUNTS, [], SERVED)
+    )
+
+
+def test_the_waiting_page_leaves_the_results_block_empty() -> None:
+    assert data_block(waiting_page(), "dt-results") == ""
+
+
+@pytest.mark.parametrize("slot", SLOTS)
+def test_every_slot_is_filled(slot: str) -> None:
+    assert slot not in demo_html()
+
+
+def test_a_value_spelling_a_slot_stays_in_its_block() -> None:
+    results = json.loads(json.dumps(demo_results()))
+    results["case_rows"]["columns"]["case_id"][0] = "__DT_CSP__ __DT_GENERATOR__"
+    page = parse_html(render_dashboard(results))
+    assert json.loads(data_block(page, "dt-results")) == results
 
 
 def test_rendering_is_deterministic() -> None:
     assert render_dashboard(demo_results()) == demo_html()
+
+
+# A broken packaged page
+
+
+@pytest.fixture
+def packaged_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """A stand-in for the package's templates folder, read in place of the real one."""
+    templates = tmp_path / "templates"
+    templates.mkdir()
+    real = Path(__file__).resolve().parent.parent / "src" / "detecttrace" / "templates"
+    for name in ("dashboard.html", "dashboard.hashes.json"):
+        (templates / name).write_text((real / name).read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(dashboard, "files", lambda package: tmp_path)
+    dashboard._load_page.cache_clear()
+    yield templates / "dashboard.html"
+    dashboard._load_page.cache_clear()
+
+
+@pytest.mark.parametrize("slot", SLOTS)
+def test_a_page_missing_a_slot_is_refused(packaged_page: Path, slot: str) -> None:
+    packaged_page.write_text(
+        packaged_page.read_text(encoding="utf-8").replace(slot, ""), encoding="utf-8"
+    )
+    with pytest.raises(RuntimeError):
+        render_dashboard(demo_results())
+
+
+@pytest.mark.parametrize("slot", SLOTS)
+def test_a_page_repeating_a_slot_is_refused(packaged_page: Path, slot: str) -> None:
+    packaged_page.write_text(
+        packaged_page.read_text(encoding="utf-8").replace(slot, slot + slot), encoding="utf-8"
+    )
+    with pytest.raises(RuntimeError):
+        render_dashboard(demo_results())
+
+
+def test_hashes_without_a_script_hash_are_refused(packaged_page: Path) -> None:
+    (packaged_page.parent / "dashboard.hashes.json").write_text(
+        '{"style": "sha256-aThnzQW1Gi63mvi1CJ0yBGU0KcS0COLSdy7NcGZf0cA="}', encoding="utf-8"
+    )
+    with pytest.raises(RuntimeError):
+        render_dashboard(demo_results())
 
 
 # Embedding
@@ -464,6 +299,15 @@ def test_our_page_is_recognized(tmp_path: Path) -> None:
     assert is_dashboard_file(path)
 
 
+def test_a_lower_case_doctype_and_a_self_closed_marker_are_recognized(tmp_path: Path) -> None:
+    path = tmp_path / "page.html"
+    path.write_text(
+        '<!doctype html><head><meta name="generator" content="detecttrace 0.0.1" /><script>',
+        encoding="utf-8",
+    )
+    assert is_dashboard_file(path)
+
+
 def test_the_smallest_page_with_our_marker_is_recognized(tmp_path: Path) -> None:
     path = tmp_path / "page.html"
     path.write_text(
@@ -486,6 +330,7 @@ def test_the_smallest_page_with_our_marker_is_recognized(tmp_path: Path) -> None
         '<!DOCTYPE html><head></head><meta name="generator" content="detecttrace 0.0.1">',
         '<!DOCTYPE html><head><meta name="generator" content="detecttrace 0.0.1">',
         '<!DOCTYPE html><head><!-- <meta name="generator" content="Hugo"> --></head>',
+        '<!DOCTYPE html><head><script></script><meta name="generator" content="detecttrace 1">',
     ],
     ids=[
         "no-marker",
@@ -498,6 +343,7 @@ def test_the_smallest_page_with_our_marker_is_recognized(tmp_path: Path) -> None
         "marker-after-head",
         "head-never-ends",
         "other-marker-in-comment",
+        "marker-after-script",
     ],
 )
 def test_a_foreign_file_is_not_recognized(tmp_path: Path, text: str) -> None:
@@ -530,161 +376,3 @@ def test_a_folder_is_not_a_dashboard(tmp_path: Path) -> None:
 def test_a_missing_file_raises_instead_of_answering(tmp_path: Path) -> None:
     with pytest.raises(OSError):
         is_dashboard_file(tmp_path / "missing.html")
-
-
-# Values the view prepares, rendered as they are
-
-
-def edited_demo() -> Any:
-    return json.loads(json.dumps(demo_results()))
-
-
-@cache
-def tp_without_agent_page() -> Node:
-    results = edited_demo()
-    version_entry_in(results, 0, "v1")["metrics"]["true_positives_without_agent_verdict"] = [
-        "case-x"
-    ]
-    results["classes"][0]["overall"]["true_positives_without_agent_verdict"] = ["case-x"]
-    return parse_html(render_dashboard(results))
-
-
-@cache
-def last_week_version_page() -> Node:
-    results = edited_demo()
-    version_entry_in(results, 0, "v2")["first_week"] = "2026-W37"
-    return parse_html(render_dashboard(results))
-
-
-@cache
-def one_week_page() -> Node:
-    results = edited_demo()
-    trend = results["classes"][0]["trend"]
-    results["classes"][0]["trend"] = [point for point in trend if point["week"] == "2026-W32"]
-    return parse_html(render_dashboard(results))
-
-
-@cache
-def dropped_resamples_page() -> Node:
-    results = edited_demo()
-    results["classes"][0]["overall"]["kappa"]["dropped_resamples"] = 87
-    return parse_html(render_dashboard(results))
-
-
-@cache
-def thousands_danger_page() -> Node:
-    results = edited_demo()
-    results["classes"][0]["overall"]["confusion"][0][1] = 1234
-    return parse_html(render_dashboard(results))
-
-
-def version_entry_in(results: Any, class_index: int, version: str) -> Any:
-    entries = results["classes"][class_index]["by_version"]
-    return next(entry for entry in entries if entry["version"] == version)
-
-
-def trend_card(page: Node, class_index: int) -> Node:
-    return page.find(has_tag("article", **{"aria-labelledby": f"class-{class_index}-t-h"}))
-
-
-def version_label(page: Node, label: str) -> Node:
-    return trend_card(page, 0).find(
-        lambda node: "vmark-text" in node.classes() and node.text() == label
-    )
-
-
-def notes_text(page: Node) -> str:
-    return " ".join(note.text() for note in page.find_all(lambda node: "note" in node.classes()))
-
-
-def test_true_positives_without_an_agent_verdict_show_next_to_the_dangerous_false_closes() -> None:
-    cell = version_rows(tp_without_agent_page(), 0)["v1"][-1]
-    assert cell.endswith("1 true positive with no agent verdict: case-x")
-
-
-def test_true_positives_without_an_agent_verdict_read_as_a_safety_note() -> None:
-    note = section(tp_without_agent_page(), "s-versions").find(
-        lambda node: "tp-note" in node.classes()
-    )
-    assert note.find_all(lambda node: "icon" in node.classes()) != []
-
-
-def test_true_positives_without_an_agent_verdict_get_a_data_note() -> None:
-    assert "1 analyst true positive in " in notes_text(tp_without_agent_page())
-
-
-def test_a_version_label_in_the_last_week_reads_leftwards() -> None:
-    assert version_label(last_week_version_page(), "v2").attrs["text-anchor"] == "end"
-
-
-def test_a_version_label_in_the_last_week_ends_before_its_rule() -> None:
-    label = version_label(last_week_version_page(), "v2")
-    rule = trend_card(last_week_version_page(), 0).find(
-        lambda node: "vmark" in node.classes() and node.attrs.get("x1") == "624.0"
-    )
-    assert float(label.attrs["x"] or "nan") < float(rule.attrs["x1"] or "nan")
-
-
-def test_a_version_label_in_the_first_half_reads_rightwards() -> None:
-    assert version_label(demo_page(), "v1").attrs["text-anchor"] == "start"
-
-
-def test_grid_labels_come_from_the_chart_geometry() -> None:
-    label = trend_card(demo_page(), 0).find(
-        lambda node: "axis-text" in node.classes() and node.text() == "100%"
-    )
-    assert (label.attrs["x"], label.attrs["y"]) == ("38.0", "34.0")
-
-
-def test_week_counts_sit_under_the_week_labels() -> None:
-    count = trend_card(demo_page(), 0).find(lambda node: "n-text" in node.classes())
-    assert count.attrs["y"] == "260.0"
-
-
-def test_a_square_marker_is_drawn_from_its_corner() -> None:
-    chart = trend_card(demo_page(), 0).find(lambda node: "chart" in node.classes())
-    square = chart.find(lambda node: node.tag == "rect" and "mk" in node.classes())
-    assert (square.attrs["width"], square.attrs["height"]) == ("8.4", "8.4")
-
-
-def test_a_lone_week_of_the_all_versions_line_gets_a_marker() -> None:
-    markers = trend_card(one_week_page(), 0).find_all(
-        lambda node: "mk" in node.classes() and "c-all" in node.classes()
-    )
-    assert markers != []
-
-
-def test_the_kappa_point_is_drawn_from_its_left_edge() -> None:
-    point = section(demo_page(), "s-versions").find(lambda node: "ci-point" in node.classes())
-    assert point.attrs["width"] == "1.2"
-
-
-def test_the_hollow_marker_legend_text_comes_from_the_view() -> None:
-    legend = trend_card(demo_page(), 0).find(has_tag("ul"))
-    assert legend.text().endswith("Hollow marker: fewer than 10 cases")
-
-
-def test_a_dangerous_cell_with_thousands_of_cases_is_flagged() -> None:
-    cell = section(thousands_danger_page(), "s-confusion").find(
-        lambda node: node.tag == "td" and node.text().startswith("1,234")
-    )
-    assert cell.find_all(lambda node: "flag" in node.classes()) != []
-
-
-def test_the_cases_section_names_how_many_cases_carry_tool_calls() -> None:
-    lede = section(demo_page(), "s-cases").find(lambda node: "lede" in node.classes())
-    assert lede.text().endswith(
-        "Tool calls are included for 112 notable cases (dashboard.max_detail_cases); "
-        "tool results are never included."
-    )
-
-
-def test_a_low_coverage_line_carries_its_fix_hint() -> None:
-    line = section(low_coverage_page(), "s-notes").find(lambda node: "is-low" in node.classes())
-    assert line.text().endswith("Check mapping.case_id in detecttrace.yaml.")
-
-
-def test_dropped_kappa_resamples_get_a_data_note() -> None:
-    assert "87 of 1,000 resamples for chance-corrected agreement in " in notes_text(
-        dropped_resamples_page()
-    )

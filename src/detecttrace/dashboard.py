@@ -1,47 +1,51 @@
-"""The HTML dashboard: one self-contained page built from a results object.
+"""The HTML dashboard: the packaged page, filled with a view and a results object.
 
-The page holds exactly one inline stylesheet and one inline script, both allowed by the SHA-256
-hashes in its Content-Security-Policy, and the full results object as a non-executed JSON block
-that the case-table script reads. Every other value is rendered by an autoescaping template.
+The page is built from `dashboard/` and committed as `templates/dashboard.html`. It holds exactly
+one inline script and one inline stylesheet, whose SHA-256 hashes the build writes beside it, and
+two empty, non-executed JSON blocks. Rendering fills those blocks with the view model and the
+results, and composes the Content-Security-Policy that allows exactly the two inline blocks.
 
-A page served by `detecttrace serve` adds a second inline script, which asks the same server
-whether newer results exist; its policy allows that one request target and nothing else.
+A page served by `detecttrace serve` asks the same server whether newer results exist, so its
+policy also allows requests to its own origin, and nothing else.
 """
 
-import base64
-import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import cache
 from importlib.resources import files
 from pathlib import Path
 
-from jinja2 import Environment, PackageLoader, StrictUndefined
-from markupsafe import Markup
-
-from detecttrace import __version__
-from detecttrace.charts import SHAPE_BY_STYLE, Chart, SeriesInput, create_marker, trend_chart
 from detecttrace.dashboard_view import (
+    GENERATOR,
     GENERATOR_PREFIX,
-    TrendMetricView,
-    TrendView,
+    DashboardView,
+    build_served_view,
     build_view,
-    format_count,
-    format_held_back_text,
+    build_waiting_view,
+    to_view_json,
 )
 from detecttrace.files import MARKER_READ_BYTES, read_head, write_text_atomically
 from detecttrace.served_page import ServedPage, WaitingCounts
-from detecttrace.summary import SummaryLine, to_visible_text
+from detecttrace.summary import SummaryLine
 
-_DOCTYPE = b"<!DOCTYPE html>"
-_HEAD_END = b"</head>"
+VIEW_BLOCK_ID = "dt-view"
+RESULTS_BLOCK_ID = "dt-results"
+_PAGE_NAME = "dashboard.html"
+_HASHES_NAME = "dashboard.hashes.json"
+_HASH_SOURCE = re.compile(r"sha256-[A-Za-z0-9+/]{43}=")
+_DOCTYPE = b"<!doctype html>"
 # The prefix, one space, then a version; "detecttrace-like" or a bare prefix is someone else's.
+# The built page closes its void elements with " />", the Jinja page did not.
 _MARKER = re.compile(
-    rb'<meta name="generator" content="' + re.escape(GENERATOR_PREFIX.encode()) + rb' [^"]+">'
+    rb'<meta name="generator" content="'
+    + re.escape(GENERATOR_PREFIX.encode())
+    + rb' [^"]+"(?: /)?>'
 )
-_TEMPLATE_NAME = "dashboard.html.j2"
-_WAITING_TEMPLATE_NAME = "waiting.html.j2"
+# The page's inline script sits in its head and is far longer than the bytes read, so the marker
+# must come before the head's first script or stylesheet as well as before its end.
+_MARKER_LIMIT = re.compile(rb"</head>|<script|<style")
 # Standard JSON leaves these as they are. Inside <script>, "</script>" or "<!--" in any string
 # would end or change the block, and U+2028/U+2029 end a line in older JavaScript parsers.
 _JSON_ESCAPES = {
@@ -52,55 +56,26 @@ _JSON_ESCAPES = {
     "\u2029": "\\u2029",
 }
 _JSON_ESCAPE_TABLE = str.maketrans(_JSON_ESCAPES)
-_SWATCH_CENTER = (15.0, 6.0)
-_SWATCH_RADIUS = 4.0
 
 
 @dataclass(frozen=True, slots=True)
-class _NoteText:
-    message: str
-    hint: str
-
-
-@dataclass(frozen=True, slots=True)
-class _TrendCharts:
-    completeness: Chart | None  # None when the class has no checklist
-    agreement: Chart
+class _Page:
+    # The built page split at its four slots: the policy, the generator, the view block and the
+    # results block, in document order, so filling one can never touch another.
+    parts: tuple[str, str, str, str, str]
+    script_hash: str
+    style_hash: str
 
 
 def render_dashboard(results: Mapping[str, object], *, served: ServedPage | None = None) -> str:
     """Render the page for a results object from `results.build_results` (or its JSON).
 
-    With `served`, the page is for `detecttrace serve`: it carries its generation and the
-    script that checks for newer results. Without it, the page is the offline one.
-    Raises ValueError for an unknown schema version, or a NaN or infinity in the results.
+    With `served`, the page is for `detecttrace serve`: its view carries its generation, and its
+    policy lets it ask the same server for newer results. Without it, the page is the offline
+    one. Raises ValueError for an unknown schema version, or a NaN or infinity in the results.
     """
-    view = build_view(results)
-    css = _read_asset("dashboard.css")
-    js = _read_asset("dashboard.js")
-    serve_js = None if served is None else _read_asset("dashboard-serve.js")
-    scripts = [js] if serve_js is None else [js, serve_js]
-    template = _create_environment().get_template(_TEMPLATE_NAME)
-    return template.render(
-        view=view,
-        trend_charts=[_to_trend_charts(class_view.trend) for class_view in view.classes],
-        swatches={
-            style: create_marker(style, *_SWATCH_CENTER, radius=_SWATCH_RADIUS)
-            for style in SHAPE_BY_STYLE
-        },
-        few_swatch=create_marker("1", *_SWATCH_CENTER, is_few=True, radius=_SWATCH_RADIUS),
-        generator=f"{GENERATOR_PREFIX} {__version__}",
-        # Markup: the policy is fixed text and base64 hashes. The three blocks are raw text
-        # elements, so HTML escaping would corrupt them; the stylesheet and script are packaged
-        # files, and the JSON is escaped for a script block.
-        csp=Markup(_to_csp(css, scripts, can_connect=served is not None)),
-        css=Markup(css),
-        js=Markup(js),
-        results_json=Markup(to_script_json(results)),
-        served=served,
-        serve_js=None if serve_js is None else Markup(serve_js),
-        settling_text=None if served is None else format_held_back_text(served.held_back_cases),
-    )
+    view = build_view(results) if served is None else build_served_view(results, served)
+    return _fill_page(view, to_script_json(results), can_connect=served is not None)
 
 
 def render_waiting_page(
@@ -108,23 +83,10 @@ def render_waiting_page(
 ) -> str:
     """Render the page `detecttrace serve` shows until at least one case can be scored.
 
-    `notes` are the run's issue lines, which often say why nothing joined yet.
+    `notes` are the run's issue lines, which often say why nothing joined yet. The page has no
+    results, so its results block stays empty.
     """
-    css = _read_asset("dashboard.css")
-    serve_js = _read_asset("dashboard-serve.js")
-    template = _create_environment().get_template(_WAITING_TEMPLATE_NAME)
-    return template.render(
-        counts=counts,
-        notes=[
-            _NoteText(to_visible_text(line.message), to_visible_text(line.hint)) for line in notes
-        ],
-        served=served,
-        generator=f"{GENERATOR_PREFIX} {__version__}",
-        csp=Markup(_to_csp(css, [serve_js], can_connect=True)),
-        css=Markup(css),
-        serve_js=Markup(serve_js),
-        format_count=format_count,
-    )
+    return _fill_page(build_waiting_view(counts, notes, served), "", can_connect=True)
 
 
 def write_dashboard(html: str, path: Path) -> None:
@@ -134,15 +96,17 @@ def write_dashboard(html: str, path: Path) -> None:
 
 def is_dashboard_file(path: Path) -> bool:
     """Whether `path` is a regular file that starts with the doctype and carries this tool's
-    generator marker before `</head>`, all within its first 64 KiB.
+    generator marker before the head's first script, stylesheet or end, all within its first
+    64 KiB.
 
     A path that can't be read raises OSError: "can't tell" must not look like "not ours".
     """
     head = read_head(path, MARKER_READ_BYTES)
-    if head is None or not head.startswith(_DOCTYPE):
+    # HTML spells the doctype in any case; the built page writes it in lower case.
+    if head is None or head[: len(_DOCTYPE)].lower() != _DOCTYPE:
         return False
-    head_end = head.find(_HEAD_END)
-    return head_end != -1 and _MARKER.search(head, 0, head_end) is not None
+    limit = _MARKER_LIMIT.search(head)
+    return limit is not None and _MARKER.search(head, 0, limit.start()) is not None
 
 
 def to_script_json(results: Mapping[str, object]) -> str:
@@ -155,55 +119,66 @@ def to_script_json(results: Mapping[str, object]) -> str:
     return text.translate(_JSON_ESCAPE_TABLE)
 
 
-def _read_asset(name: str) -> str:
-    return files("detecttrace").joinpath("templates", name).read_text(encoding="utf-8")
-
-
-def _create_environment() -> Environment:
-    # Only the packaged templates folder is searched, never a path from the user.
-    environment = Environment(
-        loader=PackageLoader("detecttrace", "templates"),
-        autoescape=True,
-        undefined=StrictUndefined,
-        trim_blocks=True,
-        lstrip_blocks=True,
-        keep_trailing_newline=True,
+def _fill_page(view: DashboardView, results_text: str, *, can_connect: bool) -> str:
+    page = _load_page()
+    fills = (
+        _to_csp(page.script_hash, page.style_hash, can_connect=can_connect),
+        GENERATOR,
+        _to_data_block(VIEW_BLOCK_ID, to_script_json(to_view_json(view))),
+        _to_data_block(RESULTS_BLOCK_ID, results_text),
     )
-    environment.filters["coord"] = _format_coordinate
-    return environment
+    pieces = [page.parts[0]]
+    for fill, part in zip(fills, page.parts[1:], strict=True):
+        pieces += (fill, part)
+    return "".join(pieces)
 
 
-def _format_coordinate(value: float) -> str:
-    # One decimal, as the chart geometry is rounded; also hides float noise such as 252.00000000000003.
-    return f"{value:.1f}"
+@cache
+def _load_page() -> _Page:
+    # Read once per process: the packaged files never change while it runs.
+    templates = files("detecttrace").joinpath("templates")
+    html = templates.joinpath(_PAGE_NAME).read_text(encoding="utf-8")
+    hashes = json.loads(templates.joinpath(_HASHES_NAME).read_text(encoding="utf-8"))
+    slots = (
+        "__DT_CSP__",
+        "__DT_GENERATOR__",
+        _to_data_block(VIEW_BLOCK_ID, ""),
+        _to_data_block(RESULTS_BLOCK_ID, ""),
+    )
+    parts: list[str] = []
+    rest = html
+    for slot in slots:
+        # A slot missing or repeated means a broken build; filling it anyway would ship a page
+        # with no policy, or data where the page never reads it.
+        if html.count(slot) != 1:
+            raise RuntimeError(f"the packaged {_PAGE_NAME} must hold {slot!r} exactly once")
+        before, found, rest = rest.partition(slot)
+        if not found:
+            raise RuntimeError(f"the packaged {_PAGE_NAME} holds {slot!r} out of order")
+        parts.append(before)
+    head, after_csp, after_generator, after_view = parts
+    return _Page(
+        parts=(head, after_csp, after_generator, after_view, rest),
+        script_hash=_read_hash_source(hashes, "script"),
+        style_hash=_read_hash_source(hashes, "style"),
+    )
 
 
-def _to_csp(css: str, scripts: Sequence[str], *, can_connect: bool) -> str:
-    script_sources = " ".join(f"'{_to_hash_source(script)}'" for script in scripts)
+def _read_hash_source(hashes: Mapping[str, object], key: str) -> str:
+    value = hashes.get(key)
+    if not isinstance(value, str) or _HASH_SOURCE.fullmatch(value) is None:
+        raise RuntimeError(f"the packaged {_HASHES_NAME} has no SHA-256 hash for its {key}")
+    return value
+
+
+def _to_data_block(block_id: str, text: str) -> str:
+    return f'<script type="application/json" id="{block_id}">{text}</script>'
+
+
+def _to_csp(script_hash: str, style_hash: str, *, can_connect: bool) -> str:
+    policy = (
+        f"default-src 'none'; script-src '{script_hash}'; style-src '{style_hash}'; "
+        "base-uri 'none'; form-action 'none'"
+    )
     # Only a served page asks anything of a server, and only of the one that sent it.
-    connect = " connect-src 'self';" if can_connect else ""
-    return (
-        f"default-src 'none'; script-src {script_sources}; "
-        f"style-src '{_to_hash_source(css)}'; img-src data:;{connect} base-uri 'none'; "
-        "form-action 'none'"
-    )
-
-
-def _to_hash_source(text: str) -> str:
-    digest = hashlib.sha256(text.encode("utf-8")).digest()
-    return "sha256-" + base64.b64encode(digest).decode("ascii")
-
-
-def _to_trend_charts(trend: TrendView) -> _TrendCharts:
-    return _TrendCharts(
-        completeness=_to_chart(trend, trend.completeness) if trend.completeness.lines else None,
-        agreement=_to_chart(trend, trend.agreement),
-    )
-
-
-def _to_chart(trend: TrendView, metric: TrendMetricView) -> Chart:
-    return trend_chart(
-        trend.weeks,
-        [SeriesInput(line.style, line.values, line.counts, line.few) for line in metric.lines],
-        trend.version_first_weeks,
-    )
+    return f"{policy}; connect-src 'self'" if can_connect else policy

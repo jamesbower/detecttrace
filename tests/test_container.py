@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 import pytest
 import yaml
+from page_data import read_results, read_view
 
 from detecttrace.serve.auth import create_token, hash_token
 from detecttrace.serve.config import load_serve_config
@@ -480,7 +481,11 @@ def test_dashboard_answers_a_basic_read_token(served: _Served) -> None:
 def test_dashboard_is_the_served_page_with_results(served: _Served) -> None:
     html = served.dashboard_html
 
-    assert ('fetch("/api/status"' in html, 'id="s-confusion"' in html) == (True, True)
+    # The page's script asks for newer results only when its view is served.
+    assert (read_view(html)["served"] is not None, read_results(html)["classes"] != []) == (
+        True,
+        True,
+    )
 
 
 @pytest.mark.container

@@ -10,7 +10,7 @@ from typing import Any, cast
 import pytest
 import yaml
 from builders import case_root
-from html_tree import has_tag, parse_html, read_terms
+from page_data import read_view
 
 from detecttrace.dashboard import render_waiting_page
 from detecttrace.model import Issue, IssueKind, VerdictRow
@@ -967,7 +967,8 @@ def test_the_waiting_page_shows_the_future_dated_case_note(tmp_path: Path, store
     database = tmp_path / "detecttrace.db"
     outcome = compute_snapshot(database, to_settings(write_serve_config(tmp_path)), FUTURE_NOW_NS)
 
-    assert FUTURE_NOTE in parse_html(outcome.snapshot.html).find(has_tag("ol")).text()
+    notes = read_view(outcome.snapshot.html)["waiting"]["notes"]
+    assert FUTURE_NOTE in [note["message"] for note in notes]
 
 
 def test_a_case_exactly_a_settle_window_ahead_gets_no_data_note(
@@ -1041,7 +1042,7 @@ def test_the_page_carries_its_generation(tmp_path: Path, boundary_store: Store) 
         tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
-    assert f'data-generation="{boundary_store.generation()}"' in snapshot.html
+    assert read_view(snapshot.html)["served"]["generation"] == boundary_store.generation()
 
 
 def test_the_page_carries_the_time_it_was_computed(tmp_path: Path, boundary_store: Store) -> None:
@@ -1049,7 +1050,7 @@ def test_the_page_carries_the_time_it_was_computed(tmp_path: Path, boundary_stor
         tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
-    assert f'data-updated-at="{to_iso_time(LATE_NS)}"' in snapshot.html
+    assert read_view(snapshot.html)["served"]["updated_at"] == to_iso_time(LATE_NS)
 
 
 def test_a_stored_issue_count_reaches_the_data_notes(tmp_path: Path, boundary_store: Store) -> None:
@@ -1108,7 +1109,7 @@ def test_an_empty_store_gives_the_waiting_page(tmp_path: Path, store: Store) -> 
         tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
-    assert "Waiting for data." in snapshot.html
+    assert read_view(snapshot.html)["waiting"] is not None
 
 
 def test_the_waiting_page_shows_why_nothing_joined(tmp_path: Path, store: Store) -> None:
@@ -1126,7 +1127,7 @@ def test_the_waiting_page_carries_the_stores_generation(tmp_path: Path, store: S
         tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
-    assert f'data-generation="{store.generation()}"' in snapshot.html
+    assert read_view(snapshot.html)["served"]["generation"] == store.generation()
 
 
 def test_the_waiting_page_shows_each_notes_fix_hint(tmp_path: Path, store: Store) -> None:
@@ -1134,9 +1135,9 @@ def test_the_waiting_page_shows_each_notes_fix_hint(tmp_path: Path, store: Store
     snapshot = compute_snapshot(
         tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
-    hints = parse_html(snapshot.html).find_all(lambda node: "hint" in node.classes())
+    notes = read_view(snapshot.html)["waiting"]["notes"]
 
-    assert [hint.text() for hint in hints] == [UNMATCHED_VERDICT_HINT]
+    assert [note["hint"] for note in notes] == [UNMATCHED_VERDICT_HINT]
 
 
 @pytest.mark.parametrize(
@@ -1152,7 +1153,8 @@ def test_the_waiting_page_shows_each_count_under_its_label(label: str, value: st
     counts = WaitingCounts(span_count=11, case_count=2, held_back_count=3, verdict_count=5)
     html = render_waiting_page(counts, [], ServedPage(1, "", 0))
 
-    assert read_terms(parse_html(html).find(has_tag("dl", **{"class": "meta"})))[label] == value
+    counts_shown = read_view(html)["waiting"]["counts"]
+    assert {count["label"]: count["value"] for count in counts_shown}[label] == value
 
 
 def test_the_waiting_page_checks_for_new_data(tmp_path: Path, store: Store) -> None:
@@ -1168,7 +1170,9 @@ def test_the_waiting_page_loads_nothing_from_elsewhere(tmp_path: Path, store: St
         tmp_path / "detecttrace.db", to_settings(write_serve_config(tmp_path)), LATE_NS
     ).snapshot
 
-    assert re.findall(r"(?:https?:)?//[\w.-]+", snapshot.html) == []
+    # The page itself is checked in test_dashboard_security; this checks what the run put in it.
+    view_text = json.dumps(read_view(snapshot.html), ensure_ascii=False)
+    assert re.findall(r"(?:https?:)?//[\w.-]+", view_text) == []
 
 
 # The worker process gives the CLI's numbers
