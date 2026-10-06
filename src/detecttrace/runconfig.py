@@ -3,7 +3,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -24,6 +24,7 @@ _SEPARATORS = "|".join(re.escape(separator) for separator in (os.sep, os.altsep)
 _NO_NAME = ("", ".", "..")
 
 TraceFormat = Literal["otlp_jsonl", "otlp_json", "langfuse"]
+_ConfigT = TypeVar("_ConfigT", bound=Config)
 
 
 class ConfigFileError(InputFileError):
@@ -94,6 +95,19 @@ class RunConfig(Config):
         )
 
 
+class UiConfig(Config):
+    """The local app's detecttrace.yaml: the mapping, label maps, checklists and dashboard settings.
+
+    The app keeps its traces and verdicts in its database and serves the dashboard itself, so
+    the file names no inputs and no output.
+    """
+
+    checklists: Path | None = None
+    dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
+
+    _check_path = field_validator("checklists", mode="before")(check_path)
+
+
 def load_run_config(path: Path) -> RunConfig:
     """Load and validate a configuration file; any problem raises ConfigFileError.
 
@@ -101,26 +115,17 @@ def load_run_config(path: Path) -> RunConfig:
     folder, so a run gives the same result from anywhere. A path starting with `~` is
     rejected rather than expanded.
     """
-    try:
-        document = load_yaml12(
-            path, max_bytes=MAX_CONFIG_BYTES, what="configuration files are a few KB"
-        )
-    except Yaml12Error as error:
-        raise ConfigFileError(str(error)) from None
-    return to_run_config(document, path)
+    return to_run_config(_read_document(path), path)
 
 
 def to_run_config(document: object, path: Path) -> RunConfig:
     """Validate an already-parsed document as load_run_config does for the file at `path`."""
-    if not isinstance(document, dict):
-        raise ConfigFileError(
-            f"{path}: expected a mapping with 'traces' and 'verdicts' at the top level"
-        )
-    try:
-        config = RunConfig.model_validate(document)
-    except ValidationError as error:
-        lines = describe_validation_error(error)
-        raise ConfigFileError(f"{path}: invalid configuration\n  " + "\n  ".join(lines)) from None
+    config = _validate(
+        RunConfig,
+        document,
+        path,
+        "expected a mapping with 'traces' and 'verdicts' at the top level",
+    )
     folder = path.absolute().parent
     return config.model_copy(
         update={
@@ -132,6 +137,19 @@ def to_run_config(document: object, path: Path) -> RunConfig:
     )
 
 
+def load_ui_config(path: Path) -> UiConfig:
+    """Load and validate the local app's configuration file as load_run_config does."""
+    return to_ui_config(_read_document(path), path)
+
+
+def to_ui_config(document: object, path: Path) -> UiConfig:
+    """Validate an already-parsed document as load_ui_config does for the file at `path`."""
+    config = _validate(UiConfig, document, path, "expected a mapping at the top level")
+    if config.checklists is None:
+        return config
+    return config.model_copy(update={"checklists": path.absolute().parent / config.checklists})
+
+
 def describe_validation_error(error: ValidationError) -> list[str]:
     """One "location: message" line per problem, in the words a configuration file uses."""
     return [
@@ -139,3 +157,22 @@ def describe_validation_error(error: ValidationError) -> list[str]:
         + str(detail["msg"]).removeprefix("Value error, ")
         for detail in error.errors()
     ]
+
+
+def _read_document(path: Path) -> object:
+    try:
+        return load_yaml12(
+            path, max_bytes=MAX_CONFIG_BYTES, what="configuration files are a few KB"
+        )
+    except Yaml12Error as error:
+        raise ConfigFileError(str(error)) from None
+
+
+def _validate(model: type[_ConfigT], document: object, path: Path, expected: str) -> _ConfigT:
+    if not isinstance(document, dict):
+        raise ConfigFileError(f"{path}: {expected}")
+    try:
+        return model.model_validate(document)
+    except ValidationError as error:
+        lines = describe_validation_error(error)
+        raise ConfigFileError(f"{path}: invalid configuration\n  " + "\n  ".join(lines)) from None

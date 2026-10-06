@@ -74,6 +74,8 @@ AUTO_LABEL_MAP: dict[str, Verdict] = {
 MAX_LISTED_LABELS = 100
 MAX_LISTED_TOOLS = 200
 MAX_ORPHAN_EXAMPLES = 3
+# Suggestions in a form; past this many a user types the key instead of picking it.
+MAX_SUGGESTED_KEYS = 200
 
 _OPENINFERENCE_KIND = "openinference.span.kind"
 _OPENINFERENCE_OPERATION = OperationConfig(
@@ -309,6 +311,24 @@ def propose_init(
         missing_required=tuple(missing),
         notes=tuple(notes),
     )
+
+
+def list_run_attribute_keys(spans: list[Span], mapping: MappingConfig) -> tuple[str, ...]:
+    """The attribute keys on the agent runs `mapping` finds, and on their resources, as
+    candidates for the mapping fields: unique, in code-point order, the first
+    MAX_SUGGESTED_KEYS of them.
+
+    Resource keys are included because check reads alert class and prompt version from
+    there too. A key a user could not read back or type is left out, as propose_init leaves
+    it out.
+    """
+    keys = {
+        key
+        for run in _find_agent_runs(spans, mapping.operation, mapping.case_id)
+        for attributes in (run.attributes, run.resource_attributes)
+        for key in attributes
+    }
+    return tuple(sorted(key for key in keys if _is_writable_key(key))[:MAX_SUGGESTED_KEYS])
 
 
 def _to_operation_config(operation: OperationProposal) -> OperationConfig:

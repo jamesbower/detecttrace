@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from builders import make_span, span_hex
 
-from detecttrace import init_proposal
+from detecttrace import cli, init_proposal
 from detecttrace.cases import build_trace_cases
 from detecttrace.config import MappingConfig, OperationConfig
 from detecttrace.init_proposal import (
@@ -18,6 +18,7 @@ from detecttrace.init_proposal import (
     FieldProposal,
     OrphanSummary,
     Proposal,
+    list_run_attribute_keys,
     propose_init,
 )
 from detecttrace.model import Issue, Span, TraceCase, Verdict, VerdictRow
@@ -880,3 +881,45 @@ def test_capped_unmapped_labels_are_noted() -> None:
 def test_a_label_with_control_characters_is_kept_exactly() -> None:
     label = "Escalated\x1b[2J\n"
     assert propose([case(0, "DT-1")], [row("DT-1", label)]).unmapped_analyst_labels == (label,)
+
+
+# Attribute keys suggested in the app's form
+
+
+@pytest.fixture(scope="module")
+def demo_keys() -> tuple[str, ...]:
+    spans, _ = load_spans(Path(cli.__file__).parent / cli.DEMO_FOLDER / "traces")
+    return list_run_attribute_keys(spans, MappingConfig())
+
+
+def test_demo_run_keys_include_the_case_id_key(demo_keys: tuple[str, ...]) -> None:
+    assert "detecttrace.case_id" in demo_keys
+
+
+def test_run_keys_are_in_code_point_order(demo_keys: tuple[str, ...]) -> None:
+    assert list(demo_keys) == sorted(demo_keys)
+
+
+def test_run_keys_are_unique(demo_keys: tuple[str, ...]) -> None:
+    assert len(set(demo_keys)) == len(demo_keys)
+
+
+def test_run_keys_include_resource_keys() -> None:
+    spans = [run(0, {}, resource={"service.version": "v1"})]
+    assert "service.version" in list_run_attribute_keys(spans, MappingConfig())
+
+
+def test_run_keys_leave_out_keys_on_other_spans() -> None:
+    spans = [run(0, {}), tool(0, "lookup", {"tool.only": "x"})]
+    assert "tool.only" not in list_run_attribute_keys(spans, MappingConfig())
+
+
+def test_run_keys_leave_out_unwritable_keys() -> None:
+    spans = [run(0, {"soc\x1b[31m.case_id": "DT-1"})]
+    assert list_run_attribute_keys(spans, MappingConfig()) == ("gen_ai.operation.name",)
+
+
+def test_run_keys_are_capped() -> None:
+    keys: dict[str, object] = {f"k{index:03d}": "x" for index in range(250)}
+    spans = [run(0, keys)]
+    assert len(list_run_attribute_keys(spans, MappingConfig())) == init_proposal.MAX_SUGGESTED_KEYS
