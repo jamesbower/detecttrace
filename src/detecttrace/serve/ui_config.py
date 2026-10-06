@@ -11,6 +11,7 @@ import dataclasses
 import os
 from pathlib import Path
 
+from detecttrace.checklist import ChecklistFileError
 from detecttrace.config import Config
 from detecttrace.files import write_text_atomically
 from detecttrace.init_proposal import (
@@ -28,7 +29,7 @@ from detecttrace.init_writer import (
     render_ui_config_yaml,
     set_label,
 )
-from detecttrace.model import Span, Verdict
+from detecttrace.model import Span, Verdict, describe_os_error
 from detecttrace.pipeline import load_run_checklists, to_source
 from detecttrace.runconfig import TraceFormat, UiConfig, load_ui_config
 from detecttrace.serve.recompute import RecomputeSettings
@@ -197,8 +198,19 @@ def _check_edits(fields: dict[str, str], labels: dict[str, dict[str, Verdict]]) 
 
 
 def _has_checklists(folder: Path) -> bool:
+    def report(error: OSError) -> None:
+        # As the checklist loader reports it: a folder that can't be read is not an empty one.
+        where = Path(error.filename or folder)
+        # A missing app folder holds no checklist yet, as an empty one does.
+        if isinstance(error, FileNotFoundError) and where == folder:
+            return
+        subject = "." if where == folder else where.relative_to(folder).as_posix()
+        raise ChecklistFileError(
+            f"{subject}: checklist folder cannot be read: {describe_os_error(error)}"
+        )
+
     # The same files the checklist loader reads: hidden files and folders are skipped.
-    for _, folder_names, file_names in os.walk(folder):
+    for _, folder_names, file_names in os.walk(folder, onerror=report):
         folder_names[:] = [name for name in folder_names if not name.startswith(".")]
         if any(
             not name.startswith(".") and name.lower().endswith(_CHECKLIST_SUFFIXES)

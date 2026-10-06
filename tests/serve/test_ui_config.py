@@ -1,4 +1,6 @@
+import os
 import shutil
+import sys
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -26,6 +28,10 @@ from detecttrace.verdicts import read_verdicts
 
 DEMO_DIR = Path(__file__).parent.parent.parent / "src" / "detecttrace" / "demo_data"
 EDITED_KEY = "detecttrace.alert_class"
+needs_permissions = pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="needs POSIX permissions that the current user cannot bypass",
+)
 
 
 @pytest.fixture
@@ -266,6 +272,25 @@ def test_a_hand_named_empty_checklists_folder_is_refused(demo_store: Store, data
     config = config.model_copy(update={"checklists": data_dir / "other"})
 
     with pytest.raises(ChecklistFileError):
+        to_recompute_settings(config, data_dir / CONFIG_NAME)
+
+
+@pytest.fixture
+def unreadable_checklists(data_dir: Path) -> Iterator[Path]:
+    folder = data_dir / CHECKLISTS_FOLDER
+    folder.mkdir()
+    folder.chmod(0)
+    yield folder
+    folder.chmod(0o700)
+
+
+@needs_permissions
+def test_an_unreadable_app_checklists_folder_is_refused(
+    demo_store: Store, data_dir: Path, unreadable_checklists: Path
+) -> None:
+    config = write_ui_config(demo_store, data_dir, {}, {})
+
+    with pytest.raises(ChecklistFileError, match="cannot be read"):
         to_recompute_settings(config, data_dir / CONFIG_NAME)
 
 
