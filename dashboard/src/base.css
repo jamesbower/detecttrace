@@ -74,6 +74,14 @@ pre {
   transform-origin: 0 0;
 }
 
+/* Forced colours would paint the cut's edge as background, so it keeps the text colour. */
+@media (forced-colors: active) {
+  .panel::after {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
+
 /* Alert class names are identifiers from the traces: they keep their case and spacing even in
    a heading that capitalizes. */
 .class-name {

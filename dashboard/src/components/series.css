@@ -85,9 +85,13 @@
 /* Forced colours: every line and marker draws in the text colour, told apart by dash pattern
    and marker shape; hollow few-case markers stay hollow. */
 @media (forced-colors: active) {
-  .series-line,
-  .series-line-all {
+  .series-line {
     stroke: CanvasText;
+  }
+
+  /* The band stays behind in GrayText, so the version lines' dashes show on top of it. */
+  .series-line-all {
+    stroke: GrayText;
   }
 
   .series-marker {

@@ -961,6 +961,17 @@ def test_each_dangerous_label_shows_its_whole_word(
     assert cut == 0
 
 
+def test_the_skipped_step_table_fits_its_panel_on_a_390px_phone(
+    browser: Any, demo_path: Path
+) -> None:
+    with visiting(browser, demo_path, hash="#/skipped", width=390) as visit:
+        overflow = visit.page.evaluate(
+            """() => [...document.querySelectorAll(".heatmap-scroll")]
+              .map((area) => area.scrollWidth - area.clientWidth)"""
+        )
+    assert overflow == [0]
+
+
 def test_every_navigation_link_fits_a_320px_screen(browser: Any, demo_path: Path) -> None:
     with visiting(browser, demo_path, width=320) as visit:
         outside = visit.page.evaluate(

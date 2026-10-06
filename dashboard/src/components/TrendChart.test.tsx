@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 import edgeView from "../../../tests/fixtures/edge/versions/more_than_six/expected-view.json";
 import { DEMO_VIEW } from "../test-fixtures";
@@ -20,7 +20,10 @@ const LONG_TREND: TrendView = {
   version_first_weeks: { [LONG_LABEL]: "2026-W32", v2: "2026-W34" },
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function renderDemo() {
   return render(<TrendChart metric={DEMO_TREND.completeness} trend={DEMO_TREND} alertClassName="impossible_travel" />);
@@ -36,19 +39,34 @@ it("captions the chart with the metric", () => {
   expect(screen.queryByRole("figure", { name: "Evidence completeness per week" })).not.toBeNull();
 });
 
-it("puts the chart in a scroll area named by its caption", () => {
-  renderDemo();
-
-  expect(screen.queryByRole("region", { name: "Evidence completeness per week" })).not.toBeNull();
-});
-
-it("names only the figure and its scroll area by the caption", () => {
+it("names the chart once, by its figure's caption", () => {
   const { container } = renderDemo();
   const captionId = container.querySelector("figcaption")?.id ?? "";
 
   expect(
     [...container.querySelectorAll(`[aria-labelledby="${captionId}"]`)].map((element) => element.tagName),
-  ).toEqual(["FIGURE", "DIV"]);
+  ).toEqual(["FIGURE"]);
+});
+
+it("gives the chart's drawing no group of its own", () => {
+  const { container } = renderDemo();
+
+  expect(container.querySelector("svg")?.hasAttribute("role")).toBe(false);
+});
+
+it("leaves a chart that fits out of the tab order and out of the landmarks", () => {
+  renderDemo();
+
+  expect(screen.queryByRole("region")).toBeNull();
+});
+
+it("makes a chart wider than its area a tab stop named for scrolling", () => {
+  vi.spyOn(Element.prototype, "scrollWidth", "get").mockReturnValue(640);
+  vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(300);
+
+  renderDemo();
+
+  expect(screen.getByRole("region", { name: "Chart, scrolls sideways" }).getAttribute("tabindex")).toBe("0");
 });
 
 it("moves Tab to the first point, named by week, series and value", async () => {

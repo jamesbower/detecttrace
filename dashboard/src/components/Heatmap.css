@@ -62,8 +62,8 @@
 
 /* The tint repeats the share skipped, which the cell also says in text. */
 .heatmap-cell {
-  min-width: var(--cell-min-width);
-  padding: var(--sp-2) var(--sp-3);
+  min-width: var(--cell-min-width-narrow);
+  padding: var(--sp-2);
   border: var(--border-thin) solid var(--line);
   background: color-mix(in srgb, var(--heat) min(calc(var(--heat-level, 0) * 1%), var(--heat-cap)), var(--panel));
   text-align: center;
@@ -90,4 +90,12 @@
 .is-few .heatmap-rate,
 .is-few .heatmap-label {
   font-style: italic;
+}
+
+/* --bp-narrow: room for the wider cells. */
+@media (width > 620px) {
+  .heatmap-cell {
+    min-width: var(--cell-min-width);
+    padding-inline: var(--sp-3);
+  }
 }

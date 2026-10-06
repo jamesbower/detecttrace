@@ -50,9 +50,12 @@
   text-align: center;
 }
 
-/* Agent and analyst agree: an inner rule marks the diagonal, with no colour of its own. */
+/* Agent and analyst agree: an inner rule marks the diagonal, with no colour of its own. An
+   outline, not a shadow, so forced colours keep it. No diagonal cell is dangerous, so it never
+   meets the dangerous outline. */
 .matrix-cell.is-match {
-  box-shadow: inset 0 0 0 var(--border-thin) var(--muted);
+  outline: var(--border-thin) solid var(--muted);
+  outline-offset: calc(-1 * var(--outline-danger) - var(--border-thin));
 }
 
 .matrix-count {
@@ -124,4 +127,11 @@
   fill: none;
   stroke: var(--danger);
   stroke-width: var(--icon-stroke);
+}
+
+/* Forced colours: the diagonal's rule takes the text colour. */
+@media (forced-colors: active) {
+  .matrix-cell.is-match {
+    outline-color: CanvasText;
+  }
 }

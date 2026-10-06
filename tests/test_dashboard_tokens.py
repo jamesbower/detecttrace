@@ -197,7 +197,9 @@ def test_verdict_pills_have_colours_of_their_own(token: str) -> None:
     assert re.fullmatch(r"#[0-9a-fA-F]{6}", tokens()[token])
 
 
-@pytest.mark.parametrize("surface", HEAT_TOKENS)
+@pytest.mark.parametrize(
+    "surface", [*HEAT_TOKENS, *(f"--danger-tint on {token}" for token in HEAT_TOKENS)]
+)
 def test_the_dangerous_outline_meets_3_to_1_on_every_heat_level(surface: str) -> None:
     assert contrast(colour("--danger"), SURFACES[surface]()) >= GRAPHIC
 
@@ -474,7 +476,7 @@ def test_trend_grid_lines_use_the_line_token() -> None:
         (".strip-range", "fill", "CanvasText"),
         (".strip-point", "fill", "Canvas"),
         (".series-line", "stroke", "CanvasText"),
-        (".series-line-all", "stroke", "CanvasText"),
+        (".series-line-all", "stroke", "GrayText"),
         (".series-marker", "fill", "CanvasText"),
         (".series-marker", "stroke", "CanvasText"),
         (".series-marker.series-all", "fill", "CanvasText"),
@@ -562,3 +564,27 @@ def test_a_skipped_step_label_sits_in_the_middle_of_its_row() -> None:
 
 def test_the_page_heading_ring_hugs_its_words() -> None:
     assert _scoped_declarations(".page-head-title")["width"] == "fit-content"
+
+
+@pytest.mark.parametrize(
+    ("selector", "property_name", "value"),
+    [
+        (".panel::after", "forced-color-adjust", "none"),
+        (".panel::after", "background", "CanvasText"),
+        (".matrix-cell.is-match", "outline-color", "CanvasText"),
+    ],
+)
+def test_forced_colors_keep_panel_corners_and_the_matrix_diagonal(
+    selector: str, property_name: str, value: str
+) -> None:
+    assert _scoped_declarations(selector, media=FORCED_COLORS)[property_name] == value
+
+
+def test_the_matrix_diagonal_is_an_outline_which_forced_colours_keep() -> None:
+    assert _scoped_declarations(".matrix-cell.is-match")["outline"] == (
+        "var(--border-thin) solid var(--muted)"
+    )
+
+
+def test_a_skipped_step_cell_is_narrower_on_a_narrow_screen() -> None:
+    assert _scoped_declarations(".heatmap-cell")["min-width"] == "var(--cell-min-width-narrow)"

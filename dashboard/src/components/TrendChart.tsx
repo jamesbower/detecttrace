@@ -17,6 +17,8 @@ import type * as React from "react";
 import type { ChartSeries } from "./trend-geometry";
 import type { TrendMetricView, TrendView } from "../view";
 
+const SCROLL_LABEL = "Chart, scrolls sideways";
+
 /** A point by its series and its week's index in the trend's weeks. */
 type PointKey = { series: number; week: number };
 
@@ -69,14 +71,16 @@ export function TrendChart({ metric, trend, alertClassName }: TrendChartProps) {
   return (
     <figure className="trend-chart" aria-labelledby={captionId}>
       <figcaption id={captionId} className="trend-chart-title">{`${metric.title} per week`}</figcaption>
+      {/* The figure's caption names the chart once. Only a chart wider than the screen is a
+          region of its own, a tab stop the keyboard can scroll, named for what it does. */}
       <div
         ref={scrollRef}
         className="trend-chart-scroll"
-        role="region"
+        role={isScrollable ? "region" : undefined}
         tabIndex={isScrollable ? 0 : undefined}
-        aria-labelledby={captionId}
+        aria-label={isScrollable ? SCROLL_LABEL : undefined}
       >
-        <svg className="trend-chart-svg" viewBox={`0 0 ${chart.width} ${chart.height}`} role="group">
+        <svg className="trend-chart-svg" viewBox={`0 0 ${chart.width} ${chart.height}`}>
           <g aria-hidden="true">
             {chart.grid.map((line) => (
               <g key={line.label}>

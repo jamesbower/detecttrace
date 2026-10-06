@@ -87,9 +87,9 @@
   --heat-2: 20%;
   --heat-3: 30%;
   --heat-4: var(--heat-cap);
-  --danger-tint: rgb(255 107 107 / 14%);
-  /* The --danger outline keeps 3:1 on every heat level; every outlined cell also says
-     "Dangerous" in text. */
+  --danger-tint: rgb(255 107 107 / 8%);
+  /* The --danger outline keeps 3:1 on every heat level, tinted or not; every outlined cell
+     also says "Dangerous" in text. */
   --outline-danger: 2px;
   --outline-flagged: 3px;
 
@@ -136,6 +136,7 @@
   --label-max: 28ch; /* a long label (version, step, case ID) wraps here instead of widening a table */
   --label-min: 10ch; /* a row label never narrows below a short word, so words break whole */
   --cell-min-width: 96px;
+  --cell-min-width-narrow: 76px; /* below --bp-narrow, so a step and two versions fit 390px */
   --metric-min-width: 9rem;
   --strip-height: 8px;
   --matrix-label-share: 22%; /* the row labels' column; the three verdict columns share the rest */
