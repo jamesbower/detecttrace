@@ -1,3 +1,4 @@
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from detecttrace.init_writer import FIELD_NAMES
 from detecttrace.model import VerdictRow
+from detecttrace.runconfig import load_ui_config
 from detecttrace.serve.store import Store
 from detecttrace.serve.ui import SAVED_TEXT, UiState, create_ui_app
 from detecttrace.serve.ui_config import CHECKLISTS_FOLDER, CONFIG_NAME
@@ -26,6 +28,7 @@ from serve.ui_support import (
 
 EDITED_KEY = "detecttrace.alert_class"
 PROMPT_EDIT = {"fields": {"prompt_version": EDITED_KEY}, "labels": {}}
+MALICIOUS_BENIGN = {"label_map": {"Malicious": "benign"}}
 CONFIG_ROUTES = ["/api/config/proposal", "/api/config"]
 BAD_EDITS = [
     pytest.param({"fields": {"case": "x.case"}, "labels": {}}, id="unknown field"),
@@ -139,6 +142,61 @@ def test_the_proposal_writes_nothing(uploaded: TestClient, data_dir: Path) -> No
     post_json(uploaded, "/api/config/proposal", NO_EDITS)
 
     assert not (data_dir / CONFIG_NAME).exists()
+
+
+def test_the_proposal_after_a_save_shows_the_saved_field(uploaded: TestClient) -> None:
+    post_json(uploaded, "/api/config", PROMPT_EDIT)
+
+    response = post_json(uploaded, "/api/config/proposal", NO_EDITS)
+
+    fields = {field["name"]: field["value"] for field in response.json()["fields"]}
+    assert fields["prompt_version"] == EDITED_KEY
+
+
+def test_the_proposal_after_a_save_shows_the_saved_label(uploaded: TestClient) -> None:
+    post_json(uploaded, "/api/config", {"fields": {}, "labels": MALICIOUS_BENIGN})
+
+    response = post_json(uploaded, "/api/config/proposal", NO_EDITS)
+
+    assert response.json()["label_map"]["Malicious"] == "benign"
+
+
+def test_saving_again_without_edits_keeps_the_saved_field(
+    uploaded: TestClient, data_dir: Path
+) -> None:
+    post_json(uploaded, "/api/config", PROMPT_EDIT)
+
+    post_json(uploaded, "/api/config", NO_EDITS)
+
+    assert load_ui_config(data_dir / CONFIG_NAME).mapping.prompt_version == EDITED_KEY
+
+
+def test_saving_again_without_edits_keeps_the_saved_label(
+    uploaded: TestClient, data_dir: Path
+) -> None:
+    post_json(uploaded, "/api/config", {"fields": {}, "labels": MALICIOUS_BENIGN})
+
+    post_json(uploaded, "/api/config", NO_EDITS)
+
+    assert load_ui_config(data_dir / CONFIG_NAME).label_map["malicious"] == "benign"
+
+
+def test_a_broken_saved_configuration_is_refused(uploaded: TestClient, data_dir: Path) -> None:
+    (data_dir / CONFIG_NAME).write_text("mapping: [\n", encoding="utf-8")
+
+    response = post_json(uploaded, "/api/config/proposal", NO_EDITS)
+
+    assert response.status_code == 422
+
+
+def test_a_broken_saved_configuration_names_no_server_folder(
+    uploaded: TestClient, data_dir: Path
+) -> None:
+    (data_dir / CONFIG_NAME).write_text("mapping: [\n", encoding="utf-8")
+
+    response = post_json(uploaded, "/api/config/proposal", NO_EDITS)
+
+    assert str(data_dir.absolute()) not in response.json()["message"]
 
 
 # Bad requests, on both routes
@@ -264,6 +322,42 @@ def test_saving_with_a_broken_checklist_starts_no_recompute(
     run_recompute(state)
 
     assert executor.count == 0
+
+
+def fail_to_write() -> None:
+    raise sqlite3.OperationalError("disk I/O error")
+
+
+def test_a_save_the_store_cannot_record_answers_503(
+    uploaded: TestClient, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    response = post_json(uploaded, "/api/config", NO_EDITS)
+
+    assert response.status_code == 503
+
+
+def test_a_first_save_the_store_cannot_record_leaves_no_file(
+    uploaded: TestClient, store: Store, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    post_json(uploaded, "/api/config", NO_EDITS)
+
+    assert not (data_dir / CONFIG_NAME).exists()
+
+
+def test_a_save_the_store_cannot_record_keeps_the_previous_file(
+    uploaded: TestClient, store: Store, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    post_json(uploaded, "/api/config", NO_EDITS)
+    previous = (data_dir / CONFIG_NAME).read_text(encoding="utf-8")
+    monkeypatch.setattr(store, "mark_changed", fail_to_write)
+
+    post_json(uploaded, "/api/config", PROMPT_EDIT)
+
+    assert (data_dir / CONFIG_NAME).read_text(encoding="utf-8") == previous
 
 
 # The recompute

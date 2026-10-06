@@ -173,6 +173,26 @@ def test_a_broken_saved_configuration_says_how_to_fix_it(
     )
 
 
+@pytest.fixture
+def start_with_leftover_folders(tmp_path: Path) -> Path:
+    """A start that stops at its broken configuration, after tidying the data folder."""
+    data_dir = tmp_path / "data"
+    for name in ("upload-k2j4x9", "backup-p0q1r2", "uploads"):
+        (data_dir / name).mkdir(parents=True)
+        (data_dir / name / "traces.jsonl").write_text("{}", encoding="utf-8")
+    (data_dir / CONFIG_NAME).write_text("mapping: [\n", encoding="utf-8")
+    invoke_ui("--no-open", "--port", str(find_free_port()), "--data-dir", str(data_dir))
+    return data_dir
+
+
+def test_a_start_removes_the_folders_an_interrupted_upload_left(
+    start_with_leftover_folders: Path,
+) -> None:
+    folders = sorted(path.name for path in start_with_leftover_folders.iterdir() if path.is_dir())
+
+    assert folders == ["checklists", "uploads"]
+
+
 def test_a_data_folder_that_is_a_file_exits_1(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     data_dir.write_text("not a folder", encoding="utf-8")

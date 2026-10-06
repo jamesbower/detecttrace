@@ -11,7 +11,7 @@ routes answer exactly as `serve`'s do.
 as application/octet-stream and answers `{"stored_text", "problems"}`, the problems shaped
 as the view's notes. `GET /api/ui/state` answers `{"is_configured", "can_configure",
 "has_results", "span_count_text", "verdict_count_text", "trace_family_text",
-"checklist_classes", "checklist_error_text"}`.
+"checklist_classes", "checklist_classes_text", "checklist_error_text"}`.
 
 `POST /api/config/proposal` and `POST /api/config` take the user's edits as JSON,
 `{"fields": {name: key}, "labels": {"label_map": {label: verdict}, "agent_label_map": {...}}}`.
@@ -70,6 +70,7 @@ from detecttrace.serve.ui_config import (
     CONFIG_NAME,
     UiConfigError,
     build_proposal_content,
+    to_data_folder_text,
     to_recompute_settings,
     write_ui_config,
 )
@@ -95,6 +96,10 @@ JSON_MEDIA_TYPE = "application/json"
 # The form's edits are a few fields and labels; anything near this size is not one.
 MAX_JSON_BYTES = 1 << 20
 SAVED_TEXT = "Configuration saved. The dashboard is being computed."
+# The temporary folders this app makes in the data folder; a start removes any an
+# interrupted upload or checklist save left behind.
+UPLOAD_FOLDER_PREFIX = "upload-"
+BACKUP_FOLDER_PREFIX = "backup-"
 _LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
 # The ASGI code a server turns into a 403 when a websocket is closed before it is accepted.
 _POLICY_VIOLATION = 1008
@@ -129,10 +134,11 @@ class UiState:
         if self.recompute is None:
             raise RuntimeError("this app state has no worker pool to recompute with")
         with self.lifecycle_lock:
-            self.recompute.replace_settings(settings)
             # Advanced before the coordinator starts, so it finds the input newer than any
-            # snapshot and runs at once instead of after a debounce.
+            # snapshot and runs at once instead of after a debounce. First, so a store that
+            # can't take the write leaves the running settings as they were.
             self.store.mark_changed()
+            self.recompute.replace_settings(settings)
             coordinator = RecomputeCoordinator(self.recompute.submit, self.store, self.clock)
             with self.lock:
                 # A run the previous coordinator started used the old settings; its outcome
@@ -256,7 +262,7 @@ def create_ui_app(*, port: int, state: UiState) -> FastAPI:
         try:
             await run_in_threadpool(_save_config, state, edits)
         except (UiConfigError, InputFileError) as error:
-            return create_status_response(422, str(error))
+            return create_status_response(422, to_data_folder_text(str(error), state.data_dir))
         except sqlite3.OperationalError:
             return create_unavailable_response()
         return JSONResponse({"saved_text": SAVED_TEXT})
@@ -332,11 +338,11 @@ async def _receive_upload(
         return create_status_response(422, str(error))
     # Inside the data folder, so the file is on the same disk the store and checklists use;
     # the folder goes in every outcome, a 413 or a lost connection included.
-    with tempfile.TemporaryDirectory(dir=state.data_dir) as folder:
+    with tempfile.TemporaryDirectory(prefix=UPLOAD_FOLDER_PREFIX, dir=state.data_dir) as folder:
         file_path = Path(folder) / safe_name
         await save_body(request, file_path, max_bytes)
         try:
-            report = await run_in_threadpool(store_file, file_path)
+            report = await run_in_threadpool(_store_upload, state, store_file, file_path)
         except UploadRefused as error:
             return create_status_response(422, str(error))
         except sqlite3.OperationalError:
@@ -344,6 +350,16 @@ async def _receive_upload(
     state.notify_write()
     problems = [asdict(to_note_view(to_note_data(line))) for line in report.problems]
     return JSONResponse({"stored_text": report.stored_text, "problems": problems})
+
+
+def _store_upload(
+    state: UiState, store_file: Callable[[Path], UploadReport], file_path: Path
+) -> UploadReport:
+    # One at a time with every other upload, save and clear: a trace file's format is checked
+    # against the stored one and then stored, and nothing may change the store in between.
+    # The parse is inside too; this app has one user, so the wait is short and rare.
+    with state.lifecycle_lock:
+        return store_file(file_path)
 
 
 class _ConfigEdits(BaseModel):
@@ -393,30 +409,56 @@ def _save_config(state: UiState, edits: _ConfigEdits) -> None:
         previous = config_path.read_text(encoding="utf-8") if config_path.is_file() else None
         config = write_ui_config(state.store, state.data_dir, edits.fields, edits.labels)
         # The checklists are only read once the file names them, so a file whose checklists
-        # can't be used is put back as it was: the next start would refuse to load it.
+        # can't be used is put back as it was: the next start would refuse to load it. A
+        # store that can't record the change puts it back too, so the file always matches
+        # the settings the app runs with.
         try:
-            settings = to_recompute_settings(config, config_path)
-        except InputFileError:
+            state.configure(to_recompute_settings(config, config_path))
+        except BaseException:
             if previous is None:
                 config_path.unlink(missing_ok=True)
             else:
                 write_text_atomically(previous, config_path)
             raise
-        state.configure(settings)
 
 
 def _clear_data(state: UiState) -> None:
+    config_path = state.data_dir / CONFIG_NAME
+    # The lock keeps the timer from ticking until the clear ends, so the coordinator is
+    # dropped last: a clear that fails partway still recomputes while a configuration exists.
     with state.lifecycle_lock:
-        state.unconfigure()
-        state.store.clear()
-        (state.data_dir / CONFIG_NAME).unlink(missing_ok=True)
-        folder = state.data_dir / CHECKLISTS_FOLDER
-        # A linked folder is left alone, so a clear never deletes files outside the data
-        # folder; unlink removes a linked file's link, never its target.
-        if folder.is_dir() and not folder.is_symlink():
-            for entry in folder.iterdir():
-                if entry.is_symlink() or entry.is_file():
-                    entry.unlink()
+        try:
+            state.store.clear()
+            config_path.unlink(missing_ok=True)
+            _delete_checklist_files(state.data_dir / CHECKLISTS_FOLDER)
+        finally:
+            if not config_path.exists():
+                state.unconfigure()
+
+
+def _delete_checklist_files(folder: Path) -> None:
+    """Delete every file and link under `folder` and the subfolders they leave; keep `folder`.
+
+    A linked folder is never entered, so a clear never deletes files outside the data folder;
+    unlink removes a link, never its target.
+    """
+    if not folder.is_dir() or folder.is_symlink():
+        return
+
+    def report(error: OSError) -> None:
+        raise error
+
+    # Bottom up, so each subfolder is empty by the time it is removed. os.walk lists a linked
+    # folder among the folders but, without followlinks, never enters it.
+    for parent, folder_names, file_names in os.walk(folder, topdown=False, onerror=report):
+        for name in file_names:
+            Path(parent, name).unlink()
+        for name in folder_names:
+            path = Path(parent, name)
+            if path.is_symlink():
+                path.unlink()
+            else:
+                path.rmdir()
 
 
 def _save_checklist(state: UiState, file_path: Path) -> UploadReport:
@@ -425,12 +467,12 @@ def _save_checklist(state: UiState, file_path: Path) -> UploadReport:
     config_path = state.data_dir / CONFIG_NAME
     with state.lifecycle_lock:
         if not config_path.is_file():
-            report = save_checklist_file(file_path, folder)
-            # Checklists live outside the store, so the generation is advanced for the
-            # recompute to see the change.
-            state.store.mark_changed()
-            return report
-        with tempfile.TemporaryDirectory(dir=state.data_dir) as backup_folder:
+            # Nothing recomputes before a configuration, and configure advances the
+            # generation, so the store needs no write here.
+            return save_checklist_file(file_path, folder)
+        with tempfile.TemporaryDirectory(
+            prefix=BACKUP_FOLDER_PREFIX, dir=state.data_dir
+        ) as backup_folder:
             backup = Path(backup_folder)
             folder.mkdir(parents=True, exist_ok=True)
             _copy_folder_files(folder, backup)
@@ -442,8 +484,13 @@ def _save_checklist(state: UiState, file_path: Path) -> UploadReport:
                 settings = to_recompute_settings(load_ui_config(config_path), config_path)
             except InputFileError as error:
                 _restore_folder_files(folder, backup)
-                raise UploadRefused(str(error)) from None
-        state.configure(settings)
+                raise UploadRefused(to_data_folder_text(str(error), state.data_dir)) from None
+            # The upload answers as not stored, so the folder must not keep it either.
+            try:
+                state.configure(settings)
+            except BaseException:
+                _restore_folder_files(folder, backup)
+                raise
         return report
 
 
@@ -465,7 +512,7 @@ def _restore_folder_files(folder: Path, backup: Path) -> None:
 def _read_state_content(state: UiState) -> dict[str, object]:
     counts = state.store.read_counts()
     trace_family = state.store.read_trace_family()
-    classes, checklist_error = _read_checklist_classes(state.data_dir / CHECKLISTS_FOLDER)
+    classes, checklist_error = _read_checklist_classes(state.data_dir)
     return {
         "is_configured": (state.data_dir / CONFIG_NAME).is_file(),
         "can_configure": counts.span_count > 0 and counts.verdict_count > 0,
@@ -474,18 +521,20 @@ def _read_state_content(state: UiState) -> dict[str, object]:
         "verdict_count_text": _describe_stored(counts.verdict_count, "verdict", "verdicts"),
         "trace_family_text": None if trace_family is None else _TRACE_FAMILY_TEXTS[trace_family],
         "checklist_classes": classes,
+        "checklist_classes_text": ", ".join(classes) or "None yet",
         "checklist_error_text": checklist_error,
     }
 
 
-def _read_checklist_classes(folder: Path) -> tuple[list[str], str | None]:
+def _read_checklist_classes(data_dir: Path) -> tuple[list[str], str | None]:
     """The saved checklists' alert classes, sorted, or none and the loader's message."""
+    folder = data_dir / CHECKLISTS_FOLDER
     if not folder.exists():
         return [], None
     try:
         checklists = load_checklists(folder)
     except ChecklistFileError as error:
-        return [], str(error)
+        return [], to_data_folder_text(str(error), data_dir)
     return sorted(checklist.alert_class for checklist in checklists.values()), None
 
 

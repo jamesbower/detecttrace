@@ -8,6 +8,7 @@ in flight, then the timer stops, the store closes and the worker pool shuts down
 """
 
 import errno
+import shutil
 import socket
 import sqlite3
 import sys
@@ -30,7 +31,12 @@ from detecttrace.serve.server import (
     open_store,
     tick_until_stopped,
 )
-from detecttrace.serve.ui import UiState, create_ui_app
+from detecttrace.serve.ui import (
+    BACKUP_FOLDER_PREFIX,
+    UPLOAD_FOLDER_PREFIX,
+    UiState,
+    create_ui_app,
+)
 from detecttrace.serve.ui_config import CHECKLISTS_FOLDER, CONFIG_NAME, to_recompute_settings
 from detecttrace.serve.ui_recompute import UiRecompute
 
@@ -49,6 +55,7 @@ def run_ui(
     listening.
     """
     _create_data_folder(data_dir)
+    _remove_temporary_folders(data_dir)
     recompute = UiRecompute(data_dir / DATABASE_NAME, _create_executor)
     try:
         store = open_store(data_dir / DATABASE_NAME)
@@ -89,6 +96,21 @@ def _create_data_folder(data_dir: Path) -> None:
         raise StartupError(
             f"Can't create the data folder {data_dir}: {error.strerror or error}."
         ) from None
+
+
+def _remove_temporary_folders(data_dir: Path) -> None:
+    # Best effort: a leftover folder only takes space, so it never stops a start.
+    try:
+        entries = list(data_dir.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        if (
+            entry.name.startswith((UPLOAD_FOLDER_PREFIX, BACKUP_FOLDER_PREFIX))
+            and entry.is_dir()
+            and not entry.is_symlink()
+        ):
+            shutil.rmtree(entry, ignore_errors=True)
 
 
 def _load_saved_configuration(state: UiState) -> None:

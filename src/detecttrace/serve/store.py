@@ -138,14 +138,20 @@ class Store:
         return cls(connection, time.time_ns)
 
     def add_spans(
-        self, spans: Sequence[Span], issues: Sequence[Issue], *, subject: str = INGEST_SUBJECT
+        self,
+        spans: Sequence[Span],
+        issues: Sequence[Issue],
+        *,
+        subject: str = INGEST_SUBJECT,
+        trace_family: TraceFamily | None = None,
     ) -> AddSpansResult:
         """Store new spans and count `issues`, all in one transaction.
 
         The first copy of a span key wins, as in the file loader: an identical copy is a
         duplicate, a different one a conflict, reported under `subject`. Only a new span or a
         new kind of issue advances the generation, so a client retrying an acknowledged batch
-        does not cause a recompute; a repeated issue just has its count raised.
+        does not cause a recompute; a repeated issue just has its count raised. A
+        `trace_family` is recorded in the same transaction, as set_trace_family does.
         """
         accepted = duplicates = conflicts = 0
         with self._write() as now:
@@ -170,14 +176,19 @@ class Store:
             new_issue_count = _count_issues(self._connection, found, now)
             if accepted or new_issue_count:
                 _advance_generation(self._connection, now)
+            if trace_family is not None:
+                _write_trace_family(self._connection, trace_family)
         return AddSpansResult(accepted, duplicates, conflicts)
 
-    def put_verdicts(self, rows: Sequence[VerdictRow], token_name: str) -> PutVerdictsResult:
+    def put_verdicts(
+        self, rows: Sequence[VerdictRow], token_name: str, *, issues: Sequence[Issue] = ()
+    ) -> PutVerdictsResult:
         """Store each row as its case's current verdict, keeping any replaced one in history.
 
         The raw label is stored; mapping it happens at recompute. A row equal to the case's
         current verdict changes nothing, so a client retrying a request causes no recompute.
         Rows are applied in order, so a later row for the same case replaces an earlier one.
+        `issues` are counted in the same transaction, as add_issues does.
         """
         added = replaced = unchanged = 0
         with self._write() as now:
@@ -205,7 +216,8 @@ class Store:
                     " VALUES (?, ?, ?, ?, ?)",
                     (row.case_id, row.alert_class, row.label, now, token_name),
                 )
-            if added or replaced:
+            new_issue_count = _count_issues(self._connection, issues, now)
+            if added or replaced or new_issue_count:
                 _advance_generation(self._connection, now)
         return PutVerdictsResult(added, replaced, unchanged)
 
@@ -245,9 +257,7 @@ class Store:
     def set_trace_family(self, family: TraceFamily) -> None:
         """Record the format of the stored spans. It changes no input, so the generation stays."""
         with self._write():
-            self._connection.execute(
-                "INSERT OR REPLACE INTO meta (key, value) VALUES ('trace_family', ?)", (family,)
-            )
+            _write_trace_family(self._connection, family)
 
     def read_inputs(self) -> StoredInputs:
         """Read everything the pipeline needs, from one consistent snapshot of the database."""
@@ -597,6 +607,12 @@ def _count_issues(connection: sqlite3.Connection, issues: Sequence[Issue], now: 
             )
             new_count += 1
     return new_count
+
+
+def _write_trace_family(connection: sqlite3.Connection, family: TraceFamily) -> None:
+    connection.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES ('trace_family', ?)", (family,)
+    )
 
 
 def _advance_generation(connection: sqlite3.Connection, now: int) -> None:
