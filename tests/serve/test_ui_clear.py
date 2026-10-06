@@ -202,6 +202,24 @@ def test_an_upload_after_a_clear_computes_nothing(
     assert executor.count == 1
 
 
+def test_a_tick_waits_for_a_save_or_clear_in_progress(
+    configured: TestClient, state: UiState, store: Store, clock: FakeClock, executor: InlineExecutor
+) -> None:
+    runs_before = executor.count
+    store.mark_changed()
+    state.notify_write()
+    clock.now += LONG_AFTER_SECONDS
+    timer = threading.Thread(target=state.tick)
+
+    with state.lifecycle_lock:
+        timer.start()
+        timer.join(timeout=0.5)
+        runs_during = executor.count
+    timer.join()
+
+    assert runs_during == runs_before
+
+
 def test_a_clear_without_a_configuration_succeeds(client: TestClient) -> None:
     response = post_json(client, "/api/data/clear", CONFIRM)
 

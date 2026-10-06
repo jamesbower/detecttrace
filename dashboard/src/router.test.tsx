@@ -204,6 +204,15 @@ describe("replaceEmptyHash", () => {
     expect(window.location.hash).toBe("#/data");
   });
 
+  it("adds no history entry", () => {
+    window.history.replaceState(null, "", window.location.pathname);
+    const length = window.history.length;
+
+    replaceEmptyHash("/data");
+
+    expect(window.history.length).toBe(length);
+  });
+
   it("keeps a path the address names", () => {
     window.history.replaceState(null, "", "#/");
 

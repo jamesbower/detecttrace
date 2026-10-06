@@ -60,6 +60,7 @@ def client(app: FastAPI) -> Iterator[TestClient]:
         pytest.param(
             {"X-DetectTrace": "1", "Origin": f"http://127.0.0.1:{OTHER_PORT}"}, id="other-port"
         ),
+        pytest.param({"X-DetectTrace": "1", "Origin": f"https://127.0.0.1:{PORT}"}, id="https"),
     ],
 )
 def test_a_write_without_the_header_and_own_origin_is_forbidden(
@@ -100,6 +101,12 @@ def test_a_body_of_the_wrong_media_type_is_unsupported(client: TestClient) -> No
     assert response.status_code == 415
 
 
+def test_a_body_without_a_media_type_is_unsupported(client: TestClient) -> None:
+    response = client.post(UPLOAD_PATH, content=b"x")
+
+    assert response.status_code == 415
+
+
 def test_a_body_of_the_expected_media_type_is_accepted(client: TestClient) -> None:
     response = client.post(
         UPLOAD_PATH, content=b"x", headers={"Content-Type": "Application/Octet-Stream"}
@@ -131,7 +138,13 @@ def test_a_request_for_another_host_says_why(client: TestClient) -> None:
 
 @pytest.mark.parametrize(
     "host",
-    [f"127.0.0.1:{OTHER_PORT}", "127.0.0.1", "localhost", f"127.0.0.1:{PORT}.evil.example.com"],
+    [
+        f"127.0.0.1:{OTHER_PORT}",
+        "127.0.0.1",
+        "localhost",
+        f"127.0.0.1:{PORT}.evil.example.com",
+        f"0.0.0.0:{PORT}",
+    ],
 )
 def test_a_loopback_name_on_another_port_or_none_is_forbidden(
     client: TestClient, host: str
@@ -146,6 +159,14 @@ def test_a_request_for_this_app_is_served(client: TestClient, host: str) -> None
     response = client.get("/", headers={"Host": host})
 
     assert response.status_code == 200
+
+
+def test_a_request_naming_this_app_and_another_host_is_forbidden(client: TestClient) -> None:
+    response = client.get(
+        "/", headers=[("Host", f"127.0.0.1:{PORT}"), ("Host", "evil.example.com")]
+    )
+
+    assert response.status_code == 403
 
 
 def test_a_websocket_for_another_host_is_refused(client: TestClient) -> None:

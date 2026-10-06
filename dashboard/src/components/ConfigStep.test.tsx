@@ -245,6 +245,19 @@ describe("an edit", () => {
     expect(screen.queryByText("Newer.")).not.toBeNull();
   });
 
+  it("drops a label an undone edit no longer finds", async () => {
+    await renderStep();
+    readProposalMock.mockResolvedValue({ ...PROPOSAL, unmappedAgentLabels: ["unclear"] });
+    edit("Agent verdict", "agent.verdict");
+    await waitForDelay();
+    readProposalMock.mockResolvedValue(PROPOSAL);
+
+    edit("Agent verdict", "");
+    await waitForDelay();
+
+    expect(screen.queryByLabelText("unclear")).toBeNull();
+  });
+
   it("ignores an older proposal that answers after the newer one", async () => {
     const settlers = deferProposals();
     render(<ConfigStep isConfigured={false} totalsKey={TOTALS} />);
@@ -592,6 +605,16 @@ describe("the reload hold", () => {
     expect(isReloadHeld()).toBe(true);
   });
 
+  it("holds a reload while a save of the unedited form is on its way", async () => {
+    await renderStep();
+    saveConfigMock.mockReturnValue(new Promise(() => {}));
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(isReloadHeld()).toBe(true);
+  });
+
   it("lets the reload go once the form is saved", async () => {
     await renderStep();
     edit("Agent verdict", "agent.verdict");
@@ -673,6 +696,17 @@ describe("new uploads", () => {
     await flush();
 
     expect((screen.getByLabelText("maybe") as HTMLSelectElement).value).toBe("benign");
+  });
+
+  it("keep a mapped agent label the new proposal no longer lists as unmapped", async () => {
+    const { rerender } = await renderStep({ proposal: { ...PROPOSAL, unmappedAgentLabels: ["unclear"] } });
+    fireEvent.change(screen.getByLabelText("unclear"), { target: { value: "benign" } });
+    readProposalMock.mockResolvedValue(PROPOSAL);
+
+    rerender(<ConfigStep isConfigured={false} totalsKey={NEW_TOTALS} />);
+    await flush();
+
+    expect((screen.getByLabelText("unclear") as HTMLSelectElement).value).toBe("benign");
   });
 
   it("add a newly uploaded label beside the edits", async () => {

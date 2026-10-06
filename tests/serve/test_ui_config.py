@@ -277,6 +277,13 @@ def test_an_empty_store_raises(store: Store, data_dir: Path) -> None:
         build_proposal_content(store, data_dir, {}, {})
 
 
+def test_a_store_without_verdicts_raises(store: Store, data_dir: Path) -> None:
+    store.add_spans([agent_span("a1")], [])
+
+    with pytest.raises(UiConfigError, match="Upload traces and verdicts first"):
+        build_proposal_content(store, data_dir, {}, {})
+
+
 # Saving
 
 
@@ -385,6 +392,21 @@ def test_the_app_with_an_empty_checklists_folder_names_no_checklist_source(
     demo_store: Store, data_dir: Path
 ) -> None:
     (data_dir / CHECKLISTS_FOLDER).mkdir()
+    config = write_ui_config(demo_store, data_dir, {}, {})
+
+    settings = to_recompute_settings(config, data_dir / CONFIG_NAME)
+
+    assert settings.checklist_source is None
+
+
+def test_the_app_with_only_a_hidden_checklist_names_no_checklist_source(
+    demo_store: Store, data_dir: Path
+) -> None:
+    (data_dir / CHECKLISTS_FOLDER).mkdir()
+    shutil.copy(
+        DEMO_DIR / "checklists" / "impossible_travel.yaml",
+        data_dir / CHECKLISTS_FOLDER / ".draft.yaml",
+    )
     config = write_ui_config(demo_store, data_dir, {}, {})
 
     settings = to_recompute_settings(config, data_dir / CONFIG_NAME)

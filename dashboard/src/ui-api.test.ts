@@ -164,6 +164,12 @@ describe("uploadFile", () => {
 
     expect(await uploadFile("verdicts", new File(["a"], "v.csv"))).toEqual({ error: BAD_RESPONSE_TEXT });
   });
+
+  it("returns an error for a server error with an empty message", async () => {
+    mockFetch(500, { code: 13, message: "" });
+
+    expect(await uploadFile("verdicts", new File(["a"], "v.csv"))).toEqual({ error: BAD_RESPONSE_TEXT });
+  });
 });
 
 describe("readUiState", () => {
@@ -209,6 +215,12 @@ describe("readUiState", () => {
 
   it("returns an error for a state with a missing count", async () => {
     mockFetch(200, { ...STATE, span_count_text: undefined });
+
+    expect(await readUiState()).toEqual({ error: BAD_RESPONSE_TEXT });
+  });
+
+  it("returns an error for a state whose results flag is not a boolean", async () => {
+    mockFetch(200, { ...STATE, has_results: "yes" });
 
     expect(await readUiState()).toEqual({ error: BAD_RESPONSE_TEXT });
   });
@@ -312,6 +324,18 @@ describe("readProposal", () => {
     expect(await readProposal(CONFIG)).toEqual({ error: BAD_RESPONSE_TEXT });
   });
 
+  it("returns an error for a proposal with a malformed field", async () => {
+    mockFetch(200, { ...PROPOSAL, fields: [{ ...PROPOSAL.fields[0], is_missing: "no" }] });
+
+    expect(await readProposal(CONFIG)).toEqual({ error: BAD_RESPONSE_TEXT });
+  });
+
+  it("returns an error for a proposal whose missing text is not text", async () => {
+    mockFetch(200, { ...PROPOSAL, missing_text: 2 });
+
+    expect(await readProposal(CONFIG)).toEqual({ error: BAD_RESPONSE_TEXT });
+  });
+
   it("returns the server's message before both inputs are stored", async () => {
     mockFetch(409, { code: 409, message: "Upload traces and verdicts first." });
 
@@ -356,5 +380,11 @@ describe("clearData", () => {
     mockFetch(200, {});
 
     expect(await clearData()).toEqual({ ok: true });
+  });
+
+  it("returns an error for a reply that is a JSON array", async () => {
+    mockFetch(200, []);
+
+    expect(await clearData()).toEqual({ error: BAD_RESPONSE_TEXT });
   });
 });
