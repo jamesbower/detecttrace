@@ -382,7 +382,7 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
         cases=_to_cases_view(data),
         coverage=_to_coverage_views(totals["coverage"], data["source"].get("config")),
         notes=(
-            *(_to_note_view(note) for note in data["data_notes"]),
+            *(to_note_view(note) for note in data["data_notes"]),
             *(note for class_data in classes for note in _to_tp_without_agent_note(class_data)),
             *(note for class_data in classes for note in _to_dropped_notes(class_data, styles)),
         ),
@@ -1007,7 +1007,7 @@ def _to_coverage_views(coverage: Any, config_name: str | None) -> tuple[Coverage
     )
 
 
-def _to_note_view(note: Any) -> NoteView:
+def to_note_view(note: Any) -> NoteView:
     count = note["count"]
     examples = tuple(
         ExampleView(

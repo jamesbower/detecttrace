@@ -95,7 +95,7 @@ def build_results(
             },
         },
         "classes": [_to_class_data(class_report) for class_report in report.classes],
-        "data_notes": [_to_note_data(line) for line in summary_lines],
+        "data_notes": [to_note_data(line) for line in summary_lines],
         "case_rows": _build_case_rows(report, ordered, checklists),
         "case_detail": _build_case_detail(ordered, report.evidence, checklists, max_detail_cases),
     }
@@ -235,7 +235,7 @@ def _to_week_data(point: WeekPoint) -> dict[str, object]:
     }
 
 
-def _to_note_data(line: SummaryLine) -> dict[str, object]:
+def to_note_data(line: SummaryLine) -> dict[str, object]:
     return {
         "severity": line.severity.value,
         "kind": line.kind.value,
