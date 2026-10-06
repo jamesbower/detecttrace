@@ -32,17 +32,36 @@ const STATE = {
   verdict_count_text: "201 verdicts stored.",
   trace_family_text: "OTLP traces",
   checklist_classes: ["phishing"],
+  checklist_classes_text: "phishing",
   checklist_error_text: null,
 };
 
 const PROPOSAL = {
-  fields: [{ name: "case_id", label: "Case ID", value: "alert.id", share_text: "201 of 201 runs (100%)", is_missing: false }],
+  fields: [
+    {
+      name: "case_id",
+      label: "Case ID",
+      value: "alert.id",
+      share_text: "201 of 201 runs (100%)",
+      summary_text: "Case ID: alert.id",
+      is_missing: false,
+    },
+  ],
   suggestions: ["alert.id"],
-  label_map: { tp: "true_positive" },
+  label_map: { tp: "true_positive", maybe: "benign" },
   agent_label_map: {},
   unmapped_analyst_labels: [],
   unmapped_agent_labels: ["maybe"],
+  user_labels: { label_map: { maybe: "benign" }, agent_label_map: {} },
   verdict_choices: ["true_positive", "false_positive", "benign"],
+  verdict_choice_labels: [
+    { value: "true_positive", label: "True positive" },
+    { value: "false_positive", label: "False positive" },
+    { value: "benign", label: "Benign" },
+  ],
+  labels_help_text: "Choose the verdict each one means.",
+  not_set_text: "Not set",
+  not_mapped_text: "Not mapped",
   notes: [],
   missing_required: [],
   missing_text: null,
@@ -159,8 +178,15 @@ describe("readUiState", () => {
       verdictCountText: "201 verdicts stored.",
       traceFamilyText: "OTLP traces",
       checklistClasses: ["phishing"],
+      checklistClassesText: "phishing",
       checklistErrorText: null,
     });
+  });
+
+  it("returns an error for a state without the checklist classes text", async () => {
+    mockFetch(200, { ...STATE, checklist_classes_text: undefined });
+
+    expect(await readUiState()).toEqual({ error: BAD_RESPONSE_TEXT });
   });
 
   it("returns why the checklists could not be loaded", async () => {
@@ -219,8 +245,65 @@ describe("readProposal", () => {
     const proposal = await readProposal(CONFIG);
 
     expect("fields" in proposal && proposal.fields).toEqual([
-      { name: "case_id", label: "Case ID", value: "alert.id", shareText: "201 of 201 runs (100%)", isMissing: false },
+      {
+        name: "case_id",
+        label: "Case ID",
+        value: "alert.id",
+        shareText: "201 of 201 runs (100%)",
+        summaryText: "Case ID: alert.id",
+        isMissing: false,
+      },
     ]);
+  });
+
+  it("returns the labels mapped by hand", async () => {
+    mockFetch(200, PROPOSAL);
+
+    const proposal = await readProposal(CONFIG);
+
+    expect("userLabels" in proposal && proposal.userLabels).toEqual({ label_map: { maybe: "benign" }, agent_label_map: {} });
+  });
+
+  it("returns each verdict choice with its label", async () => {
+    mockFetch(200, PROPOSAL);
+
+    const proposal = await readProposal(CONFIG);
+
+    expect("verdictChoiceLabels" in proposal && proposal.verdictChoiceLabels[2]).toEqual({ value: "benign", label: "Benign" });
+  });
+
+  it("returns the label step's texts", async () => {
+    mockFetch(200, PROPOSAL);
+
+    const proposal = await readProposal(CONFIG);
+
+    expect(
+      "labelsHelpText" in proposal && [proposal.labelsHelpText, proposal.notSetText, proposal.notMappedText],
+    ).toEqual(["Choose the verdict each one means.", "Not set", "Not mapped"]);
+  });
+
+  it.each([
+    "user_labels",
+    "verdict_choice_labels",
+    "labels_help_text",
+    "not_set_text",
+    "not_mapped_text",
+  ])("returns an error for a proposal without %s", async (key) => {
+    mockFetch(200, { ...PROPOSAL, [key]: undefined });
+
+    expect(await readProposal(CONFIG)).toEqual({ error: BAD_RESPONSE_TEXT });
+  });
+
+  it("returns an error for a field without its summary text", async () => {
+    mockFetch(200, { ...PROPOSAL, fields: [{ ...PROPOSAL.fields[0], summary_text: undefined }] });
+
+    expect(await readProposal(CONFIG)).toEqual({ error: BAD_RESPONSE_TEXT });
+  });
+
+  it("returns an error for hand-mapped labels of the wrong shape", async () => {
+    mockFetch(200, { ...PROPOSAL, user_labels: { label_map: { maybe: 1 }, agent_label_map: {} } });
+
+    expect(await readProposal(CONFIG)).toEqual({ error: BAD_RESPONSE_TEXT });
   });
 
   it("returns an error for a proposal with a malformed label map", async () => {

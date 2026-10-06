@@ -1,18 +1,22 @@
 // One kind of input file in the ui app's upload step: a labelled file input and a drop zone
 // that feed the same queue. Files go up one at a time, in order, and each one's result is the
-// server's text, shown as text.
+// server's text, shown as text, until the reader clears it. Until then the page holds its
+// automatic reload, which would lose the results.
 import { useId, useRef, useState } from "react";
 
+import { useReloadHold } from "../reload-hold";
 import { uploadFile } from "../ui-api";
 import { NoteList } from "./NoteList";
 import "./UploadCard.css";
 
-import type { DragEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 import type { UploadKind, UploadResult } from "../ui-api";
 
 type UploadCardProps = {
   kind: UploadKind;
   title: string;
+  /** The file input's label, such as "Add trace files". */
+  addText: string;
   /** The accepted suffixes, as the reader sees them. */
   acceptText: string;
   /** The input's `accept` list. */
@@ -23,7 +27,7 @@ type UploadCardProps = {
 
 type FileOutcome = { readonly name: string; readonly result: UploadResult };
 
-export function UploadCard({ kind, title, acceptText, accept, onUploaded }: UploadCardProps) {
+export function UploadCard({ kind, title, addText, acceptText, accept, onUploaded }: UploadCardProps) {
   const inputId = useId();
   const titleId = useId();
   const [outcomes, setOutcomes] = useState<readonly FileOutcome[]>([]);
@@ -33,13 +37,13 @@ export function UploadCard({ kind, title, acceptText, accept, onUploaded }: Uplo
   // State lags a render behind; a drop that lands mid-upload must see the queue as busy at once.
   const isBusyRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  useReloadHold(isUploading || outcomes.length > 0);
 
   async function handleFiles(files: readonly File[]) {
     if (files.length === 0 || isBusyRef.current) {
       return;
     }
     isBusyRef.current = true;
-    const wasInputFocused = document.activeElement === inputRef.current;
     setIsUploading(true);
     for (const file of files) {
       setStatusText(`Uploading ${file.name}…`);
@@ -50,10 +54,19 @@ export function UploadCard({ kind, title, acceptText, accept, onUploaded }: Uplo
     }
     isBusyRef.current = false;
     setIsUploading(false);
-    // Disabling the focused input drops keyboard focus to the page; give it back.
-    if (wasInputFocused && (document.activeElement === null || document.activeElement === document.body)) {
-      requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  // The input is never `disabled` while busy: that would drop keyboard focus to the page.
+  function handleInputClick(event: MouseEvent<HTMLInputElement>) {
+    if (isBusyRef.current) {
+      event.preventDefault();
     }
+  }
+
+  function handleClearResults() {
+    setOutcomes([]);
+    setStatusText("");
+    inputRef.current?.focus();
   }
 
   function handleDragOver(event: DragEvent<HTMLDivElement>) {
@@ -82,7 +95,7 @@ export function UploadCard({ kind, title, acceptText, accept, onUploaded }: Uplo
         onDrop={handleDrop}
       >
         <label htmlFor={inputId} className="upload-label">
-          Choose files<span className="visually-hidden"> for {title}</span>
+          {addText}
         </label>
         <input
           ref={inputRef}
@@ -91,7 +104,8 @@ export function UploadCard({ kind, title, acceptText, accept, onUploaded }: Uplo
           type="file"
           multiple
           accept={accept}
-          disabled={isUploading}
+          aria-disabled={isUploading || undefined}
+          onClick={handleInputClick}
           onChange={(event) => {
             const input = event.currentTarget;
             const files = Array.from(input.files ?? []);
@@ -102,7 +116,9 @@ export function UploadCard({ kind, title, acceptText, accept, onUploaded }: Uplo
         />
         <p className="upload-drop-hint">or drop files here</p>
       </div>
-      <p className="upload-status" role="status" aria-live="polite">
+      {/* Once the files are up, the results below repeat the last line, so it stays for screen
+          readers only. */}
+      <p className={isUploading ? "upload-status" : "upload-status visually-hidden"} role="status" aria-live="polite">
         {statusText}
       </p>
       {outcomes.length > 0 && (
@@ -127,6 +143,11 @@ export function UploadCard({ kind, title, acceptText, accept, onUploaded }: Uplo
             </li>
           ))}
         </ol>
+      )}
+      {outcomes.length > 0 && !isUploading && (
+        <button type="button" className="data-button upload-clear" onClick={handleClearResults}>
+          Clear results
+        </button>
       )}
     </section>
   );

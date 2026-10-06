@@ -17,6 +17,7 @@ const CASE_ID_FIELD: ProposalField = {
   label: "Case ID",
   value: "alert.id",
   shareText: "201 of 201 runs (100%)",
+  summaryText: "Case ID: alert.id",
   isMissing: false,
 };
 const AGENT_VERDICT_FIELD: ProposalField = {
@@ -24,6 +25,7 @@ const AGENT_VERDICT_FIELD: ProposalField = {
   label: "Agent verdict",
   value: null,
   shareText: "Not found in any run",
+  summaryText: "Agent verdict: Not set",
   isMissing: true,
 };
 
@@ -34,7 +36,16 @@ const PROPOSAL: Proposal = {
   agentLabelMap: {},
   unmappedAnalystLabels: ["maybe"],
   unmappedAgentLabels: [],
+  userLabels: { label_map: {}, agent_label_map: {} },
   verdictChoices: ["true_positive", "false_positive", "benign"],
+  verdictChoiceLabels: [
+    { value: "true_positive", label: "True positive" },
+    { value: "false_positive", label: "False positive" },
+    { value: "benign", label: "Benign" },
+  ],
+  labelsHelpText: "Choose the verdict each label means.",
+  notSetText: "Nothing chosen",
+  notMappedText: "Leave unmapped",
   notes: ["3 runs have no case ID."],
   missingRequired: [],
   missingText: null,
@@ -47,7 +58,15 @@ const MISSING: Proposal = {
   missingText: "Choose a key for Agent verdict before confirming.",
 };
 
+// A configuration saved earlier mapped "Malicious" by hand; "maybe" is still unmapped.
+const SAVED: Proposal = {
+  ...PROPOSAL,
+  labelMap: { Malicious: "true_positive" },
+  userLabels: { label_map: { Malicious: "true_positive" }, agent_label_map: {} },
+};
+
 const EMPTY_LABELS = { label_map: {}, agent_label_map: {} };
+const SAVED_LABELS = { label_map: { Malicious: "true_positive" }, agent_label_map: {} };
 const TOTALS = "2,129 spans stored.";
 const NEW_TOTALS = "4,000 spans stored.";
 
@@ -245,12 +264,27 @@ describe("an edit", () => {
 });
 
 describe("unmapped labels", () => {
-  it("offers each verdict, after not mapping it", async () => {
+  it("offers each verdict by its label, after not mapping it", async () => {
     await renderStep();
 
     expect(
       Array.from((screen.getByLabelText("maybe") as HTMLSelectElement).options, (option) => option.textContent),
-    ).toEqual(["Not mapped", "true_positive", "false_positive", "benign"]);
+    ).toEqual(["Leave unmapped", "True positive", "False positive", "Benign"]);
+  });
+
+  it("gives each verdict option the verdict's value", async () => {
+    await renderStep();
+
+    expect(
+      Array.from((screen.getByLabelText("maybe") as HTMLSelectElement).options, (option) => option.value),
+    ).toEqual(["", "true_positive", "false_positive", "benign"]);
+  });
+
+  it("explains the label step under the group's legend", async () => {
+    await renderStep();
+    const describedBy = screen.getByRole("group", { name: "Analyst labels" }).getAttribute("aria-describedby") ?? "";
+
+    expect(document.getElementById(describedBy)?.textContent).toBe("Choose the verdict each label means.");
   });
 
   it("sends a chosen verdict in the label map", async () => {
@@ -283,10 +317,28 @@ describe("unmapped labels", () => {
 });
 
 describe("Confirm", () => {
-  it("is disabled while a required field is missing", async () => {
+  it("is marked unavailable while a required field is missing", async () => {
     await renderStep({ proposal: MISSING });
 
-    expect((screen.getByRole("button", { name: "Confirm" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Confirm" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("can still take focus while a required field is missing", async () => {
+    await renderStep({ proposal: MISSING });
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+
+    confirm.focus();
+
+    expect(document.activeElement).toBe(confirm);
+  });
+
+  it("saves nothing while a required field is missing", async () => {
+    await renderStep({ proposal: MISSING });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(saveConfigMock).not.toHaveBeenCalled();
   });
 
   it("is described by the sentence saying what is missing", async () => {
@@ -298,20 +350,32 @@ describe("Confirm", () => {
     );
   });
 
-  it("is enabled once nothing required is missing", async () => {
+  it("is available once nothing required is missing", async () => {
     await renderStep();
 
-    expect((screen.getByRole("button", { name: "Confirm" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Confirm" }).hasAttribute("aria-disabled")).toBe(false);
   });
 
-  it("is disabled while saving", async () => {
+  it("is marked unavailable while saving", async () => {
     await renderStep();
     saveConfigMock.mockReturnValue(new Promise(() => {}));
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await flush();
 
-    expect((screen.getByRole("button", { name: "Confirm" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Confirm" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("saves once however often it is pressed while saving", async () => {
+    await renderStep();
+    saveConfigMock.mockReturnValue(new Promise(() => {}));
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(saveConfigMock).toHaveBeenCalledOnce();
   });
 
   it("saves the edits", async () => {
@@ -341,6 +405,16 @@ describe("Confirm", () => {
     await flush();
 
     expect(Array.from(document.querySelectorAll("dl > div"), (row) => row.textContent)).toEqual(["Case IDalert.id", "Agent verdictagent.verdict"]);
+  });
+
+  it("adds the labels mapped before saving to the summary", async () => {
+    await renderStep();
+    fireEvent.change(screen.getByLabelText("maybe"), { target: { value: "benign" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(screen.getByText("Analyst labels").nextElementSibling?.textContent).toBe("maybeBenign");
   });
 
   it("hides the form once saved", async () => {
@@ -412,10 +486,83 @@ describe("a saved configuration", () => {
     expect(screen.queryByRole("button", { name: "Change configuration" })).not.toBeNull();
   });
 
-  it("names a field with no key as not set", async () => {
+  it("names a field with no key in the server's words", async () => {
     await renderStep({ isConfigured: true });
 
-    expect(screen.getByText("Agent verdict").nextElementSibling?.textContent).toBe("Not set");
+    expect(screen.getByText("Agent verdict").nextElementSibling?.textContent).toBe("Nothing chosen");
+  });
+
+  it("lists the labels mapped by hand with their verdicts", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+
+    expect(screen.getByText("Analyst labels").nextElementSibling?.textContent).toBe("MaliciousTrue positive");
+  });
+
+  it("lists no agent labels when none is mapped by hand", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+
+    expect(screen.queryByText("Agent labels")).toBeNull();
+  });
+
+  it("keeps its label mappings when confirmed again without edits", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+    fireEvent.click(screen.getByRole("button", { name: "Change configuration" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await flush();
+
+    expect(saveConfigMock).toHaveBeenCalledWith({ fields: {}, labels: SAVED_LABELS });
+  });
+
+  it("shows a saved label with its verdict chosen", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Change configuration" }));
+
+    expect((screen.getByLabelText("Malicious") as HTMLSelectElement).value).toBe("true_positive");
+  });
+
+  it("lists the saved labels before the unmapped ones", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Change configuration" }));
+
+    expect(
+      Array.from(screen.getByRole("group", { name: "Analyst labels" }).querySelectorAll("select"), (select) =>
+        select.labels?.[0]?.textContent,
+      ),
+    ).toEqual(["Malicious", "maybe"]);
+  });
+
+  it("offers no way to unmap a saved label, which saving cannot do", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Change configuration" }));
+
+    expect(
+      Array.from((screen.getByLabelText("Malicious") as HTMLSelectElement).options, (option) => option.value),
+    ).toEqual(["true_positive", "false_positive", "benign"]);
+  });
+
+  it("sends a changed saved label", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+    fireEvent.click(screen.getByRole("button", { name: "Change configuration" }));
+
+    fireEvent.change(screen.getByLabelText("Malicious"), { target: { value: "benign" } });
+    await waitForDelay();
+
+    expect(readProposalMock).toHaveBeenLastCalledWith({
+      fields: {},
+      labels: { label_map: { Malicious: "benign" }, agent_label_map: {} },
+    });
+  });
+
+  it("holds no reload when reopened with its labels unchanged", async () => {
+    await renderStep({ proposal: SAVED, isConfigured: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Change configuration" }));
+
+    expect(isReloadHeld()).toBe(false);
   });
 });
 

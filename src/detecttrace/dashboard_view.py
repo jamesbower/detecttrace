@@ -45,10 +45,15 @@ SERVED_FOOTER_TEXT = (
 )
 UI_GENERATOR_TEXT = f"Written by {GENERATOR}, running locally with detecttrace ui."
 UI_FOOTER_TEXT = (
-    "Every 30 seconds the page asks the detecttrace ui app on this computer whether newer results "
+    "Every 5 seconds the page asks the detecttrace ui app on this computer whether newer results "
     "exist; files you upload go only to that app."
 )
 UI_NEXT_STEP_TEXT = "Upload traces and verdicts on the Data page to get started."
+UI_DATA_INTRO_TEXT = (
+    "Upload traces, verdicts and checklists, check how each file was read, then confirm the "
+    "configuration. Problems found in the data are listed under step 3."
+)
+UI_UPDATED_TEXT = "The dashboard was updated."
 FEW_CASES_BELOW = 10
 FEW_CASES_TEXT = "Few cases."
 FEW_CASES_LEGEND_TEXT = f"Hollow marker: fewer than {FEW_CASES_BELOW} cases"
@@ -332,6 +337,12 @@ class WaitingView:
 
 
 @dataclass(frozen=True, slots=True)
+class UiView:
+    data_intro_text: str  # the Data page's introduction, which in the app lists its steps
+    updated_text: str  # announced after the page reloads itself with newer results
+
+
+@dataclass(frozen=True, slots=True)
 class DashboardView:
     # "offline" for a page written to a file, "served" from `detecttrace serve`, "ui" from
     # `detecttrace ui`.
@@ -346,6 +357,7 @@ class DashboardView:
     # Set only on the page `detecttrace serve` shows until a case can be scored; every other
     # section is then empty.
     waiting: WaitingView | None
+    ui: UiView | None  # set only on a page from `detecttrace ui`
 
 
 @dataclass(frozen=True, slots=True)
@@ -392,6 +404,7 @@ def build_view(results: Mapping[str, object]) -> DashboardView:
         limits=tuple(LimitView(term, text) for term, text in LIMITS),
         served=None,
         waiting=None,
+        ui=None,
     )
 
 
@@ -411,6 +424,7 @@ def build_served_view(
         mode=mode,
         header=_to_served_header(view.header, mode),
         served=_to_served_view(served),
+        ui=_to_ui_view(mode),
     )
 
 
@@ -460,6 +474,7 @@ def build_waiting_view(
             ),
             next_step_text=UI_NEXT_STEP_TEXT if mode == "ui" else None,
         ),
+        ui=_to_ui_view(mode),
     )
 
 
@@ -1095,6 +1110,12 @@ def _n_text(n: int) -> str:
 
 def _plural(count: int, singular: str, plural: str) -> str:
     return f"{format_count(count)} {singular if count == 1 else plural}"
+
+
+def _to_ui_view(mode: Literal["served", "ui"]) -> UiView | None:
+    if mode != "ui":
+        return None
+    return UiView(data_intro_text=UI_DATA_INTRO_TEXT, updated_text=UI_UPDATED_TEXT)
 
 
 def _to_served_view(served: ServedPage) -> ServedView:

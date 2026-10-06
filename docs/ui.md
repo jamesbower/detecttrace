@@ -61,11 +61,11 @@ Ctrl+C stops it, and so does `SIGTERM`. Requests in flight get up to 5 seconds t
 
 The Data page has three steps.
 
-1. **Upload.** Three cards, one each for traces, verdicts and checklists. Choose files or drop them on a card. Each card uploads its files one at a time and shows, for each file, what was stored and any problems found in it. Below the cards are the totals stored so far: spans, the trace format, verdicts and the alert classes that have a checklist.
+1. **Upload.** Three cards, one each for traces, verdicts and checklists. Choose files with **Add trace files**, **Add verdict files** or **Add checklist files**, or drop them on a card. Each card uploads its files one at a time and shows, for each file, what was stored and any problems found in it, until you choose **Clear results**. Below the cards are the totals stored so far: spans, the trace format, verdicts and the alert classes that have a checklist.
 2. **Configuration.** Once traces and verdicts are both stored, DetectTrace proposes a configuration from them, as `detecttrace init` does. Correct what is wrong, map any verdict labels it can't map by itself, and choose **Confirm**.
 3. **Data notes.** Once the first results exist, the coverage lines and every input problem, with how to fix it, as on the Data page of the file from `check`.
 
-After you confirm, the app computes the dashboard in the background. Every 30 seconds the page asks the app whether newer results exist, and reloads itself when they do. It waits while you have unsaved changes in the configuration form. Until a case can be scored, the other pages say so and link to the Data page.
+After you confirm, the app computes the dashboard in the background. Every 5 seconds the page asks the app whether newer results exist, and reloads itself when they do. It waits while you have unsaved changes in the configuration form, while a file is uploading, and while a card shows results you haven't cleared; the page then says "New data is available." with a Reload button. After it reloads itself, it says "The dashboard was updated." and puts focus back on the step you were in. If an update fails, the page says why. Until a case can be scored, the other pages say so and link to the Data page.
 
 New uploads after that update the dashboard by themselves, checklists included. You don't need to confirm again.
 

@@ -3,6 +3,7 @@ import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerPanel, resetRegistryForTests } from "../registry";
+import { takeReloadNote } from "../reload-note";
 import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
 import { Data } from "./Data";
 
@@ -42,7 +43,11 @@ const VIEW_WITH_NOTES: View = {
   ],
 };
 
-const UI_VIEW: View = { ...DEMO_VIEW, mode: "ui" };
+const UI_VIEW: View = {
+  ...DEMO_VIEW,
+  mode: "ui",
+  ui: { data_intro_text: "Upload, check, confirm.", updated_text: "The dashboard was updated." },
+};
 
 const UI_STATE = {
   is_configured: false,
@@ -52,17 +57,36 @@ const UI_STATE = {
   verdict_count_text: "No verdicts stored.",
   trace_family_text: "OTLP traces",
   checklist_classes: ["phishing", "malware"],
+  checklist_classes_text: "phishing and malware",
   checklist_error_text: null,
 };
 
 const PROPOSAL = {
-  fields: [{ name: "case_id", label: "Case ID", value: "alert.id", share_text: "201 of 201 runs (100%)", is_missing: false }],
+  fields: [
+    {
+      name: "case_id",
+      label: "Case ID",
+      value: "alert.id",
+      share_text: "201 of 201 runs (100%)",
+      summary_text: "Case ID: alert.id",
+      is_missing: false,
+    },
+  ],
   suggestions: ["alert.id"],
   label_map: {},
   agent_label_map: {},
   unmapped_analyst_labels: [],
   unmapped_agent_labels: [],
+  user_labels: { label_map: {}, agent_label_map: {} },
   verdict_choices: ["true_positive", "false_positive", "benign"],
+  verdict_choice_labels: [
+    { value: "true_positive", label: "True positive" },
+    { value: "false_positive", label: "False positive" },
+    { value: "benign", label: "Benign" },
+  ],
+  labels_help_text: "Choose the verdict each label means.",
+  not_set_text: "Not set",
+  not_mapped_text: "Not mapped",
   notes: [],
   missing_required: [],
   missing_text: null,
@@ -73,7 +97,13 @@ afterEach(() => {
   cleanup();
   resetRegistryForTests();
   vi.unstubAllGlobals();
+  sessionStorage.clear();
 });
+
+function respondTo(routes: Record<string, unknown>) {
+  return (url: string) =>
+    Promise.resolve(new Response(JSON.stringify(routes[url] ?? {}), { status: 200 }));
+}
 
 describe("the demo", () => {
   it("says no input problems were found", () => {
@@ -160,10 +190,65 @@ describe("ui mode", () => {
     render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
 
     expect(
-      ["Traces", "Verdicts", "Checklists"].map((title) =>
-        screen.getByLabelText(`Choose files for ${title}`).getAttribute("accept"),
+      ["Add trace files", "Add verdict files", "Add checklist files"].map((label) =>
+        screen.getByLabelText(label).getAttribute("accept"),
       ),
     ).toEqual([".jsonl,.json,.gz,.zst", ".csv", ".yaml,.yml"]);
+  });
+
+  it("introduces the page's steps in the view's words", () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect(screen.queryByText("Upload, check, confirm.")).not.toBeNull();
+  });
+
+  it("titles the data notes one level below their step", () => {
+    render(<Data view={{ ...VIEW_WITH_NOTES, mode: "ui", ui: UI_VIEW.ui }} results={DEMO_RESULTS} />);
+
+    expect(screen.getByRole("heading", { level: 3, name: "37 verdict rows have an unknown label." })).not.toBeNull();
+  });
+
+  it("names the stored spans as spans", async () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect((await screen.findByText("2,129 spans stored.")).previousElementSibling?.textContent).toBe("Spans");
+  });
+
+  it("does not announce the totals, which the cards already announce", async () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect((await screen.findByText("2,129 spans stored.")).closest("[aria-live], [role=status]")).toBeNull();
+  });
+
+  it("shows why the totals could not be read as an alert", async () => {
+    fetchMock.mockImplementation(() => Promise.reject(new TypeError("Failed to fetch")));
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The app could not be reached. Check that detecttrace ui is still running.",
+    );
+  });
+
+  it("shows the totals of the newest request when an older one answers last", async () => {
+    const user = userEvent.setup();
+    const settlers: ((body: unknown) => void)[] = [];
+    fetchMock.mockImplementation((url: string) =>
+      url === "/api/ui/state"
+        ? new Promise((resolve) => {
+            settlers.push((body) => resolve(new Response(JSON.stringify(body), { status: 200 })));
+          })
+        : Promise.resolve(new Response(JSON.stringify({ stored_text: "Done.", problems: [] }), { status: 200 })),
+    );
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    await user.upload(screen.getByLabelText("Add verdict files"), new File(["x"], "v.csv"));
+    await waitFor(() => expect(settlers).toHaveLength(2));
+
+    settlers[1]!({ ...UI_STATE, verdict_count_text: "201 verdicts stored." });
+    await screen.findByText("201 verdicts stored.");
+    settlers[0]!(UI_STATE);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText("No verdicts stored.")).toBeNull();
   });
 
   it("shows the totals stored so far", async () => {
@@ -172,10 +257,10 @@ describe("ui mode", () => {
     expect((await screen.findByText("2,129 spans stored.")).tagName).toBe("DD");
   });
 
-  it("lists the stored checklists' classes", async () => {
+  it("lists the stored checklists' classes in the server's words", async () => {
     render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
 
-    expect((await screen.findByText("phishing, malware")).tagName).toBe("DD");
+    expect((await screen.findByText("phishing and malware")).tagName).toBe("DD");
   });
 
   it("reads the totals again after an upload", async () => {
@@ -194,7 +279,7 @@ describe("ui mode", () => {
       ),
     );
 
-    await user.upload(screen.getByLabelText("Choose files for Verdicts"), new File(["x"], "v.csv"));
+    await user.upload(screen.getByLabelText("Add verdict files"), new File(["x"], "v.csv"));
 
     expect(await screen.findByText("201 verdicts stored.")).not.toBeNull();
   });
@@ -252,7 +337,7 @@ describe("ui mode", () => {
     expect(fetchMock.mock.calls.map(([url]) => url)).toContain("/api/data/clear");
   });
 
-  it("shows why the stored checklists could not be loaded", async () => {
+  it("shows why the stored checklists could not be loaded as an alert", async () => {
     fetchMock.mockImplementation(() =>
       Promise.resolve(
         new Response(
@@ -263,7 +348,29 @@ describe("ui mode", () => {
     );
     render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
 
-    expect(await screen.findByText("phishing.yaml is not valid YAML.")).not.toBeNull();
+    expect((await screen.findByRole("alert")).textContent).toBe("phishing.yaml is not valid YAML.");
+  });
+
+  it("says it is clearing while the clear is on its way", async () => {
+    const user = userEvent.setup();
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+    await user.click(screen.getByRole("button", { name: "Clear all data" }));
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear all data" }));
+
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Clearing…" })).not.toBeNull();
+  });
+
+  it("returns focus to the upload step after the clear's reload", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("location", { reload: vi.fn() });
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    await user.click(screen.getByRole("button", { name: "Clear all data" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear all data" }));
+    await waitFor(() => expect(sessionStorage.length).toBe(1));
+
+    expect(takeReloadNote()).toEqual({ focusId: "data-step-upload", shouldAnnounce: false });
   });
 
   it("leaves out the configuration step until it can be configured", async () => {
@@ -304,6 +411,57 @@ describe("ui mode", () => {
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear all data" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe("This request was refused.");
+  });
+});
+
+describe("after the page reloads itself", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(respondTo({ "/api/ui/state": { ...UI_STATE, can_configure: true, is_configured: true }, "/api/config/proposal": PROPOSAL })),
+    );
+  });
+
+  it("says the dashboard was updated", async () => {
+    sessionStorage.setItem("detecttrace:reload-note", JSON.stringify({ focusId: null, shouldAnnounce: true }));
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect(await screen.findByText("The dashboard was updated.")).not.toBeNull();
+  });
+
+  it("says it in a polite live region", async () => {
+    sessionStorage.setItem("detecttrace:reload-note", JSON.stringify({ focusId: null, shouldAnnounce: true }));
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    expect((await screen.findByText("The dashboard was updated.")).getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("says nothing after a reload the page did not make", async () => {
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+    await screen.findByText("2,129 spans stored.");
+
+    expect(screen.queryByText("The dashboard was updated.")).toBeNull();
+  });
+
+  it("moves focus to the step the reader was in", async () => {
+    sessionStorage.setItem(
+      "detecttrace:reload-note",
+      JSON.stringify({ focusId: "data-step-config", shouldAnnounce: true }),
+    );
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("2 · Configuration"));
+  });
+
+  it("moves focus to the upload step when the reader's step is not shown", async () => {
+    vi.stubGlobal("fetch", vi.fn(respondTo({ "/api/ui/state": UI_STATE })));
+    sessionStorage.setItem(
+      "detecttrace:reload-note",
+      JSON.stringify({ focusId: "data-step-config", shouldAnnounce: true }),
+    );
+    render(<Data view={UI_VIEW} results={DEMO_RESULTS} />);
+
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("1 · Upload"));
   });
 });
 

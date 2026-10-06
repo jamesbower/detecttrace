@@ -3,11 +3,11 @@
 // is the server's; the page only sends back what the reader changed.
 import { useCallback, useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
-import { setReloadHeld } from "../reload-hold";
+import { useReloadHold } from "../reload-hold";
 import { readProposal, saveConfig } from "../ui-api";
 import "./ConfigStep.css";
 
-import type { ConfigBody, Proposal, ProposalField } from "../ui-api";
+import type { ConfigBody, LabelMaps, Proposal, ProposalField, VerdictChoice } from "../ui-api";
 
 type ConfigStepProps = {
   /** A configuration is already saved, so the step opens as its summary. */
@@ -16,13 +16,12 @@ type ConfigStepProps = {
   totalsKey: string;
 };
 
-type Labels = { label_map: Record<string, string>; agent_label_map: Record<string, string> };
-type LabelMapName = keyof Labels;
+type LabelMapName = keyof LabelMaps;
 
 export const SUGGESTIONS_ID = "dt-config-suggestions";
 export const PROPOSAL_DELAY_MS = 400;
 const NOT_MAPPED = "";
-const EMPTY_LABELS: Labels = { label_map: {}, agent_label_map: {} };
+const EMPTY_LABELS: LabelMaps = { label_map: {}, agent_label_map: {} };
 const EMPTY_BODY_KEY = JSON.stringify({ fields: {}, labels: EMPTY_LABELS });
 
 export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
@@ -31,13 +30,17 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
   const [latest, setLatest] = useState<Proposal | null>(null);
   const [proposalError, setProposalError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Readonly<Record<string, string>>>({});
-  const [labels, setLabels] = useState<Labels>(EMPTY_LABELS);
+  // The reader's label choices, starting from the ones saved by hand, so a save keeps them.
+  const [labels, setLabels] = useState<LabelMaps>(EMPTY_LABELS);
+  // Saving can map a label differently but never unmap one already saved.
+  const [savedLabels, setSavedLabels] = useState<LabelMaps>(EMPTY_LABELS);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedText, setSavedText] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(isConfigured);
   const [savedBodyKey, setSavedBodyKey] = useState(EMPTY_BODY_KEY);
   const requestCount = useRef(0);
+  const hasSeededLabels = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const focusAfterToggle = useRef(false);
   const changeRef = useRef<HTMLButtonElement>(null);
@@ -58,6 +61,13 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
       }
       setProposalError(null);
       setLatest(result);
+      if (!hasSeededLabels.current) {
+        // The first proposal is asked with no edits, so its hand-mapped labels are the saved ones.
+        hasSeededLabels.current = true;
+        setLabels(result.userLabels);
+        setSavedLabels(result.userLabels);
+        setSavedBodyKey(JSON.stringify({ fields: {}, labels: result.userLabels }));
+      }
       setOriginal((previous) =>
         previous === null || JSON.stringify(body) === EMPTY_BODY_KEY ? result : mergeProposal(previous, result, body),
       );
@@ -77,10 +87,7 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
   const bodyKey = JSON.stringify(body);
   // Unsaved edits on an open form, or a save on its way, would be lost to a reload.
   const isHoldingReload = !isCollapsed && (isSaving || bodyKey !== savedBodyKey);
-  useEffect(() => {
-    setReloadHeld(isHoldingReload);
-    return () => setReloadHeld(false);
-  }, [isHoldingReload]);
+  useReloadHold(isHoldingReload);
 
   // An upload can add labels or runs; the reader's edits are sent along and kept.
   const refreshProposal = useEffectEvent(() => {
@@ -130,7 +137,13 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
     scheduleProposal(toBody(original, edits, nextLabels));
   }
 
+  const isConfirmUnavailable = isSaving || (latest?.missingRequired.length ?? 0) > 0;
+
   async function handleConfirm() {
+    // Still focusable while unavailable, so the reader can hear why; pressing it does nothing.
+    if (isConfirmUnavailable) {
+      return;
+    }
     clearTimeout(timer.current);
     setIsSaving(true);
     setSaveError(null);
@@ -142,6 +155,7 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
     }
     setSavedText(result.savedText);
     setSavedBodyKey(bodyKey);
+    setSavedLabels(labels);
     focusAfterToggle.current = true;
     setIsCollapsed(true);
   }
@@ -173,9 +187,11 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
             {latest.fields.map((field) => (
               <div key={field.name}>
                 <dt>{field.label}</dt>
-                <dd>{readValue(field) === "" ? "Not set" : <code>{readValue(field)}</code>}</dd>
+                <dd>{readValue(field) === "" ? latest.notSetText : <code>{readValue(field)}</code>}</dd>
               </div>
             ))}
+            <LabelSummary term="Analyst labels" labels={labels.label_map} choices={latest.verdictChoiceLabels} />
+            <LabelSummary term="Agent labels" labels={labels.agent_label_map} choices={latest.verdictChoiceLabels} />
           </dl>
           <button ref={changeRef} type="button" className="data-button" onClick={handleReopen}>
             Change configuration
@@ -203,16 +219,22 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
           </fieldset>
           <LabelGroup
             legend="Analyst labels"
-            labels={original.unmappedAnalystLabels}
-            choices={latest.verdictChoices}
+            helpText={latest.labelsHelpText}
+            notMappedText={latest.notMappedText}
+            labels={toUnion(Object.keys(original.userLabels.label_map), original.unmappedAnalystLabels)}
+            choices={latest.verdictChoiceLabels}
             chosen={labels.label_map}
+            saved={savedLabels.label_map}
             onChange={(label, verdict) => handleLabelChange("label_map", label, verdict)}
           />
           <LabelGroup
             legend="Agent labels"
-            labels={original.unmappedAgentLabels}
-            choices={latest.verdictChoices}
+            helpText={latest.labelsHelpText}
+            notMappedText={latest.notMappedText}
+            labels={toUnion(Object.keys(original.userLabels.agent_label_map), original.unmappedAgentLabels)}
+            choices={latest.verdictChoiceLabels}
             chosen={labels.agent_label_map}
+            saved={savedLabels.agent_label_map}
             onChange={(label, verdict) => handleLabelChange("agent_label_map", label, verdict)}
           />
           {latest.notes.length > 0 && (
@@ -227,7 +249,7 @@ export function ConfigStep({ isConfigured, totalsKey }: ConfigStepProps) {
             <button
               type="button"
               className="data-button config-confirm"
-              disabled={isSaving || latest.missingRequired.length > 0}
+              aria-disabled={isConfirmUnavailable || undefined}
               aria-describedby={latest.missingText === null ? undefined : missingId}
               onClick={() => void handleConfirm()}
             >
@@ -278,22 +300,60 @@ function ConfigField({ field, value, onChange }: ConfigFieldProps) {
   );
 }
 
+type LabelSummaryProps = {
+  term: string;
+  labels: Readonly<Record<string, string>>;
+  choices: readonly VerdictChoice[];
+};
+
+// Each label and the verdict it means, as pairs: layout, so no sentence is built here.
+function LabelSummary({ term, labels, choices }: LabelSummaryProps) {
+  const entries = Object.entries(labels);
+  if (entries.length === 0) {
+    return null;
+  }
+  return (
+    <div>
+      <dt>{term}</dt>
+      <dd>
+        <dl className="config-summary-labels">
+          {entries.map(([label, verdict]) => (
+            <div key={label}>
+              <dt>
+                <code>{label}</code>
+              </dt>
+              <dd>{choices.find((choice) => choice.value === verdict)?.label ?? verdict}</dd>
+            </div>
+          ))}
+        </dl>
+      </dd>
+    </div>
+  );
+}
+
 type LabelGroupProps = {
   legend: string;
+  helpText: string;
+  notMappedText: string;
   labels: readonly string[];
-  choices: readonly string[];
+  choices: readonly VerdictChoice[];
   chosen: Readonly<Record<string, string>>;
+  /** Labels the saved configuration maps; they can be mapped otherwise but not unmapped. */
+  saved: Readonly<Record<string, string>>;
   onChange: (label: string, verdict: string) => void;
 };
 
-function LabelGroup({ legend, labels, choices, chosen, onChange }: LabelGroupProps) {
+function LabelGroup({ legend, helpText, notMappedText, labels, choices, chosen, saved, onChange }: LabelGroupProps) {
   const baseId = useId();
   if (labels.length === 0) {
     return null;
   }
   return (
-    <fieldset className="panel config-group">
+    <fieldset className="panel config-group" aria-describedby={`${baseId}-help`}>
       <legend className="config-legend">{legend}</legend>
+      <p id={`${baseId}-help`} className="config-help">
+        {helpText}
+      </p>
       {labels.map((label, index) => (
         <div key={label} className="config-field">
           <label htmlFor={`${baseId}-${index}`} className="config-label">
@@ -305,10 +365,10 @@ function LabelGroup({ legend, labels, choices, chosen, onChange }: LabelGroupPro
             value={chosen[label] ?? NOT_MAPPED}
             onChange={(event) => onChange(label, event.currentTarget.value)}
           >
-            <option value={NOT_MAPPED}>Not mapped</option>
+            {!(label in saved) && <option value={NOT_MAPPED}>{notMappedText}</option>}
             {choices.map((choice) => (
-              <option key={choice} value={choice}>
-                {choice}
+              <option key={choice.value} value={choice.value}>
+                {choice.label}
               </option>
             ))}
           </select>
@@ -319,7 +379,7 @@ function LabelGroup({ legend, labels, choices, chosen, onChange }: LabelGroupPro
 }
 
 // Only the fields the reader changed from the first proposal are sent; the server keeps the rest.
-function toBody(original: Proposal | null, edits: Readonly<Record<string, string>>, labels: Labels): ConfigBody {
+function toBody(original: Proposal | null, edits: Readonly<Record<string, string>>, labels: LabelMaps): ConfigBody {
   const fields = Object.fromEntries(
     Object.entries(edits).filter(([name, value]) => value !== (findValue(original, name) ?? "")),
   );
@@ -336,6 +396,10 @@ function mergeProposal(previous: Proposal, result: Proposal, body: ConfigBody): 
     ),
     unmappedAnalystLabels: toUnion(previous.unmappedAnalystLabels, result.unmappedAnalystLabels),
     unmappedAgentLabels: toUnion(previous.unmappedAgentLabels, result.unmappedAgentLabels),
+    userLabels: {
+      label_map: { ...previous.userLabels.label_map, ...result.userLabels.label_map },
+      agent_label_map: { ...previous.userLabels.agent_label_map, ...result.userLabels.agent_label_map },
+    },
   };
 }
 

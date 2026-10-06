@@ -5,10 +5,10 @@ Dev-only and run by hand, like the other browser checks:
     uv run --with playwright pytest -m browser -s -q tests/browser/test_ui_browser.py
 
 One visit drives a real `detecttrace ui` process as a reader would: it uploads the demo files
-through the page's file inputs, maps the labels the proposal can't place, confirms, waits for
-the page to reload with the results, and clears the data again.
+through the page's file inputs, clears each card's results, maps the labels the proposal can't
+place, confirms, waits for the page to reload with the results, and clears the data again.
 
-The page asks for newer results every 30 seconds. The test pauses the page's clock once the
+The page asks for newer results every 5 seconds. The test pauses the page's clock once the
 page has loaded, so the configured page can be checked before it reloads, and moves the clock
 forward one poll once the server has results, so the page's script runs exactly as in
 production. axe waits on timers, so the clock runs while axe does and only then.
@@ -45,7 +45,7 @@ pytestmark = [
 
 DEMO_TRACE_FILES = sorted((DEMO_FOLDER / "traces").glob("*.jsonl.gz"))
 DEMO_CHECKLIST_FILES = sorted((DEMO_FOLDER / "checklists").glob("*.yaml"))
-POLL_MS = 30_000
+POLL_MS = 5_000
 # Generous: the first recompute starts a fresh worker process before it scores 200 cases.
 RESULTS_SECONDS = 60
 TIMEOUT_MS = 30_000
@@ -54,9 +54,9 @@ CLEAR_OPENER = ".upload-totals > .data-button-danger"
 CLEAR_DIALOG = "dialog.clear-dialog"
 # Every control a reader must reach with Tab before confirming, by its accessible name.
 KEYBOARD_TARGETS = [
-    "Choose files for Traces",
-    "Choose files for Verdicts",
-    "Choose files for Checklists",
+    "Add trace files",
+    "Add verdict files",
+    "Add checklist files",
     "Clear all data",
     "Confirm",
 ]
@@ -95,8 +95,11 @@ class UiVisit:
     opening_hash: str = ""
     stored_texts: dict[str, list[str]] = field(default_factory=dict)
     offered_labels: list[str] = field(default_factory=list)
+    focus_after_upload: str = ""
     tab_walk: list[str] = field(default_factory=list)
     saved_text: str = ""
+    focus_after_reload: str = ""
+    announced_after_reload: str = ""
     kpi_text: str = ""
     alias_hash: str = ""
     is_dialog_open_after_enter: bool = False
@@ -158,6 +161,9 @@ def ui_visit(
         page.clock.fast_forward(POLL_MS)
         # The page reloads by itself once its poll sees the results.
         page.wait_for_selector(NOTES_STEP, timeout=TIMEOUT_MS)
+        page.wait_for_function("document.activeElement !== document.body")
+        visit.focus_after_reload = page.evaluate(FOCUS_NAME)
+        visit.announced_after_reload = page.inner_text(".data-steps > [role=status]")
         visit.axe["with notes"] = run_axe(page, axe_script)
 
         open_page(page, "Overview")
@@ -186,16 +192,21 @@ def watch(page: Any, visit: UiVisit) -> None:
 
 
 def upload_demo_files(page: Any, visit: UiVisit) -> None:
-    """Choose each card's demo files in its file input and wait for every file's outcome."""
-    for title, files in (
-        ("Traces", DEMO_TRACE_FILES),
-        ("Verdicts", [DEMO_FOLDER / "verdicts.csv"]),
-        ("Checklists", DEMO_CHECKLIST_FILES),
+    """Choose each card's demo files in its focused file input, wait for every file's outcome,
+    then clear the outcomes, which would otherwise hold the page's reload."""
+    for title, label, files in (
+        ("Traces", "Add trace files", DEMO_TRACE_FILES),
+        ("Verdicts", "Add verdict files", [DEMO_FOLDER / "verdicts.csv"]),
+        ("Checklists", "Add checklist files", DEMO_CHECKLIST_FILES),
     ):
         card = page.locator(".upload-card", has=page.get_by_role("heading", name=title))
-        card.get_by_label(f"Choose files for {title}").set_input_files(files)
+        card.get_by_label(label).focus()
+        card.get_by_label(label).set_input_files(files)
         card.locator(".upload-outcome").nth(len(files) - 1).wait_for()
         visit.stored_texts[title] = card.locator(".upload-stored").all_inner_texts()
+        if title == "Traces":
+            visit.focus_after_upload = page.evaluate(FOCUS_NAME)
+        card.get_by_role("button", name="Clear results").click()
 
 
 def choose_labels(page: Any, visit: UiVisit) -> None:
@@ -209,7 +220,8 @@ def choose_labels(page: Any, visit: UiVisit) -> None:
 
 def walk_with_tab(page: Any) -> list[str]:
     """The name of each element Tab reaches from the top of the page until it leaves it."""
-    page.evaluate("document.activeElement?.blur()")
+    # From the page's title: a blurred element would leave Tab's starting point where it was.
+    page.focus(".page-head-title")
     walk: list[str] = []
     for _ in range(200):
         page.keyboard.press("Tab")
@@ -337,6 +349,18 @@ def test_each_upload_card_shows_what_was_stored(
     ui_visit: UiVisit, title: str, texts: list[str]
 ) -> None:
     assert ui_visit.stored_texts[title] == texts
+
+
+def test_focus_stays_on_the_file_input_through_several_files(ui_visit: UiVisit) -> None:
+    assert ui_visit.focus_after_upload == "Add trace files"
+
+
+def test_the_reload_returns_focus_to_the_configuration_step(ui_visit: UiVisit) -> None:
+    assert ui_visit.focus_after_reload == "2 · Configuration"
+
+
+def test_the_reload_says_the_dashboard_was_updated(ui_visit: UiVisit) -> None:
+    assert ui_visit.announced_after_reload == "The dashboard was updated."
 
 
 def test_the_form_offers_the_labels_the_proposal_cannot_place(ui_visit: UiVisit) -> None:

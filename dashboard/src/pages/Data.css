@@ -63,6 +63,11 @@
   text-transform: uppercase;
 }
 
+/* Focus returns here after the page reloads itself: the page title's slimmer ring. */
+.data-step-title:focus-visible {
+  outline-width: var(--border-mark);
+}
+
 .upload-cards {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -139,19 +144,22 @@
   border-color: var(--danger);
 }
 
-.data-button:disabled {
+.data-button:disabled,
+.data-button[aria-disabled="true"] {
   cursor: progress;
   opacity: var(--disabled-opacity);
 }
 
+/* Style B, as the KPI tiles: an angled corner and a top edge, here in --danger. On --panel the
+   danger button's hover keeps its text at 4.5:1. The ::backdrop is its own box, outside the clip. */
 .clear-dialog {
   max-width: min(var(--measure), calc(100vw - 2 * var(--sp-4)));
   padding: var(--sp-5);
-  background: var(--frame);
+  background: var(--panel);
   border: none;
   border-top: var(--border-accent) solid var(--danger);
   color: var(--text);
-  box-shadow: var(--shadow-1);
+  clip-path: var(--clip-angled-md);
 }
 
 .clear-dialog::backdrop {

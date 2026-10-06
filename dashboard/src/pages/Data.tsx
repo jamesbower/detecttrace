@@ -6,6 +6,7 @@ import { PageHead } from "../components/PageHead";
 import { PanelSlot } from "../components/PanelSlot";
 import { UploadCard } from "../components/UploadCard";
 import { WarnIcon } from "../components/WarnIcon";
+import { reloadWithNote, takeReloadNote } from "../reload-note";
 import { clearData, readUiState } from "../ui-api";
 import "./Data.css";
 
@@ -38,36 +39,82 @@ export function Data({ view, results }: DataProps) {
             </li>
           ))}
         </ul>
-        <NoteList notes={view.notes} />
+        {/* In the ui app the notes sit under the "3 · Data notes" step heading. */}
+        <NoteList notes={view.notes} headingLevel={view.mode === "ui" ? 3 : 2} />
         <PanelSlot name="notes-after" view={view} results={results} />
       </>
     );
   return (
     <>
-      <PageHead
-        eyebrow="Data"
-        title="Data"
-        description="Input problems found while reading traces and verdicts, grouped, with how to fix them. Up to three examples each."
-      />
-      {view.mode === "ui" ? <UiSteps notes={notes} /> : notes}
+      <PageHead eyebrow="Data" title="Data" description={view.ui?.data_intro_text ?? DESCRIPTION} />
+      {view.mode === "ui" ? <UiSteps notes={notes} updatedText={view.ui?.updated_text ?? ""} /> : notes}
     </>
   );
 }
 
+const DESCRIPTION =
+  "Input problems found while reading traces and verdicts, grouped, with how to fix them. Up to three examples each.";
+const UPLOAD_HEADING_ID = "data-step-upload";
+const CONFIG_HEADING_ID = "data-step-config";
+const NOTES_HEADING_ID = "data-step-notes";
+
+type UiStepsProps = {
+  notes: ReactNode;
+  /** Announced after the page reloaded itself. */
+  updatedText: string;
+};
+
 // The steps keep their numbers when one is not shown yet, so "3" always means the data notes.
-function UiSteps({ notes }: { notes: ReactNode }) {
+function UiSteps({ notes, updatedText }: UiStepsProps) {
   const [state, setState] = useState<UiState | ApiError | null>(null);
+  const announceRef = useRef<HTMLParagraphElement>(null);
+  const requestCount = useRef(0);
+  const pendingFocusId = useRef<string | null>(null);
+
+  // Replies can arrive out of order, after an upload; only the newest request's is shown.
   const refreshState = useCallback(() => {
-    void readUiState().then(setState);
+    requestCount.current += 1;
+    const request = requestCount.current;
+    void readUiState().then((result) => {
+      if (request === requestCount.current) {
+        setState(result);
+      }
+    });
   }, []);
   useEffect(refreshState, [refreshState]);
+
+  // A reload the page made by itself left a note: say why the page changed, and put focus back
+  // in the step the reader was in once the steps are shown.
+  useEffect(() => {
+    const note = takeReloadNote();
+    if (note === null) {
+      return;
+    }
+    pendingFocusId.current = note.focusId;
+    // Written after the live region is in the page, so screen readers announce it.
+    if (note.shouldAnnounce && announceRef.current !== null) {
+      announceRef.current.textContent = updatedText;
+    }
+  }, [updatedText]);
+  useEffect(() => {
+    const focusId = pendingFocusId.current;
+    if (state === null || focusId === null) {
+      return;
+    }
+    pendingFocusId.current = null;
+    (document.getElementById(focusId) ?? document.getElementById(UPLOAD_HEADING_ID))?.focus();
+  }, [state]);
+
   const isReady = state !== null && !("error" in state);
   return (
     <div className="data-steps">
+      {/* Empty from the first render; the effect above writes into it after a reload. */}
+      <p ref={announceRef} className="visually-hidden" role="status" aria-live="polite" />
       <UploadStep state={state} onUploaded={refreshState} />
       {isReady && state.canConfigure && (
-        <section className="data-step" aria-labelledby="data-step-config">
-          <h2 id="data-step-config" className="data-step-title">
+        <section className="data-step" aria-labelledby={CONFIG_HEADING_ID} data-reload-focus={CONFIG_HEADING_ID}>
+          {/* Focusable from script only: focus returns here after the page reloads itself. */}
+          <h2 id={CONFIG_HEADING_ID} className="data-step-title" tabIndex={-1}>
             2 · Configuration
           </h2>
           <ConfigStep
@@ -77,8 +124,8 @@ function UiSteps({ notes }: { notes: ReactNode }) {
         </section>
       )}
       {notes !== null && (
-        <section className="data-step" aria-labelledby="data-step-notes">
-          <h2 id="data-step-notes" className="data-step-title">
+        <section className="data-step" aria-labelledby={NOTES_HEADING_ID} data-reload-focus={NOTES_HEADING_ID}>
+          <h2 id={NOTES_HEADING_ID} className="data-step-title" tabIndex={-1}>
             3 · Data notes
           </h2>
           {notes}
@@ -90,22 +137,31 @@ function UiSteps({ notes }: { notes: ReactNode }) {
 
 function UploadStep({ state, onUploaded }: { state: UiState | ApiError | null; onUploaded: () => void }) {
   return (
-    <section className="data-step" aria-labelledby="data-step-upload">
-      <h2 id="data-step-upload" className="data-step-title">
+    <section className="data-step" aria-labelledby={UPLOAD_HEADING_ID} data-reload-focus={UPLOAD_HEADING_ID}>
+      <h2 id={UPLOAD_HEADING_ID} className="data-step-title" tabIndex={-1}>
         1 · Upload
       </h2>
       <div className="upload-cards">
         <UploadCard
           kind="traces"
           title="Traces"
+          addText="Add trace files"
           acceptText=".jsonl, .json, .gz, .zst"
           accept=".jsonl,.json,.gz,.zst"
           onUploaded={onUploaded}
         />
-        <UploadCard kind="verdicts" title="Verdicts" acceptText=".csv" accept=".csv" onUploaded={onUploaded} />
+        <UploadCard
+          kind="verdicts"
+          title="Verdicts"
+          addText="Add verdict files"
+          acceptText=".csv"
+          accept=".csv"
+          onUploaded={onUploaded}
+        />
         <UploadCard
           kind="checklists"
           title="Checklists"
+          addText="Add checklist files"
           acceptText=".yaml, .yml"
           accept=".yaml,.yml"
           onUploaded={onUploaded}
@@ -119,17 +175,19 @@ function UploadStep({ state, onUploaded }: { state: UiState | ApiError | null; o
   );
 }
 
+// Not a live region: each upload card announces its own file, and the totals would repeat it.
 function UploadTotals({ state }: { state: UiState | ApiError | null }) {
-  // Kept in the tree from the first render, so a changed total is announced.
   return (
-    <div className="upload-totals-text" role="status" aria-live="polite">
+    <div className="upload-totals-text">
       {state !== null &&
         ("error" in state ? (
-          <p className="upload-totals-error">{state.error}</p>
+          <p className="upload-totals-error" role="alert">
+            {state.error}
+          </p>
         ) : (
           <dl className="upload-totals-list" aria-label="Stored so far">
             <div>
-              <dt>Traces</dt>
+              <dt>Spans</dt>
               <dd>{state.spanCountText}</dd>
             </div>
             {state.traceFamilyText !== null && (
@@ -144,12 +202,14 @@ function UploadTotals({ state }: { state: UiState | ApiError | null }) {
             </div>
             <div>
               <dt>Checklists</dt>
-              <dd>{state.checklistClasses.length === 0 ? "None" : state.checklistClasses.join(", ")}</dd>
+              <dd>{state.checklistClassesText}</dd>
             </div>
           </dl>
         ))}
       {state !== null && !("error" in state) && state.checklistErrorText !== null && (
-        <p className="upload-totals-error">{state.checklistErrorText}</p>
+        <p className="upload-totals-error" role="alert">
+          {state.checklistErrorText}
+        </p>
       )}
     </div>
   );
@@ -170,6 +230,9 @@ function ClearData() {
   }
 
   async function handleConfirm() {
+    if (isClearing) {
+      return;
+    }
     setIsClearing(true);
     const result = await clearData();
     if ("error" in result) {
@@ -177,7 +240,8 @@ function ClearData() {
       setErrorText(result.error);
       return;
     }
-    location.reload();
+    // The reload lands back on this page, empty; focus goes to the upload step.
+    reloadWithNote({ focusId: UPLOAD_HEADING_ID, shouldAnnounce: false });
   }
 
   return (
@@ -211,10 +275,11 @@ function ClearData() {
           <button
             type="button"
             className="data-button data-button-danger"
-            disabled={isClearing}
+            // Not `disabled`, which would drop focus out of the dialog while the clear is on its way.
+            aria-disabled={isClearing || undefined}
             onClick={() => void handleConfirm()}
           >
-            Clear all data
+            {isClearing ? "Clearing…" : "Clear all data"}
           </button>
         </div>
       </dialog>

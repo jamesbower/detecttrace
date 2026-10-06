@@ -1,8 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { POLL_MS } from "../poller";
-import { setReloadHeld } from "../reload-hold";
+import { POLL_MS, UI_POLL_MS } from "../poller";
+import { holdReload } from "../reload-hold";
 import { StatusBar } from "./StatusBar";
 
 const SERVED = { generation: 7, updated_at: "2026-10-05T12:00:00.000000Z", held_back_text: null };
@@ -184,14 +184,16 @@ it("never reloads a served page by itself", async () => {
 });
 
 describe("a held reload", () => {
+  let release = () => {};
+
   afterEach(() => {
-    setReloadHeld(false);
+    release();
   });
 
   it("offers the reload instead on a ui page with unsaved work", async () => {
     stubFetch(respondWith(status({ generation: 8 })));
     vi.stubGlobal("location", { reload: vi.fn() });
-    setReloadHeld(true);
+    release = holdReload();
     render(<StatusBar served={SERVED} shouldReloadOnNewData />);
 
     await waitIntervals(1);
@@ -203,7 +205,7 @@ describe("a held reload", () => {
     stubFetch(respondWith(status({ generation: 8 })));
     const reload = vi.fn();
     vi.stubGlobal("location", { reload });
-    setReloadHeld(true);
+    release = holdReload();
     render(<StatusBar served={SERVED} shouldReloadOnNewData />);
 
     await waitIntervals(1);
@@ -215,25 +217,63 @@ describe("a held reload", () => {
     stubFetch(respondWith(status({ generation: 8 })));
     const reload = vi.fn();
     vi.stubGlobal("location", { reload });
-    setReloadHeld(true);
+    release = holdReload();
     render(<StatusBar served={SERVED} shouldReloadOnNewData />);
     await waitIntervals(1);
 
-    act(() => setReloadHeld(false));
+    act(() => release());
 
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("waits for every holder to let go", async () => {
+    stubFetch(respondWith(status({ generation: 8 })));
+    const reload = vi.fn();
+    vi.stubGlobal("location", { reload });
+    release = holdReload();
+    const releaseOther = holdReload();
+    render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+    await waitIntervals(1);
+
+    act(() => releaseOther());
+
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it("does not reload when a hold ends with no newer results", async () => {
     stubFetch(respondWith(status({})));
     const reload = vi.fn();
     vi.stubGlobal("location", { reload });
-    setReloadHeld(true);
+    release = holdReload();
     render(<StatusBar served={SERVED} shouldReloadOnNewData />);
     await waitIntervals(1);
 
-    act(() => setReloadHeld(false));
+    act(() => release());
 
     expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+describe("a ui page", () => {
+  it("asks the app every few seconds", async () => {
+    const fetchMock = stubFetch(respondWith(status({})));
+    render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(UI_POLL_MS);
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("shows the app's reason for a failed update", async () => {
+    stubFetch(respondWith(status({ last_error: "ValueError: x", last_error_text: "The dashboard could not be computed: x" })));
+    render(<StatusBar served={SERVED} shouldReloadOnNewData />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(UI_POLL_MS);
+    });
+
+    expect(screen.getByRole("status").textContent).toBe("The dashboard could not be computed: x");
   });
 });

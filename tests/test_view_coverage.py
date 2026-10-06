@@ -134,6 +134,7 @@ PAGE_OF = {
     "waiting.notes[].message": "/",
     "waiting.notes[].hint": "/",
     "waiting.next_step_text": "/",
+    "ui.data_intro_text": "/data",
 }
 
 # Fields the page reads without printing them. Each one's name must appear in the page code.
@@ -173,6 +174,7 @@ SKIPPED = {
     "notes[].severity": "styles the note; severity_label is the text",
     "served.generation": "compared with the server's status to offer a reload",
     "served.updated_at": "compared with the server's status to offer a reload",
+    "ui.updated_text": "announced only after the page reloads itself with newer results",
 }
 
 

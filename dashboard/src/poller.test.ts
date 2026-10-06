@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import { POLL_MS, barKey, createPoll, decideBar, formatTime, startPolling } from "./poller";
+import { POLL_MS, UI_POLL_MS, barKey, createPoll, decideBar, formatTime, startPolling } from "./poller";
 
 import type { Bar } from "./poller";
 
@@ -95,6 +95,29 @@ it("formats a time in UTC to the minute", () => {
 
 it("polls every 30 seconds", () => {
   expect(POLL_MS).toBe(30_000);
+});
+
+it("polls the local ui app every 5 seconds", () => {
+  expect(UI_POLL_MS).toBe(5_000);
+});
+
+it("checks at the interval it is given", async () => {
+  vi.useFakeTimers();
+  let calls = 0;
+  startPolling(() => {
+    calls += 1;
+    return Promise.resolve();
+  }, UI_POLL_MS);
+
+  await vi.advanceTimersByTimeAsync(UI_POLL_MS * 3);
+
+  expect(calls).toBe(3);
+});
+
+it("shows the ui app's own sentence about a failed update", () => {
+  const failed = status({ last_error: "RuntimeError: boom", last_error_text: "The dashboard could not be computed: boom" });
+
+  expect(decideBar(failed, PAGE).errorText).toBe("The dashboard could not be computed: boom");
 });
 
 it("reads a microsecond time where Date.parse takes at most milliseconds", () => {

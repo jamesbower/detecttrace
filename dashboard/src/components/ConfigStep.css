@@ -26,8 +26,15 @@
   float: left;
   width: 100%;
   font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
   letter-spacing: var(--ls-label);
   text-transform: uppercase;
+}
+
+.config-help {
+  max-width: var(--measure);
+  color: var(--muted);
+  font-size: var(--fs-sm);
 }
 
 /* One field per row: label, input and its share text; side by side once there is room. */
@@ -92,13 +99,14 @@
   gap: var(--sp-3) var(--sp-4);
 }
 
-.config-confirm:not(:disabled) {
+.config-confirm:not([aria-disabled="true"]) {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
 }
 
-.config-confirm:disabled {
+/* Still focusable, so the reader reaches it and hears what is missing; pressing it does nothing. */
+.config-confirm[aria-disabled="true"] {
   cursor: not-allowed;
 }
 
@@ -140,4 +148,25 @@
 .config-summary-list dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* A label and its verdict per row, inside the summary's label row. */
+.config-summary-labels {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 var(--sp-3);
+  justify-content: start;
+  margin: 0;
+}
+
+.config-summary-labels > div {
+  display: contents;
+}
+
+.config-summary-list .config-summary-labels dt {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  letter-spacing: normal;
+  text-transform: none;
 }

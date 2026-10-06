@@ -60,7 +60,7 @@
   border-color: var(--accent);
 }
 
-.upload-input:disabled::file-selector-button {
+.upload-input[aria-disabled="true"]::file-selector-button {
   cursor: progress;
   opacity: var(--disabled-opacity);
 }
@@ -89,4 +89,8 @@
 
 .upload-error strong {
   color: var(--danger);
+}
+
+.upload-clear {
+  justify-self: start;
 }

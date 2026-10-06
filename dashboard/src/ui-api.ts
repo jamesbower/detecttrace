@@ -16,17 +16,22 @@ export type UiState = {
   readonly verdictCountText: string;
   readonly traceFamilyText: string | null;
   readonly checklistClasses: readonly string[];
+  /** The classes as one sentence, or the server's words for none. */
+  readonly checklistClassesText: string;
   /** Why the stored checklists could not be loaded; `checklistClasses` is then empty. */
   readonly checklistErrorText: string | null;
+};
+
+/** Labels mapped to a verdict, for analyst labels and agent labels. */
+export type LabelMaps = {
+  readonly label_map: Readonly<Record<string, string>>;
+  readonly agent_label_map: Readonly<Record<string, string>>;
 };
 
 /** The configuration form's edits: a field name to an attribute key, and label choices. */
 export type ConfigBody = {
   readonly fields: Record<string, string>;
-  readonly labels: {
-    readonly label_map: Record<string, string>;
-    readonly agent_label_map: Record<string, string>;
-  };
+  readonly labels: LabelMaps;
 };
 
 export type ProposalField = {
@@ -34,8 +39,11 @@ export type ProposalField = {
   readonly label: string;
   readonly value: string | null;
   readonly shareText: string;
+  readonly summaryText: string;
   readonly isMissing: boolean;
 };
+
+export type VerdictChoice = { readonly value: string; readonly label: string };
 
 /** `POST /api/config/proposal`'s content, from `build_proposal_content` in serve/ui_config.py. */
 export type Proposal = {
@@ -45,7 +53,13 @@ export type Proposal = {
   readonly agentLabelMap: Readonly<Record<string, string>>;
   readonly unmappedAnalystLabels: readonly string[];
   readonly unmappedAgentLabels: readonly string[];
+  /** The labels mapped by hand, in the saved configuration or in the request. */
+  readonly userLabels: LabelMaps;
   readonly verdictChoices: readonly string[];
+  readonly verdictChoiceLabels: readonly VerdictChoice[];
+  readonly labelsHelpText: string;
+  readonly notSetText: string;
+  readonly notMappedText: string;
   readonly notes: readonly string[];
   readonly missingRequired: readonly string[];
   readonly missingText: string | null;
@@ -88,6 +102,7 @@ export async function readUiState(): Promise<UiState | ApiError> {
     typeof state.verdict_count_text !== "string" ||
     !isStringOrNull(state.trace_family_text) ||
     !isStringArray(state.checklist_classes) ||
+    typeof state.checklist_classes_text !== "string" ||
     // Optional, so this page still reads an app from before the field existed.
     !(state.checklist_error_text === undefined || isStringOrNull(state.checklist_error_text))
   ) {
@@ -101,6 +116,7 @@ export async function readUiState(): Promise<UiState | ApiError> {
     verdictCountText: state.verdict_count_text,
     traceFamilyText: state.trace_family_text,
     checklistClasses: state.checklist_classes,
+    checklistClassesText: state.checklist_classes_text,
     checklistErrorText: state.checklist_error_text ?? null,
   };
 }
@@ -162,7 +178,13 @@ async function request(url: string, init: RequestInit): Promise<{ value: JsonObj
 }
 
 function toProposal(value: JsonObject): Proposal | null {
-  const { fields, label_map: labelMap, agent_label_map: agentLabelMap } = value;
+  const {
+    fields,
+    label_map: labelMap,
+    agent_label_map: agentLabelMap,
+    user_labels: userLabels,
+    verdict_choice_labels: verdictChoiceLabels,
+  } = value;
   if (
     !Array.isArray(fields) ||
     !fields.every(isProposalField) ||
@@ -171,7 +193,13 @@ function toProposal(value: JsonObject): Proposal | null {
     !isStringRecord(agentLabelMap) ||
     !isStringArray(value.unmapped_analyst_labels) ||
     !isStringArray(value.unmapped_agent_labels) ||
+    !isLabelMaps(userLabels) ||
     !isStringArray(value.verdict_choices) ||
+    !Array.isArray(verdictChoiceLabels) ||
+    !verdictChoiceLabels.every(isVerdictChoice) ||
+    typeof value.labels_help_text !== "string" ||
+    typeof value.not_set_text !== "string" ||
+    typeof value.not_mapped_text !== "string" ||
     !isStringArray(value.notes) ||
     !isStringArray(value.missing_required) ||
     !isStringOrNull(value.missing_text) ||
@@ -185,6 +213,7 @@ function toProposal(value: JsonObject): Proposal | null {
       label: field.label,
       value: field.value,
       shareText: field.share_text,
+      summaryText: field.summary_text,
       isMissing: field.is_missing,
     })),
     suggestions: value.suggestions,
@@ -192,7 +221,12 @@ function toProposal(value: JsonObject): Proposal | null {
     agentLabelMap,
     unmappedAnalystLabels: value.unmapped_analyst_labels,
     unmappedAgentLabels: value.unmapped_agent_labels,
+    userLabels: { label_map: userLabels.label_map, agent_label_map: userLabels.agent_label_map },
     verdictChoices: value.verdict_choices,
+    verdictChoiceLabels: verdictChoiceLabels.map((choice) => ({ value: choice.value, label: choice.label })),
+    labelsHelpText: value.labels_help_text,
+    notSetText: value.not_set_text,
+    notMappedText: value.not_mapped_text,
     notes: value.notes,
     missingRequired: value.missing_required,
     missingText: value.missing_text,
@@ -205,6 +239,7 @@ type RawProposalField = {
   readonly label: string;
   readonly value: string | null;
   readonly share_text: string;
+  readonly summary_text: string;
   readonly is_missing: boolean;
 };
 
@@ -215,8 +250,17 @@ function isProposalField(value: unknown): value is RawProposalField {
     typeof value.label === "string" &&
     isStringOrNull(value.value) &&
     typeof value.share_text === "string" &&
+    typeof value.summary_text === "string" &&
     typeof value.is_missing === "boolean"
   );
+}
+
+function isLabelMaps(value: unknown): value is LabelMaps {
+  return isJsonObject(value) && isStringRecord(value.label_map) && isStringRecord(value.agent_label_map);
+}
+
+function isVerdictChoice(value: unknown): value is VerdictChoice {
+  return isJsonObject(value) && typeof value.value === "string" && typeof value.label === "string";
 }
 
 function isNoteView(value: unknown): value is NoteView {

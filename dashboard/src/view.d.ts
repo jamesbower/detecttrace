@@ -195,6 +195,11 @@ export type WaitingView = {
   readonly next_step_text: string | null;
 };
 
+export type UiView = {
+  readonly data_intro_text: string;
+  readonly updated_text: string;
+};
+
 export type DashboardView = {
   readonly mode: "offline" | "served" | "ui";
   readonly header: HeaderView;
@@ -205,6 +210,7 @@ export type DashboardView = {
   readonly limits: ReadonlyArray<LimitView>;
   readonly served: ServedView | null;
   readonly waiting: WaitingView | null;
+  readonly ui: UiView | null;
 };
 
 export type View = { readonly view_version: ViewVersion } & DashboardView;

@@ -202,6 +202,7 @@ const UI_STATE = {
   verdict_count_text: "No verdicts stored.",
   trace_family_text: null,
   checklist_classes: [],
+  checklist_classes_text: "None yet",
   checklist_error_text: null,
 };
 

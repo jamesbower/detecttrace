@@ -1073,9 +1073,44 @@ def test_a_ui_view_says_the_page_asks_the_app_on_this_computer_for_newer_results
     header = build_served_view(demo_results(), SERVED, mode="ui").header
 
     assert header.footer_text == (
-        "Every 30 seconds the page asks the detecttrace ui app on this computer whether newer "
+        "Every 5 seconds the page asks the detecttrace ui app on this computer whether newer "
         "results exist; files you upload go only to that app."
     )
+
+
+def test_a_ui_view_introduces_the_data_page_steps() -> None:
+    ui = build_served_view(demo_results(), SERVED, mode="ui").ui
+
+    assert ui is not None and ui.data_intro_text == (
+        "Upload traces, verdicts and checklists, check how each file was read, then confirm the "
+        "configuration. Problems found in the data are listed under step 3."
+    )
+
+
+def test_a_ui_view_says_the_dashboard_was_updated_after_a_reload() -> None:
+    ui = build_served_view(demo_results(), SERVED, mode="ui").ui
+
+    assert ui is not None and ui.updated_text == "The dashboard was updated."
+
+
+def test_a_ui_waiting_view_introduces_the_data_page_steps() -> None:
+    ui = build_waiting_view(WAITING_COUNTS, [], SERVED, mode="ui").ui
+
+    assert ui is not None and ui.data_intro_text.startswith(
+        "Upload traces, verdicts and checklists"
+    )
+
+
+def test_a_served_view_has_no_ui_block() -> None:
+    assert build_served_view(demo_results(), SERVED).ui is None
+
+
+def test_a_served_waiting_view_has_no_ui_block() -> None:
+    assert build_waiting_view(WAITING_COUNTS, [], SERVED).ui is None
+
+
+def test_an_offline_view_has_no_ui_block() -> None:
+    assert build_view(demo_results()).ui is None
 
 
 def test_a_ui_waiting_view_says_it_runs_locally() -> None:

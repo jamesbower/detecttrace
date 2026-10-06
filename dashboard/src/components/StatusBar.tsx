@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { EMPTY_BAR, NEW_DATA_TEXT, createPoll, fetchStatus, startPolling } from "../poller";
+import { EMPTY_BAR, NEW_DATA_TEXT, POLL_MS, UI_POLL_MS, createPoll, fetchStatus, startPolling } from "../poller";
 import { isReloadHeld, subscribeToReloadHold } from "../reload-hold";
+import { reloadPage } from "../reload-note";
 import "./StatusBar.css";
 
 import type { Bar } from "../poller";
@@ -25,7 +26,7 @@ export function StatusBar({ served = null, shouldReloadOnNewData = false }: Stat
         <div className="status-bar-box">
           <p>{[bar.errorText, bar.isNewData ? NEW_DATA_TEXT : null].filter((part) => part !== null).join(" ")}</p>
           {bar.isNewData && (
-            <button type="button" className="status-bar-reload" onClick={() => location.reload()}>
+            <button type="button" className="status-bar-reload" onClick={reloadPage}>
               Reload
             </button>
           )}
@@ -49,7 +50,7 @@ function useServerNews(served: ServedView | null, shouldReloadOnNewData: boolean
       hasHeldNewData = false;
       if (shouldReloadOnNewData && next.isNewData) {
         if (!isReloadHeld()) {
-          location.reload();
+          reloadPage();
           return;
         }
         hasHeldNewData = true;
@@ -57,10 +58,10 @@ function useServerNews(served: ServedView | null, shouldReloadOnNewData: boolean
       setBar(next);
     }
     const poll = createPoll(show, { generation, updatedAt }, fetchStatus, (text) => console.warn(text));
-    const stopPolling = startPolling(poll);
+    const stopPolling = startPolling(poll, shouldReloadOnNewData ? UI_POLL_MS : POLL_MS);
     const stopListening = subscribeToReloadHold(() => {
       if (hasHeldNewData && !isReloadHeld()) {
-        location.reload();
+        reloadPage();
       }
     });
     return () => {
