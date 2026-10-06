@@ -4,6 +4,8 @@
 
 It shows the same dashboard as `detecttrace check`, kept up to date as data arrives. It shows the numbers, as `check` does; it doesn't send alerts.
 
+For one person on one computer, `detecttrace ui` is simpler: you upload files in a browser, with no Collector, no tokens and no configuration file to write. See [docs/ui.md](ui.md).
+
 ## Contents
 
 - [Install](#install)
