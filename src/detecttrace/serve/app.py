@@ -16,7 +16,7 @@ import logging
 import sqlite3
 import time
 from collections.abc import Callable, Mapping
-from typing import Annotated
+from typing import Annotated, Literal
 
 import anyio
 from fastapi import Depends, FastAPI, Request
@@ -65,7 +65,7 @@ _SECURITY_HEADER_ITEMS = {
     name.lower().encode("latin-1"): value.encode("latin-1")
     for name, value in SECURITY_HEADERS.items()
 }
-_IDLE_STATUS = RecomputeStatus(
+IDLE_STATUS = RecomputeStatus(
     is_running=False, last_error=None, last_error_at_ns=None, held_back_cases=0
 )
 
@@ -78,7 +78,7 @@ def create_app(
     config: ServeConfig,
     store: Store,
     on_write: Callable[[], None],
-    read_status: Callable[[], RecomputeStatus] = lambda: _IDLE_STATUS,
+    read_status: Callable[[], RecomputeStatus] = lambda: IDLE_STATUS,
 ) -> FastAPI:
     """Build the app; `on_write` is called after every commit, a rejected body's issue too.
 
@@ -87,17 +87,8 @@ def create_app(
     # No schema or docs pages: the API surface is not advertised to whoever can reach it. No
     # trailing-slash redirect either: it is sent before any token check, and behind a TLS
     # proxy its absolute URL would send the client to plain http.
-    app = _ServeApp(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
-
-    @app.exception_handler(HTTPException)
-    async def respond_with_status(request: Request, error: HTTPException) -> Response:
-        response = _create_status_response(error.status_code, str(error.detail), error.headers)
-        if isinstance(error, _Unauthorized):
-            # One header per scheme: Chromium reads only the first challenge of a header, so
-            # "Bearer, Basic ..." in one header would never show the browser's sign-in prompt.
-            for challenge in error.challenges:
-                response.headers.append("WWW-Authenticate", challenge)
-        return response
+    app = ServeApp(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
+    app.exception_handler(HTTPException)(respond_with_status)
 
     require_ingest = require_role(config.tokens, "ingest", allow_basic=False)
     require_verdicts = require_role(config.tokens, "verdicts", allow_basic=False)
@@ -107,11 +98,7 @@ def create_app(
 
     @app.get("/healthz")
     async def check_health() -> Response:
-        try:
-            await run_in_threadpool(store.check_writable)
-        except sqlite3.OperationalError:
-            return PlainTextResponse("unavailable", status_code=503)
-        return PlainTextResponse("ok")
+        return await read_health_response(store)
 
     @app.post("/v1/traces", dependencies=[Depends(require_ingest)])
     async def receive_traces(request: Request) -> Response:
@@ -127,36 +114,71 @@ def create_app(
 
     @app.get("/", dependencies=[Depends(require_read)])
     async def show_dashboard() -> Response:
-        try:
-            html = await run_in_threadpool(_read_page, store)
-        except sqlite3.OperationalError:
-            return _create_unreadable_response()
-        return HTMLResponse(html, headers={"Content-Security-Policy": PAGE_CSP})
+        return await read_page_response(store, "served")
 
     @app.get("/api/status", dependencies=[Depends(require_read)])
     async def show_status() -> Response:
-        try:
-            content = await run_in_threadpool(_read_status_content, store, read_status())
-        except sqlite3.OperationalError:
-            return _create_unreadable_response()
-        return JSONResponse(content)
+        return await read_status_response(store, read_status())
 
     @app.get("/api/results.json", dependencies=[Depends(require_read)])
     async def show_results() -> Response:
-        try:
-            snapshot = await run_in_threadpool(store.read_snapshot)
-        except sqlite3.OperationalError:
-            return _create_unreadable_response()
-        if snapshot is None:
-            # 503, not 404: the results will exist once the first recompute finishes.
-            return _create_status_response(
-                503,
-                "no results yet; the first recompute has not finished, retry later",
-                {"Retry-After": _RETRY_AFTER_SECONDS},
-            )
-        return Response(snapshot.results_json, media_type="application/json")
+        return await read_results_response(store)
 
     return app
+
+
+async def respond_with_status(request: Request, error: HTTPException) -> Response:
+    """The exception handler: any HTTPException as a google.rpc.Status body."""
+    response = create_status_response(error.status_code, str(error.detail), error.headers)
+    if isinstance(error, _Unauthorized):
+        # One header per scheme: Chromium reads only the first challenge of a header, so
+        # "Bearer, Basic ..." in one header would never show the browser's sign-in prompt.
+        for challenge in error.challenges:
+            response.headers.append("WWW-Authenticate", challenge)
+    return response
+
+
+async def read_health_response(store: Store) -> Response:
+    """`GET /healthz`: "ok", or 503 while the database can't take writes."""
+    try:
+        await run_in_threadpool(store.check_writable)
+    except sqlite3.OperationalError:
+        return PlainTextResponse("unavailable", status_code=503)
+    return PlainTextResponse("ok")
+
+
+async def read_page_response(store: Store, mode: Literal["served", "ui"]) -> Response:
+    """`GET /`: the stored snapshot's page, or `mode`'s waiting page before the first one."""
+    try:
+        html = await run_in_threadpool(_read_page, store, mode)
+    except sqlite3.OperationalError:
+        return _create_unreadable_response()
+    return HTMLResponse(html, headers={"Content-Security-Policy": PAGE_CSP})
+
+
+async def read_status_response(store: Store, status: RecomputeStatus) -> Response:
+    """`GET /api/status`: the body the module docstring describes."""
+    try:
+        content = await run_in_threadpool(_read_status_content, store, status)
+    except sqlite3.OperationalError:
+        return _create_unreadable_response()
+    return JSONResponse(content)
+
+
+async def read_results_response(store: Store) -> Response:
+    """`GET /api/results.json`: the stored snapshot's results, or 503 before the first one."""
+    try:
+        snapshot = await run_in_threadpool(store.read_snapshot)
+    except sqlite3.OperationalError:
+        return _create_unreadable_response()
+    if snapshot is None:
+        # 503, not 404: the results will exist once the first recompute finishes.
+        return create_status_response(
+            503,
+            "no results yet; the first recompute has not finished, retry later",
+            {"Retry-After": _RETRY_AFTER_SECONDS},
+        )
+    return Response(snapshot.results_json, media_type="application/json")
 
 
 def require_role(tokens: TokenRoles, role: Role, *, allow_basic: bool) -> Callable[[Request], str]:
@@ -213,7 +235,7 @@ class _Unauthorized(HTTPException):
 
 async def _receive_traces(request: Request, store: Store, on_write: Callable[[], None]) -> Response:
     try:
-        body = await _read_limited_body(
+        body = await read_limited_body(
             request,
             receiver.MAX_BODY_BYTES,
             "lower send_batch_max_size in the Collector's batch processor",
@@ -236,13 +258,13 @@ async def _receive_traces(request: Request, store: Store, on_write: Callable[[],
     # Each refusal's issue was committed, so the data notes can show it.
     except receiver.InvalidBody as error:
         on_write()
-        return _create_status_response(400, str(error))
+        return create_status_response(400, str(error))
     except receiver.PayloadTooLarge as error:
         on_write()
-        return _create_status_response(413, str(error))
+        return create_status_response(413, str(error))
     except receiver.UnsupportedMediaType as error:
         on_write()
-        return _create_status_response(415, str(error))
+        return create_status_response(415, str(error))
     except sqlite3.OperationalError:
         return _create_unavailable_response()
     on_write()
@@ -263,7 +285,7 @@ async def _receive_verdicts(
     token_name: str,
     on_write: Callable[[], None],
 ) -> Response:
-    body = await _read_limited_body(
+    body = await read_limited_body(
         request, verdict_api.MAX_BODY_BYTES, "send the verdicts in smaller requests"
     )
     try:
@@ -271,11 +293,11 @@ async def _receive_verdicts(
             _store_verdicts, store, config, body, request.headers.get("content-type"), token_name
         )
     except verdict_api.InvalidBody as error:
-        return _create_status_response(400, str(error))
+        return create_status_response(400, str(error))
     except verdict_api.TooManyRows as error:
-        return _create_status_response(413, str(error))
+        return create_status_response(413, str(error))
     except verdict_api.UnsupportedMediaType as error:
-        return _create_status_response(415, str(error))
+        return create_status_response(415, str(error))
     except _FailedAfterCommit:
         # The verdicts are stored even though the request failed, so the recompute must know.
         on_write()
@@ -294,7 +316,7 @@ async def _receive_verdicts(
     return JSONResponse(content, status_code=200 if accepted else 422)
 
 
-async def _read_limited_body(request: Request, max_bytes: int, hint: str) -> bytes:
+async def read_limited_body(request: Request, max_bytes: int, hint: str) -> bytes:
     """Read the body, refusing it with 413 as soon as it is known to pass `max_bytes`.
 
     A body not fully received within BODY_READ_SECONDS is refused with 503, which OTLP
@@ -384,7 +406,7 @@ def _store_verdicts(
     return len(rows), rejected, bool(rows or issues)
 
 
-def _read_page(store: Store) -> str:
+def _read_page(store: Store, mode: Literal["served", "ui"]) -> str:
     """The stored snapshot's page, or a waiting page until the first recompute has finished."""
     snapshot = store.read_snapshot()
     if snapshot is not None:
@@ -401,7 +423,7 @@ def _read_page(store: Store) -> str:
         held_back_count=0,
         verdict_count=counts.verdict_count,
     )
-    return render_waiting_page(waiting, [], served)
+    return render_waiting_page(waiting, [], served, mode=mode)
 
 
 def _read_status_content(store: Store, status: RecomputeStatus) -> dict[str, object]:
@@ -424,7 +446,7 @@ def _to_optional_iso_time(time_ns: int | None) -> str | None:
     return None if time_ns is None else to_iso_time(time_ns)
 
 
-class _ServeApp(FastAPI):
+class ServeApp(FastAPI):
     """The app with the access log and the security headers outside its whole stack.
 
     Middleware added the usual way runs inside the error handler, so the 500 it sends for an
@@ -500,7 +522,7 @@ class _AccessLog:
 
 
 def _create_unreadable_response() -> JSONResponse:
-    return _create_status_response(
+    return create_status_response(
         503,
         "the database can't be read right now; retry later",
         {"Retry-After": _RETRY_AFTER_SECONDS},
@@ -508,14 +530,14 @@ def _create_unreadable_response() -> JSONResponse:
 
 
 def _create_unavailable_response() -> JSONResponse:
-    return _create_status_response(
+    return create_status_response(
         503,
         "the database can't take writes right now; retry later",
         {"Retry-After": _RETRY_AFTER_SECONDS},
     )
 
 
-def _create_status_response(
+def create_status_response(
     status: int, message: str, headers: Mapping[str, str] | None = None
 ) -> JSONResponse:
     return JSONResponse(
