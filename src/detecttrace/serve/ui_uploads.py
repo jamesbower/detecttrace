@@ -54,8 +54,8 @@ def to_safe_upload_name(name: str, suffixes: tuple[str, ...]) -> str:
     """The upload's base name with every character outside [A-Za-z0-9._-] made "_".
 
     The name keeps its longest allowed suffix (any case) and is cut to 128 characters before
-    it. Raises UploadRefused for an empty name, "." or "..", a name that is only the suffix,
-    or one without an allowed suffix.
+    it, and a leading "." becomes "_". Raises UploadRefused for an empty name, "." or "..",
+    a name that is only the suffix, or one without an allowed suffix.
     """
     base_name = re.split(r"[/\\]", name)[-1]
     if base_name in ("", ".", ".."):
@@ -68,6 +68,9 @@ def to_safe_upload_name(name: str, suffixes: tuple[str, ...]) -> str:
     stem = safe_name[:-suffix_length]
     if not stem:
         raise UploadRefused("The file name is only a suffix. Rename it and upload it again.")
+    # A leading "." would hide the file from the folder loaders, which skip hidden files.
+    if stem.startswith("."):
+        stem = "_" + stem[1:]
     return stem[: _MAX_NAME_LENGTH - suffix_length] + safe_name[-suffix_length:]
 
 
@@ -80,7 +83,7 @@ def store_trace_file(store: Store, file_path: Path) -> UploadReport:
     try:
         trace_format, format_issues = detect_format(file_path)
     except TraceFileError as error:
-        raise UploadRefused(str(error)) from None
+        raise _to_refusal(error, file_path) from None
     if trace_format is None:
         raise UploadRefused(_describe_unreadable_trace_file(file_path.name, format_issues))
     family = _FAMILIES[trace_format]
@@ -93,7 +96,7 @@ def store_trace_file(store: Store, file_path: Path) -> UploadReport:
     try:
         spans, issues = load_spans(file_path, format=trace_format)
     except TraceFileError as error:
-        raise UploadRefused(str(error)) from None
+        raise _to_refusal(error, file_path) from None
     result = store.add_spans(
         [remove_tool_result(span) for span in spans], issues, subject=file_path.name
     )
@@ -115,7 +118,7 @@ def store_verdict_file(store: Store, file_path: Path) -> UploadReport:
     try:
         rows, issues = read_verdicts(file_path)
     except VerdictFileError as error:
-        raise UploadRefused(str(error)) from None
+        raise _to_refusal(error, file_path) from None
     result = store.put_verdicts(rows, UPLOAD_TOKEN_NAME)
     store.add_issues(issues)
     stored_text = _describe_counts(
@@ -136,7 +139,7 @@ def save_checklist_file(file_path: Path, checklists_folder: Path) -> UploadRepor
     try:
         checklists = load_checklists(file_path)
     except ChecklistFileError as error:
-        raise UploadRefused(str(error)) from None
+        raise _to_refusal(error, file_path) from None
     # A single file holds exactly one checklist.
     (key, checklist), *_ = checklists.items()
     checklists_folder.mkdir(parents=True, exist_ok=True)
@@ -161,6 +164,14 @@ def save_checklist_file(file_path: Path, checklists_folder: Path) -> UploadRepor
     if replaced:
         text += " It replaces the earlier one."
     return UploadReport(text, ())
+
+
+def _to_refusal(error: Exception, file_path: Path) -> UploadRefused:
+    """The loader's message with the file named only by its name, never the server's folder."""
+    message = str(error)
+    for form in (str(file_path.absolute()), str(file_path)):
+        message = message.replace(form, file_path.name)
+    return UploadRefused(message)
 
 
 def _describe_unreadable_trace_file(name: str, issues: list[Issue]) -> str:

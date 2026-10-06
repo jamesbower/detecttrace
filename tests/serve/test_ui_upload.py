@@ -49,6 +49,7 @@ NEEDS_ZSTD = pytest.mark.skipif(
         ("a\\b\\c.jsonl.gz", TRACE_SUFFIXES, "c.jsonl.gz"),
         ("my file (1).CSV", VERDICT_SUFFIXES, "my_file__1_.CSV"),
         ("travel.yml", CHECKLIST_SUFFIXES, "travel.yml"),
+        (".x.csv", VERDICT_SUFFIXES, "_x.csv"),
         ("a" * 300 + ".jsonl.gz", TRACE_SUFFIXES, "a" * 119 + ".jsonl.gz"),
     ],
 )
@@ -326,3 +327,61 @@ def test_checklist_whose_file_name_holds_another_class_is_refused(tmp_path: Path
 
     with pytest.raises(UploadRefused, match=r"a_b\.yaml already holds the checklist"):
         save_checklist_file(other, folder)
+
+
+# Refusal messages name the file, never the folder the server saved it in
+
+
+def make_upload_folder(tmp_path: Path) -> Path:
+    folder = tmp_path / "server-temp" / "upload-1234"
+    folder.mkdir(parents=True)
+    return folder
+
+
+def test_missing_trace_file_refusal_hides_the_folder(app_store: Store, tmp_path: Path) -> None:
+    path = make_upload_folder(tmp_path) / "traces.jsonl"
+
+    with pytest.raises(UploadRefused) as refusal:
+        store_trace_file(app_store, path)
+
+    assert str(tmp_path) not in str(refusal.value)
+
+
+def test_unreadable_trace_file_refusal_hides_the_folder(app_store: Store, tmp_path: Path) -> None:
+    path = make_upload_folder(tmp_path) / "notes.jsonl"
+    path.write_text("not json\n", encoding="utf-8")
+
+    with pytest.raises(UploadRefused) as refusal:
+        store_trace_file(app_store, path)
+
+    assert str(tmp_path) not in str(refusal.value)
+
+
+def test_non_utf8_verdict_refusal_hides_the_folder(app_store: Store, tmp_path: Path) -> None:
+    path = make_upload_folder(tmp_path) / "verdicts.csv"
+    path.write_bytes(b"case_id,alert_class,verdict\nDT-1,phishing,\xff\n")
+
+    with pytest.raises(UploadRefused) as refusal:
+        store_verdict_file(app_store, path)
+
+    assert str(tmp_path) not in str(refusal.value)
+
+
+def test_non_utf8_verdict_refusal_names_the_file(app_store: Store, tmp_path: Path) -> None:
+    path = make_upload_folder(tmp_path) / "verdicts.csv"
+    path.write_bytes(b"case_id,alert_class,verdict\nDT-1,phishing,\xff\n")
+
+    with pytest.raises(UploadRefused) as refusal:
+        store_verdict_file(app_store, path)
+
+    assert str(refusal.value) == "verdicts.csv is not UTF-8. Save it as UTF-8 CSV."
+
+
+def test_invalid_checklist_refusal_hides_the_folder(tmp_path: Path) -> None:
+    path = make_upload_folder(tmp_path) / "bad.yaml"
+    path.write_text("alert_class: [\n", encoding="utf-8")
+
+    with pytest.raises(UploadRefused) as refusal:
+        save_checklist_file(path, tmp_path / "checklists")
+
+    assert str(tmp_path) not in str(refusal.value)
