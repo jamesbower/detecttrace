@@ -248,3 +248,11 @@ def test_a_checklist_the_store_cannot_record_keeps_the_previous_checklist(
 
     saved = data_dir / CHECKLISTS_FOLDER / "impossible_travel.yaml"
     assert saved.read_bytes() == DEMO_CHECKLIST.read_bytes()
+
+
+def test_a_refused_checklist_names_no_server_folder(configured: TestClient, data_dir: Path) -> None:
+    (data_dir / CONFIG_NAME).write_text("mapping: [\n", encoding="utf-8")
+
+    response = upload_file(configured, "checklists", DEMO_CHECKLIST)
+
+    assert str(data_dir.absolute()) not in response.json()["message"]

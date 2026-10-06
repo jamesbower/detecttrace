@@ -13,6 +13,7 @@ from detecttrace.serve.store import Store
 from detecttrace.serve.ui import UiState, create_ui_app
 from detecttrace.serve.ui_config import CHECKLISTS_FOLDER, CONFIG_NAME
 from detecttrace.serve.ui_recompute import UiRecompute
+from detecttrace.traces import load_spans
 from serve.ui_support import (
     DEMO_CHECKLIST,
     DEMO_DATA,
@@ -315,13 +316,12 @@ def slow_trace_load(monkeypatch: pytest.MonkeyPatch) -> tuple[threading.Event, t
     """Hold the first trace file's parse until `release` is set; `entered` says it began."""
     entered = threading.Event()
     release = threading.Event()
-    load_spans = ui_uploads.load_spans
 
     def load_slowly(*args: object, **kwargs: object) -> object:
         if not entered.is_set():
             entered.set()
             release.wait(timeout=10)
-        return load_spans(*args, **kwargs)  # type: ignore[arg-type]
+        return load_spans(*args, **kwargs)  # pyright: ignore[reportArgumentType]
 
     monkeypatch.setattr(ui_uploads, "load_spans", load_slowly)
     return entered, release

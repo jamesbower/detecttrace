@@ -9,6 +9,7 @@ formatted here.
 
 import dataclasses
 import os
+import re
 from pathlib import Path
 
 from detecttrace.checklist import ChecklistFileError
@@ -150,6 +151,16 @@ def to_recompute_settings(config: UiConfig, config_path: Path) -> RecomputeSetti
         verdicts_source=UI_VERDICTS_SOURCE,
         page_mode="ui",
     )
+
+
+def to_data_folder_text(message: str, data_dir: Path) -> str:
+    """`message` with each path inside `data_dir` written relative to it, as uploads name
+    their files: the page never shows where the server keeps its data."""
+    for form in (str(data_dir.absolute()), str(data_dir)):
+        # Only where a path starts, so a relative data folder such as "data" leaves a word
+        # like "metadata/" alone.
+        message = re.sub(r"(?<![^\s'\"(])" + re.escape(form + os.sep), "", message)
+    return message
 
 
 def _create_ui_draft(

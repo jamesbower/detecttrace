@@ -340,6 +340,7 @@ def test_the_state_of_a_new_data_folder(client: TestClient) -> None:
         "verdict_count_text": "0 verdicts stored.",
         "trace_family_text": None,
         "checklist_classes": [],
+        "checklist_classes_text": "None yet",
         "checklist_error_text": None,
     }
 
@@ -358,6 +359,7 @@ def test_the_state_after_traces_and_verdicts(client: TestClient, upload: Upload)
         "verdict_count_text": "201 verdicts stored.",
         "trace_family_text": "OTLP traces",
         "checklist_classes": [],
+        "checklist_classes_text": "None yet",
         "checklist_error_text": None,
     }
 
@@ -389,6 +391,25 @@ def test_the_state_lists_the_saved_checklists(client: TestClient, upload: Upload
     upload("checklists", DEMO_CHECKLIST)
 
     assert read_state(client)["checklist_classes"] == ["impossible_travel", "oauth_consent"]
+
+
+def test_the_state_names_the_saved_checklists_in_a_sentence(
+    client: TestClient, upload: Upload
+) -> None:
+    upload("checklists", DEMO_DATA / "checklists" / "oauth_consent.yaml")
+    upload("checklists", DEMO_CHECKLIST)
+
+    assert read_state(client)["checklist_classes_text"] == "impossible_travel, oauth_consent"
+
+
+def test_the_state_names_a_checklist_without_the_server_folder(
+    client: TestClient, data_dir: Path
+) -> None:
+    folder = data_dir / CHECKLISTS_FOLDER
+    folder.mkdir()
+    (folder / "broken.yaml").write_text("items: [\n", encoding="utf-8")
+
+    assert str(data_dir.absolute()) not in str(read_state(client)["checklist_error_text"])
 
 
 def test_the_state_reports_an_unreadable_checklists_folder(
