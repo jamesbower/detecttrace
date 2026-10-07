@@ -1,5 +1,6 @@
 import { useRef } from "react";
 
+import { MAIN_ID } from "../section-id";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 import "./Shell.css";
@@ -20,8 +21,6 @@ type ShellProps = {
   shouldReloadOnNewData?: boolean;
   children: React.ReactNode;
 };
-
-export const MAIN_ID = "main-content";
 
 export function Shell({
   header,

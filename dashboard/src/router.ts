@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { listPages } from "./registry";
+import { SECTION_ID_PATTERN } from "./section-id";
 
 import type * as React from "react";
 import type { View } from "./view";
@@ -12,10 +13,7 @@ import type { View } from "./view";
 export const HOME_PATH = "/";
 export const DATA_PATH = "/data";
 export const HELP_PATH = "/help";
-
-// A section is a heading's id on the page, as in `/help#evidence-completeness`. Only a plain id
-// is kept: anything else in the address could name another page or origin.
-const SECTION_PATTERN = /^[a-z][a-z-]*$/;
+export const LIMITS_PATH = "/limits";
 
 // A renamed page's old path forwards to its new one, so old links and bookmarks keep working.
 const PATH_ALIASES: ReadonlyMap<string, string> = new Map([["/data-notes", DATA_PATH]]);
@@ -61,7 +59,7 @@ export function parseAddress(address: string, knownPaths: readonly string[]): Pa
   return {
     path: knownPaths.includes(path) ? path : HOME_PATH,
     query: new URLSearchParams(search),
-    section: SECTION_PATTERN.test(rawSection) ? rawSection : null,
+    section: SECTION_ID_PATTERN.test(rawSection) ? rawSection : null,
   };
 }
 

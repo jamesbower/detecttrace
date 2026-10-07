@@ -4,6 +4,7 @@
 // docs/checklists.md: tests/test_help_text.py checks that the text describes without judging.
 import { PageLink } from "../components/PageLink";
 import { registerHelpSection } from "../registry";
+import { LIMITS_PATH } from "../router";
 import { TERMS } from "./terms";
 
 const DOCS_URL = "https://github.com/jamesbower/detecttrace/blob/main/docs";
@@ -315,7 +316,7 @@ function More() {
         </li>
       </ul>
       <p>
-        What this dashboard does not tell you is on the <PageLink path="/limits">Limits</PageLink> page.
+        What this dashboard does not tell you is on the <PageLink path={LIMITS_PATH}>Limits</PageLink> page.
       </p>
     </>
   );

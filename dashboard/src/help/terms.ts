@@ -1,7 +1,7 @@
 // Fixed, data-independent explanations of the measure names. Keep each `short` text in step
 // with its section in docs/metrics.md: tests/test_help_text.py checks the key phrases.
 export type TermKey = "completeness" | "agreement" | "kappa" | "dangerous";
-export type Term = { readonly label: string; readonly short: string; readonly anchor: string };
+type Term = { readonly label: string; readonly short: string; readonly anchor: string };
 
 export const TERMS: Readonly<Record<TermKey, Term>> = {
   completeness: {

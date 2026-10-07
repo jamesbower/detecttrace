@@ -3,7 +3,7 @@
 // Each icon is an SVG path's `d`, drawn stroked in a 24 by 24 box.
 import "../help/sections";
 import { registerPage } from "../registry";
-import { DATA_PATH, HELP_PATH } from "../router";
+import { DATA_PATH, HELP_PATH, LIMITS_PATH } from "../router";
 import { Cases } from "./Cases";
 import { Data } from "./Data";
 import { Help } from "./Help";
@@ -64,7 +64,7 @@ registerPage({
   component: Data,
 });
 registerPage({
-  path: "/limits",
+  path: LIMITS_PATH,
   title: "Limits",
   icon: "M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v.5M12 11v5",
   order: 7,

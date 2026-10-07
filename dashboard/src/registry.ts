@@ -1,7 +1,8 @@
 // The build-time extension point: a page or panel registers itself when its module loads,
 // so a custom build that imports this source can add views without editing the shell.
-import type * as React from "react";
+import { MAIN_ID, SECTION_ID_PATTERN } from "./section-id";
 
+import type * as React from "react";
 import type { Results } from "./results";
 import type { View } from "./view";
 
@@ -39,8 +40,8 @@ const helpSections = new Map<string, HelpSection>();
 // not `api`, or the root. Keep in step with the page route in src/detecttrace/serve/app.py.
 const PAGE_PATH = /^\/([a-z][a-z-]*)?$/;
 const RESERVED_PATHS: ReadonlySet<string> = new Set(["/api"]);
-// A help section's id is its fragment in the page's URL, so it follows the page path's rule.
-const HELP_SECTION_ID = /^[a-z][a-z-]*$/;
+// The shell's own ids: a section with one would be a second element with it.
+const SHELL_IDS: ReadonlySet<string> = new Set([MAIN_ID]);
 
 export function registerPage(page: PageDef): void {
   if (!PAGE_PATH.test(page.path) || RESERVED_PATHS.has(page.path)) {
@@ -60,10 +61,13 @@ export function registerPanel(slot: PanelSlot, component: React.ComponentType<Pa
 }
 
 export function registerHelpSection(section: HelpSection): void {
-  if (!HELP_SECTION_ID.test(section.id)) {
+  if (!SECTION_ID_PATTERN.test(section.id)) {
     throw new Error(
       `A help section can't be registered with id "${section.id}": an id is lowercase letters and hyphens, starting with a letter, such as "evidence-completeness".`,
     );
+  }
+  if (SHELL_IDS.has(section.id)) {
+    throw new Error(`A help section can't be registered with id "${section.id}": the page's shell uses that id.`);
   }
   if (helpSections.has(section.id)) {
     throw new Error(`A help section is already registered with id "${section.id}".`);

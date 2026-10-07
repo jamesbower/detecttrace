@@ -182,6 +182,30 @@ describe("on a new page opened at a section", () => {
   });
 });
 
+// A heading with an id a link can name, as the verdict matrix's class headings have, but no
+// tabIndex, so it can't take focus.
+function VerdictsPage() {
+  return (
+    <>
+      <h1 tabIndex={-1}>Verdicts</h1>
+      <h2 id="verdicts-phishing">Phishing</h2>
+    </>
+  );
+}
+
+it("moves focus to the new page's heading when the section it opens at can't take focus", async () => {
+  Element.prototype.scrollIntoView = () => {};
+  registerPage({ path: "/verdicts", title: "Verdicts", icon: "", order: 2, component: VerdictsPage });
+  render(<App data={DATA} />);
+
+  act(() => {
+    window.location.hash = "#/verdicts#verdicts-phishing";
+  });
+
+  const heading = await screen.findByRole("heading", { name: "Verdicts" });
+  await waitFor(() => expect(document.activeElement).toBe(heading));
+});
+
 it("leaves focus alone when only the query changes", () => {
   window.history.replaceState(null, "", "#/cases");
   render(<App data={DATA} />);

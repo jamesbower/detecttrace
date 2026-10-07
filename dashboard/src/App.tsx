@@ -2,13 +2,14 @@ import { useEffect, useRef } from "react";
 
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ErrorState } from "./components/ErrorState";
-import { MAIN_ID, Shell } from "./components/Shell";
+import { Shell } from "./components/Shell";
 import { WaitingState } from "./components/WaitingState";
 import { isPageDataError, isWaitingData } from "./data";
 import { Data } from "./pages/Data";
 import { Help } from "./pages/Help";
 import { listPages } from "./registry";
 import { DATA_PATH, HELP_PATH, useRoute, useSectionFocus } from "./router";
+import { MAIN_ID } from "./section-id";
 
 import type * as React from "react";
 import type { PageData, PageDataError, WaitingData } from "./data";
@@ -110,7 +111,8 @@ const WAITING_TITLE = "Waiting for data";
 
 // A new page names itself in the tab title and takes focus at its heading, as a page load
 // would for a screen reader. The first page keeps focus where the browser put it, and a page
-// opened at a section it has leaves focus to useSectionFocus.
+// opened at a section that can take focus, as a Help heading's `tabIndex` lets it, leaves focus
+// to useSectionFocus.
 function useAnnouncePage(path: string, isWaiting: boolean, section: string | null): void {
   const shownPath = useRef<string | null>(null);
   useEffect(() => {
@@ -118,7 +120,8 @@ function useAnnouncePage(path: string, isWaiting: boolean, section: string | nul
     if (title !== undefined) {
       document.title = `${title} · ${SITE_TITLE}`;
     }
-    const hasSectionTarget = section !== null && document.getElementById(section) !== null;
+    const sectionTarget = section === null ? null : document.getElementById(section);
+    const hasSectionTarget = sectionTarget?.hasAttribute("tabindex") === true;
     if (shownPath.current !== null && shownPath.current !== path && !hasSectionTarget) {
       document.getElementById(MAIN_ID)?.querySelector<HTMLElement>("h1")?.focus();
     }

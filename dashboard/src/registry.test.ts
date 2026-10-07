@@ -94,6 +94,11 @@ describe("registry", () => {
     },
   );
 
+  // The id would be the page's second element with it, and the skip link would lose its target.
+  it("refuses a help section with the shell's main id", () => {
+    expect(() => registerHelpSection(createHelpSection("main-content", 1))).toThrow('"main-content"');
+  });
+
   it("lists help sections by order, then by id", () => {
     registerHelpSection(createHelpSection("b", 2));
     registerHelpSection(createHelpSection("z", 1));
