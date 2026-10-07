@@ -1,26 +1,34 @@
 .help-contents {
-  max-width: var(--measure);
+  max-width: var(--measure-prose);
   padding: var(--sp-4) var(--sp-5);
   background: var(--frame);
   border-top: var(--border-accent) solid var(--accent);
 }
 
+.help-contents-label {
+  margin-bottom: var(--sp-2);
+  color: var(--accent-text);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+}
+
 .help-contents ul {
-  display: grid;
-  gap: var(--sp-1);
   padding-left: var(--sp-5);
 }
 
+/* A block, so a wrapped title keeps its bullet on the first line. The padding makes each row at
+   least the touch target's height; the rows touch, so they need no gap. */
 .help-contents a {
-  display: inline-block;
-  padding-block: var(--sp-1);
+  display: block;
+  padding-block: calc((var(--touch-target) - 1lh) / 2);
   text-underline-offset: var(--underline-offset);
 }
 
 .help {
   display: grid;
   gap: var(--sp-7);
-  max-width: var(--measure);
+  max-width: var(--measure-prose);
   padding-top: var(--sp-5);
 }
 

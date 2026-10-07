@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import { PageHead } from "../components/PageHead";
 import { PageLink } from "../components/PageLink";
 import { listHelpSections } from "../registry";
@@ -12,6 +14,8 @@ type HelpProps = { view: View };
 /** What each page and measure means. The app moves focus to a section the address names. */
 export function Help({ view }: HelpProps) {
   const sections = listHelpSections(view.mode);
+  // Generated, so no section's id can match it.
+  const contentsLabelId = useId();
   return (
     <>
       <PageHead
@@ -19,7 +23,10 @@ export function Help({ view }: HelpProps) {
         title="How DetectTrace works"
         description="What each page shows, how each measure is computed, and how to read its numbers."
       />
-      <nav className="help-contents" aria-label="On this page">
+      <nav className="help-contents" aria-labelledby={contentsLabelId}>
+        <p id={contentsLabelId} className="help-contents-label">
+          On this page
+        </p>
         <ul>
           {sections.map((section) => (
             <li key={section.id}>

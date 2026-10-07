@@ -131,6 +131,7 @@
      320px), so every page's link shows without scrolling. */
   --nav-link-min-width: min(var(--touch-target), 100vw / 9);
   --measure: 720px; /* longest comfortable line of running text */
+  --measure-prose: 70ch; /* the Help page's reading lines, which run longer than other pages' */
   --hint-max-width: 22rem; /* a term's pop-up: a few short lines */
   --icon-md: 22px;
   --icon-stroke: 1.6;

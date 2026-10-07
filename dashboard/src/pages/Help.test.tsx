@@ -151,3 +151,25 @@ it("limits the one-case and all-equal interval rule to evidence completeness", (
     /^an evidence completeness value/,
   );
 });
+
+it("shows the contents' name as text, which names the navigation", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+  const contents = screen.getByRole("navigation", { name: "On this page" });
+
+  expect(document.getElementById(contents.getAttribute("aria-labelledby") ?? "")?.textContent).toBe("On this page");
+});
+
+// A plain hyphen would let the line break between "t-" and "interval".
+it("keeps Student's t-interval on one line", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+
+  expect(screen.getByRole("region", { name: "Reading the numbers" }).textContent).toContain(
+    "Student's t\u2011interval",
+  );
+});
+
+it("sets the worked κ calculation apart as a formula", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+
+  expect(screen.getByText("κ = (0.80 − 0.54) / (1 − 0.54) = 0.57").closest(".help-formula")).not.toBeNull();
+});

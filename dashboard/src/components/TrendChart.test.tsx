@@ -59,13 +59,15 @@ it("leaves a chart that fits out of the tab order and out of the landmarks", () 
   expect(screen.queryByRole("region")).toBeNull();
 });
 
-it("makes a chart wider than its area a tab stop named for scrolling", () => {
+it("makes a chart wider than its area a tab stop named for the chart and for scrolling", () => {
   vi.spyOn(Element.prototype, "scrollWidth", "get").mockReturnValue(640);
   vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(300);
 
   renderDemo();
 
-  expect(screen.getByRole("region", { name: "Chart, scrolls sideways" }).getAttribute("tabindex")).toBe("0");
+  expect(
+    screen.getByRole("region", { name: "Evidence completeness per week, scrolls sideways" }).getAttribute("tabindex"),
+  ).toBe("0");
 });
 
 it("moves Tab to the first point, named by week, series and value", async () => {

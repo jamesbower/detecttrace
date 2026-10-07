@@ -172,7 +172,10 @@ function ChanceCorrectedAgreement() {
       <p>
         Of 100 cases, the analyst said true positive in 40 and benign in 60; the agent said true positive in 30 and
         benign in 70. They agree in 25 true positives and 55 benign cases, so <code>p_o</code> = 0.80. By chance,{" "}
-        <code>p_e</code> = 0.40 × 0.30 + 0.60 × 0.70 = 0.54. So κ = (0.80 − 0.54) / (1 − 0.54) = 0.57.
+        <code>p_e</code> = 0.40 × 0.30 + 0.60 × 0.70 = 0.54. So:
+      </p>
+      <p className="help-formula">
+        <code>κ = (0.80 − 0.54) / (1 − 0.54) = 0.57</code>
       </p>
       <p>
         An agent that says benign for every case of a class that is 85% benign agrees 85% of the time, and has κ = 0.
@@ -221,7 +224,7 @@ function ReadingTheNumbers() {
           resamples of the cases below that.
         </li>
         <li>
-          Evidence completeness: a percentile bootstrap of the mean from 2 to 29 cases, and Student&apos;s t-interval
+          Evidence completeness: a percentile bootstrap of the mean from 2 to 29 cases, and Student&apos;s t&#8209;interval
           for the mean at 30 or more.
         </li>
       </ul>

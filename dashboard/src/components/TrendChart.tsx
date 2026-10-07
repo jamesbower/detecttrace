@@ -19,8 +19,6 @@ import type { ChartSeries } from "./trend-geometry";
 import type { TermKey } from "../help/terms";
 import type { TrendMetricView, TrendView } from "../view";
 
-const SCROLL_LABEL = "Chart, scrolls sideways";
-
 /** A point by its series and its week's index in the trend's weeks. */
 type PointKey = { series: number; week: number };
 
@@ -92,7 +90,7 @@ export function TrendChart({ metric, trend, alertClassName, term }: TrendChartPr
         className="trend-chart-scroll"
         role={isScrollable ? "region" : undefined}
         tabIndex={isScrollable ? 0 : undefined}
-        aria-label={isScrollable ? SCROLL_LABEL : undefined}
+        aria-label={isScrollable ? `${chartName}, scrolls sideways` : undefined}
       >
         <svg className="trend-chart-svg" viewBox={`0 0 ${chart.width} ${chart.height}`}>
           <g aria-hidden="true">
