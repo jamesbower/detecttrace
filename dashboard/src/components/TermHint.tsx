@@ -187,7 +187,7 @@ export function TermHint({ term, children }: Props) {
 
   // A press inside the pop-up means the reader is keeping it, so the pointer leaving must not
   // close it.
-  function pin() {
+  function handlePopupPointerDown() {
     clearTimer();
     setOpenedBy("click");
   }
@@ -249,7 +249,7 @@ export function TermHint({ term, children }: Props) {
           // Focusable by a press, so a press on its text keeps focus inside and it stays open.
           tabIndex={-1}
           onBlur={handlePopupBlur}
-          onPointerDown={pin}
+          onPointerDown={handlePopupPointerDown}
           onPointerEnter={clearTimer}
           onPointerLeave={scheduleClose}
         >

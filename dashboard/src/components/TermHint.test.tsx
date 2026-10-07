@@ -451,7 +451,8 @@ describe("the Help link", () => {
 
 describe("placement", () => {
   // The pop-up keeps 5px from its trigger, clear of the focus ring. It is 200 by 100 and sits in
-  // the top layer, so it is placed in the screen's coordinates. The wrapper is elsewhere on purpose: nothing may be measured from it.
+  // the top layer, so it is placed in the screen's coordinates. The wrapper is elsewhere on
+  // purpose: nothing may be measured from it.
   function stubLayout(trigger: Partial<DOMRect>, viewport: { width: number; height: number }) {
     const triggerRect = { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, ...trigger };
     const rects: Record<string, Partial<DOMRect>> = {

@@ -17,11 +17,12 @@
   padding-left: var(--sp-5);
 }
 
-/* A block, so a wrapped title keeps its bullet on the first line. The padding makes each row at
+/* A block-level box, so a wrapped title keeps its bullet on the first line. Each row is at
    least the touch target's height; the rows touch, so they need no gap. */
 .help-contents a {
-  display: block;
-  padding-block: calc((var(--touch-target) - 1lh) / 2);
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
   text-underline-offset: var(--underline-offset);
 }
 
@@ -32,10 +33,10 @@
   padding-top: var(--sp-5);
 }
 
-/* --font-mono names fonts rather than the generic monospace, so the browser doesn't shrink it to
-   match the text around it; this does. Only on Help, where code sits inside running prose. */
+/* --font-mono names fonts before the generic monospace, so the browser doesn't shrink it; this
+   does. */
 .help code {
-  font-size: 0.9em;
+  font-size: var(--fs-code-inline);
 }
 
 .help-section {

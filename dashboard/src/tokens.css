@@ -104,6 +104,7 @@
   --fs-lg: 1.1rem;
   --fs-xl: 1.7rem;
   --fs-display: clamp(1.6rem, 3vw, 2.3rem);
+  --fs-code-inline: 0.9em; /* code within prose, relative to the text around it */
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
