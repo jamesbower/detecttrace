@@ -1,6 +1,8 @@
 // A toggletip for a measure's name: the name is a button, and its pop-up says in a sentence
 // what the measure means, with a link to the Help page's section on it. Hover opens it after a
 // short delay, focus opens it at once, and a click or tap toggles it. Escape closes it.
+// The pop-up stays beside its trigger in the document, for the tab order and the focus checks,
+// but shows in the top layer: a panel's clip-path or a table's scroll area would cut it off.
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { TERMS } from "../help/terms";
@@ -44,10 +46,20 @@ export function TermHint({ term, children }: Props) {
     setIsOpen(true);
   }, [clearTimer]);
 
+  // Hidden here, while the pop-up is still in the document; React removes it after.
   const close = useCallback(() => {
     clearTimer();
+    hidePopup(popupRef.current);
     setIsOpen(false);
   }, [clearTimer]);
+
+  const place = useCallback(() => {
+    const trigger = triggerRef.current;
+    const popup = popupRef.current;
+    if (trigger !== null && popup !== null) {
+      setPosition(placePopup(trigger.getBoundingClientRect(), popup.getBoundingClientRect()));
+    }
+  }, []);
 
   useEffect(() => clearTimer, [clearTimer]);
 
@@ -63,25 +75,34 @@ export function TermHint({ term, children }: Props) {
       }
     }
     document.addEventListener("pointerdown", handlePointerDown);
+    // The pop-up is fixed to the screen, so it moves with its trigger. It does not close: focus
+    // scrolls an off-screen trigger into view, after the focus has opened the pop-up. Captured,
+    // so a scroll inside any container counts too.
+    window.addEventListener("scroll", place, { capture: true });
+    window.addEventListener("resize", place);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("scroll", place, { capture: true });
+      window.removeEventListener("resize", place);
       if (closeOpenHint === close) {
         closeOpenHint = null;
       }
     };
-  }, [isOpen, close]);
+  }, [isOpen, close, place]);
 
+  // Shown before it is measured: a hidden popover has no size.
   useLayoutEffect(() => {
-    const wrapper = wrapperRef.current;
-    const trigger = triggerRef.current;
     const popup = popupRef.current;
-    if (!isOpen || wrapper === null || trigger === null || popup === null) {
+    if (!isOpen || popup === null) {
       return;
     }
-    setPosition(
-      placePopup(wrapper.getBoundingClientRect(), trigger.getBoundingClientRect(), popup.getBoundingClientRect()),
-    );
-  }, [isOpen]);
+    // Older browsers and jsdom have no Popover API; there the pop-up stays in the page's layers.
+    if (typeof popup.showPopover === "function") {
+      popup.showPopover();
+    }
+    place();
+    return () => hidePopup(popup);
+  }, [isOpen, place]);
 
   function scheduleOpen(event: React.PointerEvent) {
     // Touch has no hover: a tap's click toggles, and its pointer leaving must not close.
@@ -157,6 +178,7 @@ export function TermHint({ term, children }: Props) {
         <span
           id={popupId}
           role="group"
+          popover="manual"
           aria-label={label}
           className="term-hint-popup"
           ref={popupRef}
@@ -175,13 +197,22 @@ export function TermHint({ term, children }: Props) {
 }
 
 // Below the trigger, or above it when the screen has no room below; moved sideways to stay
-// within the screen's gutters. The offsets are from the wrapper, which the pop-up is placed in.
-function placePopup(wrapper: DOMRect, trigger: DOMRect, popup: DOMRect): React.CSSProperties {
+// within the screen's gutters. In the screen's coordinates, as the pop-up is fixed.
+function placePopup(trigger: DOMRect, popup: DOMRect): React.CSSProperties {
   const isAbove = trigger.bottom + popup.height > window.innerHeight;
-  const top = isAbove ? trigger.top - popup.height : trigger.bottom;
   const maxLeft = window.innerWidth - popup.width - VIEWPORT_GUTTER_PX;
-  const left = Math.max(VIEWPORT_GUTTER_PX, Math.min(trigger.left, maxLeft));
-  return { top: top - wrapper.top, left: left - wrapper.left };
+  return {
+    top: isAbove ? trigger.top - popup.height : trigger.bottom,
+    left: Math.max(VIEWPORT_GUTTER_PX, Math.min(trigger.left, maxLeft)),
+  };
+}
+
+// A pop-up already taken out of the document was hidden when it left.
+function hidePopup(popup: HTMLElement | null): void {
+  // Older browsers and jsdom have no Popover API.
+  if (popup !== null && popup.isConnected && typeof popup.hidePopover === "function") {
+    popup.hidePopover();
+  }
 }
 
 function helpHref(anchor: string): string {
