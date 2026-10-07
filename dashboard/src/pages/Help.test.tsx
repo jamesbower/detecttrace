@@ -171,7 +171,9 @@ it("keeps Student's t-interval on one line", () => {
 it("sets the worked κ calculation apart as a formula", () => {
   render(<Help view={OFFLINE_VIEW} />);
 
-  expect(screen.getByText("κ = (0.80 − 0.54) / (1 − 0.54) = 0.57").closest(".help-formula")).not.toBeNull();
+  expect(screen.getByText("κ = (0.80 − 0.54) / (1 − 0.54)").closest(".help-formula")?.textContent).toBe(
+    "κ = (0.80 − 0.54) / (1 − 0.54)= 0.26 / 0.46 = 0.57",
+  );
 });
 
 function describePage(name: string): string | null | undefined {

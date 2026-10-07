@@ -177,8 +177,11 @@ function ChanceCorrectedAgreement() {
         benign in 70. They agree in 25 true positives and 55 benign cases, so <code>p_o</code> = 0.80. By chance,{" "}
         <code>p_e</code> = 0.40 × 0.30 + 0.60 × 0.70 = 0.54. So:
       </p>
+      {/* Two lines, each short enough for a phone's width, so the formula never breaks inside a term. */}
       <p className="help-formula">
-        <code>κ = (0.80 − 0.54) / (1 − 0.54) = 0.57</code>
+        <code>κ = (0.80 − 0.54) / (1 − 0.54)</code>
+        <br />
+        <code>= 0.26 / 0.46 = 0.57</code>
       </p>
       <p>
         An agent that says benign for every case of a class that is 85% benign agrees 85% of the time, and has κ = 0.
