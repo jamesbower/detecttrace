@@ -1,8 +1,9 @@
-/* A measure's name that explains itself: plain text with a dotted underline. The padding grows
-   its hit area to the touch target, and the equal negative margin keeps the row's height. */
+/* A measure's name that explains itself: plain text with a dotted underline. Its box stays the
+   text's, so the row keeps its height and the focus ring hugs the words; the ::after below
+   grows its hit area to the touch target. */
 .term-hint-trigger {
-  padding: var(--sp-3) 0;
-  margin: calc(-1 * var(--sp-3)) 0;
+  position: relative;
+  padding: 0;
   background: none;
   border: 0;
   font: inherit;
@@ -13,6 +14,15 @@
   text-underline-offset: var(--underline-offset);
   text-transform: inherit;
   cursor: help;
+}
+
+.term-hint-trigger::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: var(--touch-target);
+  translate: 0 -50%;
 }
 
 /* Shown in the top layer and fixed to the screen, so no panel's clip-path or table's scroll
@@ -34,6 +44,7 @@
   padding: var(--sp-3) var(--sp-4);
   background: var(--panel);
   border: var(--border-thin) solid var(--control-border);
+  border-top: var(--border-accent) solid var(--accent);
   box-shadow: var(--shadow-1);
   color: var(--text);
   font-family: var(--font-body);

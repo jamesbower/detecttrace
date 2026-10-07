@@ -163,6 +163,44 @@ describe("hover, then a click", () => {
   });
 });
 
+// Enter or Space on a pop-up that focus opened pins it, as a click does one that hover opened:
+// the press must not close what the reader is already looking at.
+describe("focus, then Enter", () => {
+  it("keeps the pop-up open", async () => {
+    const user = setUpUser();
+    renderHint();
+    await user.tab();
+
+    await user.keyboard("{Enter}");
+
+    expect(queryPopup()).not.toBeNull();
+  });
+
+  it("closes it on the next press", async () => {
+    const user = setUpUser();
+    renderHint();
+    await user.tab();
+    await user.keyboard("{Enter}");
+
+    await user.keyboard("{Enter}");
+
+    expect(queryPopup()).toBeNull();
+  });
+});
+
+it("pins a pop-up that hover opened on a click inside it", async () => {
+  const user = setUpUser();
+  await user.hover(renderHint());
+  advance(300);
+  const popup = screen.getByRole("group", { name: LABEL });
+  await user.click(popup);
+
+  await user.unhover(popup);
+  advance(200);
+
+  expect(queryPopup()).not.toBeNull();
+});
+
 it("stays open on a click inside the pop-up", async () => {
   const user = setUpUser();
   renderHint();
@@ -319,6 +357,21 @@ describe("Escape", () => {
   });
 });
 
+// A dialog or a search box that handles Escape itself marks it handled; the pop-up leaves it be.
+it("stays open on an Escape another handler took", () => {
+  render(
+    <>
+      <TermHint term="completeness" />
+      <input aria-label="Search" onKeyDown={(event) => event.preventDefault()} />
+    </>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: LABEL }));
+
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Search" }), { key: "Escape" });
+
+  expect(queryPopup()).not.toBeNull();
+});
+
 it("closes on a press outside", async () => {
   render(
     <>
@@ -397,8 +450,8 @@ describe("the Help link", () => {
 });
 
 describe("placement", () => {
-  // The pop-up is 200 by 100 and sits in the top layer, so it is placed in the screen's
-  // coordinates. The wrapper is elsewhere on purpose: nothing may be measured from it.
+  // The pop-up keeps 5px from its trigger, clear of the focus ring. It is 200 by 100 and sits in
+  // the top layer, so it is placed in the screen's coordinates. The wrapper is elsewhere on purpose: nothing may be measured from it.
   function stubLayout(trigger: Partial<DOMRect>, viewport: { width: number; height: number }) {
     const triggerRect = { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, ...trigger };
     const rects: Record<string, Partial<DOMRect>> = {
@@ -413,20 +466,20 @@ describe("placement", () => {
     vi.stubGlobal("innerHeight", viewport.height);
   }
 
-  it("opens below the trigger when there is room", () => {
+  it("opens below the trigger's focus ring when there is room", () => {
     stubLayout({ top: 100, bottom: 120, left: 100 }, { width: 800, height: 600 });
 
     fireEvent.click(renderHint());
 
-    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("120px");
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("125px");
   });
 
-  it("flips above the trigger when there is no room below", () => {
+  it("flips above the trigger's focus ring when there is no room below", () => {
     stubLayout({ top: 560, bottom: 580, left: 100 }, { width: 800, height: 600 });
 
     fireEvent.click(renderHint());
 
-    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("460px");
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("455px");
   });
 
   it("opens below on a short screen when below has more room", () => {
@@ -434,7 +487,7 @@ describe("placement", () => {
 
     fireEvent.click(renderHint());
 
-    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("40px");
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("45px");
   });
 
   it("keeps clear of the top gutter on a short screen", () => {
@@ -450,7 +503,7 @@ describe("placement", () => {
 
     fireEvent.click(renderHint());
 
-    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("-30px");
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("-25px");
   });
 
   it("lines up with the trigger's left edge when there is room", () => {
@@ -530,7 +583,7 @@ describe("follows its trigger", () => {
     stubTriggerAt(40);
     fireEvent.scroll(screen.getByTestId("scroller"));
 
-    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("60px");
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("65px");
   });
 
   it("on a resize", () => {
@@ -541,6 +594,6 @@ describe("follows its trigger", () => {
     stubTriggerAt(40);
     fireEvent(window, new Event("resize"));
 
-    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("60px");
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("65px");
   });
 });

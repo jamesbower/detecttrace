@@ -1,7 +1,8 @@
 // A toggletip for a measure's name: the name is a button, and its pop-up says in a sentence
 // what the measure means, with a link to the Help page's section on it. Hover opens it after a
-// short delay, focus opens it at once, and a click or tap toggles it. A click on a pop-up hover
-// opened pins it open instead, until the next click. Escape closes it.
+// short delay, focus opens it at once, and a click or tap toggles it. A click, Enter or Space on
+// a pop-up that hover or focus opened pins it open instead, until the next one; so does a press
+// inside the pop-up. Escape closes it.
 // The pop-up stays beside its trigger in the document, for the tab order and the focus checks,
 // but shows in the top layer: a panel's clip-path or a table's scroll area would cut it off.
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -18,6 +19,9 @@ const OPEN_DELAY_MS = 300;
 const CLOSE_DELAY_MS = 200;
 // The pop-up keeps this far from the screen's sides: --sp-4.
 const VIEWPORT_GUTTER_PX = 16;
+// The pop-up keeps this far from its trigger, so it never covers the trigger's focus ring:
+// --focus-width plus --focus-offset.
+const FOCUS_RING_EXTENT_PX = 5;
 
 // Only one pop-up is open at a time: opening one closes the last.
 let closeOpenHint: (() => void) | null = null;
@@ -97,8 +101,9 @@ export function TermHint({ term, children }: Props) {
       }
     }
     // On the document, so Escape also closes a pop-up that hover opened, wherever focus is.
+    // Not an Escape another handler took, such as a dialog's or a search box's.
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") {
+      if (event.key !== "Escape" || event.defaultPrevented) {
         return;
       }
       // Focus first: the trigger's focus would open the pop-up, and the close comes after it.
@@ -170,7 +175,7 @@ export function TermHint({ term, children }: Props) {
 
   function handleTriggerClick() {
     isPressingRef.current = false;
-    if (openedBy === "hover") {
+    if (openedBy === "hover" || openedBy === "focus") {
       clearTimer();
       setOpenedBy("click");
     } else if (isOpen) {
@@ -178,6 +183,13 @@ export function TermHint({ term, children }: Props) {
     } else {
       open("click");
     }
+  }
+
+  // A press inside the pop-up means the reader is keeping it, so the pointer leaving must not
+  // close it.
+  function pin() {
+    clearTimer();
+    setOpenedBy("click");
   }
 
   function handleTriggerFocus() {
@@ -237,6 +249,7 @@ export function TermHint({ term, children }: Props) {
           // Focusable by a press, so a press on its text keeps focus inside and it stays open.
           tabIndex={-1}
           onBlur={handlePopupBlur}
+          onPointerDown={pin}
           onPointerEnter={clearTimer}
           onPointerLeave={scheduleClose}
         >
@@ -250,15 +263,17 @@ export function TermHint({ term, children }: Props) {
   );
 }
 
-// Below the trigger when it fits; otherwise on whichever side has more room, and above it never
-// past the top gutter. Moved sideways to stay within the screen's gutters. In the screen's coordinates,
-// as the pop-up is fixed.
+// Below the trigger's focus ring when it fits; otherwise on whichever side has more room, and
+// above it never past the top gutter. Moved sideways to stay within the screen's gutters. In the
+// screen's coordinates, as the pop-up is fixed.
 function placePopup(trigger: DOMRect, popup: DOMRect): React.CSSProperties {
-  const roomBelow = window.innerHeight - trigger.bottom;
-  const isAbove = popup.height > roomBelow && trigger.top > roomBelow;
+  const below = trigger.bottom + FOCUS_RING_EXTENT_PX;
+  const above = trigger.top - FOCUS_RING_EXTENT_PX;
+  const roomBelow = window.innerHeight - below;
+  const isAbove = popup.height > roomBelow && above > roomBelow;
   const maxLeft = window.innerWidth - popup.width - VIEWPORT_GUTTER_PX;
   return {
-    top: isAbove ? Math.max(VIEWPORT_GUTTER_PX, trigger.top - popup.height) : trigger.bottom,
+    top: isAbove ? Math.max(VIEWPORT_GUTTER_PX, above - popup.height) : below,
     left: Math.max(VIEWPORT_GUTTER_PX, Math.min(trigger.left, maxLeft)),
   };
 }
