@@ -173,3 +173,24 @@ it("sets the worked κ calculation apart as a formula", () => {
 
   expect(screen.getByText("κ = (0.80 − 0.54) / (1 − 0.54) = 0.57").closest(".help-formula")).not.toBeNull();
 });
+
+function describePage(name: string): string | null | undefined {
+  render(<Help view={OFFLINE_VIEW} />);
+  return screen.getByText(name, { selector: "dt" }).nextElementSibling?.textContent;
+}
+
+it("says which versions the Versions page shows on their own", () => {
+  expect(describePage("Versions")).toContain("Up to six versions are shown per class, the ones with the most cases;");
+});
+
+it("gives the order of the Versions page's rows", () => {
+  expect(describePage("Versions")).toContain(
+    "All versions, then each version in the order it first appeared, then the pooled versions, then (no version).",
+  );
+});
+
+it("lists every line of the weekly trend", () => {
+  expect(describePage("Weekly trend")).toContain(
+    "one line for all versions together, one for each shown version, and one each for the pooled versions and (no version) when a class has them.",
+  );
+});

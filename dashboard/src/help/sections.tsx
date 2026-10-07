@@ -72,9 +72,10 @@ function Pages() {
       </dd>
       <dt>Versions</dt>
       <dd>
-        For each alert class, one row per prompt version, in the order each version first appeared: evidence
-        completeness, verdict agreement and chance-corrected agreement, each with n and a 95% interval, and dangerous
-        false closes. Up to six versions are shown per class; the rest are pooled into one row.
+        For each alert class, one row per prompt version: evidence completeness, verdict agreement and
+        chance-corrected agreement, each with n and a 95% interval, and dangerous false closes. Up to six versions are
+        shown per class, the ones with the most cases; the rest are pooled into one row. The rows run: All versions,
+        then each version in the order it first appeared, then the pooled versions, then (no version).
       </dd>
       <dt>Skipped steps</dt>
       <dd>
@@ -83,8 +84,9 @@ function Pages() {
       </dd>
       <dt>Weekly trend</dt>
       <dd>
-        Evidence completeness and verdict agreement per ISO week, with one line per version and one for all versions
-        together. A case&apos;s week comes from its agent run&apos;s start time, in UTC. A dashed rule marks the first
+        Evidence completeness and verdict agreement per ISO week, with one line for all versions together, one for
+        each shown version, and one each for the pooled versions and (no version) when a class has them. A case&apos;s
+        week comes from its agent run&apos;s start time, in UTC. A dashed rule marks the first
         week of each version, and a hollow point has fewer than 10 cases.
       </dd>
       <dt>Verdict matrix</dt>
