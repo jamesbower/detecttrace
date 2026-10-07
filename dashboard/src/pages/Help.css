@@ -32,6 +32,12 @@
   padding-top: var(--sp-5);
 }
 
+/* --font-mono names fonts rather than the generic monospace, so the browser doesn't shrink it to
+   match the text around it; this does. Only on Help, where code sits inside running prose. */
+.help code {
+  font-size: 0.9em;
+}
+
 .help-section {
   display: grid;
   gap: var(--sp-3);

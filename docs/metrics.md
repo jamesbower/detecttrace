@@ -83,7 +83,7 @@ Each cell shows the rate and the counts ("284 of 910"). It has no interval.
 
 ## Weekly trend
 
-Per alert class, evidence completeness and verdict agreement for each ISO 8601 week, such as `2026-W38`. A case's week comes from its agent span's start time, in UTC. There is one line for all versions, one for each shown version, one for the pooled versions, and one for "(no version)". A week where a line has no cases is a gap. A point with fewer than 10 cases has a hollow marker. Points have no interval.
+Per alert class, evidence completeness and verdict agreement for each ISO 8601 week, such as `2026-W38`. A case's week comes from its agent span's start time, in UTC. There is one line for all versions, one for each shown version, and one each for the pooled versions and "(no version)" when a class has them. A week where a line has no cases is a gap. A point with fewer than 10 cases has a hollow marker. Points have no interval.
 
 ## Versions
 
