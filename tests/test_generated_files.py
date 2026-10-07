@@ -124,14 +124,16 @@ def test_fixtures_are_under_3_5_mb() -> None:
 
 
 def test_gzip_headers_carry_no_timestamp_or_file_name() -> None:
-    headers = [path.read_bytes()[3:8] for path in sorted((DEMO_DIR / "traces").iterdir())]
+    headers = [path.read_bytes()[3:8] for path in sorted((DEMO_DIR / "traces").glob("*.jsonl.gz"))]
 
     # Byte 3 holds the flags (0: no file name) and bytes 4-7 the modification time.
     assert headers == [b"\x00\x00\x00\x00\x00"] * 3
 
 
 def test_every_trace_file_is_gzip_compressed() -> None:
-    assert {path.read_bytes()[:2] for path in (DEMO_DIR / "traces").iterdir()} == {b"\x1f\x8b"}
+    assert {path.read_bytes()[:2] for path in (DEMO_DIR / "traces").glob("*.jsonl.gz")} == {
+        b"\x1f\x8b"
+    }
 
 
 @pytest.mark.benchmark
