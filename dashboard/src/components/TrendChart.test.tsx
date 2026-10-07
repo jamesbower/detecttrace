@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -301,4 +301,34 @@ it("keeps one tab stop, on the first point, when the point moved to is gone", as
   expect(screen.getAllByRole("img").filter((point) => point.tabIndex === 0).map((point) => point.getAttribute("aria-label"))).toEqual([
     "2026-W02, All versions: 50% (n 20)",
   ]);
+});
+
+it("explains the measure in the caption when given its term", () => {
+  render(
+    <TrendChart metric={DEMO_TREND.completeness} trend={DEMO_TREND} alertClassName="impossible_travel" term="completeness" />,
+  );
+
+  expect(within(screen.getByRole("figure")).queryByRole("button", { name: "Evidence completeness" })).not.toBeNull();
+});
+
+it("keeps the caption's name when it explains the measure", () => {
+  render(
+    <TrendChart metric={DEMO_TREND.completeness} trend={DEMO_TREND} alertClassName="impossible_travel" term="completeness" />,
+  );
+
+  expect(screen.queryByRole("figure", { name: "Evidence completeness per week" })).not.toBeNull();
+});
+
+it("explains the measure in an empty chart's caption when given its term", () => {
+  render(
+    <TrendChart metric={EDGE_TREND.completeness} trend={EDGE_TREND} alertClassName="impossible_travel" term="completeness" />,
+  );
+
+  expect(within(screen.getByRole("figure")).queryByRole("button", { name: "Evidence completeness" })).not.toBeNull();
+});
+
+it("keeps a plain caption without a term", () => {
+  renderDemo();
+
+  expect(within(screen.getByRole("figure")).queryByRole("button", { name: "Evidence completeness" })).toBeNull();
 });

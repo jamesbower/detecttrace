@@ -8,6 +8,7 @@ import { useId, useState } from "react";
 
 import { useIsScrollable } from "../use-is-scrollable";
 import { toSeriesClass } from "./series-class";
+import { TermHint } from "./TermHint";
 import { TrendMarker } from "./TrendMarker";
 import { TrendTable } from "./TrendTable";
 import { HIT_RADIUS, MARKER_RADIUS, createTrendChart } from "./trend-geometry";
@@ -15,6 +16,7 @@ import "./TrendChart.css";
 
 import type * as React from "react";
 import type { ChartSeries } from "./trend-geometry";
+import type { TermKey } from "../help/terms";
 import type { TrendMetricView, TrendView } from "../view";
 
 const SCROLL_LABEL = "Chart, scrolls sideways";
@@ -26,18 +28,27 @@ type TrendChartProps = {
   metric: TrendMetricView;
   trend: TrendView;
   alertClassName: string;
+  /** The measure the chart shows, explained where the caption names it. */
+  term?: TermKey;
 };
 
-export function TrendChart({ metric, trend, alertClassName }: TrendChartProps) {
+export function TrendChart({ metric, trend, alertClassName, term }: TrendChartProps) {
   const captionId = useId();
   const [readout, setReadout] = useState<string | null>(null);
   const [active, setActive] = useState<PointKey | null>(null);
   const [scrollRef, isScrollable] = useIsScrollable<HTMLDivElement>();
+  const caption = (
+    <>
+      {term === undefined ? metric.title : <TermHint term={term}>{metric.title}</TermHint>} per week
+    </>
+  );
 
   if (metric.empty_text !== null) {
     return (
       <figure className="trend-chart" aria-labelledby={captionId}>
-        <figcaption id={captionId} className="trend-chart-title">{`${metric.title} per week`}</figcaption>
+        <figcaption id={captionId} className="trend-chart-title">
+          {caption}
+        </figcaption>
         <p className="trend-chart-empty">{metric.empty_text}</p>
       </figure>
     );
@@ -70,7 +81,9 @@ export function TrendChart({ metric, trend, alertClassName }: TrendChartProps) {
 
   return (
     <figure className="trend-chart" aria-labelledby={captionId}>
-      <figcaption id={captionId} className="trend-chart-title">{`${metric.title} per week`}</figcaption>
+      <figcaption id={captionId} className="trend-chart-title">
+        {caption}
+      </figcaption>
       {/* The figure's caption names the chart once. Only a chart wider than the screen is a
           region of its own, a tab stop the keyboard can scroll, named for what it does. */}
       <div

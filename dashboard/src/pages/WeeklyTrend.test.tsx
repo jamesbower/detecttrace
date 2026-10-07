@@ -1,7 +1,9 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { userEvent } from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, onTestFinished } from "vitest";
 
 import edgeView from "../../../tests/fixtures/edge/versions/more_than_six/expected-view.json";
+import { TERMS } from "../help/terms";
 import { registerPanel, resetRegistryForTests } from "../registry";
 import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
 import { WeeklyTrend } from "./WeeklyTrend";
@@ -98,4 +100,18 @@ it("renders the panels registered for the trend footer", () => {
   render(<WeeklyTrend view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
   expect(screen.queryByText("Footer panel")).not.toBeNull();
+});
+
+it.each(["completeness", "agreement"] as const)("explains the %s measure in its chart's caption", async (term) => {
+  // jsdom's own styles hide every popover until it is shown, but jsdom cannot show one.
+  const showPopovers = document.createElement("style");
+  showPopovers.textContent = "[popover] { display: block !important; }";
+  document.head.append(showPopovers);
+  onTestFinished(() => showPopovers.remove());
+  render(<WeeklyTrend view={DEMO_VIEW} results={DEMO_RESULTS} />);
+  const caption = screen.getByText(TERMS[term].label, { selector: "figcaption button" });
+
+  await userEvent.click(caption);
+
+  expect(screen.getByRole("group", { name: TERMS[term].label }).textContent).toContain(TERMS[term].short);
 });

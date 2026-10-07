@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it } from "vitest";
 
+import { TERMS } from "../help/terms";
 import { registerPanel, resetRegistryForTests } from "../registry";
 import { createClasses, DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
 import { Overview } from "./Overview";
@@ -21,8 +22,9 @@ function renderOverview(view: View = DEMO_VIEW) {
 }
 
 function definitionFor(term: string): string | null {
-  const termElement = screen.getByText(term, { selector: "dt" });
-  return termElement.parentElement!.querySelector("dd")!.textContent;
+  // By its whole text: a term that explains itself holds its name in a button.
+  const termElement = screen.getAllByRole("term").find((element) => element.textContent === term);
+  return termElement?.parentElement?.querySelector("dd")?.textContent ?? null;
 }
 
 it("titles the page", () => {
@@ -129,4 +131,21 @@ it("renders panels registered after the headline figures", () => {
   renderOverview();
 
   expect(screen.queryByText("Extra panel")).not.toBeNull();
+});
+
+it.each(["completeness", "agreement", "kappa", "dangerous"] as const)(
+  "explains the %s measure in the version table's column header",
+  (term) => {
+    renderOverview();
+    const header = screen.getByRole("columnheader", { name: TERMS[term].label });
+
+    expect(within(header).queryByRole("button", { name: TERMS[term].label })).not.toBeNull();
+  },
+);
+
+it("explains the dangerous false closes figure where it is named", () => {
+  renderOverview();
+  const term = screen.getAllByRole("term").find((element) => element.textContent === TERMS.dangerous.label)!;
+
+  expect(within(term).queryByRole("button", { name: TERMS.dangerous.label })).not.toBeNull();
 });

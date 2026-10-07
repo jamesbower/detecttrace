@@ -78,14 +78,16 @@ document.addEventListener("securitypolicyviolation", function (event) {
 """
 
 # A ring counts only if no clip-path cuts it: the element's own clip-path cuts any ring drawn
-# outside it, and an ancestor's cuts a ring that reaches past the ancestor's box.
+# outside it, and an ancestor's cuts a ring that reaches past the ancestor's box. An element in
+# the top layer, such as an open popover, is drawn outside its ancestors and escapes their clip-paths.
 FOCUS_PROBE = """() => {
   const el = document.activeElement;
   const style = getComputedStyle(el);
   const outset = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
   const isClipped = (() => {
     const ring = el.getBoundingClientRect();
-    for (let node = el; node instanceof Element; node = node.parentElement) {
+    for (let node = el; node instanceof Element;
+         node = node.matches(":popover-open, :modal") ? null : node.parentElement) {
       if (getComputedStyle(node).clipPath === "none") continue;
       if (node === el) {
         if (outset > 0) return true;

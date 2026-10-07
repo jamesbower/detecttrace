@@ -5,6 +5,7 @@ import { listPanels } from "../registry";
 import { PanelSlot } from "./PanelSlot";
 import { toSeriesClass } from "./series-class";
 import { SeriesSwatch } from "./SeriesSwatch";
+import { TermHint } from "./TermHint";
 import { WarnIcon } from "./WarnIcon";
 import "./VersionTable.css";
 
@@ -43,11 +44,17 @@ export function VersionTable({ alertClass, view, results }: VersionTableProps) {
                 <th scope="col" className="version-table-num">
                   Cases
                 </th>
-                <th scope="col">Evidence completeness</th>
-                <th scope="col">Verdict agreement</th>
-                <th scope="col">Chance-corrected agreement (κ)</th>
+                <th scope="col">
+                  <TermHint term="completeness" />
+                </th>
+                <th scope="col">
+                  <TermHint term="agreement" />
+                </th>
+                <th scope="col">
+                  <TermHint term="kappa" />
+                </th>
                 <th scope="col" className="version-table-num">
-                  Dangerous false closes
+                  <TermHint term="dangerous" />
                 </th>
               </tr>
             </thead>

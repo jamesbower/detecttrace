@@ -37,8 +37,8 @@ export function WeeklyTrend({ view, results }: PageProps) {
           </h2>
           <p className="analysis-panel-lead">{`ISO weeks in UTC, ${trend.period_text}. n under each week counts all versions.`}</p>
           <TrendLegend lines={legendLines} fewLegendText={trend.few_legend_text} alertClassName={selected.name} />
-          <TrendChart metric={trend.completeness} trend={trend} alertClassName={selected.name} />
-          <TrendChart metric={trend.agreement} trend={trend} alertClassName={selected.name} />
+          <TrendChart metric={trend.completeness} trend={trend} alertClassName={selected.name} term="completeness" />
+          <TrendChart metric={trend.agreement} trend={trend} alertClassName={selected.name} term="agreement" />
         </ClassPanel>
       )}
       <PanelSlot name="trend-footer" view={view} results={results} />

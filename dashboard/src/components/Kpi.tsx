@@ -3,7 +3,7 @@ import "./Kpi.css";
 import type * as React from "react";
 
 type KpiProps = {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
   context?: React.ReactNode;
 };

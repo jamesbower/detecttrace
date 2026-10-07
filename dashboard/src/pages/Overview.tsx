@@ -5,6 +5,7 @@ import { Kpi } from "../components/Kpi";
 import { PageHead } from "../components/PageHead";
 import { PageLink } from "../components/PageLink";
 import { PanelSlot } from "../components/PanelSlot";
+import { TermHint } from "../components/TermHint";
 import { VersionTable } from "../components/VersionTable";
 import { WarnIcon } from "../components/WarnIcon";
 import { DATA_PATH } from "../router";
@@ -41,7 +42,7 @@ export function Overview({ view, results }: PageProps) {
           context={toCoverageHints(view.coverage)}
         />
         <Kpi
-          label="Dangerous false closes"
+          label={<TermHint term="dangerous" />}
           value={
             <ul className="overview-lines">
               {view.classes.map((alertClass) => (
