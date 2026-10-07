@@ -1,0 +1,76 @@
+/* A measure's name that explains itself: plain text with a dotted underline. The padding grows
+   its hit area to the touch target, and the equal negative margin keeps the row's height. */
+.term-hint-trigger {
+  padding: var(--sp-3) 0;
+  margin: calc(-1 * var(--sp-3)) 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: var(--underline-offset);
+  text-transform: inherit;
+  cursor: help;
+}
+
+/* Shown in the top layer and fixed to the screen, so no panel's clip-path or table's scroll
+   area cuts it off; the script places it. The popover's own margin, inset, padding, border,
+   overflow and colours are reset, and it reads as running text even when its trigger sits in a
+   table head or a caption. */
+.term-hint-popup {
+  position: fixed;
+  inset: auto;
+  z-index: var(--z-overlay);
+  margin: 0;
+  overflow: visible;
+  /* Overrides the browser's hiding of an unshown [popover], so without the Popover API it still shows. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: max-content;
+  max-width: min(var(--hint-max-width), calc(100vw - 2 * var(--sp-4)));
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--control-border);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+  letter-spacing: normal;
+  text-align: start;
+  text-transform: none;
+  white-space: normal;
+  animation: term-hint-fade var(--t-fast) var(--ease);
+}
+
+.term-hint-popup a {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: var(--touch-target);
+  color: var(--accent-text);
+}
+
+@keyframes term-hint-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-hint-popup {
+    animation: none;
+  }
+}
+
+/* Forced colours drop the shadow and the panel fill, so the pop-up keeps its edge in the text
+   colour to stand apart from the page behind it. */
+@media (forced-colors: active) {
+  .term-hint-popup {
+    border-color: CanvasText;
+  }
+}
