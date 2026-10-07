@@ -4,7 +4,7 @@
 // stop (a roving tabindex): ArrowLeft and ArrowRight move between a series' weeks, Home and End
 // to its first and last; ArrowUp and ArrowDown move to the series above or below in the legend's
 // order, at the same week or the nearest one that series has.
-import { useId, useState } from "react";
+import { useState } from "react";
 
 import { useIsScrollable } from "../use-is-scrollable";
 import { toSeriesClass } from "./series-class";
@@ -33,10 +33,11 @@ type TrendChartProps = {
 };
 
 export function TrendChart({ metric, trend, alertClassName, term }: TrendChartProps) {
-  const captionId = useId();
   const [readout, setReadout] = useState<string | null>(null);
   const [active, setActive] = useState<PointKey | null>(null);
   const [scrollRef, isScrollable] = useIsScrollable<HTMLDivElement>();
+  // Named by the title alone, not by the caption: its open pop-up would join the name.
+  const chartName = `${metric.title} per week`;
   const caption = (
     <>
       {term === undefined ? metric.title : <TermHint term={term}>{metric.title}</TermHint>} per week
@@ -45,8 +46,8 @@ export function TrendChart({ metric, trend, alertClassName, term }: TrendChartPr
 
   if (metric.empty_text !== null) {
     return (
-      <figure className="trend-chart" aria-labelledby={captionId}>
-        <figcaption id={captionId} className="trend-chart-title">
+      <figure className="trend-chart" aria-label={chartName}>
+        <figcaption className="trend-chart-title">
           {caption}
         </figcaption>
         <p className="trend-chart-empty">{metric.empty_text}</p>
@@ -80,11 +81,11 @@ export function TrendChart({ metric, trend, alertClassName, term }: TrendChartPr
   }
 
   return (
-    <figure className="trend-chart" aria-labelledby={captionId}>
-      <figcaption id={captionId} className="trend-chart-title">
+    <figure className="trend-chart" aria-label={chartName}>
+      <figcaption className="trend-chart-title">
         {caption}
       </figcaption>
-      {/* The figure's caption names the chart once. Only a chart wider than the screen is a
+      {/* The figure names the chart once. Only a chart wider than the screen is a
           region of its own, a tab stop the keyboard can scroll, named for what it does. */}
       <div
         ref={scrollRef}

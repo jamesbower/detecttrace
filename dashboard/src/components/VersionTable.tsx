@@ -1,6 +1,7 @@
 // One alert class's metrics, one row per version. Every string comes from the view as is.
 import { Fragment, useId } from "react";
 
+import { TERMS } from "../help/terms";
 import { listPanels } from "../registry";
 import { PanelSlot } from "./PanelSlot";
 import { toSeriesClass } from "./series-class";
@@ -38,22 +39,23 @@ export function VersionTable({ alertClass, view, results }: VersionTableProps) {
               {alertClass.name}: metrics per version, in the order each version first appeared. Ranges are 95%
               intervals.
             </caption>
+            {/* Each measure's header is named by its label alone: its open pop-up would join the name. */}
             <thead>
               <tr>
                 <th scope="col">Version</th>
                 <th scope="col" className="version-table-num">
                   Cases
                 </th>
-                <th scope="col">
+                <th scope="col" aria-label={TERMS.completeness.label}>
                   <TermHint term="completeness" />
                 </th>
-                <th scope="col">
+                <th scope="col" aria-label={TERMS.agreement.label}>
                   <TermHint term="agreement" />
                 </th>
-                <th scope="col">
+                <th scope="col" aria-label={TERMS.kappa.label}>
                   <TermHint term="kappa" />
                 </th>
-                <th scope="col" className="version-table-num">
+                <th scope="col" className="version-table-num" aria-label={TERMS.dangerous.label}>
                   <TermHint term="dangerous" />
                 </th>
               </tr>

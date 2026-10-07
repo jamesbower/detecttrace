@@ -1,9 +1,9 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 
 import edgeView from "../../../tests/fixtures/edge/versions/more_than_six/expected-view.json";
-import { DEMO_VIEW } from "../test-fixtures";
+import { DEMO_VIEW, showPopoversForTests } from "../test-fixtures";
 import { TrendChart } from "./TrendChart";
 
 import type { TrendView, View } from "../view";
@@ -39,12 +39,11 @@ it("captions the chart with the metric", () => {
   expect(screen.queryByRole("figure", { name: "Evidence completeness per week" })).not.toBeNull();
 });
 
-it("names the chart once, by its figure's caption", () => {
+it("names the chart once, on its figure", () => {
   const { container } = renderDemo();
-  const captionId = container.querySelector("figcaption")?.id ?? "";
 
   expect(
-    [...container.querySelectorAll(`[aria-labelledby="${captionId}"]`)].map((element) => element.tagName),
+    [...container.querySelectorAll('[aria-label="Evidence completeness per week"]')].map((element) => element.tagName),
   ).toEqual(["FIGURE"]);
 });
 
@@ -303,7 +302,7 @@ it("keeps one tab stop, on the first point, when the point moved to is gone", as
   ]);
 });
 
-it("explains the measure in the caption when given its term", () => {
+it("puts a trigger for the explanation in the caption when given a term", () => {
   render(
     <TrendChart metric={DEMO_TREND.completeness} trend={DEMO_TREND} alertClassName="impossible_travel" term="completeness" />,
   );
@@ -319,7 +318,7 @@ it("keeps the caption's name when it explains the measure", () => {
   expect(screen.queryByRole("figure", { name: "Evidence completeness per week" })).not.toBeNull();
 });
 
-it("explains the measure in an empty chart's caption when given its term", () => {
+it("puts a trigger for the explanation in an empty chart's caption when given a term", () => {
   render(
     <TrendChart metric={EDGE_TREND.completeness} trend={EDGE_TREND} alertClassName="impossible_travel" term="completeness" />,
   );
@@ -331,4 +330,15 @@ it("keeps a plain caption without a term", () => {
   renderDemo();
 
   expect(within(screen.getByRole("figure")).queryByRole("button", { name: "Evidence completeness" })).toBeNull();
+});
+
+it("keeps the figure's name while the caption's explanation is open", async () => {
+  onTestFinished(showPopoversForTests());
+  render(
+    <TrendChart metric={DEMO_TREND.completeness} trend={DEMO_TREND} alertClassName="impossible_travel" term="completeness" />,
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: "Evidence completeness" }));
+
+  expect(screen.queryByRole("figure", { name: "Evidence completeness per week" })).not.toBeNull();
 });

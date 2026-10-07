@@ -1,9 +1,8 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, expect, it } from "vitest";
 
 import edgeView from "../../../tests/fixtures/edge/versions/more_than_six/expected-view.json";
-import { TERMS } from "../help/terms";
 import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
 import { Versions } from "./Versions";
 
@@ -67,13 +66,3 @@ it("shows the view's reason for a missing value", () => {
 
   expect(screen.getAllByText("No checklist for this class.")).toHaveLength(8);
 });
-
-it.each(["completeness", "agreement", "kappa", "dangerous"] as const)(
-  "explains the %s measure in the version table's column header",
-  (term) => {
-    renderVersions();
-    const header = screen.getByRole("columnheader", { name: TERMS[term].label });
-
-    expect(within(header).queryByRole("button", { name: TERMS[term].label })).not.toBeNull();
-  },
-);

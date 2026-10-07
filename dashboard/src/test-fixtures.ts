@@ -18,3 +18,14 @@ export function createClasses(count: number): ClassView[] {
     name: `class_${index}`,
   }));
 }
+
+/**
+ * jsdom's own styles hide every popover until it is shown, but jsdom cannot show one. This lets a
+ * pop-up display as it does once a browser has shown it. Returns the undo.
+ */
+export function showPopoversForTests(): () => void {
+  const style = document.createElement("style");
+  style.textContent = "[popover] { display: block !important; }";
+  document.head.append(style);
+  return () => style.remove();
+}

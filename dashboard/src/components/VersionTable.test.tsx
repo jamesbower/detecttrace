@@ -1,9 +1,11 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { userEvent } from "@testing-library/user-event";
+import { afterEach, expect, it, onTestFinished } from "vitest";
 
 import edgeView from "../../../tests/fixtures/edge/versions/more_than_six/expected-view.json";
+import { TERMS } from "../help/terms";
 import { registerPanel, resetRegistryForTests } from "../registry";
-import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
+import { DEMO_RESULTS, DEMO_VIEW, showPopoversForTests } from "../test-fixtures";
 import { VersionTable } from "./VersionTable";
 
 import type { ClassView, View } from "../view";
@@ -153,4 +155,23 @@ it("tells each version row's panel its class and version", () => {
     "Panel: class-0 v1",
     "Panel: class-0 v2",
   ]);
+});
+
+it.each(["completeness", "agreement", "kappa", "dangerous"] as const)(
+  "explains the %s measure in its column header",
+  (term) => {
+    renderTable(DEMO_CLASS);
+    const header = screen.getByRole("columnheader", { name: TERMS[term].label });
+
+    expect(within(header).queryByRole("button", { name: TERMS[term].label })).not.toBeNull();
+  },
+);
+
+it("keeps a column header's name while its explanation is open", async () => {
+  onTestFinished(showPopoversForTests());
+  renderTable(DEMO_CLASS);
+
+  await userEvent.click(screen.getByRole("button", { name: TERMS.completeness.label }));
+
+  expect(screen.queryByRole("columnheader", { name: TERMS.completeness.label })).not.toBeNull();
 });

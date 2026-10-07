@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, onTestFinished } from "vitest";
 import edgeView from "../../../tests/fixtures/edge/versions/more_than_six/expected-view.json";
 import { TERMS } from "../help/terms";
 import { registerPanel, resetRegistryForTests } from "../registry";
-import { DEMO_RESULTS, DEMO_VIEW } from "../test-fixtures";
+import { DEMO_RESULTS, DEMO_VIEW, showPopoversForTests } from "../test-fixtures";
 import { WeeklyTrend } from "./WeeklyTrend";
 
 import type { View } from "../view";
@@ -48,7 +48,7 @@ it("labels the panel by the selected class's tab", () => {
 it("draws one chart per metric", () => {
   render(<WeeklyTrend view={DEMO_VIEW} results={DEMO_RESULTS} />);
 
-  expect(screen.getAllByRole("figure").map((figure) => figure.getAttribute("aria-labelledby") !== null)).toEqual([
+  expect(screen.getAllByRole("figure").map((figure) => figure.getAttribute("aria-label") !== null)).toEqual([
     true,
     true,
   ]);
@@ -103,11 +103,7 @@ it("renders the panels registered for the trend footer", () => {
 });
 
 it.each(["completeness", "agreement"] as const)("explains the %s measure in its chart's caption", async (term) => {
-  // jsdom's own styles hide every popover until it is shown, but jsdom cannot show one.
-  const showPopovers = document.createElement("style");
-  showPopovers.textContent = "[popover] { display: block !important; }";
-  document.head.append(showPopovers);
-  onTestFinished(() => showPopovers.remove());
+  onTestFinished(showPopoversForTests());
   render(<WeeklyTrend view={DEMO_VIEW} results={DEMO_RESULTS} />);
   const caption = screen.getByText(TERMS[term].label, { selector: "figcaption button" });
 

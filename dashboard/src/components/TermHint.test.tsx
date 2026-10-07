@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TERMS } from "../help/terms";
 import { startRouter } from "../router";
+import { showPopoversForTests } from "../test-fixtures";
 import { TermHint } from "./TermHint";
 
 const LABEL = TERMS.completeness.label;
@@ -15,17 +16,14 @@ beforeEach(() => {
   vi.stubGlobal("jest", { advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms) });
 });
 
-// jsdom's own styles hide every popover until it is shown, but jsdom cannot show one. This lets
-// the pop-up display as it does once a browser has shown it.
-const showPopovers = document.createElement("style");
-showPopovers.textContent = "[popover] { display: block !important; }";
+let hidePopovers = () => {};
 beforeEach(() => {
-  document.head.append(showPopovers);
+  hidePopovers = showPopoversForTests();
 });
 
 afterEach(() => {
   cleanup();
-  showPopovers.remove();
+  hidePopovers();
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
