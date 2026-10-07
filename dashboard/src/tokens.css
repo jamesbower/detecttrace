@@ -110,6 +110,7 @@
   --fw-bold: 700;
   --lh-tight: 1.1;
   --lh-body: 1.5;
+  --underline-offset: 3px; /* a dotted underline's gap below its text */
   --ls-label: 0.12em;
   --ls-eyebrow: 0.25em;
 
@@ -129,7 +130,7 @@
   /* Each link in that bar: 44px wide, or an eighth of the screen when eight don't fit (40px at 320px). */
   --nav-link-min-width: min(var(--touch-target), 12.5vw);
   --measure: 720px; /* longest comfortable line of running text */
-  --hint-width: 22rem; /* a term's pop-up: a few short lines */
+  --hint-max-width: 22rem; /* a term's pop-up: a few short lines */
   --icon-md: 22px;
   --icon-stroke: 1.6;
   --icon-sm: 14px;

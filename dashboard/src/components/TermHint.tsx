@@ -1,6 +1,7 @@
 // A toggletip for a measure's name: the name is a button, and its pop-up says in a sentence
 // what the measure means, with a link to the Help page's section on it. Hover opens it after a
-// short delay, focus opens it at once, and a click or tap toggles it. Escape closes it.
+// short delay, focus opens it at once, and a click or tap toggles it. A click on a pop-up hover
+// opened pins it open instead, until the next click. Escape closes it.
 // The pop-up stays beside its trigger in the document, for the tab order and the focus checks,
 // but shows in the top layer: a panel's clip-path or a table's scroll area would cut it off.
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -21,9 +22,11 @@ const VIEWPORT_GUTTER_PX = 16;
 let closeOpenHint: (() => void) | null = null;
 
 type Props = { term: TermKey; children?: React.ReactNode };
+type OpenedBy = "hover" | "focus" | "click";
 
 export function TermHint({ term, children }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [openedBy, setOpenedBy] = useState<OpenedBy | null>(null);
+  const isOpen = openedBy !== null;
   const [position, setPosition] = useState<React.CSSProperties | undefined>(undefined);
   const popupId = useId();
   const wrapperRef = useRef<HTMLSpanElement>(null);
@@ -31,7 +34,8 @@ export function TermHint({ term, children }: Props) {
   const popupRef = useRef<HTMLSpanElement>(null);
   const timerRef = useRef<number | null>(null);
   // A press focuses the button before its click; that focus must not open the pop-up, or the
-  // click would close it again at once.
+  // click would close it again at once. Safari focuses nothing on the press instead, and the
+  // pop-up's blur then must not close it either: the click decides.
   const isPressingRef = useRef(false);
 
   const clearTimer = useCallback(() => {
@@ -41,16 +45,19 @@ export function TermHint({ term, children }: Props) {
     }
   }, []);
 
-  const open = useCallback(() => {
-    clearTimer();
-    setIsOpen(true);
-  }, [clearTimer]);
+  // An open pop-up keeps the way it was first opened.
+  const open = useCallback(
+    (by: OpenedBy) => {
+      clearTimer();
+      setOpenedBy((current) => current ?? by);
+    },
+    [clearTimer],
+  );
 
-  // Hidden here, while the pop-up is still in the document; React removes it after.
+  // Taken out of the document, the pop-up leaves the top layer by itself.
   const close = useCallback(() => {
     clearTimer();
-    hidePopup(popupRef.current);
-    setIsOpen(false);
+    setOpenedBy(null);
   }, [clearTimer]);
 
   const place = useCallback(() => {
@@ -74,21 +81,27 @@ export function TermHint({ term, children }: Props) {
         close();
       }
     }
+    // On the document, so Escape also closes a pop-up that hover opened, wherever focus is.
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      // Focus first: the trigger's focus would open the pop-up, and the close comes after it.
+      if (document.activeElement !== null && wrapperRef.current?.contains(document.activeElement)) {
+        triggerRef.current?.focus();
+      }
+      close();
+    }
     document.addEventListener("pointerdown", handlePointerDown);
-    // The pop-up is fixed to the screen, so it moves with its trigger. It does not close: focus
-    // scrolls an off-screen trigger into view, after the focus has opened the pop-up. Captured,
-    // so a scroll inside any container counts too.
-    window.addEventListener("scroll", place, { capture: true });
-    window.addEventListener("resize", place);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("scroll", place, { capture: true });
-      window.removeEventListener("resize", place);
+      document.removeEventListener("keydown", handleKeyDown);
       if (closeOpenHint === close) {
         closeOpenHint = null;
       }
     };
-  }, [isOpen, close, place]);
+  }, [isOpen, close]);
 
   // Shown before it is measured: a hidden popover has no size.
   useLayoutEffect(() => {
@@ -101,21 +114,33 @@ export function TermHint({ term, children }: Props) {
       popup.showPopover();
     }
     place();
-    return () => hidePopup(popup);
+    // The pop-up is fixed to the screen, so it moves with its trigger. It does not close: focus
+    // scrolls an off-screen trigger into view, after the focus has opened the pop-up. Captured,
+    // so a scroll inside any container counts too.
+    window.addEventListener("scroll", place, { capture: true });
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, { capture: true });
+      window.removeEventListener("resize", place);
+    };
   }, [isOpen, place]);
 
   function scheduleOpen(event: React.PointerEvent) {
-    // Touch has no hover: a tap's click toggles, and its pointer leaving must not close.
+    // Only a mouse hovers on purpose. A tap's click toggles, and its pointer leaving must not
+    // close; a pen hovers only on its way to a tap.
     if (event.pointerType === "mouse") {
       clearTimer();
-      timerRef.current = window.setTimeout(open, OPEN_DELAY_MS);
+      timerRef.current = window.setTimeout(() => open("hover"), OPEN_DELAY_MS);
     }
   }
 
+  // Leaving cancels a hover that has not opened yet, and closes only what hover opened.
   function scheduleClose(event: React.PointerEvent) {
     if (event.pointerType === "mouse") {
       clearTimer();
-      timerRef.current = window.setTimeout(close, CLOSE_DELAY_MS);
+      if (openedBy === "hover") {
+        timerRef.current = window.setTimeout(close, CLOSE_DELAY_MS);
+      }
     }
   }
 
@@ -123,39 +148,51 @@ export function TermHint({ term, children }: Props) {
     isPressingRef.current = true;
   }
 
+  // A press the browser takes over never clicks: a touch that turns into a scroll, or in Safari
+  // a press dragged off the button.
+  function handleTriggerPointerCancel() {
+    isPressingRef.current = false;
+  }
+
   function handleTriggerClick() {
     isPressingRef.current = false;
-    if (isOpen) {
+    if (openedBy === "hover") {
+      clearTimer();
+      setOpenedBy("click");
+    } else if (isOpen) {
       close();
     } else {
-      open();
+      open("click");
     }
   }
 
   function handleTriggerFocus() {
     if (!isPressingRef.current) {
-      open();
+      open("focus");
     }
   }
 
-  function handleBlur(event: React.FocusEvent) {
+  // Clears a press dragged off the button, which never clicked.
+  function handleTriggerBlur(event: React.FocusEvent) {
     isPressingRef.current = false;
+    closeUnlessFocusInside(event);
+  }
+
+  function handlePopupBlur(event: React.FocusEvent) {
+    if (!isPressingRef.current) {
+      closeUnlessFocusInside(event);
+    }
+  }
+
+  function closeUnlessFocusInside(event: React.FocusEvent) {
     const next = event.relatedTarget;
     if (!(next instanceof Node) || !wrapperRef.current?.contains(next)) {
       close();
     }
   }
 
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Escape" && isOpen) {
-      event.preventDefault();
-      // Focus first: the trigger's focus would open the pop-up, and the close comes after it.
-      triggerRef.current?.focus();
-      close();
-    }
-  }
-
   const { label, short, anchor } = TERMS[term];
+  // A toggletip without a live region: a screen reader reads the pop-up next after the button.
   return (
     <span className="term-hint" ref={wrapperRef}>
       <button
@@ -163,12 +200,12 @@ export function TermHint({ term, children }: Props) {
         className="term-hint-trigger"
         ref={triggerRef}
         aria-expanded={isOpen}
-        aria-controls={popupId}
+        aria-controls={isOpen ? popupId : undefined}
         onClick={handleTriggerClick}
         onFocus={handleTriggerFocus}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
+        onBlur={handleTriggerBlur}
         onPointerDown={handleTriggerPointerDown}
+        onPointerCancel={handleTriggerPointerCancel}
         onPointerEnter={scheduleOpen}
         onPointerLeave={scheduleClose}
       >
@@ -183,8 +220,9 @@ export function TermHint({ term, children }: Props) {
           className="term-hint-popup"
           ref={popupRef}
           style={position}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
+          // Focusable by a press, so a press on its text keeps focus inside and it stays open.
+          tabIndex={-1}
+          onBlur={handlePopupBlur}
           onPointerEnter={clearTimer}
           onPointerLeave={scheduleClose}
         >
@@ -196,23 +234,17 @@ export function TermHint({ term, children }: Props) {
   );
 }
 
-// Below the trigger, or above it when the screen has no room below; moved sideways to stay
-// within the screen's gutters. In the screen's coordinates, as the pop-up is fixed.
+// Below the trigger when it fits; otherwise on whichever side has more room, never above the
+// top gutter. Moved sideways to stay within the screen's gutters. In the screen's coordinates,
+// as the pop-up is fixed.
 function placePopup(trigger: DOMRect, popup: DOMRect): React.CSSProperties {
-  const isAbove = trigger.bottom + popup.height > window.innerHeight;
+  const roomBelow = window.innerHeight - trigger.bottom;
+  const isAbove = popup.height > roomBelow && trigger.top > roomBelow;
   const maxLeft = window.innerWidth - popup.width - VIEWPORT_GUTTER_PX;
   return {
-    top: isAbove ? trigger.top - popup.height : trigger.bottom,
+    top: Math.max(VIEWPORT_GUTTER_PX, isAbove ? trigger.top - popup.height : trigger.bottom),
     left: Math.max(VIEWPORT_GUTTER_PX, Math.min(trigger.left, maxLeft)),
   };
-}
-
-// A pop-up already taken out of the document was hidden when it left.
-function hidePopup(popup: HTMLElement | null): void {
-  // Older browsers and jsdom have no Popover API.
-  if (popup !== null && popup.isConnected && typeof popup.hidePopover === "function") {
-    popup.hidePopover();
-  }
 }
 
 function helpHref(anchor: string): string {

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -84,6 +84,22 @@ describe("on hover", () => {
     expect(queryPopup()).not.toBeNull();
   });
 
+  it("ignores a touch, which has no hover", () => {
+    fireEvent.pointerOver(renderHint(), { pointerType: "touch" });
+
+    advance(300);
+
+    expect(queryPopup()).toBeNull();
+  });
+
+  it("ignores a pen, which hovers only by accident", () => {
+    fireEvent.pointerOver(renderHint(), { pointerType: "pen" });
+
+    advance(300);
+
+    expect(queryPopup()).toBeNull();
+  });
+
   it("closes after the delay once the pointer leaves both", async () => {
     const user = setUpUser();
     const trigger = renderHint();
@@ -95,6 +111,69 @@ describe("on hover", () => {
 
     expect(queryPopup()).toBeNull();
   });
+});
+
+// A click on a pop-up that hover opened pins it open, rather than closing what the user meant
+// to keep.
+describe("hover, then a click", () => {
+  async function hoverThenClick(user: ReturnType<typeof setUpUser>) {
+    const trigger = renderHint();
+    await user.hover(trigger);
+    advance(300);
+    await user.click(trigger);
+    return trigger;
+  }
+
+  it("keeps the pop-up open", async () => {
+    const user = setUpUser();
+
+    await hoverThenClick(user);
+
+    expect(queryPopup()).not.toBeNull();
+  });
+
+  it("keeps it open after the pointer leaves", async () => {
+    const user = setUpUser();
+    const trigger = await hoverThenClick(user);
+
+    await user.unhover(trigger);
+    advance(200);
+
+    expect(queryPopup()).not.toBeNull();
+  });
+
+  it("closes it on the next click", async () => {
+    const user = setUpUser();
+    const trigger = await hoverThenClick(user);
+
+    await user.click(trigger);
+
+    expect(queryPopup()).toBeNull();
+  });
+});
+
+it("stays open on a click inside the pop-up", async () => {
+  const user = setUpUser();
+  renderHint();
+  await user.tab();
+
+  await user.click(screen.getByText(TERMS.completeness.short));
+
+  expect(queryPopup()).not.toBeNull();
+});
+
+// Safari moves focus to no element when a button is pressed, so the pop-up's blur names nothing.
+it("closes on a click of the trigger that leaves focus nowhere", async () => {
+  const user = setUpUser();
+  const trigger = renderHint();
+  await user.tab();
+  await user.click(screen.getByText(TERMS.completeness.short));
+
+  fireEvent.pointerDown(trigger);
+  act(() => screen.getByRole("group", { name: LABEL }).blur());
+  fireEvent.click(trigger);
+
+  expect(queryPopup()).toBeNull();
 });
 
 it("opens on focus", async () => {
@@ -139,7 +218,41 @@ describe("aria-expanded", () => {
   });
 });
 
+describe("aria-controls", () => {
+  it("is absent while closed", () => {
+    expect(renderHint().hasAttribute("aria-controls")).toBe(false);
+  });
+
+  it("names the pop-up while open", () => {
+    const trigger = renderHint();
+
+    fireEvent.click(trigger);
+
+    expect(trigger.getAttribute("aria-controls")).toBe(screen.getByRole("group", { name: LABEL }).id);
+  });
+});
+
 describe("Escape", () => {
+  it("closes a pop-up that hover opened, with focus elsewhere", async () => {
+    const user = setUpUser();
+    await user.hover(renderHint());
+    advance(300);
+
+    await user.keyboard("{Escape}");
+
+    expect(queryPopup()).toBeNull();
+  });
+
+  it("leaves focus alone when it was elsewhere", async () => {
+    const user = setUpUser();
+    await user.hover(renderHint());
+    advance(300);
+
+    await user.keyboard("{Escape}");
+
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it("closes the pop-up from inside it", async () => {
     const user = setUpUser();
     renderHint();
@@ -221,9 +334,7 @@ it("closes the open hint when another opens", () => {
 it("says the term's short explanation", () => {
   fireEvent.click(renderHint());
 
-  expect(screen.getByRole("group", { name: LABEL }).querySelector(".term-hint-text")?.textContent).toBe(
-    TERMS.completeness.short,
-  );
+  expect(within(screen.getByRole("group", { name: LABEL })).getByText(TERMS.completeness.short)).not.toBeNull();
 });
 
 it("shows its children in place of the term's name", () => {
@@ -285,6 +396,22 @@ describe("placement", () => {
     expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("460px");
   });
 
+  it("opens below on a short screen when below has more room", () => {
+    stubLayout({ top: 20, bottom: 40, left: 100 }, { width: 800, height: 120 });
+
+    fireEvent.click(renderHint());
+
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("40px");
+  });
+
+  it("keeps clear of the top gutter on a short screen", () => {
+    stubLayout({ top: 100, bottom: 120, left: 100 }, { width: 800, height: 140 });
+
+    fireEvent.click(renderHint());
+
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("16px");
+  });
+
   it("lines up with the trigger's left edge when there is room", () => {
     stubLayout({ top: 100, bottom: 120, left: 100 }, { width: 800, height: 600 });
 
@@ -313,17 +440,14 @@ describe("placement", () => {
 // jsdom has no Popover API, so it is stubbed here and removed again after each test.
 describe("the top layer", () => {
   let showPopover: ReturnType<typeof vi.fn>;
-  let hidePopover: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     showPopover = vi.fn();
-    hidePopover = vi.fn();
-    Object.assign(HTMLElement.prototype, { showPopover, hidePopover });
+    Object.assign(HTMLElement.prototype, { showPopover });
   });
 
   afterEach(() => {
     Reflect.deleteProperty(HTMLElement.prototype, "showPopover");
-    Reflect.deleteProperty(HTMLElement.prototype, "hidePopover");
   });
 
   it("is a manual popover", () => {
@@ -336,26 +460,6 @@ describe("the top layer", () => {
     fireEvent.click(renderHint());
 
     expect(showPopover.mock.contexts).toEqual([screen.getByRole("group", { name: LABEL })]);
-  });
-
-  it("hides the pop-up on close", () => {
-    const trigger = renderHint();
-    fireEvent.click(trigger);
-    const popup = screen.getByRole("group", { name: LABEL });
-
-    fireEvent.click(trigger);
-
-    expect(hidePopover.mock.contexts).toEqual([popup]);
-  });
-
-  it("hides the pop-up on unmount", () => {
-    const { unmount } = render(<TermHint term="completeness" />);
-    fireEvent.click(screen.getByRole("button", { name: LABEL }));
-    const popup = screen.getByRole("group", { name: LABEL });
-
-    unmount();
-
-    expect(hidePopover.mock.contexts).toEqual([popup]);
   });
 });
 
