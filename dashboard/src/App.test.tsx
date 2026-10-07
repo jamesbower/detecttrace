@@ -233,6 +233,7 @@ const WAITING = {
   next_step_text: null,
 };
 const WAITING_DATA = { view: { ...DEMO_VIEW, served: SERVED, waiting: WAITING }, waiting: WAITING };
+const SERVED_WAITING_DATA = { ...WAITING_DATA, view: { ...WAITING_DATA.view, mode: "served" as const } };
 
 it("shows what has arrived on a waiting page", () => {
   render(<App data={WAITING_DATA} />);
@@ -370,7 +371,7 @@ it("shows the Help page on a served waiting page", () => {
   registerHelp();
   window.history.replaceState(null, "", "#/help");
 
-  render(<App data={WAITING_DATA} />);
+  render(<App data={SERVED_WAITING_DATA} />);
 
   expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("How DetectTrace works");
 });
@@ -387,7 +388,7 @@ it("titles a waiting page's Help page after the page", () => {
 it("links only the Help page on a served waiting page", () => {
   registerHelp();
 
-  render(<App data={WAITING_DATA} />);
+  render(<App data={SERVED_WAITING_DATA} />);
 
   expect(screen.getByRole("navigation", { name: "Pages" }).textContent).toBe("Help");
 });
@@ -413,8 +414,6 @@ it("moves focus to the section a ui waiting page goes to", async () => {
   const section = await screen.findByRole("heading", { name: "Evidence completeness" });
   await waitFor(() => expect(document.activeElement).toBe(section));
 });
-
-const SERVED_WAITING_DATA = { ...WAITING_DATA, view: { ...WAITING_DATA.view, mode: "served" as const } };
 
 function GlossaryPage({ results }: ResultlessPageProps) {
   return <h1 tabIndex={-1}>{results === null ? "Glossary without results" : "Glossary"}</h1>;
