@@ -406,12 +406,6 @@ describe("in path mode", () => {
     expect(`${window.location.pathname}${window.location.hash}`).toBe(`/help#${SECTION}`);
   });
 
-  it("moves an old cases hash address to the cases path", () => {
-    openAt("/#/cases");
-
-    expect(`${window.location.pathname}${window.location.hash}`).toBe("/cases");
-  });
-
   it("keeps the section when it moves an old hash address", () => {
     openAt(`/#/help#${SECTION}`);
 

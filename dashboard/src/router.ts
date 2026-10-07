@@ -33,7 +33,7 @@ export type ParsedAddress = {
 
 export type Route = ParsedAddress & {
   /** Opens another page, adding a history entry. */
-  navigate: (path: string, query?: Readonly<Record<string, string>>, section?: string) => void;
+  navigate: (path: string, query?: Readonly<Record<string, string>>, section?: string | null) => void;
   /** Sets (or, with null, removes) query parameters on this page, keeping the others. */
   setQuery: (updates: Readonly<Record<string, string | null>>) => void;
 };
@@ -95,15 +95,12 @@ export function useRoute(): Route {
 }
 
 /** Moves focus to the section a route names, and scrolls it into view, when the section changes
- * or the page opens at one. The section's heading takes focus with `tabIndex={-1}`. Called
- * once, by the app, after the page has rendered. The scroll follows the page's
- * `scroll-behavior`, which a reader who asks for reduced motion always gets as instant. */
+ * or the page opens at one. The section's heading takes focus with `tabIndex={-1}`. The app
+ * calls it once, after the page has rendered, so a page need not. */
 export function useSectionFocus(section: string | null): void {
   useEffect(() => {
-    const target = section === null ? null : document.getElementById(section);
-    if (target !== null) {
-      target.focus({ preventScroll: true });
-      target.scrollIntoView({ block: "start" });
+    if (section !== null) {
+      focusSection(section);
     }
   }, [section]);
 }
@@ -115,10 +112,20 @@ export function followLink(
   event: React.MouseEvent<HTMLAnchorElement>,
   path: string,
   query: URLSearchParams,
-  section?: string,
+  section?: string | null,
 ): void {
   const isPlainClick = event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-  if (routeMode === "hash" || event.defaultPrevented || !isPlainClick) {
+  if (event.defaultPrevented || !isPlainClick) {
+    return;
+  }
+  // A link to the section already open changes no address, so no route change would move
+  // focus there; a contents list relies on it doing so.
+  if (section != null && toHref(path, query, section) === readAddress()) {
+    event.preventDefault();
+    focusSection(section);
+    return;
+  }
+  if (routeMode === "hash") {
     return;
   }
   event.preventDefault();
@@ -128,7 +135,7 @@ export function followLink(
 function navigate(
   path: string,
   query: Readonly<Record<string, string>> | URLSearchParams = {},
-  section?: string,
+  section?: string | null,
 ): void {
   const href = toHref(path, new URLSearchParams(query), section);
   if (routeMode === "hash") {
@@ -156,6 +163,14 @@ function setQuery(updates: Readonly<Record<string, string | null>>): void {
   // Replaced, not pushed: Back should leave the page, not step through every filter change.
   window.history.replaceState(window.history.state, "", toHref(current.path, query, current.section));
   notifyAddressChange();
+}
+
+function focusSection(id: string): void {
+  const target = document.getElementById(id);
+  if (target !== null) {
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: "start" });
+  }
 }
 
 // A query never holds a bare `#`: URLSearchParams writes it as `%23`.

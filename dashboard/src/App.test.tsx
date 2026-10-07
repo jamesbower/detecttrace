@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { Data } from "./pages/Data";
@@ -160,16 +160,25 @@ it("moves focus to the section a new page opens at", async () => {
   await waitFor(() => expect(document.activeElement).toBe(section));
 });
 
-it("never focuses the heading of a new page opened at a section", async () => {
+describe("on a new page opened at a section", () => {
   const focused: (string | null)[] = [];
   const onFocusIn = (event: FocusEvent) => focused.push((event.target as HTMLElement).textContent);
-  document.addEventListener("focusin", onFocusIn);
 
-  openHelpSection();
+  beforeEach(() => {
+    focused.length = 0;
+    document.addEventListener("focusin", onFocusIn);
+  });
 
-  await screen.findByRole("heading", { name: "Evidence completeness" });
-  document.removeEventListener("focusin", onFocusIn);
-  expect(focused).toEqual(["Evidence completeness"]);
+  afterEach(() => {
+    document.removeEventListener("focusin", onFocusIn);
+  });
+
+  it("never focuses the page's heading", async () => {
+    openHelpSection();
+
+    await screen.findByRole("heading", { name: "Evidence completeness" });
+    expect(focused).toEqual(["Evidence completeness"]);
+  });
 });
 
 it("leaves focus alone when only the query changes", () => {

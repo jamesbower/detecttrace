@@ -8,6 +8,7 @@ import type * as React from "react";
 
 afterEach(() => {
   cleanup();
+  Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   startRouter("offline");
   window.history.replaceState(null, "", "/");
 });
@@ -63,6 +64,44 @@ describe("with a section", () => {
     fireEvent.click(renderSectionLink());
 
     expect(`${window.location.pathname}${window.location.hash}`).toBe("/help#evidence-completeness");
+  });
+});
+
+// A link to the section already open changes no address, so no route change moves focus.
+function clickLinkToOpenSection() {
+  // jsdom lays nothing out, so it has no scrollIntoView.
+  Element.prototype.scrollIntoView = () => {};
+  render(
+    <>
+      <PageLink path="/help" section="evidence-completeness">
+        Back to the section
+      </PageLink>
+      <h2 id="evidence-completeness" tabIndex={-1}>
+        Evidence completeness
+      </h2>
+    </>,
+  );
+  fireEvent.click(screen.getByRole("link", { name: "Back to the section" }));
+  return screen.getByRole("heading", { name: "Evidence completeness" });
+}
+
+describe("with the section already open", () => {
+  it("focuses the section again on a click on an offline page", () => {
+    window.history.replaceState(null, "", "#/help#evidence-completeness");
+    startRouter("offline");
+
+    const section = clickLinkToOpenSection();
+
+    expect(document.activeElement).toBe(section);
+  });
+
+  it("focuses the section again on a click on a served page", () => {
+    window.history.replaceState(null, "", "/help#evidence-completeness");
+    startRouter("served");
+
+    const section = clickLinkToOpenSection();
+
+    expect(document.activeElement).toBe(section);
   });
 });
 

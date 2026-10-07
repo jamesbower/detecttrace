@@ -11,7 +11,7 @@ type PageLinkProps = Omit<
   path: string;
   query?: URLSearchParams;
   /** The id of a heading on the page to open at. */
-  section?: string;
+  section?: string | null;
 };
 
 /** A link to a dashboard page, or a section of it, at its hash or its path, as the router
