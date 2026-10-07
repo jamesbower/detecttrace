@@ -309,8 +309,10 @@ def test_a_tool_result_never_appears(hostile: tuple[Any, str]) -> None:
 # No network
 
 # React's built code names the SVG, MathML, XLink and XML namespaces and links its error
-# decoder in messages; none of them is ever requested.
+# decoder in messages; none of them is ever requested. The Help page links to the documentation,
+# opened only when the reader follows a link.
 INERT_URLS = {
+    "https://github.com/jamesbower/detecttrace/blob/main/docs",
     "http://www.w3.org/1998/Math/MathML",
     "http://www.w3.org/1999/xlink",
     "http://www.w3.org/2000/svg",

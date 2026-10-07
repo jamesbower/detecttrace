@@ -13,5 +13,6 @@ it("registers the built-in pages in navigation order", () => {
     "/cases",
     "/data",
     "/limits",
+    "/help",
   ]);
 });

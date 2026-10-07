@@ -59,6 +59,7 @@ PAGES = [
     ("/cases", "Cases"),
     ("/data", "Data"),
     ("/limits", "Limits"),
+    ("/help", "Help"),
 ]
 PAGE_IDS = [title for _, title in PAGES]
 WIDTHS = [1280, 360]
@@ -659,7 +660,7 @@ def hostile_state(
 class WaitingState:
     title: str
     counts: dict[str, str]
-    page_links: int
+    page_links: list[str]
     requests: list[str]
     url: str
     csp_violations: list[str]
@@ -678,7 +679,7 @@ def waiting_state(browser: Any, tmp_path_factory: pytest.TempPathFactory) -> Wai
         return WaitingState(
             title=page.text_content("h1"),
             counts=dict(zip(terms, values, strict=True)),
-            page_links=page.locator(".sidebar-link").count(),
+            page_links=page.locator(".sidebar-link").all_text_contents(),
             requests=visit.requests,
             url=visit.url,
             csp_violations=visit.csp_violations(),
@@ -1080,8 +1081,8 @@ def test_the_waiting_page_shows_each_count_under_its_label(waiting_state: Waitin
     }
 
 
-def test_the_waiting_page_links_no_page(waiting_state: WaitingState) -> None:
-    assert waiting_state.page_links == 0
+def test_the_waiting_page_links_only_help(waiting_state: WaitingState) -> None:
+    assert waiting_state.page_links == ["Help"]
 
 
 def test_the_waiting_page_reports_no_csp_violation(waiting_state: WaitingState) -> None:

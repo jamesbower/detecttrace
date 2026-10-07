@@ -1,9 +1,12 @@
-// Importing this module registers the built-in pages, in navigation order.
+// Importing this module registers the built-in pages, in navigation order, and the Help
+// page's sections.
 // Each icon is an SVG path's `d`, drawn stroked in a 24 by 24 box.
+import "../help/sections";
 import { registerPage } from "../registry";
-import { DATA_PATH } from "../router";
+import { DATA_PATH, HELP_PATH } from "../router";
 import { Cases } from "./Cases";
 import { Data } from "./Data";
+import { Help } from "./Help";
 import { Limits } from "./Limits";
 import { Overview } from "./Overview";
 import { SkippedSteps } from "./SkippedSteps";
@@ -66,4 +69,11 @@ registerPage({
   icon: "M12 3a9 9 0 100 18 9 9 0 000-18zM12 8v.5M12 11v5",
   order: 7,
   component: Limits,
+});
+registerPage({
+  path: HELP_PATH,
+  title: "Help",
+  icon: "M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 115 0c0 1.7-2.5 2-2.5 4M12 17v.5",
+  order: 8,
+  component: Help,
 });

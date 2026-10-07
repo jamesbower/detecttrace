@@ -138,7 +138,7 @@ PAGE_OF = {
 # Fields the page reads without printing them. Each one's name must appear in the page code.
 SKIPPED = {
     "view_version": "checked so the page refuses a view it cannot read",
-    "mode": "marks the Data page, where a ui page will add its setup steps",
+    "mode": "marks the Data page, where a ui page will add its setup steps, and picks Help's sections",
     "classes[].anchor": "names the selected class in the hash and in element ids",
     "classes[].rows[].style": "picks the row's series colour, dash and marker shape",
     "classes[].rows[].is_all": "styles the all-versions row",

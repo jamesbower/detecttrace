@@ -216,14 +216,14 @@ def test_the_page_forbids_framing(client: TestClient) -> None:
     assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
 
 
-@pytest.mark.parametrize("path", ["/versions", "/cases", "/data"])
+@pytest.mark.parametrize("path", ["/versions", "/cases", "/data", "/help"])
 def test_a_page_path_is_the_ui_page(client: TestClient, path: str) -> None:
     response = client.get(path)
 
     assert read_view(response.text)["mode"] == "ui"
 
 
-@pytest.mark.parametrize("path", ["/versions", "/cases", "/data"])
+@pytest.mark.parametrize("path", ["/versions", "/cases", "/data", "/help"])
 def test_a_page_path_forbids_framing(client: TestClient, path: str) -> None:
     response = client.get(path)
 

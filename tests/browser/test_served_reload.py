@@ -205,15 +205,16 @@ def test_each_sidebar_link_opens_its_page_address(address_walk: AddressWalk) -> 
         "Cases": "/cases",
         "Data": "/data",
         "Limits": "/limits",
+        "Help": "/help",
     }
 
 
 def test_back_returns_to_the_page_before(address_walk: AddressWalk) -> None:
-    assert address_walk.address_after_back == "/data"
+    assert address_walk.address_after_back == "/limits"
 
 
 def test_forward_returns_to_the_page_after(address_walk: AddressWalk) -> None:
-    assert address_walk.address_after_forward == "/limits"
+    assert address_walk.address_after_forward == "/help"
 
 
 def test_picking_a_class_puts_it_in_the_page_address(address_walk: AddressWalk) -> None:
@@ -266,4 +267,4 @@ def test_the_waiting_page_offers_new_data(waiting_visit: WaitingVisit) -> None:
 
 
 def test_reloading_the_waiting_page_shows_the_dashboard(waiting_visit: WaitingVisit) -> None:
-    assert waiting_visit.page_links_after_reload == 8
+    assert waiting_visit.page_links_after_reload == 9

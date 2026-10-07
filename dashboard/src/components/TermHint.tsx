@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { TERMS } from "../help/terms";
-import { toHref } from "../router";
+import { HELP_PATH } from "../router";
+import { PageLink } from "./PageLink";
 import "./TermHint.css";
 
 import type * as React from "react";
@@ -240,7 +241,9 @@ export function TermHint({ term, children }: Props) {
           onPointerLeave={scheduleClose}
         >
           <span className="term-hint-text">{short}</span>
-          <a href={helpHref(anchor)}>More in Help</a>
+          <PageLink path={HELP_PATH} section={anchor}>
+            More in Help
+          </PageLink>
         </span>
       )}
     </span>
@@ -258,8 +261,4 @@ function placePopup(trigger: DOMRect, popup: DOMRect): React.CSSProperties {
     top: isAbove ? Math.max(VIEWPORT_GUTTER_PX, trigger.top - popup.height) : trigger.bottom,
     left: Math.max(VIEWPORT_GUTTER_PX, Math.min(trigger.left, maxLeft)),
   };
-}
-
-function helpHref(anchor: string): string {
-  return `${toHref("/help", new URLSearchParams())}#${anchor}`;
 }

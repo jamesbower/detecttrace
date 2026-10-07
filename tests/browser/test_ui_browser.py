@@ -87,6 +87,7 @@ PAGE_ADDRESSES = {
     "Cases": "/cases",
     "Data": "/data",
     "Limits": "/limits",
+    "Help": "/help",
 }
 EMPTY_STATE = {
     "is_configured": False,
@@ -421,11 +422,11 @@ def test_each_sidebar_link_opens_its_page_address(address_walk: AddressWalk) -> 
 
 
 def test_back_returns_to_the_page_before(address_walk: AddressWalk) -> None:
-    assert address_walk.address_after_back == "/data"
+    assert address_walk.address_after_back == "/limits"
 
 
 def test_forward_returns_to_the_page_after(address_walk: AddressWalk) -> None:
-    assert address_walk.address_after_forward == "/limits"
+    assert address_walk.address_after_forward == "/help"
 
 
 def test_picking_a_class_puts_it_in_the_page_address(address_walk: AddressWalk) -> None:

@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { Data } from "./pages/Data";
+import { Help } from "./pages/Help";
 import { POLL_MS } from "./poller";
-import { registerPage, resetRegistryForTests } from "./registry";
+import { registerHelpSection, registerPage, resetRegistryForTests } from "./registry";
 import { startRouter } from "./router";
 import { DEMO_RESULTS, DEMO_VIEW } from "./test-fixtures";
 
@@ -311,6 +312,75 @@ it("links a ui waiting page's other pages to the Data page", () => {
   expect(
     screen.getByRole("link", { name: "Upload traces and verdicts on the Data page to get started." }).getAttribute("href"),
   ).toBe("#/data");
+});
+
+function registerHelp() {
+  // jsdom lays nothing out, so it has no scrollIntoView.
+  Element.prototype.scrollIntoView = () => {};
+  registerPage({ path: "/help", title: "Help", icon: "", order: 3, component: Help });
+  registerHelpSection({
+    id: "evidence-completeness",
+    title: "Evidence completeness",
+    order: 0,
+    body: () => <p>The share of checklist items satisfied.</p>,
+  });
+}
+
+it("shows the Help page on a ui waiting page", () => {
+  registerHelp();
+  window.history.replaceState(null, "", "#/help");
+
+  render(<App data={UI_WAITING_DATA} />);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("How DetectTrace works");
+});
+
+it("shows the Help page on a served waiting page", () => {
+  registerHelp();
+  window.history.replaceState(null, "", "#/help");
+
+  render(<App data={WAITING_DATA} />);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("How DetectTrace works");
+});
+
+it("titles a waiting page's Help page after the page", () => {
+  registerHelp();
+  window.history.replaceState(null, "", "#/help");
+
+  render(<App data={WAITING_DATA} />);
+
+  expect(document.title).toBe("Help · DetectTrace");
+});
+
+it("links only the Help page on a served waiting page", () => {
+  registerHelp();
+
+  render(<App data={WAITING_DATA} />);
+
+  expect(screen.getByRole("navigation", { name: "Pages" }).textContent).toBe("Help");
+});
+
+it("moves focus to the section a ui waiting page opens at", async () => {
+  registerHelp();
+  window.history.replaceState(null, "", "#/help#evidence-completeness");
+
+  render(<App data={UI_WAITING_DATA} />);
+
+  const section = screen.getByRole("heading", { name: "Evidence completeness" });
+  await waitFor(() => expect(document.activeElement).toBe(section));
+});
+
+it("moves focus to the section a ui waiting page goes to", async () => {
+  registerHelp();
+  render(<App data={UI_WAITING_DATA} />);
+
+  act(() => {
+    window.location.hash = "#/help#evidence-completeness";
+  });
+
+  const section = await screen.findByRole("heading", { name: "Evidence completeness" });
+  await waitFor(() => expect(document.activeElement).toBe(section));
 });
 
 it("shows how many cases are still settling on a served page", () => {

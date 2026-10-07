@@ -11,6 +11,7 @@ import type { View } from "./view";
 
 export const HOME_PATH = "/";
 export const DATA_PATH = "/data";
+export const HELP_PATH = "/help";
 
 // A section is a heading's id on the page, as in `/help#evidence-completeness`. Only a plain id
 // is kept: anything else in the address could name another page or origin.

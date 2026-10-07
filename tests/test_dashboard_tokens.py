@@ -333,8 +333,8 @@ def test_control_keeps_the_touch_target_size(selector: str, property_name: str) 
     assert _declarations(selector)[property_name] == "var(--touch-target)"
 
 
-def test_a_navigation_link_is_44px_wide_unless_eight_would_not_fit() -> None:
-    assert tokens()["--nav-link-min-width"] == "min(var(--touch-target), 12.5vw)"
+def test_a_navigation_link_is_44px_wide_unless_nine_would_not_fit() -> None:
+    assert tokens()["--nav-link-min-width"] == "min(var(--touch-target), 100vw / 9)"
 
 
 def test_navigation_links_share_the_bar_at_the_link_minimum() -> None:

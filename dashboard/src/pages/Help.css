@@ -1,0 +1,95 @@
+.help-contents {
+  max-width: var(--measure);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--frame);
+  border-top: var(--border-accent) solid var(--accent);
+}
+
+.help-contents ul {
+  display: grid;
+  gap: var(--sp-1);
+  padding-left: var(--sp-5);
+}
+
+.help-contents a {
+  display: inline-block;
+  padding-block: var(--sp-1);
+  text-underline-offset: var(--underline-offset);
+}
+
+.help {
+  display: grid;
+  gap: var(--sp-7);
+  max-width: var(--measure);
+  padding-top: var(--sp-5);
+}
+
+.help-section {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.help-section ul {
+  display: grid;
+  gap: var(--sp-2);
+  padding-left: var(--sp-5);
+}
+
+/* A contents link scrolls its heading to the top; this keeps a little room above it. Not in
+   capitals, unlike other headings: an uppercase κ reads as K. */
+.help-title {
+  width: fit-content;
+  scroll-margin-top: var(--sp-5);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+
+/* Focus lands here from a contents link or a term's pop-up: the page title's slimmer ring. */
+.help-title:focus-visible {
+  outline-width: var(--border-mark);
+}
+
+.help-section h3 {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.help-formula {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+  border-left: var(--border-accent) solid var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.help-formula code {
+  color: var(--accent-text);
+}
+
+.help-pages {
+  display: grid;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+}
+
+.help-pages dt {
+  font-weight: var(--fw-semibold);
+}
+
+.help-pages dd {
+  margin: 0 0 var(--sp-3);
+  color: var(--muted);
+}
+
+/* --bp-narrow: each page's name beside its description. */
+@media (width > 620px) {
+  .help-pages {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .help-pages dd {
+    margin: 0;
+  }
+}

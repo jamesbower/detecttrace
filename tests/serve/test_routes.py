@@ -215,7 +215,7 @@ def test_status_before_any_write_has_no_ingest_time(empty_status_body: dict[str,
 
 
 # Every page of the dashboard has its own address, and each one answers with the same page.
-PAGE_PATHS = ["/versions", "/cases", "/data"]
+PAGE_PATHS = ["/versions", "/cases", "/data", "/help"]
 
 
 @pytest.mark.parametrize("path", PAGE_PATHS)
