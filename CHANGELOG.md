@@ -18,6 +18,7 @@ The first release.
 - `FileSpanExporter` (the `otel` extra) writes your agent's OpenTelemetry spans straight to OTLP JSON Lines files, without a Collector.
 - Dashboard pages: an overview, results by version, checklist steps the agent skipped, a weekly trend, agent verdicts against analyst verdicts, cases, data (the coverage lines and the data notes), and what the dashboard does not tell you. Every value shows its number of cases and a 95% confidence interval.
 - A Result filter on the Cases page: all cases, disagreements, or dangerous false closes. The page, the selected alert class and the case filters are kept in the page's address.
+- Term explanations on the Overview, Versions and Weekly trend pages; a Help page.
 - Keyboard navigation of the weekly trend charts: the arrow keys, Home and End move between points.
 - Support for forced colors, such as Windows high contrast: trend lines, chart markers and interval strips stay visible.
 - `detecttrace serve` runs the dashboard as a long-running service for a team. It receives spans over OTLP/HTTP as JSON (plain or gzip) from an OpenTelemetry Collector's `otlp_http` exporter, stores them in SQLite, recomputes the dashboard in the background, and serves it to holders of a read token, along with `/api/status`, `/api/results.json` and an unauthenticated `/healthz`. Tool results are dropped on arrival.

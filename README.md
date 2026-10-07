@@ -77,7 +77,7 @@ The demo runs on about 200 synthetic cases in two identity alert classes over si
 
 It prints a short summary and writes `detecttrace-demo.html`, a self-contained dashboard that opens in any browser without a network connection. Running the demo again replaces its own earlier page.
 
-The dashboard, as a file from `check` or in `detecttrace ui`, has eight pages, listed in a sidebar:
+The dashboard, as a file from `check` or in `detecttrace ui`, has nine pages, listed in a sidebar:
 
 - **Overview**: the cases, the period, the coverage and the dangerous false closes, then the results by version for one alert class.
 - **Versions**: evidence completeness, verdict agreement and chance-corrected agreement for each version, with intervals.
@@ -93,6 +93,9 @@ The dashboard, as a file from `check` or in `detecttrace ui`, has eight pages, l
 
 - **Data**: the coverage lines and every input problem, with how to fix it. In `detecttrace ui`, this is also where you upload files and confirm the configuration.
 - **Limits**: what the dashboard does not tell you.
+- **Help**: how DetectTrace works, what each page shows, how each measure is computed and how to read its numbers.
+
+On the Overview, Versions and Weekly trend pages, each measure's name is a button: hover over it, focus it or tap it to see what the measure means, with a link to its section on the Help page.
 
 Each page has its own address. In the file that `check` and `demo` write, it comes after the `#`, such as `#/cases?class=class-1&result=dangerous`, so the links stay inside the file. In `detecttrace ui` and `detecttrace serve`, it is a path, such as `/cases?class=class-1&result=dangerous`. A bookmark or a reload keeps the page, the selected alert class and the case filters. The footer names the DetectTrace version that wrote the page and says which network requests it makes.
 
