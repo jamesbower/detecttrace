@@ -62,6 +62,8 @@ registerPage({
   icon: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   order: 6,
   component: Data,
+  // The ui app's reader supplies the data here, so it needs none to show.
+  resultlessModes: ["ui"],
 });
 registerPage({
   path: LIMITS_PATH,
@@ -76,4 +78,5 @@ registerPage({
   icon: "M12 3a9 9 0 100 18 9 9 0 000-18zM9.5 9.5a2.5 2.5 0 115 0c0 1.7-2.5 2-2.5 4M12 17v.5",
   order: 8,
   component: Help,
+  resultlessModes: ["offline", "served", "ui"],
 });

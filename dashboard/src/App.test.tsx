@@ -9,7 +9,7 @@ import { registerHelpSection, registerPage, resetRegistryForTests } from "./regi
 import { startRouter } from "./router";
 import { DEMO_RESULTS, DEMO_VIEW } from "./test-fixtures";
 
-import type { PageProps } from "./registry";
+import type { PageProps, ResultlessPageProps } from "./registry";
 
 const DATA = { view: DEMO_VIEW, results: DEMO_RESULTS };
 
@@ -288,7 +288,7 @@ function stubUiApp() {
     "fetch",
     vi.fn(() => Promise.resolve(new Response(JSON.stringify(UI_STATE)))),
   );
-  registerPage({ path: "/data", title: "Data", icon: "", order: 2, component: Data });
+  registerPage({ path: "/data", title: "Data", icon: "", order: 2, component: Data, resultlessModes: ["ui"] });
 }
 
 it("shows the upload step on a ui waiting page's Data page", async () => {
@@ -341,7 +341,14 @@ it("links a ui waiting page's other pages to the Data page", () => {
 function registerHelp() {
   // jsdom lays nothing out, so it has no scrollIntoView.
   Element.prototype.scrollIntoView = () => {};
-  registerPage({ path: "/help", title: "Help", icon: "", order: 3, component: Help });
+  registerPage({
+    path: "/help",
+    title: "Help",
+    icon: "",
+    order: 3,
+    component: Help,
+    resultlessModes: ["offline", "served", "ui"],
+  });
   registerHelpSection({
     id: "evidence-completeness",
     title: "Evidence completeness",
@@ -405,6 +412,57 @@ it("moves focus to the section a ui waiting page goes to", async () => {
 
   const section = await screen.findByRole("heading", { name: "Evidence completeness" });
   await waitFor(() => expect(document.activeElement).toBe(section));
+});
+
+const SERVED_WAITING_DATA = { ...WAITING_DATA, view: { ...WAITING_DATA.view, mode: "served" as const } };
+
+function GlossaryPage({ results }: ResultlessPageProps) {
+  return <h1 tabIndex={-1}>{results === null ? "Glossary without results" : "Glossary"}</h1>;
+}
+
+function registerGlossary() {
+  registerPage({
+    path: "/glossary",
+    title: "Glossary",
+    icon: "",
+    order: 2,
+    component: GlossaryPage,
+    resultlessModes: ["served"],
+  });
+}
+
+it("shows a page registered as resultless in served mode on a served waiting page", () => {
+  registerGlossary();
+  window.history.replaceState(null, "", "#/glossary");
+
+  render(<App data={SERVED_WAITING_DATA} />);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Glossary without results");
+});
+
+it("links a page registered as resultless in served mode on a served waiting page", () => {
+  registerGlossary();
+
+  render(<App data={SERVED_WAITING_DATA} />);
+
+  expect(screen.getByRole("navigation", { name: "Pages" }).textContent).toBe("Glossary");
+});
+
+it("shows what has arrived in place of a page resultless only in served mode on an offline waiting page", () => {
+  registerGlossary();
+  window.history.replaceState(null, "", "#/glossary");
+
+  render(<App data={WAITING_DATA} />);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Nothing to score yet");
+});
+
+it("shows what has arrived in place of a page that needs results on a served waiting page", () => {
+  window.history.replaceState(null, "", "#/cases");
+
+  render(<App data={SERVED_WAITING_DATA} />);
+
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Nothing to score yet");
 });
 
 it("shows how many cases are still settling on a served page", () => {

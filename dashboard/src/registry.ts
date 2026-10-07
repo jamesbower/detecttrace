@@ -10,12 +10,18 @@ export type PageProps = { view: View; results: Results };
 /** A panel gets the page data, plus what its slot is about: the case in `case-detail`, the
  * class and version row in `version-row-detail`. */
 export type PanelProps = PageProps & { caseId?: string; classAnchor?: string; versionLabel?: string };
-export type PageDef = {
-  path: string;
-  title: string;
-  icon: string;
-  order: number;
-  component: React.ComponentType<PageProps>;
+/** What a page that can show without results gets: on a waiting page `results` is null. */
+export type ResultlessPageProps = { view: View; results: Results | null };
+type PageFields = { path: string; title: string; icon: string; order: number };
+/** A page. `resultlessModes` lists the view modes in which a waiting page, which has no
+ * results yet, shows it; such a page's component must take `results: null`. Without it, the
+ * page needs results and a waiting page shows the waiting state in its place. */
+export type PageDef =
+  | (PageFields & { component: React.ComponentType<PageProps>; resultlessModes?: undefined })
+  | ResultlessPageDef;
+export type ResultlessPageDef = PageFields & {
+  component: React.ComponentType<ResultlessPageProps>;
+  resultlessModes: readonly View["mode"][];
 };
 export type PanelSlot =
   | "overview-after-kpis"

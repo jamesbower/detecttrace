@@ -5,14 +5,12 @@ import { ErrorState } from "./components/ErrorState";
 import { Shell } from "./components/Shell";
 import { WaitingState } from "./components/WaitingState";
 import { isPageDataError, isWaitingData } from "./data";
-import { Data } from "./pages/Data";
-import { Help } from "./pages/Help";
 import { listPages } from "./registry";
-import { DATA_PATH, HELP_PATH, useRoute, useSectionFocus } from "./router";
+import { useRoute, useSectionFocus } from "./router";
 import { MAIN_ID } from "./section-id";
 
-import type * as React from "react";
 import type { PageData, PageDataError, WaitingData } from "./data";
+import type { ResultlessPageDef } from "./registry";
 import type { View } from "./view";
 
 type AppProps = { data: PageData | WaitingData | PageDataError };
@@ -33,7 +31,7 @@ function Dashboard({ data }: AppProps) {
   const isUi = !isPageDataError(data) && data.view.mode === "ui";
   const PageWithoutResults = isPageDataError(data)
     ? undefined
-    : findPageWithoutResults(path, data.view.mode)?.component;
+    : findResultlessPage(path, data.view.mode)?.component;
   const isWaitingOnPage = isWaiting && PageWithoutResults === undefined;
   useAnnouncePage(path, isWaitingOnPage, section);
   useSectionFocus(section);
@@ -48,7 +46,7 @@ function Dashboard({ data }: AppProps) {
     const mode = data.view.mode;
     const pages = isUi
       ? listPages()
-      : listPages().filter((page) => findPageWithoutResults(page.path, mode) !== undefined);
+      : listPages().filter((page) => page.resultlessModes?.includes(mode) === true);
     return (
       <Shell
         header={data.view.header}
@@ -89,21 +87,11 @@ function Dashboard({ data }: AppProps) {
   );
 }
 
-type ResultlessPageDef = {
-  path: string;
-  modes?: readonly View["mode"][];
-  component: React.ComponentType<{ view: View; results: null }>;
-};
-
-// The pages a waiting page shows, as they need no results: Help in every mode, and the ui app's
-// Data page, where the reader supplies the data.
-const PAGES_WITHOUT_RESULTS: readonly ResultlessPageDef[] = [
-  { path: HELP_PATH, component: Help },
-  { path: DATA_PATH, modes: ["ui"], component: Data },
-];
-
-function findPageWithoutResults(path: string, mode: View["mode"]): ResultlessPageDef | undefined {
-  return PAGES_WITHOUT_RESULTS.find((page) => page.path === path && (page.modes?.includes(mode) ?? true));
+// The page at this path, if a waiting page, which has no results, can show it in this mode.
+function findResultlessPage(path: string, mode: View["mode"]): ResultlessPageDef | undefined {
+  return listPages().find(
+    (page): page is ResultlessPageDef => page.path === path && page.resultlessModes?.includes(mode) === true,
+  );
 }
 
 const SITE_TITLE = "DetectTrace";
