@@ -1,0 +1,74 @@
+/* The pop-up is placed from this wrapper. */
+.term-hint {
+  position: relative;
+}
+
+/* A measure's name that explains itself: plain text with a dotted underline. The padding grows
+   its hit area to the touch target, and the equal negative margin keeps the row's height. */
+.term-hint-trigger {
+  padding: var(--sp-3) 0;
+  margin: calc(-1 * var(--sp-3)) 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-transform: inherit;
+  cursor: help;
+}
+
+/* Inside a table head or a caption the pop-up still reads as running text. */
+.term-hint-popup {
+  position: absolute;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: max-content;
+  max-width: min(var(--hint-width), calc(100vw - 2 * var(--sp-4)));
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+  border: var(--border-thin) solid var(--control-border);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+  letter-spacing: normal;
+  text-align: start;
+  text-transform: none;
+  white-space: normal;
+  animation: term-hint-fade var(--t-fast) var(--ease);
+}
+
+.term-hint-popup a {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: var(--touch-target);
+  color: var(--accent-text);
+}
+
+@keyframes term-hint-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-hint-popup {
+    animation: none;
+  }
+}
+
+/* Forced colours drop the shadow and the panel fill, so the pop-up keeps its edge in the text
+   colour to stand apart from the page behind it. */
+@media (forced-colors: active) {
+  .term-hint-popup {
+    border-color: CanvasText;
+  }
+}
