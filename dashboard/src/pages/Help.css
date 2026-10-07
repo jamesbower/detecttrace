@@ -23,6 +23,7 @@
   display: flex;
   align-items: center;
   min-height: var(--touch-target);
+  padding-block: var(--sp-1);
   text-underline-offset: var(--underline-offset);
 }
 
@@ -34,7 +35,7 @@
 }
 
 /* --font-mono names fonts before the generic monospace, so the browser doesn't shrink it; this
-   does. */
+   does. Only on Help, where code sits inside running prose. */
 .help code {
   font-size: var(--fs-code-inline);
 }
