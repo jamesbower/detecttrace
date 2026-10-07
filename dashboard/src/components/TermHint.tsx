@@ -45,11 +45,12 @@ export function TermHint({ term, children }: Props) {
     }
   }, []);
 
-  // An open pop-up keeps the way it was first opened.
+  // An open pop-up keeps the way it was first opened, except that focus takes over from hover:
+  // a focused trigger's pop-up must not close because the pointer left.
   const open = useCallback(
     (by: OpenedBy) => {
       clearTimer();
-      setOpenedBy((current) => current ?? by);
+      setOpenedBy((current) => (current === null || (current === "hover" && by === "focus") ? by : current));
     },
     [clearTimer],
   );
@@ -69,6 +70,19 @@ export function TermHint({ term, children }: Props) {
   }, []);
 
   useEffect(() => clearTimer, [clearTimer]);
+
+  // Safari fires neither a click nor a pointercancel for a mouse press dragged off the button,
+  // and never focuses it, so the release ends the press. Only a mouse's: a tap focuses the
+  // button after its pointerup.
+  useEffect(() => {
+    function handlePointerUp(event: PointerEvent) {
+      if (event.pointerType === "mouse") {
+        isPressingRef.current = false;
+      }
+    }
+    document.addEventListener("pointerup", handlePointerUp);
+    return () => document.removeEventListener("pointerup", handlePointerUp);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -148,8 +162,7 @@ export function TermHint({ term, children }: Props) {
     isPressingRef.current = true;
   }
 
-  // A press the browser takes over never clicks: a touch that turns into a scroll, or in Safari
-  // a press dragged off the button.
+  // A press the browser takes over, such as a touch that turns into a scroll, never clicks.
   function handleTriggerPointerCancel() {
     isPressingRef.current = false;
   }
@@ -234,15 +247,15 @@ export function TermHint({ term, children }: Props) {
   );
 }
 
-// Below the trigger when it fits; otherwise on whichever side has more room, never above the
-// top gutter. Moved sideways to stay within the screen's gutters. In the screen's coordinates,
+// Below the trigger when it fits; otherwise on whichever side has more room, and above it never
+// past the top gutter. Moved sideways to stay within the screen's gutters. In the screen's coordinates,
 // as the pop-up is fixed.
 function placePopup(trigger: DOMRect, popup: DOMRect): React.CSSProperties {
   const roomBelow = window.innerHeight - trigger.bottom;
   const isAbove = popup.height > roomBelow && trigger.top > roomBelow;
   const maxLeft = window.innerWidth - popup.width - VIEWPORT_GUTTER_PX;
   return {
-    top: Math.max(VIEWPORT_GUTTER_PX, isAbove ? trigger.top - popup.height : trigger.bottom),
+    top: isAbove ? Math.max(VIEWPORT_GUTTER_PX, trigger.top - popup.height) : trigger.bottom,
     left: Math.max(VIEWPORT_GUTTER_PX, Math.min(trigger.left, maxLeft)),
   };
 }

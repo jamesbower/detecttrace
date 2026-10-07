@@ -100,6 +100,19 @@ describe("on hover", () => {
     expect(queryPopup()).toBeNull();
   });
 
+  it("stays open after the pointer leaves once the trigger has keyboard focus", async () => {
+    const user = setUpUser();
+    const trigger = renderHint();
+    await user.hover(trigger);
+    advance(300);
+    await user.tab();
+
+    await user.unhover(trigger);
+    advance(200);
+
+    expect(queryPopup()).not.toBeNull();
+  });
+
   it("closes after the delay once the pointer leaves both", async () => {
     const user = setUpUser();
     const trigger = renderHint();
@@ -172,6 +185,28 @@ it("closes on a click of the trigger that leaves focus nowhere", async () => {
   fireEvent.pointerDown(trigger);
   act(() => screen.getByRole("group", { name: LABEL }).blur());
   fireEvent.click(trigger);
+
+  expect(queryPopup()).toBeNull();
+});
+
+// Safari fires neither a click nor a pointercancel when a mouse press is dragged off the button.
+it("opens on keyboard focus after a mouse press that never clicked", () => {
+  const trigger = renderHint();
+  fireEvent.pointerDown(trigger, { pointerType: "mouse" });
+  fireEvent.pointerUp(document, { pointerType: "mouse" });
+
+  act(() => trigger.focus());
+
+  expect(queryPopup()).not.toBeNull();
+});
+
+// A tap focuses the button after its pointerup, and that focus must still not open it.
+it("stays closed on the focus that follows a tap's pointerup", () => {
+  const trigger = renderHint();
+  fireEvent.pointerDown(trigger, { pointerType: "touch" });
+  fireEvent.pointerUp(document, { pointerType: "touch" });
+
+  act(() => trigger.focus());
 
   expect(queryPopup()).toBeNull();
 });
@@ -410,6 +445,14 @@ describe("placement", () => {
     fireEvent.click(renderHint());
 
     expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("16px");
+  });
+
+  it("follows a trigger scrolled above the screen, with the pop-up still below it", () => {
+    stubLayout({ top: -50, bottom: -30, left: 100 }, { width: 800, height: 600 });
+
+    fireEvent.click(renderHint());
+
+    expect(screen.getByRole("group", { name: LABEL }).style.top).toBe("-30px");
   });
 
   it("lines up with the trigger's left edge when there is room", () => {
