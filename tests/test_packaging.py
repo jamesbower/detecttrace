@@ -106,6 +106,7 @@ def finder_dist(tmp_path_factory: pytest.TempPathFactory) -> Path:
     shutil.copytree(
         REPO_ROOT / "src", project / "src", ignore=shutil.ignore_patterns("__pycache__")
     )
+    # The sdist's top-level files: everything the build reads outside src/.
     for name in EXPECTED_SDIST - {"PKG-INFO"} - {f"src/{path}" for path in PACKAGE_FILES}:
         shutil.copy2(REPO_ROOT / name, project / name)
     for folder in ("src/detecttrace", "src/detecttrace/demo_data"):

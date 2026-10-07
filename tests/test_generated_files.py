@@ -124,16 +124,23 @@ def test_fixtures_are_under_3_5_mb() -> None:
 
 
 def test_gzip_headers_carry_no_timestamp_or_file_name() -> None:
-    headers = [path.read_bytes()[3:8] for path in sorted((DEMO_DIR / "traces").glob("*.jsonl.gz"))]
+    # The trace loader's rule: every file but hidden ones, such as Finder's .DS_Store.
+    traces = [
+        path for path in sorted((DEMO_DIR / "traces").iterdir()) if not path.name.startswith(".")
+    ]
+
+    headers = [path.read_bytes()[3:8] for path in traces]
 
     # Byte 3 holds the flags (0: no file name) and bytes 4-7 the modification time.
     assert headers == [b"\x00\x00\x00\x00\x00"] * 3
 
 
 def test_every_trace_file_is_gzip_compressed() -> None:
-    assert {path.read_bytes()[:2] for path in (DEMO_DIR / "traces").glob("*.jsonl.gz")} == {
-        b"\x1f\x8b"
-    }
+    traces = [
+        path for path in sorted((DEMO_DIR / "traces").iterdir()) if not path.name.startswith(".")
+    ]
+
+    assert {path.read_bytes()[:2] for path in traces} == {b"\x1f\x8b"}
 
 
 @pytest.mark.benchmark

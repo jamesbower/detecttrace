@@ -77,10 +77,10 @@ def test_demo_results_hold_no_tool_result_text(demo_results_text: str) -> None:
 
 def test_demo_traces_carry_the_result_only_keys() -> None:
     # Guards the check above: the keys it looks for must really be in the traces.
-    text = "".join(
-        gzip.decompress(path.read_bytes()).decode("utf-8")
-        for path in sorted((DEMO_DIR / "traces").glob("*.jsonl.gz"))
-    )
+    traces = [
+        path for path in sorted((DEMO_DIR / "traces").iterdir()) if not path.name.startswith(".")
+    ]
+    text = "".join(gzip.decompress(path.read_bytes()).decode("utf-8") for path in traces)
 
     assert [key for key in RESULT_ONLY_KEYS if f'\\"{key}\\"' not in text] == []
 
