@@ -10,16 +10,19 @@ type PageLinkProps = Omit<
 > & {
   path: string;
   query?: URLSearchParams;
+  /** The id of a heading on the page to open at. */
+  section?: string;
 };
 
-/** A link to a dashboard page, at its hash or its path, as the router routes. */
-export function PageLink({ path, query = new URLSearchParams(), ...anchorProps }: PageLinkProps) {
+/** A link to a dashboard page, or a section of it, at its hash or its path, as the router
+ * routes. */
+export function PageLink({ path, query = new URLSearchParams(), section, ...anchorProps }: PageLinkProps) {
   return (
     <a
       {...anchorProps}
-      href={toHref(path, query)}
+      href={toHref(path, query, section)}
       onClick={(event) => {
-        followLink(event, path, query);
+        followLink(event, path, query, section);
       }}
     />
   );

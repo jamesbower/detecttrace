@@ -35,6 +35,37 @@ describe("on an offline page", () => {
   });
 });
 
+function renderSectionLink() {
+  render(
+    <PageLink path="/help" section="evidence-completeness">
+      Evidence completeness
+    </PageLink>,
+  );
+  return screen.getByRole("link", { name: "Evidence completeness" });
+}
+
+describe("with a section", () => {
+  it("links to the section of the page's hash on an offline page", () => {
+    startRouter("offline");
+
+    expect(renderSectionLink().getAttribute("href")).toBe("#/help#evidence-completeness");
+  });
+
+  it("links to the section of the page's path on a served page", () => {
+    startRouter("served");
+
+    expect(renderSectionLink().getAttribute("href")).toBe("/help#evidence-completeness");
+  });
+
+  it("opens the section in place on a click on a ui page", () => {
+    startRouter("ui");
+
+    fireEvent.click(renderSectionLink());
+
+    expect(`${window.location.pathname}${window.location.hash}`).toBe("/help#evidence-completeness");
+  });
+});
+
 describe("on a served or ui page", () => {
   it("links to the page's path", () => {
     startRouter("served");

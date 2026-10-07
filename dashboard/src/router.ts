@@ -12,6 +12,10 @@ import type { View } from "./view";
 export const HOME_PATH = "/";
 export const DATA_PATH = "/data";
 
+// A section is a heading's id on the page, as in `/help#evidence-completeness`. Only a plain id
+// is kept: anything else in the address could name another page or origin.
+const SECTION_PATTERN = /^[a-z][a-z-]*$/;
+
 // A renamed page's old path forwards to its new one, so old links and bookmarks keep working.
 const PATH_ALIASES: ReadonlyMap<string, string> = new Map([["/data-notes", DATA_PATH]]);
 
@@ -20,11 +24,16 @@ type RouteMode = "hash" | "path";
 // Chosen once, by startRouter, before the first render.
 let routeMode: RouteMode = "hash";
 
-export type ParsedAddress = { readonly path: string; readonly query: URLSearchParams };
+export type ParsedAddress = {
+  readonly path: string;
+  readonly query: URLSearchParams;
+  /** The id of the heading the address names on the page, if any. */
+  readonly section: string | null;
+};
 
 export type Route = ParsedAddress & {
   /** Opens another page, adding a history entry. */
-  navigate: (path: string, query?: Readonly<Record<string, string>>) => void;
+  navigate: (path: string, query?: Readonly<Record<string, string>>, section?: string) => void;
   /** Sets (or, with null, removes) query parameters on this page, keeping the others. */
   setQuery: (updates: Readonly<Record<string, string | null>>) => void;
 };
@@ -41,20 +50,25 @@ export function startRouter(viewMode: View["mode"] | null, protocol: string = wi
   }
 }
 
-/** The route an address names: a hash such as `#/cases?q=x`, or a path such as `/cases?q=x`.
- * An old path forwards to its new one; a path no page is registered at falls back to the home
- * page. */
+/** The route an address names: a hash such as `#/cases?q=x#id`, or a path such as
+ * `/cases?q=x#id`. An old path forwards to its new one; a path no page is registered at falls
+ * back to the home page. A section that is not a plain id is ignored. */
 export function parseAddress(address: string, knownPaths: readonly string[]): ParsedAddress {
-  const { rawPath, search } = splitAddress(address);
+  const { rawPath, search, rawSection } = splitAddress(address);
   const trimmed = rawPath.length > 1 && rawPath.endsWith("/") ? rawPath.slice(0, -1) : rawPath;
   const path = PATH_ALIASES.get(trimmed) ?? trimmed;
-  return { path: knownPaths.includes(path) ? path : HOME_PATH, query: new URLSearchParams(search) };
+  return {
+    path: knownPaths.includes(path) ? path : HOME_PATH,
+    query: new URLSearchParams(search),
+    section: SECTION_PATTERN.test(rawSection) ? rawSection : null,
+  };
 }
 
-/** The link to a page: its hash on a page opened from disk, its path on a served one. */
-export function toHref(path: string, query: URLSearchParams): string {
+/** The link to a page, or to a section of it: its hash on a page opened from disk, as
+ * `#/help#id`, its path on a served one, as `/help#id`. */
+export function toHref(path: string, query: URLSearchParams, section?: string | null): string {
   const search = query.toString();
-  const address = search === "" ? path : `${path}?${search}`;
+  const address = `${path}${search === "" ? "" : `?${search}`}${section == null ? "" : `#${section}`}`;
   return routeMode === "hash" ? `#${address}` : address;
 }
 
@@ -73,27 +87,50 @@ export function useRoute(): Route {
   useEffect(() => {
     if (PATH_ALIASES.has(splitAddress(address).rawPath)) {
       // Replaced, not pushed: Back should not land on the old path and forward again.
-      window.history.replaceState(window.history.state, "", toHref(parsed.path, parsed.query));
+      window.history.replaceState(window.history.state, "", toHref(parsed.path, parsed.query, parsed.section));
     }
   }, [address, parsed]);
 
   return { ...parsed, navigate, setQuery };
 }
 
+/** Moves focus to the section a route names, and scrolls it into view, when the section changes
+ * or the page opens at one. The section's heading takes focus with `tabIndex={-1}`. Called
+ * once, by the app, after the page has rendered. The scroll follows the page's
+ * `scroll-behavior`, which a reader who asks for reduced motion always gets as instant. */
+export function useSectionFocus(section: string | null): void {
+  useEffect(() => {
+    const target = section === null ? null : document.getElementById(section);
+    if (target !== null) {
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: "start" });
+    }
+  }, [section]);
+}
+
 /** A page link's click handler. On a path-routed page, a plain click opens the page in place
  * instead of loading it again; a click with a modifier key or another button is left to the
  * browser, to open a new tab or window. A hash link needs no help. */
-export function followLink(event: React.MouseEvent<HTMLAnchorElement>, path: string, query: URLSearchParams): void {
+export function followLink(
+  event: React.MouseEvent<HTMLAnchorElement>,
+  path: string,
+  query: URLSearchParams,
+  section?: string,
+): void {
   const isPlainClick = event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
   if (routeMode === "hash" || event.defaultPrevented || !isPlainClick) {
     return;
   }
   event.preventDefault();
-  navigate(path, query);
+  navigate(path, query, section);
 }
 
-function navigate(path: string, query: Readonly<Record<string, string>> | URLSearchParams = {}): void {
-  const href = toHref(path, new URLSearchParams(query));
+function navigate(
+  path: string,
+  query: Readonly<Record<string, string>> | URLSearchParams = {},
+  section?: string,
+): void {
+  const href = toHref(path, new URLSearchParams(query), section);
   if (routeMode === "hash") {
     window.location.hash = href;
     return;
@@ -117,16 +154,20 @@ function setQuery(updates: Readonly<Record<string, string | null>>): void {
     }
   }
   // Replaced, not pushed: Back should leave the page, not step through every filter change.
-  window.history.replaceState(window.history.state, "", toHref(current.path, query));
+  window.history.replaceState(window.history.state, "", toHref(current.path, query, current.section));
   notifyAddressChange();
 }
 
-function splitAddress(address: string): { rawPath: string; search: string } {
+// A query never holds a bare `#`: URLSearchParams writes it as `%23`.
+function splitAddress(address: string): { rawPath: string; search: string; rawSection: string } {
   const body = address.startsWith("#") ? address.slice(1) : address;
-  const queryStart = body.indexOf("?");
+  const sectionStart = body.indexOf("#");
+  const route = sectionStart === -1 ? body : body.slice(0, sectionStart);
+  const rawSection = sectionStart === -1 ? "" : body.slice(sectionStart + 1);
+  const queryStart = route.indexOf("?");
   return queryStart === -1
-    ? { rawPath: body, search: "" }
-    : { rawPath: body.slice(0, queryStart), search: body.slice(queryStart + 1) };
+    ? { rawPath: route, search: "", rawSection }
+    : { rawPath: route.slice(0, queryStart), search: route.slice(queryStart + 1), rawSection };
 }
 
 // pushState and replaceState fire no event, so every subscriber is told here.
@@ -153,14 +194,15 @@ function subscribeToAddress(onChange: () => void): () => void {
   };
 }
 
-// Replaced, not pushed: Back should not land on the old address and forward again. Written
-// from the parsed route, never from the raw hash: `#//example.com/x` would name another origin,
-// which replaceState refuses with an error that leaves the page blank. Needs the pages
-// registered, as they are once the page modules have loaded.
+// Replaced, not pushed: Back should not land on the old address and forward again. Only a hash
+// naming a route moves, so a section such as `/help#id` stays. Written from the parsed route,
+// never from the raw hash: `#//example.com/x` would name another origin, which replaceState
+// refuses with an error that leaves the page blank. Needs the pages registered, as they are
+// once the page modules have loaded.
 function forwardHashRoute(): void {
   if (window.location.hash.startsWith("#/")) {
-    const { path, query } = parseAddress(window.location.hash, listKnownPaths());
-    window.history.replaceState(window.history.state, "", toHref(path, query));
+    const { path, query, section } = parseAddress(window.location.hash, listKnownPaths());
+    window.history.replaceState(window.history.state, "", toHref(path, query, section));
   }
 }
 
@@ -168,6 +210,8 @@ function listKnownPaths(): string[] {
   return listPages().map((page) => page.path);
 }
 
+// On a path-routed page the hash holds the section, so a change to it alone re-renders too.
 function readAddress(): string {
-  return routeMode === "hash" ? window.location.hash : `${window.location.pathname}${window.location.search}`;
+  const { hash, pathname, search } = window.location;
+  return routeMode === "hash" ? hash : `${pathname}${search}${hash}`;
 }

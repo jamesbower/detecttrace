@@ -7,7 +7,7 @@ import { WaitingState } from "./components/WaitingState";
 import { isPageDataError, isWaitingData } from "./data";
 import { Data } from "./pages/Data";
 import { listPages } from "./registry";
-import { DATA_PATH, useRoute } from "./router";
+import { DATA_PATH, useRoute, useSectionFocus } from "./router";
 
 import type { PageData, PageDataError, WaitingData } from "./data";
 
@@ -24,12 +24,13 @@ export function App({ data }: AppProps) {
 }
 
 function Dashboard({ data }: AppProps) {
-  const { path, query } = useRoute();
+  const { path, query, section } = useRoute();
   const isWaiting = !isPageDataError(data) && isWaitingData(data);
   const isUi = !isPageDataError(data) && data.view.mode === "ui";
   // The ui app's Data page is where the reader supplies the data, so it opens without results.
   const isWaitingOnPage = isWaiting && !(isUi && path === DATA_PATH);
-  useAnnouncePage(path, isWaitingOnPage);
+  useAnnouncePage(path, isWaitingOnPage, section);
+  useSectionFocus(section);
 
   if (isPageDataError(data)) {
     return <ErrorState message={data.error} />;
@@ -81,17 +82,19 @@ const SITE_TITLE = "DetectTrace";
 const WAITING_TITLE = "Waiting for data";
 
 // A new page names itself in the tab title and takes focus at its heading, as a page load
-// would for a screen reader. The first page keeps focus where the browser put it.
-function useAnnouncePage(path: string, isWaiting: boolean): void {
+// would for a screen reader. The first page keeps focus where the browser put it, and a page
+// opened at a section it has leaves focus to useSectionFocus.
+function useAnnouncePage(path: string, isWaiting: boolean, section: string | null): void {
   const shownPath = useRef<string | null>(null);
   useEffect(() => {
     const title = isWaiting ? WAITING_TITLE : listPages().find((candidate) => candidate.path === path)?.title;
     if (title !== undefined) {
       document.title = `${title} · ${SITE_TITLE}`;
     }
-    if (shownPath.current !== null && shownPath.current !== path) {
+    const hasSectionTarget = section !== null && document.getElementById(section) !== null;
+    if (shownPath.current !== null && shownPath.current !== path && !hasSectionTarget) {
       document.getElementById(MAIN_ID)?.querySelector<HTMLElement>("h1")?.focus();
     }
     shownPath.current = path;
-  }, [path, isWaiting]);
+  }, [path, isWaiting, section]);
 }

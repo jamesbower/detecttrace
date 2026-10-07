@@ -31,6 +31,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   startRouter("offline");
   window.history.replaceState(null, "", "/");
 });
@@ -129,6 +130,46 @@ it("moves focus to the new page's heading", async () => {
 
   const heading = await screen.findByRole("heading", { name: "201 cases" });
   await waitFor(() => expect(document.activeElement).toBe(heading));
+});
+
+function HelpPage() {
+  return (
+    <>
+      <h1 tabIndex={-1}>Help</h1>
+      <h2 id="evidence-completeness" tabIndex={-1}>
+        Evidence completeness
+      </h2>
+    </>
+  );
+}
+
+function openHelpSection() {
+  // jsdom lays nothing out, so it has no scrollIntoView.
+  Element.prototype.scrollIntoView = () => {};
+  registerPage({ path: "/help", title: "Help", icon: "", order: 2, component: HelpPage });
+  render(<App data={DATA} />);
+  act(() => {
+    window.location.hash = "#/help#evidence-completeness";
+  });
+}
+
+it("moves focus to the section a new page opens at", async () => {
+  openHelpSection();
+
+  const section = await screen.findByRole("heading", { name: "Evidence completeness" });
+  await waitFor(() => expect(document.activeElement).toBe(section));
+});
+
+it("never focuses the heading of a new page opened at a section", async () => {
+  const focused: (string | null)[] = [];
+  const onFocusIn = (event: FocusEvent) => focused.push((event.target as HTMLElement).textContent);
+  document.addEventListener("focusin", onFocusIn);
+
+  openHelpSection();
+
+  await screen.findByRole("heading", { name: "Evidence completeness" });
+  document.removeEventListener("focusin", onFocusIn);
+  expect(focused).toEqual(["Evidence completeness"]);
 });
 
 it("leaves focus alone when only the query changes", () => {

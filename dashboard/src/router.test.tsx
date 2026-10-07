@@ -1,11 +1,12 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerPage, resetRegistryForTests } from "./registry";
-import { parseAddress, replaceEmptyAddress, startRouter, toHref, useRoute } from "./router";
+import { parseAddress, replaceEmptyAddress, startRouter, toHref, useRoute, useSectionFocus } from "./router";
 
-const PATHS = ["/", "/versions", "/cases", "/data"];
+const PATHS = ["/", "/versions", "/cases", "/data", "/help"];
+const SECTION = "evidence-completeness";
 
 function RouteProbe() {
   const route = useRoute();
@@ -13,6 +14,7 @@ function RouteProbe() {
     <>
       <p data-testid="path">{route.path}</p>
       <p data-testid="query">{route.query.toString()}</p>
+      <p data-testid="section">{route.section ?? "none"}</p>
       <button type="button" onClick={() => route.setQuery({ class: "class-1" })}>
         Pick class
       </button>
@@ -31,6 +33,21 @@ function RouteProbe() {
       <button type="button" onClick={() => route.navigate("/cases", { q: "DT-1" })}>
         Open cases
       </button>
+    </>
+  );
+}
+
+function SectionProbe() {
+  const route = useRoute();
+  useSectionFocus(route.section);
+  return (
+    <>
+      <button type="button" onClick={() => route.navigate("/help", {}, SECTION)}>
+        Open section
+      </button>
+      <h2 id={SECTION} tabIndex={-1}>
+        Evidence completeness
+      </h2>
     </>
   );
 }
@@ -71,11 +88,39 @@ describe("parseAddress", () => {
   it("keeps the query when forwarding an old path", () => {
     expect(parseAddress("#/data-notes?class=x", PATHS).query.get("class")).toBe("x");
   });
+
+  it("reads the path before a section", () => {
+    expect(parseAddress(`#/help#${SECTION}`, PATHS).path).toBe("/help");
+  });
+
+  it("reads the section", () => {
+    expect(parseAddress(`#/help#${SECTION}`, PATHS).section).toBe(SECTION);
+  });
+
+  it("reads the query before a section", () => {
+    expect(parseAddress(`#/help?class=x#${SECTION}`, PATHS).query.get("class")).toBe("x");
+  });
+
+  it("reads no section from an address without one", () => {
+    expect(parseAddress("#/help", PATHS).section).toBeNull();
+  });
+
+  it.each(["#//x", "#Bad", "#a_b", "#"])("ignores a section %s that is not a plain id", (section) => {
+    expect(parseAddress(`#/help${section}`, PATHS).section).toBeNull();
+  });
 });
 
 describe("toHref", () => {
   it("leaves out an empty query", () => {
     expect(toHref("/cases", new URLSearchParams())).toBe("#/cases");
+  });
+
+  it("appends a section to a hash link", () => {
+    expect(toHref("/help", new URLSearchParams(), SECTION)).toBe(`#/help#${SECTION}`);
+  });
+
+  it("appends a section after the query", () => {
+    expect(toHref("/help", new URLSearchParams({ class: "x" }), SECTION)).toBe(`#/help?class=x#${SECTION}`);
   });
 
   it("round-trips through parseAddress", () => {
@@ -191,6 +236,72 @@ describe("useRoute", () => {
   });
 });
 
+describe("useSectionFocus", () => {
+  const scrollIntoView = vi.fn();
+
+  beforeEach(() => {
+    resetRegistryForTests();
+    for (const path of PATHS) {
+      registerPage({ path, title: path, icon: "", order: 0, component: () => null });
+    }
+    // jsdom lays nothing out, so it has no scrollIntoView.
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  afterEach(() => {
+    cleanup();
+    scrollIntoView.mockReset();
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    startRouter("offline");
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("focuses the section a page opens at", () => {
+    window.history.replaceState(null, "", `#/help#${SECTION}`);
+
+    render(<SectionProbe />);
+
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Evidence completeness" }));
+  });
+
+  it("focuses the section a link navigates to", async () => {
+    window.history.replaceState(null, "", "#/help");
+    render(<SectionProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open section" }));
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Evidence completeness" })),
+    );
+  });
+
+  it("focuses the section a link navigates to on a served page", async () => {
+    window.history.replaceState(null, "", "/help");
+    startRouter("served");
+    render(<SectionProbe />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open section" }));
+
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Evidence completeness" }));
+  });
+
+  it("scrolls the section's top into view", () => {
+    window.history.replaceState(null, "", `#/help#${SECTION}`);
+
+    render(<SectionProbe />);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+  });
+
+  it("leaves focus alone without a section", () => {
+    window.history.replaceState(null, "", "#/help");
+
+    render(<SectionProbe />);
+
+    expect(document.activeElement).toBe(document.body);
+  });
+});
+
 describe("replaceEmptyAddress", () => {
   afterEach(() => {
     window.history.replaceState(null, "", "#");
@@ -258,6 +369,65 @@ describe("in path mode", () => {
     window.history.replaceState(null, "", address);
     startRouter(mode);
   }
+
+  it("builds a link to a section of a page's path", () => {
+    openAt("/");
+
+    expect(toHref("/help", new URLSearchParams(), SECTION)).toBe(`/help#${SECTION}`);
+  });
+
+  it("renders the page a path with a section names", () => {
+    openAt(`/help#${SECTION}`);
+
+    render(<RouteProbe />);
+
+    expect(screen.getByTestId("path").textContent).toBe("/help");
+  });
+
+  it("reads the section from the address", () => {
+    openAt(`/help#${SECTION}`);
+
+    render(<RouteProbe />);
+
+    expect(screen.getByTestId("section").textContent).toBe(SECTION);
+  });
+
+  it.each(["#Bad", "#a_b"])("ignores a section %s that is not a plain id", (section) => {
+    openAt(`/help${section}`);
+
+    render(<RouteProbe />);
+
+    expect(screen.getByTestId("section").textContent).toBe("none");
+  });
+
+  it("leaves a section of a page's path in the address", () => {
+    openAt(`/help#${SECTION}`);
+
+    expect(`${window.location.pathname}${window.location.hash}`).toBe(`/help#${SECTION}`);
+  });
+
+  it("moves an old cases hash address to the cases path", () => {
+    openAt("/#/cases");
+
+    expect(`${window.location.pathname}${window.location.hash}`).toBe("/cases");
+  });
+
+  it("keeps the section when it moves an old hash address", () => {
+    openAt(`/#/help#${SECTION}`);
+
+    expect(`${window.location.pathname}${window.location.hash}`).toBe(`/help#${SECTION}`);
+  });
+
+  it("re-renders when only the section changes", async () => {
+    openAt("/help");
+    render(<RouteProbe />);
+
+    act(() => {
+      window.location.hash = `#${SECTION}`;
+    });
+
+    expect(await screen.findByText(SECTION)).toBe(screen.getByTestId("section"));
+  });
 
   it("builds a link to a page's path", () => {
     openAt("/");
