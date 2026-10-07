@@ -106,3 +106,12 @@ it("links to the Limits page", () => {
 
   expect(screen.getByRole("link", { name: "Limits" }).getAttribute("href")).toBe("#/limits");
 });
+
+it("limits the one-case and all-equal interval rule to evidence completeness", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+  const reading = screen.getByRole("region", { name: "Reading the numbers" });
+
+  expect(within(reading).getByText(/one case, or all its cases have the same value/).textContent).toMatch(
+    /^an evidence completeness value/,
+  );
+});

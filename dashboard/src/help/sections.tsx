@@ -222,8 +222,7 @@ function ReadingTheNumbers() {
       </ul>
       <p>Skipped-step rates and weekly trend points have no interval. An interval is also left out when:</p>
       <ul>
-        <li>the value has one case;</li>
-        <li>every case has the same value;</li>
+        <li>an evidence completeness value has one case, or all its cases have the same value;</li>
         <li>
           fewer than 900 of the 1,000 resamples give a κ, as κ is undefined in a resample where both sides give one and
           the same verdict for every case;
