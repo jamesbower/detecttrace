@@ -108,42 +108,50 @@ def test_hover_opens_the_pop_up(
     with visiting(browser, demo_path) as visit:
         visit.open(title)
         find_trigger(visit.page, container, label).hover()
-        popup = find_popup(visit.page, label)
-        popup.wait_for()
-        is_visible = popup.is_visible()
-    assert is_visible
+        sync_api.expect(find_popup(visit.page, label)).to_be_visible()
+
+
+def tab_to_agreement(page: Any) -> Any:
+    """Focus the completeness header and wait for its pop-up, then Tab past the pop-up's link
+    to the agreement header; return the agreement pop-up."""
+    find_trigger(page, ".version-table th", "Evidence completeness").focus()
+    find_popup(page, "Evidence completeness").wait_for()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    return find_popup(page, "Verdict agreement")
+
+
+def test_tab_onto_a_term_opens_its_pop_up(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path) as visit:
+        sync_api.expect(tab_to_agreement(visit.page)).to_be_visible()
 
 
 @dataclass(frozen=True)
 class KeyStates:
-    is_open_after_tab: bool
+    focus_after_tab: str
     popups_after_escape: int
     focus_after_escape: str
 
 
 @pytest.fixture(scope="module")
 def key_states(browser: Any, demo_path: Path) -> KeyStates:
-    """Tab from the completeness header, past its pop-up's link, to the agreement header; then
-    Escape."""
+    """Tab to the agreement header, then Escape."""
     with visiting(browser, demo_path) as visit:
         page = visit.page
-        find_trigger(page, ".version-table th", "Evidence completeness").focus()
-        page.keyboard.press("Tab")
-        page.keyboard.press("Tab")
-        popup = find_popup(page, "Verdict agreement")
+        popup = tab_to_agreement(page)
         popup.wait_for()
-        is_open_after_tab = popup.is_visible()
+        focus_after_tab = page.evaluate(READ_FOCUSED_TEXT)
         page.keyboard.press("Escape")
         popup.wait_for(state="detached")
         return KeyStates(
-            is_open_after_tab=is_open_after_tab,
-            popups_after_escape=page.get_by_role("group").count(),
+            focus_after_tab=focus_after_tab,
+            popups_after_escape=page.locator(".term-hint-popup").count(),
             focus_after_escape=page.evaluate(READ_FOCUSED_TEXT),
         )
 
 
-def test_tab_onto_a_term_opens_its_pop_up(key_states: KeyStates) -> None:
-    assert key_states.is_open_after_tab
+def test_tab_moves_focus_to_the_next_term(key_states: KeyStates) -> None:
+    assert key_states.focus_after_tab == "Verdict agreement"
 
 
 def test_escape_closes_the_pop_up(key_states: KeyStates) -> None:
@@ -160,12 +168,9 @@ def test_a_tap_opens_the_pop_up(browser: Any, demo_path: Path) -> None:
         page = context.new_page()
         page.goto(demo_path.as_uri() + "#/")
         find_trigger(page, ".version-table th", KAPPA_LABEL).tap()
-        popup = find_popup(page, KAPPA_LABEL)
-        popup.wait_for()
-        is_visible = popup.is_visible()
+        sync_api.expect(find_popup(page, KAPPA_LABEL)).to_be_visible()
     finally:
         context.close()
-    assert is_visible
 
 
 # More in Help
@@ -199,7 +204,8 @@ def ui_landing(browser: Any, tmp_path_factory: pytest.TempPathFactory) -> Landin
         pytest.skip("stops the server with SIGTERM")
     folder = tmp_path_factory.mktemp("ui-help")
     (folder / "data").mkdir()
-    upload_and_confirm(DEMO_FOLDER, folder / "data")
+    confirmed = upload_and_confirm(DEMO_FOLDER, folder / "data")
+    assert confirmed.saved is not None, "the demo configuration was not saved"
     served = start_ui(folder, folder / "data", ["--no-open"], dict(os.environ))
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     try:
@@ -235,6 +241,7 @@ def test_more_in_help_focuses_the_terms_heading_in_the_app(ui_landing: Landing) 
 @dataclass(frozen=True)
 class PhoneLayout:
     popup_box: dict[str, float]
+    viewport: dict[str, int]
     scroll_width: int
     client_width: int
 
@@ -247,13 +254,21 @@ def phone_layout(browser: Any, demo_path: Path) -> PhoneLayout:
         scroll_width, client_width = visit.page.evaluate(
             "() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]"
         )
-        return PhoneLayout(popup.bounding_box(), scroll_width, client_width)
+        return PhoneLayout(
+            popup.bounding_box(), visit.page.viewport_size, scroll_width, client_width
+        )
 
 
 def test_an_open_pop_up_fits_a_390px_screen(phone_layout: PhoneLayout) -> None:
     box = phone_layout.popup_box
-    edges = (box["x"], box["y"], box["x"] + box["width"], box["y"] + box["height"])
-    assert edges[0] >= 0 and edges[1] >= 0 and edges[2] <= 390 and edges[3] <= 900
+    screen = phone_layout.viewport
+    is_inside = {
+        "left": box["x"] >= 0,
+        "top": box["y"] >= 0,
+        "right": box["x"] + box["width"] <= screen["width"],
+        "bottom": box["y"] + box["height"] <= screen["height"],
+    }
+    assert is_inside == {"left": True, "top": True, "right": True, "bottom": True}
 
 
 def test_an_open_pop_up_never_scrolls_the_page_sideways(phone_layout: PhoneLayout) -> None:
