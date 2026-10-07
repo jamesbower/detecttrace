@@ -2,7 +2,7 @@
 
 ![DetectTrace's Overview page on synthetic demo data: case count, period, coverage, dangerous false closes, and results by prompt version with 95% intervals.](docs/images/overview.png)
 
-Agent assurance for AI SOC agents. DetectTrace reads your agent's OpenTelemetry traces and your analysts' verdicts, then shows how the agent compares with the analysts, per alert class and per prompt version, and which investigation steps the agent skips.
+Agent assurance for AI SOC agents. DetectTrace reads your agent's OpenTelemetry or Langfuse traces and your analysts' verdicts, then shows how the agent compares with the analysts, per alert class and per prompt version, and which investigation steps the agent skips.
 
 > **Status: in development.** `detecttrace demo` and `detecttrace check` run every check and write one self-contained HTML dashboard that opens without a network. `detecttrace init` proposes a configuration from your traces and verdicts. Traces can come from OTLP JSON files or a Langfuse export. `detecttrace ui` runs the same checks as a local app in your browser: upload your files, confirm the proposed configuration, and see the dashboard. `detecttrace serve` runs the same dashboard as a service for a team, fed by an OpenTelemetry Collector and a verdict API. The first PyPI release is being prepared.
 
