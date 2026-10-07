@@ -22,14 +22,25 @@ export type PanelSlot =
   | "trend-footer"
   | "case-detail"
   | "notes-after";
+/** A section of the Help page. `modes` limits it to those view modes, else it shows in all. */
+export type HelpSection = {
+  id: string;
+  title: string;
+  order: number;
+  body: React.ComponentType;
+  modes?: readonly View["mode"][];
+};
 
 const pages = new Map<string, PageDef>();
 const panels = new Map<PanelSlot, React.ComponentType<PanelProps>[]>();
+const helpSections = new Map<string, HelpSection>();
 
 // What `detecttrace serve` and `detecttrace ui` answer with the page: one lowercase segment,
 // not `api`, or the root. Keep in step with the page route in src/detecttrace/serve/app.py.
 const PAGE_PATH = /^\/([a-z][a-z-]*)?$/;
 const RESERVED_PATHS: ReadonlySet<string> = new Set(["/api"]);
+// A help section's id is its fragment in the page's URL, so it follows the page path's rule.
+const HELP_SECTION_ID = /^[a-z][a-z-]*$/;
 
 export function registerPage(page: PageDef): void {
   if (!PAGE_PATH.test(page.path) || RESERVED_PATHS.has(page.path)) {
@@ -48,6 +59,18 @@ export function registerPanel(slot: PanelSlot, component: React.ComponentType<Pa
   panels.set(slot, [...registered, component]);
 }
 
+export function registerHelpSection(section: HelpSection): void {
+  if (!HELP_SECTION_ID.test(section.id)) {
+    throw new Error(
+      `A help section can't be registered with id "${section.id}": an id is lowercase letters and hyphens, starting with a letter, such as "evidence-completeness".`,
+    );
+  }
+  if (helpSections.has(section.id)) {
+    throw new Error(`A help section is already registered with id "${section.id}".`);
+  }
+  helpSections.set(section.id, section);
+}
+
 export function listPages(): readonly PageDef[] {
   return [...pages.values()].sort(
     (a, b) => a.order - b.order || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
@@ -58,8 +81,15 @@ export function listPanels(slot: PanelSlot): readonly React.ComponentType<PanelP
   return panels.get(slot) ?? [];
 }
 
-/** Test only: forgets every registered page and panel. */
+export function listHelpSections(mode: View["mode"]): readonly HelpSection[] {
+  return [...helpSections.values()]
+    .filter((section) => section.modes === undefined || section.modes.includes(mode))
+    .sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** Test only: forgets every registered page, panel and help section. */
 export function resetRegistryForTests(): void {
   pages.clear();
   panels.clear();
+  helpSections.clear();
 }

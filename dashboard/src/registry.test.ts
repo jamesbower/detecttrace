@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  listHelpSections,
   listPages,
   listPanels,
+  registerHelpSection,
   registerPage,
   registerPanel,
   resetRegistryForTests,
 } from "./registry";
 
-import type { PageDef } from "./registry";
+import type { HelpSection, PageDef } from "./registry";
 
 function NoOp() {
   return null;
@@ -20,6 +22,10 @@ function OtherNoOp() {
 
 function createPage(path: string, order: number): PageDef {
   return { path, title: path, icon: "", order, component: NoOp };
+}
+
+function createHelpSection(id: string, order: number, modes?: HelpSection["modes"]): HelpSection {
+  return { id, title: id, order, body: NoOp, modes };
 }
 
 describe("registry", () => {
@@ -65,5 +71,38 @@ describe("registry", () => {
     registerPanel("case-detail", NoOp);
 
     expect(listPanels("trend-footer")).toEqual([]);
+  });
+
+  it("refuses a second help section with the same id", () => {
+    registerHelpSection(createHelpSection("glossary", 1));
+
+    expect(() => registerHelpSection(createHelpSection("glossary", 2))).toThrow('"glossary"');
+  });
+
+  it.each(["Bad", "a_b", "1a"])(
+    "refuses a help section with id %s, which can't be a fragment",
+    (id) => {
+      expect(() => registerHelpSection(createHelpSection(id, 1))).toThrow(`"${id}"`);
+    },
+  );
+
+  it("lists help sections by order, then by id", () => {
+    registerHelpSection(createHelpSection("b", 2));
+    registerHelpSection(createHelpSection("z", 1));
+    registerHelpSection(createHelpSection("a", 2));
+
+    expect(listHelpSections("offline").map((section) => section.id)).toEqual(["z", "a", "b"]);
+  });
+
+  it("leaves a ui-only help section out of the offline page", () => {
+    registerHelpSection(createHelpSection("labelling", 1, ["ui"]));
+
+    expect(listHelpSections("offline")).toEqual([]);
+  });
+
+  it("lists a ui-only help section in ui mode", () => {
+    registerHelpSection(createHelpSection("labelling", 1, ["ui"]));
+
+    expect(listHelpSections("ui").map((section) => section.id)).toEqual(["labelling"]);
   });
 });
