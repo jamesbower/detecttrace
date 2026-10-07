@@ -41,7 +41,7 @@ function Dashboard({ data }: AppProps) {
   }
 
   if (isWaitingData(data)) {
-    // The ui app links every page, each of which says the Data page is where to start. A served
+    // The ui app links every page, each of which says the Data page is where to start. Any other
     // waiting page links only to the pages it can show.
     const mode = data.view.mode;
     const pages = isUi

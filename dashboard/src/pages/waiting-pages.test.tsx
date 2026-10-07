@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import { DEMO_VIEW } from "../test-fixtures";
+// The registry is module state: this relies on Vitest isolating modules per test file.
 import "./index";
 
 import type { View } from "../view";

@@ -13,16 +13,17 @@ export type PanelProps = PageProps & { caseId?: string; classAnchor?: string; ve
 /** What a page that can show without results gets: on a waiting page `results` is null. */
 export type ResultlessPageProps = { view: View; results: Results | null };
 type PageFields = { path: string; title: string; icon: string; order: number };
-/** A page. `resultlessModes` lists the view modes in which a waiting page, which has no
- * results yet, shows it; such a page's component must take `results: null`. Without it, the
- * page needs results and a waiting page shows the waiting state in its place. */
-export type PageDef =
-  | (PageFields & { component: React.ComponentType<PageProps>; resultlessModes?: undefined })
-  | ResultlessPageDef;
 export type ResultlessPageDef = PageFields & {
   component: React.ComponentType<ResultlessPageProps>;
   resultlessModes: readonly View["mode"][];
 };
+/** A page. `resultlessModes` lists the view modes in which a waiting page, which has no
+ * results yet, shows it; its component gets `ResultlessPageProps`, where `results` is null on
+ * a waiting page. Without it, the page needs results and a waiting page shows the waiting
+ * state in its place. */
+export type PageDef =
+  | (PageFields & { component: React.ComponentType<PageProps>; resultlessModes?: undefined })
+  | ResultlessPageDef;
 export type PanelSlot =
   | "overview-after-kpis"
   | "version-row-detail"
