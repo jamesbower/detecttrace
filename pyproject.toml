@@ -68,6 +68,8 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 # The sdist carries only what builds the wheel plus the changelog: no tests, scripts or docs.
 source-include = ["CHANGELOG.md"]
+# Finder writes .DS_Store into every folder a Mac user opens; source excludes also apply to the wheel.
+source-exclude = ["**/.DS_Store"]
 
 [tool.ruff]
 line-length = 100

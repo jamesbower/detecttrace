@@ -76,6 +76,15 @@ def test_regenerating_writes_the_same_file_names(generated: tuple[Path, float]) 
     assert _list_files(generated[0]) == _list_files(DEMO_DIR)
 
 
+def test_file_names_match_with_a_finder_file_in_the_committed_demo(
+    generated: tuple[Path, float], tmp_path: Path
+) -> None:
+    folder = shutil.copytree(DEMO_DIR, tmp_path / "demo")
+    (folder / ".DS_Store").write_bytes(b"\x00\x00\x00\x01Bud1")
+
+    assert _list_files(folder) == _list_files(generated[0])
+
+
 def test_regenerated_plain_files_are_byte_identical(generated: tuple[Path, float]) -> None:
     assert _read_plain(generated[0], _list_generated(DEMO_DIR)) == _read_plain(
         DEMO_DIR, _list_generated(DEMO_DIR)
@@ -273,7 +282,13 @@ def _completeness(run: RunResult, alert_class: str, version: str) -> float:
 
 
 def _list_files(folder: Path) -> set[str]:
-    return {path.relative_to(folder).as_posix() for path in folder.rglob("*") if path.is_file()}
+    """The files under `folder`, skipping hidden ones (Finder's .DS_Store) as the loaders do."""
+    return {
+        path.relative_to(folder).as_posix()
+        for path in folder.rglob("*")
+        if path.is_file()
+        and not any(part.startswith(".") for part in path.relative_to(folder).parts)
+    }
 
 
 def _list_generated(folder: Path) -> set[str]:

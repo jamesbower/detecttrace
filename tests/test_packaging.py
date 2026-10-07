@@ -90,21 +90,27 @@ EXPECTED_SDIST = {f"src/{path}" for path in PACKAGE_FILES} | {
 }
 
 
+# Finder writes one into every folder a Mac user opens.
+FINDER_FILE = ".DS_Store"
+
+
 @pytest.fixture(scope="module")
 def dist(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    uv = shutil.which("uv")
-    if uv is None:
-        pytest.skip("uv is not on PATH, so the wheel and sdist can't be built")
-    out_dir = tmp_path_factory.mktemp("dist")
-    # Building the sdist first, then the wheel from it, also proves the sdist is complete.
-    # --force-pep517 builds with the uv_build that pyproject.toml pins, as the release does;
-    # uv's bundled backend follows uv's own version and changes the sdist between releases.
-    subprocess.run(
-        [uv, "build", "--force-pep517", "--quiet", "--out-dir", str(out_dir), str(REPO_ROOT)],
-        check=True,
-        capture_output=True,
+    return _build(REPO_ROOT, tmp_path_factory.mktemp("dist"))
+
+
+@pytest.fixture(scope="module")
+def finder_dist(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Built from a copy of the source with Finder files in the package and its demo folder."""
+    project = tmp_path_factory.mktemp("project")
+    shutil.copytree(
+        REPO_ROOT / "src", project / "src", ignore=shutil.ignore_patterns("__pycache__")
     )
-    return out_dir
+    for name in EXPECTED_SDIST - {"PKG-INFO"} - {f"src/{path}" for path in PACKAGE_FILES}:
+        shutil.copy2(REPO_ROOT / name, project / name)
+    for folder in ("src/detecttrace", "src/detecttrace/demo_data"):
+        (project / folder / FINDER_FILE).write_bytes(b"\x00\x00\x00\x01Bud1")
+    return _build(project, tmp_path_factory.mktemp("finder_dist"))
 
 
 def test_wheel_holds_exactly_the_package_and_its_metadata(dist: Path) -> None:
@@ -122,3 +128,32 @@ def test_sdist_holds_exactly_the_source_readme_licences_and_changelog(dist: Path
         }
 
     assert names == EXPECTED_SDIST
+
+
+def test_wheel_leaves_out_finder_files(finder_dist: Path) -> None:
+    with zipfile.ZipFile(finder_dist / f"detecttrace-{VERSION}-py3-none-any.whl") as wheel:
+        names = wheel.namelist()
+
+    assert [name for name in names if Path(name).name == FINDER_FILE] == []
+
+
+def test_sdist_leaves_out_finder_files(finder_dist: Path) -> None:
+    with tarfile.open(finder_dist / f"detecttrace-{VERSION}.tar.gz") as sdist:
+        names = sdist.getnames()
+
+    assert [name for name in names if Path(name).name == FINDER_FILE] == []
+
+
+def _build(project: Path, out_dir: Path) -> Path:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is not on PATH, so the wheel and sdist can't be built")
+    # Building the sdist first, then the wheel from it, also proves the sdist is complete.
+    # --force-pep517 builds with the uv_build that pyproject.toml pins, as the release does;
+    # uv's bundled backend follows uv's own version and changes the sdist between releases.
+    subprocess.run(
+        [uv, "build", "--force-pep517", "--quiet", "--out-dir", str(out_dir), str(project)],
+        check=True,
+        capture_output=True,
+    )
+    return out_dir
