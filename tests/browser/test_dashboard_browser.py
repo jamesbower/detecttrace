@@ -903,6 +903,16 @@ def test_a_reload_keeps_the_selected_class(reloaded: Reloaded) -> None:
 # Layout
 
 
+def test_every_page_link_fits_the_bottom_bar_at_320px(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path, width=320) as visit:
+        visit.page.wait_for_selector(".sidebar-links")
+        sizes = visit.page.evaluate(
+            "() => { const list = document.querySelector('.sidebar-links');"
+            " return [list.scrollWidth, list.clientWidth]; }"
+        )
+    assert sizes[0] <= sizes[1]
+
+
 @pytest.mark.parametrize("title", PAGE_IDS)
 def test_the_page_never_scrolls_sideways(layouts: dict[str, Layout], title: str) -> None:
     assert layouts[title].scroll_width <= layouts[title].client_width

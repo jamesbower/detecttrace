@@ -45,7 +45,9 @@ function Dashboard({ data }: AppProps) {
     // The ui app links every page, each of which says the Data page is where to start. A served
     // waiting page links only to the pages it can show.
     const mode = data.view.mode;
-    const pages = isUi ? listPages() : listPages().filter((page) => findPageWithoutResults(page.path, mode));
+    const pages = isUi
+      ? listPages()
+      : listPages().filter((page) => findPageWithoutResults(page.path, mode) !== undefined);
     return (
       <Shell
         header={data.view.header}
@@ -86,7 +88,7 @@ function Dashboard({ data }: AppProps) {
   );
 }
 
-type PageWithoutResults = {
+type ResultlessPageDef = {
   path: string;
   modes?: readonly View["mode"][];
   component: React.ComponentType<{ view: View; results: null }>;
@@ -94,12 +96,12 @@ type PageWithoutResults = {
 
 // The pages a waiting page shows, as they need no results: Help in every mode, and the ui app's
 // Data page, where the reader supplies the data.
-const PAGES_WITHOUT_RESULTS: readonly PageWithoutResults[] = [
+const PAGES_WITHOUT_RESULTS: readonly ResultlessPageDef[] = [
   { path: HELP_PATH, component: Help },
   { path: DATA_PATH, modes: ["ui"], component: Data },
 ];
 
-function findPageWithoutResults(path: string, mode: View["mode"]): PageWithoutResults | undefined {
+function findPageWithoutResults(path: string, mode: View["mode"]): ResultlessPageDef | undefined {
   return PAGES_WITHOUT_RESULTS.find((page) => page.path === path && (page.modes?.includes(mode) ?? true));
 }
 

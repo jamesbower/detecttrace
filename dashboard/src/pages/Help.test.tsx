@@ -94,11 +94,47 @@ it("opens the documentation links without a referrer", () => {
   const more = screen.getByRole("region", { name: "More" });
 
   expect(
+    new Set(
+      within(more)
+        .getAllByRole("link")
+        .filter((link) => link.getAttribute("href")?.startsWith("https://"))
+        .map((link) => link.getAttribute("rel")),
+    ),
+  ).toEqual(new Set(["noreferrer"]));
+});
+
+it("names GitHub in each documentation link", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+  const more = screen.getByRole("region", { name: "More" });
+
+  expect(
     within(more)
       .getAllByRole("link")
       .filter((link) => link.getAttribute("href")?.startsWith("https://"))
-      .map((link) => link.getAttribute("rel")),
-  ).toEqual(["noreferrer", "noreferrer", "noreferrer", "noreferrer", "noreferrer"]);
+      .map((link) => link.textContent),
+  ).toEqual([
+    "Metrics (GitHub)",
+    "Trace attributes (GitHub)",
+    "Checklists (GitHub)",
+    "Running locally in your browser (GitHub)",
+    "Running as a service (GitHub)",
+  ]);
+});
+
+it("says the documentation links need a network connection", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+
+  expect(
+    within(screen.getByRole("region", { name: "More" })).queryByText(
+      "These open on GitHub and need a network connection:",
+    ),
+  ).not.toBeNull();
+});
+
+it("titles the first section apart from the page", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+
+  expect(screen.getAllByRole("heading", { level: 2 })[0]?.textContent).toBe("Cases, alert classes and checklists");
 });
 
 it("links to the Limits page", () => {

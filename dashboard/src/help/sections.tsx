@@ -8,7 +8,12 @@ import { TERMS } from "./terms";
 
 const DOCS_URL = "https://github.com/jamesbower/detecttrace/blob/main/docs";
 
-registerHelpSection({ id: "how-it-works", title: "How DetectTrace works", order: 0, body: HowItWorks });
+registerHelpSection({
+  id: "how-it-works",
+  title: "Cases, alert classes and checklists",
+  order: 0,
+  body: HowItWorks,
+});
 registerHelpSection({ id: "pages", title: "The pages", order: 1, body: Pages });
 registerHelpSection({
   id: TERMS.completeness.anchor,
@@ -273,34 +278,35 @@ function UsingTheApp() {
 function More() {
   return (
     <>
+      <p>These open on GitHub and need a network connection:</p>
       <ul>
         <li>
           <a href={`${DOCS_URL}/metrics.md`} rel="noreferrer">
-            Metrics
+            Metrics (GitHub)
           </a>
           : every number, its interval and its rounding.
         </li>
         <li>
           <a href={`${DOCS_URL}/attributes.md`} rel="noreferrer">
-            Trace attributes
+            Trace attributes (GitHub)
           </a>
           : where each field of a case comes from in the traces.
         </li>
         <li>
           <a href={`${DOCS_URL}/checklists.md`} rel="noreferrer">
-            Checklists
+            Checklists (GitHub)
           </a>
           : the checklist format and its argument rules.
         </li>
         <li>
           <a href={`${DOCS_URL}/ui.md`} rel="noreferrer">
-            Running locally in your browser
+            Running locally in your browser (GitHub)
           </a>
           : the <code>detecttrace ui</code> app.
         </li>
         <li>
           <a href={`${DOCS_URL}/serve.md`} rel="noreferrer">
-            Running as a service
+            Running as a service (GitHub)
           </a>
           : the <code>detecttrace serve</code> service.
         </li>
