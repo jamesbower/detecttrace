@@ -76,7 +76,15 @@ describe("registry", () => {
   it("refuses a second help section with the same id", () => {
     registerHelpSection(createHelpSection("glossary", 1));
 
-    expect(() => registerHelpSection(createHelpSection("glossary", 2))).toThrow('"glossary"');
+    expect(() => registerHelpSection(createHelpSection("glossary", 2))).toThrow(
+      "already registered",
+    );
+  });
+
+  it("accepts a help section with a hyphenated id", () => {
+    registerHelpSection(createHelpSection("using-the-app", 1));
+
+    expect(listHelpSections("offline").map((section) => section.id)).toEqual(["using-the-app"]);
   });
 
   it.each(["Bad", "a_b", "1a"])(
