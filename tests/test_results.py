@@ -292,6 +292,26 @@ def test_trend_point_agreement_interval_has_low_and_high():
     assert sorted(point["agreement_interval"]) == ["high", "low"]
 
 
+def test_every_trend_point_ends_with_its_intervals():
+    classes = results_for(MIXED)["classes"]
+
+    endings = {tuple(point)[-2:] for class_data in classes for point in class_data["trend"]}
+
+    assert endings == {("completeness_interval", "agreement_interval")}
+
+
+def test_trend_point_completeness_interval_has_low_and_high():
+    point = results_for(MIXED)["classes"][0]["trend"][0]
+
+    assert sorted(point["completeness_interval"]) == ["high", "low"]
+
+
+def test_trend_point_with_one_completeness_case_has_no_completeness_interval():
+    point = results_for(MIXED)["classes"][0]["trend"][1]
+
+    assert point["completeness_interval"] is None
+
+
 def test_trend_point_agreement_interval_is_the_wilson_interval_of_its_counts():
     point = results_for(MIXED)["classes"][0]["trend"][0]
 
