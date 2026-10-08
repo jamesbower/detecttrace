@@ -852,7 +852,7 @@ def test_the_completeness_table_gives_each_week_its_interval(browser: Any, demo_
 def test_focusing_a_trend_point_on_a_phone_never_scrolls_the_page_sideways(
     browser: Any, demo_path: Path
 ) -> None:
-    with visiting(browser, demo_path, hash="#/trends", width=390) as visit:
+    with visiting(browser, demo_path, hash="#/trends", width=360) as visit:
         visit.page.locator(".trend-chart").first.locator('.trend-point[tabindex="0"]').focus()
         visit.page.wait_for_function(
             "() => document.querySelector('.trend-chart-readout').textContent !== ''"
