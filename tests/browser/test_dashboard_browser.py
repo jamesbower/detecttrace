@@ -837,6 +837,45 @@ def test_focusing_a_trend_point_on_a_phone_keeps_the_readout_height(
     assert focused_height == empty_height
 
 
+def test_the_readout_gives_the_focused_point_its_interval(trend_keys: TrendKeys) -> None:
+    assert "95% CI" in trend_keys.readout
+
+
+def test_the_completeness_table_gives_each_week_its_interval(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path, hash="#/trends") as visit:
+        table = visit.page.locator(".trend-table").first
+        table.locator(".trend-table-toggle").click()
+        cells = table.locator("td").all_inner_texts()
+    assert "95% CI" in " ".join(cells)
+
+
+def test_focusing_a_trend_point_on_a_phone_never_scrolls_the_page_sideways(
+    browser: Any, demo_path: Path
+) -> None:
+    with visiting(browser, demo_path, hash="#/trends", width=390) as visit:
+        visit.page.locator(".trend-chart").first.locator('.trend-point[tabindex="0"]').focus()
+        visit.page.wait_for_function(
+            "() => document.querySelector('.trend-chart-readout').textContent !== ''"
+        )
+        sizes = visit.page.evaluate(
+            "() => [document.documentElement.scrollWidth, window.innerWidth]"
+        )
+    assert sizes[0] <= sizes[1]
+
+
+# Overview
+
+
+def test_the_dangerous_figure_names_each_class_true_positive_base(
+    browser: Any, demo_path: Path
+) -> None:
+    with visiting(browser, demo_path) as visit:
+        lines = visit.page.locator(".kpi:has(.class-name) .overview-lines li").all_inner_texts()
+    assert [bool(re.fullmatch(r".+: \d+ of \d+ true positives?", line)) for line in lines] == [
+        True
+    ] * len(CLASS_NAMES)
+
+
 # Filters and rows
 
 
@@ -859,6 +898,20 @@ def test_a_filter_sets_the_count_line(
     demo_visit: tuple[Visit, dict[str, str]], key: str, expected: int
 ) -> None:
     assert demo_visit[1][key] == to_count_line(expected)
+
+
+def test_a_phone_shows_result_second_in_the_case_table(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path, hash="#/cases", width=390) as visit:
+        headers = visit.page.locator(".case-table thead th").all_inner_texts()
+    assert headers[:2] == ["Case", "Result"]
+
+
+def test_a_phone_shows_the_result_header_without_scrolling_sideways(
+    browser: Any, demo_path: Path
+) -> None:
+    with visiting(browser, demo_path, hash="#/cases", width=390) as visit:
+        header = visit.page.locator(".case-table thead th", has_text="Result").bounding_box()
+    assert header["x"] + header["width"] <= 390
 
 
 def test_tab_reaches_every_case_in_order(case_tab_order: list[int]) -> None:
