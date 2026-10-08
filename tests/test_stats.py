@@ -5,6 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from detecttrace.stats import (
+    Z_95,
     Interval,
     _kappa_standard_error,
     cohens_kappa,
@@ -69,6 +70,16 @@ def test_wilson_no_successes_has_a_low_bound_of_exactly_zero(n: int) -> None:
     interval = wilson_interval(0, n)
 
     assert interval is not None and interval.low == 0.0
+
+
+def test_z_95_is_the_normal_quantile() -> None:
+    # Parsing the decimal expansion rounds it correctly.
+    assert float("1.9599639845400542355245944305205515") == Z_95
+
+
+def test_wilson_interval_is_the_same_float_on_every_platform() -> None:
+    # Exact on purpose: results must be byte-identical across platforms and Python versions.
+    assert wilson_interval(17, 19) == Interval(0.6860591728889099, 0.9706414397011299)
 
 
 def test_wilson_low_bound_for_one_success_in_one_case() -> None:
@@ -170,6 +181,11 @@ def test_kappa_interval_is_none_when_chance_agreement_is_certain() -> None:
 )
 def test_t_quantile_matches_table(df: int, expected: float) -> None:
     assert t_quantile_975(df) == pytest.approx(expected, abs=1e-4)
+
+
+def test_t_quantile_is_the_same_float_on_every_platform() -> None:
+    # Exact on purpose: results must be byte-identical across platforms and Python versions.
+    assert t_quantile_975(29) == 2.0452296053418966
 
 
 def test_mean_t_interval_with_zero_variance_is_a_point() -> None:

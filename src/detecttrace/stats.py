@@ -5,9 +5,12 @@ import random
 import statistics
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from statistics import NormalDist
 
-Z_95 = NormalDist().inv_cdf(0.975)
+# The 97.5% standard normal quantile, correctly rounded. `NormalDist().inv_cdf(0.975)` is not
+# the same float on every CPython build: the C version on arm64 macOS gives one a unit in the
+# last place below what Linux, Windows and the pure-Python version give, and neither is
+# correctly rounded. That moved interval bounds by a bit between platforms.
+Z_95 = 1.9599639845400543
 BOOTSTRAP_RESAMPLES = 1_000
 # Fewer valid resamples than this and the interval is not shown.
 BOOTSTRAP_MIN_VALID = 900
@@ -68,17 +71,23 @@ def _kappa_standard_error(matrix: ConfusionMatrix, kappa: float) -> float:
     column_p = [column / n for column in columns]  # agent marginals
     p_e = sum(r * c for r, c in zip(row_p, column_p, strict=True))
     a = sum(
-        matrix[i][i] / n * (1 - (row_p[i] + column_p[i]) * (1 - kappa)) ** 2 for i in range(size)
+        matrix[i][i] / n * _square(1 - (row_p[i] + column_p[i]) * (1 - kappa)) for i in range(size)
     )
-    b = (1 - kappa) ** 2 * sum(
-        matrix[i][j] / n * (column_p[i] + row_p[j]) ** 2
+    b = _square(1 - kappa) * sum(
+        matrix[i][j] / n * _square(column_p[i] + row_p[j])
         for i in range(size)
         for j in range(size)
         if i != j
     )
-    c = (kappa - p_e * (1 - kappa)) ** 2
-    variance = (a + b - c) / (n * (1 - p_e) ** 2)
+    c = _square(kappa - p_e * (1 - kappa))
+    variance = (a + b - c) / (n * _square(1 - p_e))
     return math.sqrt(max(variance, 0.0))
+
+
+def _square(x: float) -> float:
+    # A product, not `x ** 2`: a float power calls the platform's pow(), which isn't correctly
+    # rounded everywhere, while a product is, so results are the same float on every platform.
+    return x * x
 
 
 def kappa_analytic_interval(matrix: ConfusionMatrix) -> Interval | None:
@@ -92,10 +101,14 @@ def kappa_analytic_interval(matrix: ConfusionMatrix) -> Interval | None:
 def t_quantile_975(df: int) -> float:
     """97.5% quantile of Student's t by Cornish-Fisher expansion; accurate to 1e-4 for df >= 29."""
     z = Z_95
-    g1 = (z**3 + z) / 4
-    g2 = (5 * z**5 + 16 * z**3 + 3 * z) / 96
-    g3 = (3 * z**7 + 19 * z**5 + 17 * z**3 - 15 * z) / 384
-    g4 = (79 * z**9 + 776 * z**7 + 1482 * z**5 - 1920 * z**3 - 945 * z) / 92160
+    # Products, not `**`: a float power calls the platform's pow(), which isn't correctly
+    # rounded everywhere, while + - * / are, so the quantile is the same float on every platform.
+    # `df**n` below is an exact integer power.
+    z2 = z * z
+    g1 = z * (z2 + 1) / 4
+    g2 = z * ((5 * z2 + 16) * z2 + 3) / 96
+    g3 = z * (((3 * z2 + 19) * z2 + 17) * z2 - 15) / 384
+    g4 = z * ((((79 * z2 + 776) * z2 + 1482) * z2 - 1920) * z2 - 945) / 92160
     return z + g1 / df + g2 / df**2 + g3 / df**3 + g4 / df**4
 
 
