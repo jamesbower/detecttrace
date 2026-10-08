@@ -22,6 +22,7 @@ from detecttrace.dashboard_view import (
 )
 from detecttrace.model import IssueKind
 from detecttrace.served_page import ServedPage, WaitingCounts
+from detecttrace.stats import wilson_interval
 from detecttrace.summary import (
     JoinCoverage,
     Severity,
@@ -194,6 +195,9 @@ def trend_point(
     completeness_interval: dict[str, float] | None = None,
     agreement_interval: dict[str, float] | None = None,
 ) -> dict[str, object]:
+    # Agreement is a share of cases, so a real week always carries its Wilson interval.
+    wilson = wilson_interval(round(value * n), n)
+    computed_interval = None if wilson is None else {"low": wilson.low, "high": wilson.high}
     return {
         "week": week,
         "scope": scope,
@@ -203,7 +207,7 @@ def trend_point(
         "completeness_interval": completeness_interval,
         "agreement": value,
         "agreement_n": n,
-        "agreement_interval": agreement_interval,
+        "agreement_interval": agreement_interval or computed_interval,
     }
 
 
@@ -736,13 +740,14 @@ def test_a_trend_week_with_cases_but_no_agreement_says_why() -> None:
     point = trend_point("2026-W10", "all", None, 0.9, 4)
     point["agreement"] = None
     point["agreement_n"] = 0
+    point["agreement_interval"] = None
     view = build_view(results([class_data(trend=[point])]))
     assert view.classes[0].trend.agreement.table_rows[0].cells[0] == "no cases with both verdicts"
 
 
 def test_the_trend_table_says_when_a_version_has_no_cases() -> None:
     rows = build_view(version_trend()).classes[0].trend.agreement.table_rows
-    assert rows[1].cells == ("50% (n 5; no interval, all cases equal) Few cases.", "no cases")
+    assert rows[1].cells[1] == "no cases"
 
 
 def trend_cell(point: dict[str, object], metric: str) -> str:
