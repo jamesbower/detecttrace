@@ -761,7 +761,7 @@ def test_trend_version_completeness_interval_matches_that_version_row() -> None:
         ),
     ]
     report = report_of(cases, TWO_ITEMS).classes[0]
-    point = next(p for p in report.trend if p.version == "v2")
+    point = report.trend[2]
 
     assert report.by_version["v2"].completeness == Completeness(
         0.5, point.completeness_interval, 3, "bootstrap"
