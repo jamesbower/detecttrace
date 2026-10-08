@@ -827,7 +827,7 @@ def test_the_readout_names_the_focused_point(trend_keys: TrendKeys) -> None:
 def test_focusing_a_trend_point_on_a_phone_keeps_the_readout_height(
     browser: Any, demo_path: Path
 ) -> None:
-    with visiting(browser, demo_path, hash="#/trends", width=390) as visit:
+    with visiting(browser, demo_path, hash="#/trends", width=PHONE_WIDTH) as visit:
         readout = visit.page.locator(".trend-chart").first.locator(".trend-chart-readout")
         empty_height = readout.bounding_box()["height"]
         visit.page.locator(".trend-chart").first.locator('.trend-point[tabindex="0"]').focus()
@@ -842,13 +842,9 @@ def test_the_readout_gives_the_focused_point_its_interval(trend_keys: TrendKeys)
     assert "95% CI" in trend_keys.readout
 
 
-def test_show_table_opens_the_completeness_cells_with_their_intervals(
-    browser: Any, demo_path: Path
-) -> None:
+def test_the_completeness_table_gives_each_week_its_interval(browser: Any, demo_path: Path) -> None:
     with visiting(browser, demo_path, hash="#/trends") as visit:
-        table = visit.page.locator(".trend-table").first
-        table.locator(".trend-table-toggle").click()
-        cells = table.locator("td").all_inner_texts()
+        cells = visit.page.locator(".trend-table").first.locator("td").all_text_contents()
     assert cells == [
         cell for row in DEMO_VIEW.classes[0].trend.completeness.table_rows for cell in row.cells
     ]
@@ -1006,7 +1002,7 @@ def narrow_focus_walk(browser: Any, demo_path: Path) -> list[tuple[str, float, f
     """Tab through the overview on a 390px phone: each focused element outside the navigation
     bar and where it sits."""
     walk: list[tuple[str, float, float, float]] = []
-    with visiting(browser, demo_path, width=390) as visit:
+    with visiting(browser, demo_path, width=PHONE_WIDTH) as visit:
         for _ in range(30):
             visit.page.keyboard.press("Tab")
             is_outside, name, top, bottom, bar_top = visit.page.evaluate(BAR_PROBE)
@@ -1031,7 +1027,7 @@ def test_focus_on_a_phone_stays_clear_of_the_navigation_bar(
     assert hidden == []
 
 
-@pytest.mark.parametrize("width", [390, 360])
+@pytest.mark.parametrize("width", [PHONE_WIDTH, 360])
 def test_each_dangerous_label_shows_its_whole_word(
     browser: Any, demo_path: Path, width: int
 ) -> None:
@@ -1050,7 +1046,7 @@ def test_each_dangerous_label_shows_its_whole_word(
 def test_the_skipped_step_table_fits_its_panel_on_a_390px_phone(
     browser: Any, demo_path: Path
 ) -> None:
-    with visiting(browser, demo_path, hash="#/skipped", width=390) as visit:
+    with visiting(browser, demo_path, hash="#/skipped", width=PHONE_WIDTH) as visit:
         overflow = visit.page.evaluate(
             """() => [...document.querySelectorAll(".heatmap-scroll")]
               .map((area) => area.scrollWidth - area.clientWidth)"""
@@ -1076,7 +1072,7 @@ def test_a_matrix_that_fits_is_not_a_tab_stop(browser: Any, demo_path: Path) -> 
 
 
 def test_a_trend_chart_wider_than_a_phone_is_a_tab_stop(browser: Any, demo_path: Path) -> None:
-    with visiting(browser, demo_path, hash="#/trends", width=390) as visit:
+    with visiting(browser, demo_path, hash="#/trends", width=PHONE_WIDTH) as visit:
         stops = visit.page.locator('.trend-chart-scroll[role="region"][tabindex="0"]').count()
     assert stops == 2
 
