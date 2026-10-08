@@ -639,7 +639,19 @@ def test_trend_point_averages_completeness_and_agreement_of_the_week() -> None:
 
     point = report_of(cases, TWO_ITEMS).classes[0].trend[0]
 
-    assert dataclasses.astuple(point)[:7] == (W38, ALL, None, 0.75, 2, 0.5, 2)
+    assert dataclasses.replace(
+        point, completeness_interval=None, agreement_interval=None
+    ) == WeekPoint(
+        W38,
+        ALL,
+        None,
+        0.75,
+        2,
+        agreement=0.5,
+        agreement_n=2,
+        completeness_interval=None,
+        agreement_interval=None,
+    )
 
 
 def test_trend_version_point_averages_only_that_version() -> None:
@@ -1136,7 +1148,19 @@ def test_other_trend_point_averages_the_pooled_cases_of_the_week() -> None:
 
     point = report_of(cases, TWO_ITEMS).classes[0].trend[-1]
 
-    assert dataclasses.astuple(point)[:7] == ("1970-W01", OTHER, None, 11 / 14, 7, 4 / 7, 7)
+    assert dataclasses.replace(
+        point, completeness_interval=None, agreement_interval=None
+    ) == WeekPoint(
+        "1970-W01",
+        OTHER,
+        None,
+        11 / 14,
+        7,
+        agreement=4 / 7,
+        agreement_n=7,
+        completeness_interval=None,
+        agreement_interval=None,
+    )
 
 
 def test_skipped_steps_for_other_pool_the_counts() -> None:
