@@ -26,6 +26,7 @@ from detecttrace.join import join_cases
 from detecttrace.metrics import compute_metrics
 from detecttrace.model import Case, IssueKind, ToolCall, Verdict
 from detecttrace.results import build_results, is_results_file, write_results_json
+from detecttrace.stats import Interval, wilson_interval
 from detecttrace.summary import IssueExample, JoinCoverage, Severity, SummaryLine
 from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
@@ -277,6 +278,24 @@ def test_trend_points_carry_their_scope():
         ("version", "v1"),
         ("version", None),
     ]
+
+
+def test_trend_points_end_with_their_intervals():
+    point = results_for(MIXED)["classes"][0]["trend"][0]
+
+    assert list(point)[-2:] == ["completeness_interval", "agreement_interval"]
+
+
+def test_trend_point_agreement_interval_has_low_and_high():
+    point = results_for(MIXED)["classes"][0]["trend"][0]
+
+    assert sorted(point["agreement_interval"]) == ["high", "low"]
+
+
+def test_trend_point_agreement_interval_is_the_wilson_interval_of_its_counts():
+    point = results_for(MIXED)["classes"][0]["trend"][0]
+
+    assert Interval(**point["agreement_interval"]) == wilson_interval(1, 2)
 
 
 def test_strings_table_has_no_duplicates():

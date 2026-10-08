@@ -232,6 +232,8 @@ def _to_week_data(point: WeekPoint) -> dict[str, object]:
         "completeness_n": point.completeness_n,
         "agreement": point.agreement,
         "agreement_n": point.agreement_n,
+        "completeness_interval": _to_interval_data(point.completeness_interval),
+        "agreement_interval": _to_interval_data(point.agreement_interval),
     }
 
 

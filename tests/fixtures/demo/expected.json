@@ -319,7 +319,15 @@
      "completeness": 0.9411764705882353,
      "completeness_n": 17,
      "agreement": 0.8823529411764706,
-     "agreement_n": 17
+     "agreement_n": 17,
+     "completeness_interval": {
+      "low": 0.8941176470588236,
+      "high": 0.9764705882352942
+     },
+     "agreement_interval": {
+      "low": 0.6566364940511413,
+      "high": 0.9671202262362073
+     }
     },
     {
      "week": "2026-W32",
@@ -328,7 +336,15 @@
      "completeness": 0.9411764705882353,
      "completeness_n": 17,
      "agreement": 0.8823529411764706,
-     "agreement_n": 17
+     "agreement_n": 17,
+     "completeness_interval": {
+      "low": 0.8941176470588236,
+      "high": 0.9764705882352942
+     },
+     "agreement_interval": {
+      "low": 0.6566364940511413,
+      "high": 0.9671202262362073
+     }
     },
     {
      "week": "2026-W33",
@@ -337,7 +353,15 @@
      "completeness": 0.9157894736842105,
      "completeness_n": 19,
      "agreement": 0.8947368421052632,
-     "agreement_n": 19
+     "agreement_n": 19,
+     "completeness_interval": {
+      "low": 0.8526315789473683,
+      "high": 0.9684210526315787
+     },
+     "agreement_interval": {
+      "low": 0.68605917288891,
+      "high": 0.9706414397011298
+     }
     },
     {
      "week": "2026-W33",
@@ -346,7 +370,15 @@
      "completeness": 0.9157894736842105,
      "completeness_n": 19,
      "agreement": 0.8947368421052632,
-     "agreement_n": 19
+     "agreement_n": 19,
+     "completeness_interval": {
+      "low": 0.8526315789473683,
+      "high": 0.9684210526315787
+     },
+     "agreement_interval": {
+      "low": 0.68605917288891,
+      "high": 0.9706414397011298
+     }
     },
     {
      "week": "2026-W34",
@@ -355,7 +387,15 @@
      "completeness": 0.7444444444444445,
      "completeness_n": 18,
      "agreement": 0.8888888888888888,
-     "agreement_n": 18
+     "agreement_n": 18,
+     "completeness_interval": {
+      "low": 0.6666666666666667,
+      "high": 0.8222222222222223
+     },
+     "agreement_interval": {
+      "low": 0.6720023486982121,
+      "high": 0.9689804773543875
+     }
     },
     {
      "week": "2026-W34",
@@ -364,7 +404,15 @@
      "completeness": 0.7444444444444445,
      "completeness_n": 18,
      "agreement": 0.8888888888888888,
-     "agreement_n": 18
+     "agreement_n": 18,
+     "completeness_interval": {
+      "low": 0.6666666666666667,
+      "high": 0.8222222222222223
+     },
+     "agreement_interval": {
+      "low": 0.6720023486982121,
+      "high": 0.9689804773543875
+     }
     },
     {
      "week": "2026-W35",
@@ -373,7 +421,15 @@
      "completeness": 0.7444444444444445,
      "completeness_n": 18,
      "agreement": 1.0,
-     "agreement_n": 18
+     "agreement_n": 18,
+     "completeness_interval": {
+      "low": 0.6666666666666667,
+      "high": 0.8222222222222223
+     },
+     "agreement_interval": {
+      "low": 0.8241207763533426,
+      "high": 1.0
+     }
     },
     {
      "week": "2026-W35",
@@ -382,7 +438,15 @@
      "completeness": 0.7444444444444445,
      "completeness_n": 18,
      "agreement": 1.0,
-     "agreement_n": 18
+     "agreement_n": 18,
+     "completeness_interval": {
+      "low": 0.6666666666666667,
+      "high": 0.8222222222222223
+     },
+     "agreement_interval": {
+      "low": 0.8241207763533426,
+      "high": 1.0
+     }
     },
     {
      "week": "2026-W36",
@@ -391,7 +455,15 @@
      "completeness": 0.79,
      "completeness_n": 20,
      "agreement": 0.8,
-     "agreement_n": 20
+     "agreement_n": 20,
+     "completeness_interval": {
+      "low": 0.73,
+      "high": 0.85
+     },
+     "agreement_interval": {
+      "low": 0.5839825677481065,
+      "high": 0.9193423374202019
+     }
     },
     {
      "week": "2026-W36",
@@ -400,7 +472,15 @@
      "completeness": 0.79,
      "completeness_n": 20,
      "agreement": 0.8,
-     "agreement_n": 20
+     "agreement_n": 20,
+     "completeness_interval": {
+      "low": 0.73,
+      "high": 0.85
+     },
+     "agreement_interval": {
+      "low": 0.5839825677481065,
+      "high": 0.9193423374202019
+     }
     },
     {
      "week": "2026-W37",
@@ -409,7 +489,15 @@
      "completeness": 0.7285714285714286,
      "completeness_n": 14,
      "agreement": 0.9285714285714286,
-     "agreement_n": 14
+     "agreement_n": 14,
+     "completeness_interval": {
+      "low": 0.6571428571428573,
+      "high": 0.7857142857142857
+     },
+     "agreement_interval": {
+      "low": 0.6853129557584889,
+      "high": 0.987277784752109
+     }
     },
     {
      "week": "2026-W37",
@@ -418,7 +506,15 @@
      "completeness": 0.7285714285714286,
      "completeness_n": 14,
      "agreement": 0.9285714285714286,
-     "agreement_n": 14
+     "agreement_n": 14,
+     "completeness_interval": {
+      "low": 0.6571428571428573,
+      "high": 0.7857142857142857
+     },
+     "agreement_interval": {
+      "low": 0.6853129557584889,
+      "high": 0.987277784752109
+     }
     }
    ]
   },
@@ -690,7 +786,15 @@
      "completeness": 0.9,
      "completeness_n": 15,
      "agreement": 0.9333333333333333,
-     "agreement_n": 15
+     "agreement_n": 15,
+     "completeness_interval": {
+      "low": 0.8166666666666667,
+      "high": 0.9666666666666668
+     },
+     "agreement_interval": {
+      "low": 0.7018347012621999,
+      "high": 0.9881331045067314
+     }
     },
     {
      "week": "2026-W32",
@@ -699,7 +803,15 @@
      "completeness": 0.9,
      "completeness_n": 15,
      "agreement": 0.9333333333333333,
-     "agreement_n": 15
+     "agreement_n": 15,
+     "completeness_interval": {
+      "low": 0.8166666666666667,
+      "high": 0.9666666666666668
+     },
+     "agreement_interval": {
+      "low": 0.7018347012621999,
+      "high": 0.9881331045067314
+     }
     },
     {
      "week": "2026-W33",
@@ -708,7 +820,15 @@
      "completeness": 0.9833333333333333,
      "completeness_n": 15,
      "agreement": 0.8666666666666667,
-     "agreement_n": 15
+     "agreement_n": 15,
+     "completeness_interval": {
+      "low": 0.95,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.6211801716767765,
+      "high": 0.9626387408969347
+     }
     },
     {
      "week": "2026-W33",
@@ -717,7 +837,15 @@
      "completeness": 0.9833333333333333,
      "completeness_n": 15,
      "agreement": 0.8666666666666667,
-     "agreement_n": 15
+     "agreement_n": 15,
+     "completeness_interval": {
+      "low": 0.95,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.6211801716767765,
+      "high": 0.9626387408969347
+     }
     },
     {
      "week": "2026-W34",
@@ -726,7 +854,15 @@
      "completeness": 0.96875,
      "completeness_n": 16,
      "agreement": 0.9375,
-     "agreement_n": 16
+     "agreement_n": 16,
+     "completeness_interval": {
+      "low": 0.9375,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.7167126242970108,
+      "high": 0.9888806552353575
+     }
     },
     {
      "week": "2026-W34",
@@ -735,7 +871,15 @@
      "completeness": 0.96875,
      "completeness_n": 16,
      "agreement": 0.9375,
-     "agreement_n": 16
+     "agreement_n": 16,
+     "completeness_interval": {
+      "low": 0.9375,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.7167126242970108,
+      "high": 0.9888806552353575
+     }
     },
     {
      "week": "2026-W35",
@@ -744,7 +888,15 @@
      "completeness": 0.9423076923076923,
      "completeness_n": 13,
      "agreement": 1.0,
-     "agreement_n": 13
+     "agreement_n": 13,
+     "completeness_interval": {
+      "low": 0.8846153846153847,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.7719046276458017,
+      "high": 1.0
+     }
     },
     {
      "week": "2026-W35",
@@ -753,7 +905,15 @@
      "completeness": 0.9423076923076923,
      "completeness_n": 13,
      "agreement": 1.0,
-     "agreement_n": 13
+     "agreement_n": 13,
+     "completeness_interval": {
+      "low": 0.8846153846153847,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.7719046276458017,
+      "high": 1.0
+     }
     },
     {
      "week": "2026-W36",
@@ -762,7 +922,15 @@
      "completeness": 0.9605263157894737,
      "completeness_n": 19,
      "agreement": 0.8421052631578947,
-     "agreement_n": 19
+     "agreement_n": 19,
+     "completeness_interval": {
+      "low": 0.9210526315789472,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.6243452472967093,
+      "high": 0.9447952836146585
+     }
     },
     {
      "week": "2026-W36",
@@ -771,7 +939,15 @@
      "completeness": 0.9605263157894737,
      "completeness_n": 19,
      "agreement": 0.8421052631578947,
-     "agreement_n": 19
+     "agreement_n": 19,
+     "completeness_interval": {
+      "low": 0.9210526315789472,
+      "high": 1.0
+     },
+     "agreement_interval": {
+      "low": 0.6243452472967093,
+      "high": 0.9447952836146585
+     }
     },
     {
      "week": "2026-W37",
@@ -780,7 +956,15 @@
      "completeness": 0.9264705882352942,
      "completeness_n": 17,
      "agreement": 0.9411764705882353,
-     "agreement_n": 17
+     "agreement_n": 17,
+     "completeness_interval": {
+      "low": 0.8672794117647058,
+      "high": 0.9852941176470589
+     },
+     "agreement_interval": {
+      "low": 0.7301796936242462,
+      "high": 0.9895395990150024
+     }
     },
     {
      "week": "2026-W37",
@@ -789,7 +973,15 @@
      "completeness": 0.9264705882352942,
      "completeness_n": 17,
      "agreement": 0.9411764705882353,
-     "agreement_n": 17
+     "agreement_n": 17,
+     "completeness_interval": {
+      "low": 0.8672794117647058,
+      "high": 0.9852941176470589
+     },
+     "agreement_interval": {
+      "low": 0.7301796936242462,
+      "high": 0.9895395990150024
+     }
     }
    ]
   }
