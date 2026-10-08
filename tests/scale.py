@@ -35,9 +35,18 @@ _ITEMS = (
     ChecklistItem(id="user_lookup", tool="lookup_user"),
 )
 
-SCALE_CHECKLISTS: dict[str, Checklist] = {
-    normalize_label(name): Checklist(alert_class=name, items=_ITEMS) for name in _CLASSES
-}
+# Many classes, weeks and versions, so most weekly points hold 2-29 cases and take the
+# bootstrap interval; the default shape's weekly points all hold 30 or more.
+WIDE_CLASSES = tuple(f"class_{index:02d}" for index in range(20))
+WIDE_WEEK_COUNT = 26
+WIDE_VERSION_COUNT = 6
+
+
+def make_scale_checklists(classes: tuple[str, ...] = _CLASSES) -> dict[str, Checklist]:
+    return {normalize_label(name): Checklist(alert_class=name, items=_ITEMS) for name in classes}
+
+
+SCALE_CHECKLISTS = make_scale_checklists()
 
 
 # Repeats of existing tools, so a case makes 6-12 calls like a busy triage agent, not the
@@ -80,13 +89,27 @@ def write_scale_dataset(folder: Path, count: int = 50_000) -> Path:
     return generate.write_text(folder / "detecttrace.yaml", generate.to_yaml(scenario.config))
 
 
-def make_scale_cases(count: int = 50_000, seed: int = 7) -> list[Case]:
+def make_scale_cases(
+    count: int = 50_000,
+    seed: int = 7,
+    *,
+    classes: tuple[str, ...] = _CLASSES,
+    week_count: int = _WEEK_COUNT,
+    version_count: int | None = None,
+) -> list[Case]:
+    """Seeded cases; without `version_count`, v1 runs two weeks and v2 the rest."""
     rng = random.Random(seed)
-    return [_make_case(rng, index) for index in range(count)]
+    return [_make_case(rng, index, classes, week_count, version_count) for index in range(count)]
 
 
-def _make_case(rng: random.Random, index: int) -> Case:
-    week = rng.randrange(_WEEK_COUNT)
+def _make_case(
+    rng: random.Random,
+    index: int,
+    classes: tuple[str, ...],
+    week_count: int,
+    version_count: int | None,
+) -> Case:
+    week = rng.randrange(week_count)
     start_ns = (
         int(
             (
@@ -96,7 +119,12 @@ def _make_case(rng: random.Random, index: int) -> Case:
         * 1_000_000_000
     )
     is_unversioned = rng.random() < 0.01
-    version = None if is_unversioned else ("v1" if week < 2 else "v2")
+    if is_unversioned:
+        version = None
+    elif version_count is None:
+        version = "v1" if week < 2 else "v2"
+    else:
+        version = f"v{rng.randrange(version_count) + 1}"
     analyst = _pick_analyst(rng)
     agent = analyst if rng.random() < 0.85 else rng.choice(list(Verdict))
     if rng.random() < 0.01:
@@ -105,7 +133,7 @@ def _make_case(rng: random.Random, index: int) -> Case:
         agent = None
     return Case(
         case_id=f"case-{index:06d}",
-        alert_class=_CLASSES[index % len(_CLASSES)],
+        alert_class=classes[index % len(classes)],
         prompt_version=version,
         analyst_verdict=analyst,
         agent_verdict=agent,

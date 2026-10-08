@@ -17,7 +17,15 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from generate import to_yaml
-from scale import SCALE_CHECKLISTS, make_scale_cases, write_scale_dataset
+from scale import (
+    SCALE_CHECKLISTS,
+    WIDE_CLASSES,
+    WIDE_VERSION_COUNT,
+    WIDE_WEEK_COUNT,
+    make_scale_cases,
+    make_scale_checklists,
+    write_scale_dataset,
+)
 from serve.app_support import INGEST_TOKEN, VERDICTS_TOKEN, create_config
 
 from detecttrace import pipeline
@@ -88,6 +96,21 @@ def test_metrics_stage_meets_the_20_second_gate():
     elapsed = time.perf_counter() - started
 
     print(f"compute_metrics on {len(cases)} cases: {elapsed:.2f} s")
+    assert elapsed <= GATE_SECONDS
+
+
+@pytest.mark.benchmark
+def test_metrics_stage_with_many_small_weekly_points_meets_the_20_second_gate():
+    cases = make_scale_cases(
+        classes=WIDE_CLASSES, week_count=WIDE_WEEK_COUNT, version_count=WIDE_VERSION_COUNT
+    )
+    checklists = make_scale_checklists(WIDE_CLASSES)
+
+    started = time.perf_counter()
+    compute_metrics(cases, checklists)
+    elapsed = time.perf_counter() - started
+
+    print(f"compute_metrics on {len(cases)} cases in many small weekly points: {elapsed:.2f} s")
     assert elapsed <= GATE_SECONDS
 
 
