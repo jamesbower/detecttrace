@@ -47,7 +47,7 @@ export function Overview({ view, results }: PageProps) {
             <ul className="overview-lines">
               {view.classes.map((alertClass) => (
                 <li key={alertClass.anchor}>
-                  <span className="class-name">{alertClass.name}</span>: {alertClass.confusion.dangerous_text}
+                  <span className="class-name">{alertClass.name}</span>: {alertClass.confusion.dangerous_share_text}
                 </li>
               ))}
             </ul>

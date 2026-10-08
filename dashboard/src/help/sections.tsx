@@ -87,7 +87,8 @@ function Pages() {
         Evidence completeness and verdict agreement per ISO week, with one line for all versions together, one for
         each shown version, and one each for the pooled versions and (no version) when a class has them. A case&apos;s
         week comes from its agent run&apos;s start time, in UTC. A dashed rule marks the first
-        week of each version, and a hollow point has fewer than 10 cases.
+        week of each version, and a hollow point has fewer than 10 cases. Each point&apos;s value, 95% interval and n
+        are in its label, the readout and the table.
       </dd>
       <dt>Verdict matrix</dt>
       <dd>
@@ -234,7 +235,11 @@ function ReadingTheNumbers() {
           for the mean at 30 or more.
         </li>
       </ul>
-      <p>Skipped-step rates and weekly trend points have no interval. An interval is also left out when:</p>
+      <p>
+        Skipped-step rates have no interval. Weekly trend points use the same intervals as the version table: the
+        Wilson score interval for verdict agreement, and for evidence completeness the same rule by each week&apos;s
+        number of cases. An interval is also left out when:
+      </p>
       <ul>
         <li>an evidence completeness value has one case, or all its cases have the same value;</li>
         <li>

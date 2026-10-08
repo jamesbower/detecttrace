@@ -60,8 +60,18 @@ it("shows each class's dangerous false closes", () => {
   renderOverview();
 
   expect(definitionFor("Dangerous false closes")).toBe(
-    "impossible_travel: 3 dangerous false closesoauth_consent: 1 dangerous false close",
+    "impossible_travel: 3 of 14 true positivesoauth_consent: 1 of 16 true positives",
   );
+});
+
+it("shows each class's dangerous false closes as a share of its true positives", () => {
+  const [first, ...rest] = DEMO_VIEW.classes;
+  const confusion = { ...first!.confusion, dangerous_share_text: "6 of 40 true positives" };
+  renderOverview({ ...DEMO_VIEW, classes: [{ ...first!, confusion }, ...rest] });
+
+  const kpi = screen.getAllByRole("term").find((element) => element.textContent === "Dangerous false closes")!;
+
+  expect(kpi.parentElement!.querySelector("li")!.textContent).toBe("impossible_travel: 6 of 40 true positives");
 });
 
 it("shows the low-coverage warning as a link to the data notes", () => {

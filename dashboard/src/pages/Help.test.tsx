@@ -196,3 +196,25 @@ it("lists every line of the weekly trend", () => {
     "one line for all versions together, one for each shown version, and one each for the pooled versions and (no version) when a class has them.",
   );
 });
+
+it("says where a weekly trend point's interval and n are shown", () => {
+  expect(describePage("Weekly trend")).toContain(
+    "Each point's value, 95% interval and n are in its label, the readout and the table.",
+  );
+});
+
+it("says weekly trend points use the version table's intervals", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+
+  expect(screen.getByRole("region", { name: "Reading the numbers" }).textContent).toContain(
+    "Weekly trend points use the same intervals as the version table: the Wilson score interval for verdict agreement, and for evidence completeness the same rule by each week's number of cases.",
+  );
+});
+
+it("says skipped-step rates have no interval", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+
+  expect(screen.getByRole("region", { name: "Reading the numbers" }).textContent).toContain(
+    "Skipped-step rates have no interval.",
+  );
+});

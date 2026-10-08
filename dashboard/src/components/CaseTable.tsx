@@ -141,6 +141,7 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
               <span className="case-cell-text">{caseText}</span>
             </button>
           </td>
+          <td>{renderResult(row)}</td>
           <td>
             <code className="case-cell-text">{toVisibleText(row.alertClass)}</code>
           </td>
@@ -153,9 +154,6 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
           </td>
           <td>
             {renderVerdict(row.agent)}
-          </td>
-          <td>
-            {renderResult(row)}
           </td>
           <td className="case-num">{checklistLabel(row)}</td>
         </tr>
@@ -193,12 +191,12 @@ export function CaseTable({ rows, details, view, results }: CaseTableProps) {
         <thead>
           <tr aria-rowindex={1}>
             <th scope="col">Case</th>
+            <th scope="col">Result</th>
             <th scope="col">Alert class</th>
             <th scope="col">Week</th>
             <th scope="col">Version</th>
             <th scope="col">Analyst</th>
             <th scope="col">Agent</th>
-            <th scope="col">Result</th>
             <th scope="col" className="case-num">
               Checklist
             </th>

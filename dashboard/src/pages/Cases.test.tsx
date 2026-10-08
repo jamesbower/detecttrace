@@ -546,6 +546,21 @@ describe("measuring an opened row", () => {
   });
 });
 
+it("orders the columns with the result after the case", () => {
+  render(<Cases view={DEMO_VIEW} results={createResults([{ id: "A", analyst: TRUE_POSITIVE, agent: BENIGN }])} />);
+
+  expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+    "Case",
+    "Result",
+    "Alert class",
+    "Week",
+    "Version",
+    "Analyst",
+    "Agent",
+    "Checklist",
+  ]);
+});
+
 describe("verdicts", () => {
   const results = createResults([
     { id: "A", analyst: FALSE_POSITIVE, agent: BENIGN },
@@ -585,6 +600,12 @@ describe("verdicts", () => {
     render(<Cases view={DEMO_VIEW} results={results} />);
 
     expect(rowOf("B").queryByText("Dangerous false close")).not.toBeNull();
+  });
+
+  it("puts the result in the second column", () => {
+    render(<Cases view={DEMO_VIEW} results={results} />);
+
+    expect(caseButton("B").closest("tr")!.cells[1]!.textContent).toBe("Dangerous false close");
   });
 
   it("marks a disagreement in words", () => {
