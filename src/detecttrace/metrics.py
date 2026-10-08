@@ -1,5 +1,6 @@
 """Verdict agreement, Cohen's kappa, evidence completeness, skipped steps and weekly trends."""
 
+import math
 import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -409,8 +410,9 @@ def _completeness_interval(
         return None, None
     if len(values) >= T_INTERVAL_MIN_CASES:
         return _clip(mean_t_interval(values)), "t"
+    # The same sum as statistics.fmean, without a generator per resample.
     result = percentile_bootstrap(
-        len(values), lambda indices: statistics.fmean(values[i] for i in indices)
+        len(values), lambda indices: math.fsum(map(values.__getitem__, indices)) / len(indices)
     )
     # The mean of a non-empty resample of finite values is always defined, so no resample is
     # dropped and the interval always exists.
