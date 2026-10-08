@@ -83,9 +83,9 @@ Each cell shows the rate and the counts ("284 of 910"). It has no interval.
 
 ## Weekly trend
 
-Per alert class, evidence completeness and verdict agreement for each ISO 8601 week, such as `2026-W38`. A case's week comes from its agent span's start time, in UTC. There is one line for all versions, one for each shown version, and one each for the pooled versions and "(no version)" when a class has them. A week where a line has no cases is a gap. A point with fewer than 10 cases has a hollow marker.
+Per alert class, evidence completeness and verdict agreement for each ISO 8601 week, such as `2026-W38`. A case's week comes from its agent span's start time, in UTC. There is one line for all versions, one for each shown version, and one each for the pooled versions and "(no version)" when a class has them. A week where a line has no cases is a gap. A point with fewer than 10 cases has a hollow marker, and its text ends with "Few cases."
 
-Each point has a 95% interval, built as in the version table (see [Intervals](#intervals)). It is shown as text in the point's label, the keyboard readout and the table, as in "84% (95% CI 71–92%, n 31)". A completeness point with no interval says why, as in "84% (n 1; no interval, one case)" or "100% (n 4; no interval, all cases equal)".
+Each point has a 95% interval, built as in the version table (see [Intervals](#intervals)). It is shown as text in the point's label, the keyboard readout and the table, as in "84% (95% CI 71–92%, n 31)". A completeness point with no interval says why, as in "84% (n 1; no interval, one case) Few cases." or "100% (n 4; no interval, all cases equal) Few cases."
 
 ## Versions
 
