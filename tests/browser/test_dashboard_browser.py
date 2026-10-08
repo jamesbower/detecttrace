@@ -63,6 +63,7 @@ PAGES = [
 ]
 PAGE_IDS = [title for _, title in PAGES]
 WIDTHS = [1280, 360]
+PHONE_WIDTH = 390
 FIRST_RENDER_TIMEOUT_MS = 180_000
 CASE_COUNT = len(DEMO_RESULTS["case_rows"]["columns"]["case_id"])
 CLASS_ANCHORS = [class_view.anchor for class_view in DEMO_VIEW.classes]
@@ -841,12 +842,16 @@ def test_the_readout_gives_the_focused_point_its_interval(trend_keys: TrendKeys)
     assert "95% CI" in trend_keys.readout
 
 
-def test_the_completeness_table_gives_each_week_its_interval(browser: Any, demo_path: Path) -> None:
+def test_show_table_opens_the_completeness_cells_with_their_intervals(
+    browser: Any, demo_path: Path
+) -> None:
     with visiting(browser, demo_path, hash="#/trends") as visit:
         table = visit.page.locator(".trend-table").first
         table.locator(".trend-table-toggle").click()
         cells = table.locator("td").all_inner_texts()
-    assert "95% CI" in " ".join(cells)
+    assert cells == [
+        cell for row in DEMO_VIEW.classes[0].trend.completeness.table_rows for cell in row.cells
+    ]
 
 
 def test_focusing_a_trend_point_on_a_phone_never_scrolls_the_page_sideways(
@@ -858,7 +863,7 @@ def test_focusing_a_trend_point_on_a_phone_never_scrolls_the_page_sideways(
             "() => document.querySelector('.trend-chart-readout').textContent !== ''"
         )
         sizes = visit.page.evaluate(
-            "() => [document.documentElement.scrollWidth, window.innerWidth]"
+            "() => [document.scrollingElement.scrollWidth, document.scrollingElement.clientWidth]"
         )
     assert sizes[0] <= sizes[1]
 
@@ -871,9 +876,10 @@ def test_the_dangerous_figure_names_each_class_true_positive_base(
 ) -> None:
     with visiting(browser, demo_path) as visit:
         lines = visit.page.locator(".kpi:has(.class-name) .overview-lines li").all_inner_texts()
-    assert [bool(re.fullmatch(r".+: \d+ of \d+ true positives?", line)) for line in lines] == [
-        True
-    ] * len(CLASS_NAMES)
+    assert lines == [
+        f"{class_view.name}: {class_view.confusion.dangerous_share_text}"
+        for class_view in DEMO_VIEW.classes
+    ]
 
 
 # Filters and rows
@@ -900,18 +906,10 @@ def test_a_filter_sets_the_count_line(
     assert demo_visit[1][key] == to_count_line(expected)
 
 
-def test_a_phone_shows_result_second_in_the_case_table(browser: Any, demo_path: Path) -> None:
-    with visiting(browser, demo_path, hash="#/cases", width=390) as visit:
+def test_result_is_the_second_case_column(browser: Any, demo_path: Path) -> None:
+    with visiting(browser, demo_path, hash="#/cases") as visit:
         headers = visit.page.locator(".case-table thead th").all_inner_texts()
     assert headers[:2] == ["Case", "Result"]
-
-
-def test_a_phone_shows_the_result_header_without_scrolling_sideways(
-    browser: Any, demo_path: Path
-) -> None:
-    with visiting(browser, demo_path, hash="#/cases", width=390) as visit:
-        header = visit.page.locator(".case-table thead th", has_text="Result").bounding_box()
-    assert header["x"] + header["width"] <= 390
 
 
 def test_tab_reaches_every_case_in_order(case_tab_order: list[int]) -> None:
@@ -983,6 +981,14 @@ def test_every_page_link_fits_the_bottom_bar_at_320px(browser: Any, demo_path: P
 @pytest.mark.parametrize("title", PAGE_IDS)
 def test_the_page_never_scrolls_sideways(layouts: dict[str, Layout], title: str) -> None:
     assert layouts[title].scroll_width <= layouts[title].client_width
+
+
+def test_a_phone_shows_the_result_header_without_scrolling_sideways(
+    browser: Any, demo_path: Path
+) -> None:
+    with visiting(browser, demo_path, hash="#/cases", width=PHONE_WIDTH) as visit:
+        header = visit.page.locator(".case-table thead th", has_text="Result").bounding_box()
+    assert header["x"] + header["width"] <= PHONE_WIDTH
 
 
 # Each element Tab reaches outside the navigation bar, with its top and bottom, and the bar's top.
