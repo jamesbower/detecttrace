@@ -105,6 +105,8 @@ class WeekPoint:
     completeness_n: int
     agreement: float | None
     agreement_n: int
+    completeness_interval: Interval | None
+    agreement_interval: Interval | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,6 +349,8 @@ def _week_point(
         completeness_n=len(completeness),
         agreement=sum(agreement) / len(agreement) if agreement else None,
         agreement_n=len(agreement),
+        completeness_interval=_completeness_interval(completeness)[0],
+        agreement_interval=wilson_interval(sum(agreement), len(agreement)),
     )
 
 
@@ -392,20 +396,26 @@ def _completeness(
         if case_evidence is None:
             raise ValueError(f"no evidence for case '{case.case_id}' although a checklist exists")
         values.append(case_evidence.satisfied_count / item_count)
-    mean = statistics.fmean(values)
+    interval, method = _completeness_interval(values)
+    return Completeness(statistics.fmean(values), interval, len(values), method)
+
+
+def _completeness_interval(
+    values: Sequence[float],
+) -> tuple[Interval | None, Literal["t", "bootstrap"] | None]:
     # One case or equal values give a zero-width interval that would look precise, so none
     # is shown.
     if len(values) < 2 or min(values) == max(values):
-        return Completeness(mean, None, len(values), None)
+        return None, None
     if len(values) >= T_INTERVAL_MIN_CASES:
-        return Completeness(mean, _clip(mean_t_interval(values)), len(values), "t")
+        return _clip(mean_t_interval(values)), "t"
     result = percentile_bootstrap(
         len(values), lambda indices: statistics.fmean(values[i] for i in indices)
     )
     # The mean of a non-empty resample of finite values is always defined, so no resample is
     # dropped and the interval always exists.
     assert result.interval is not None
-    return Completeness(mean, _clip(result.interval), len(values), "bootstrap")
+    return _clip(result.interval), "bootstrap"
 
 
 def _clip(interval: Interval) -> Interval:

@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import random
 from collections.abc import Mapping
@@ -636,9 +637,9 @@ def test_trend_point_averages_completeness_and_agreement_of_the_week() -> None:
         make_case("a-2", TP, FP, start_ns=IN_W38, calls=(make_call("alpha"),)),
     ]
 
-    assert report_of(cases, TWO_ITEMS).classes[0].trend[0] == WeekPoint(
-        W38, ALL, None, 0.75, 2, 0.5, 2
-    )
+    point = report_of(cases, TWO_ITEMS).classes[0].trend[0]
+
+    assert dataclasses.astuple(point)[:7] == (W38, ALL, None, 0.75, 2, 0.5, 2)
 
 
 def test_trend_version_point_averages_only_that_version() -> None:
@@ -655,7 +656,7 @@ def test_trend_version_point_averages_only_that_version() -> None:
     ]
 
     assert report_of(cases, TWO_ITEMS).classes[0].trend[2] == WeekPoint(
-        W38, VERSION, "v2", 0.5, 1, 0.0, 1
+        W38, VERSION, "v2", 0.5, 1, 0.0, 1, None, wilson_interval(0, 1)
     )
 
 
@@ -691,6 +692,80 @@ def test_trend_point_without_agreement_cases_has_no_agreement() -> None:
     point = report_of(cases).classes[0].trend[0]
 
     assert (point.agreement, point.agreement_n) == (None, 0)
+
+
+def test_trend_agreement_interval_is_wilson() -> None:
+    cases = [
+        make_case("a-1", TP, TP, start_ns=IN_W38),
+        make_case("a-2", TP, FP, start_ns=IN_W38),
+    ]
+
+    assert report_of(cases).classes[0].trend[0].agreement_interval == wilson_interval(1, 2)
+
+
+def test_trend_point_without_agreement_cases_has_no_agreement_interval() -> None:
+    cases = [make_case("a-1", TP, None, start_ns=IN_W38)]
+
+    assert report_of(cases).classes[0].trend[0].agreement_interval is None
+
+
+# Satisfied checklist items 0, 1 and 2 of TWO_ITEMS, so completeness 0, 0.5 and 1.
+CALLS_BY_SATISFIED = ((), (make_call("alpha"),), (make_call("alpha"), make_call("beta")))
+
+
+def test_trend_point_with_one_case_has_no_completeness_interval() -> None:
+    cases = [make_case("a-1", TP, TP, start_ns=IN_W38, calls=CALLS_BY_SATISFIED[1])]
+
+    assert report_of(cases, TWO_ITEMS).classes[0].trend[0].completeness_interval is None
+
+
+def test_trend_point_with_equal_completeness_has_no_completeness_interval() -> None:
+    cases = [
+        make_case(f"a-{index}", TP, TP, start_ns=IN_W38, calls=CALLS_BY_SATISFIED[1])
+        for index in range(3)
+    ]
+
+    assert report_of(cases, TWO_ITEMS).classes[0].trend[0].completeness_interval is None
+
+
+def test_trend_completeness_interval_of_a_few_cases_matches_the_version_table() -> None:
+    cases = [
+        make_case(f"a-{index}", TP, TP, start_ns=IN_W38, calls=CALLS_BY_SATISFIED[index])
+        for index in range(3)
+    ]
+    report = report_of(cases, TWO_ITEMS).classes[0]
+    interval = report.trend[0].completeness_interval
+
+    assert report.overall.completeness == Completeness(0.5, interval, 3, "bootstrap")
+
+
+def test_trend_completeness_interval_of_many_cases_matches_the_version_table() -> None:
+    cases = [
+        make_case(f"a-{index:02d}", TP, TP, start_ns=IN_W38, calls=CALLS_BY_SATISFIED[index % 3])
+        for index in range(30)
+    ]
+    report = report_of(cases, TWO_ITEMS).classes[0]
+    interval = report.trend[0].completeness_interval
+
+    assert report.overall.completeness == Completeness(0.5, interval, 30, "t")
+
+
+def test_trend_version_completeness_interval_matches_that_version_row() -> None:
+    cases = [
+        make_case("a-1", TP, TP, version="v1", start_ns=IN_W38, calls=CALLS_BY_SATISFIED[2]),
+        *(
+            make_case(
+                f"b-{index}", TP, TP, version="v2", start_ns=IN_W38, calls=CALLS_BY_SATISFIED[index]
+            )
+            for index in range(3)
+        ),
+    ]
+    report = report_of(cases, TWO_ITEMS).classes[0]
+    point = next(p for p in report.trend if p.version == "v2")
+
+    assert report.by_version["v2"].completeness == Completeness(
+        0.5, point.completeness_interval, 3, "bootstrap"
+    )
 
 
 def test_class_without_checklist_has_no_trend_completeness() -> None:
@@ -1059,9 +1134,9 @@ def test_trend_shows_other_after_the_shown_versions_instead_of_pooled_versions()
 def test_other_trend_point_averages_the_pooled_cases_of_the_week() -> None:
     cases = make_version_cases(*SIX_VERSIONS, *POOLED_VERSIONS)
 
-    assert report_of(cases, TWO_ITEMS).classes[0].trend[-1] == WeekPoint(
-        "1970-W01", OTHER, None, 11 / 14, 7, 4 / 7, 7
-    )
+    point = report_of(cases, TWO_ITEMS).classes[0].trend[-1]
+
+    assert dataclasses.astuple(point)[:7] == ("1970-W01", OTHER, None, 11 / 14, 7, 4 / 7, 7)
 
 
 def test_skipped_steps_for_other_pool_the_counts() -> None:
