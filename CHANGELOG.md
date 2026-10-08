@@ -17,7 +17,9 @@ The first release.
 - Verdict inputs: a CSV file of analyst verdicts, with label mapping to true positive, false positive and benign.
 - `FileSpanExporter` (the `otel` extra) writes your agent's OpenTelemetry spans straight to OTLP JSON Lines files, without a Collector.
 - Dashboard pages: an overview, results by version, checklist steps the agent skipped, a weekly trend, agent verdicts against analyst verdicts, cases, data (the coverage lines and the data notes), and what the dashboard does not tell you. Every value shows its number of cases and a 95% confidence interval.
-- A Result filter on the Cases page: all cases, disagreements, or dangerous false closes. The page, the selected alert class and the case filters are kept in the page's address.
+- A Result filter on the Cases page: all cases, disagreements, or dangerous false closes. Result is the table's second column, after Case, on every screen size. The page, the selected alert class and the case filters are kept in the page's address.
+- The Overview's dangerous false closes list each class's count out of the analyst's true positives with an agent verdict, as in "6 of 39 true positives".
+- Weekly trend points have 95% intervals, built as for versions. They are shown as text in each point's label, the keyboard readout and the table. In `check --json`, each `trend[]` entry has `completeness_interval` and `agreement_interval`.
 - Term explanations on the Overview, Versions and Weekly trend pages; a Help page.
 - Keyboard navigation of the weekly trend charts: the arrow keys, Home and End move between points.
 - Support for forced colors, such as Windows high contrast: trend lines, chart markers and interval strips stay visible.

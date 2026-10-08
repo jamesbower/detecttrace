@@ -50,7 +50,7 @@ Per alert class, all versions together. Rows are the analyst's verdict and colum
 
 ## Dangerous false closes
 
-Cases where the analyst said `true_positive` and the agent said `false_positive` or `benign`: the agent closed a real threat. Shown as a count per version, with the case table's "Dangerous false closes" filter to list them. `check --json` writes their case IDs.
+Cases where the analyst said `true_positive` and the agent said `false_positive` or `benign`: the agent closed a real threat. Shown as a count per version, with the case table's "Dangerous false closes" filter to list them. The Overview shows each class's count out of the analyst's true positives with an agent verdict, as in "6 of 39 true positives". `check --json` writes their case IDs.
 
 **True positives with no agent verdict** are counted apart. They are cases where the analyst said `true_positive` and the agent's verdict is missing or unmapped. They are not dangerous false closes and not in agreement, since the agent's answer is unknown. Each version row lists up to three of their case IDs ("2 true positives with no agent verdict: …"), and a data note gives the count per class.
 
@@ -83,7 +83,9 @@ Each cell shows the rate and the counts ("284 of 910"). It has no interval.
 
 ## Weekly trend
 
-Per alert class, evidence completeness and verdict agreement for each ISO 8601 week, such as `2026-W38`. A case's week comes from its agent span's start time, in UTC. There is one line for all versions, one for each shown version, and one each for the pooled versions and "(no version)" when a class has them. A week where a line has no cases is a gap. A point with fewer than 10 cases has a hollow marker. Points have no interval.
+Per alert class, evidence completeness and verdict agreement for each ISO 8601 week, such as `2026-W38`. A case's week comes from its agent span's start time, in UTC. There is one line for all versions, one for each shown version, and one each for the pooled versions and "(no version)" when a class has them. A week where a line has no cases is a gap. A point with fewer than 10 cases has a hollow marker.
+
+Each point has a 95% interval, built as in the version table (see [Intervals](#intervals)). It is shown as text in the point's label, the keyboard readout and the table, as in "84% (95% CI 71–92%, n 31)". A completeness point with no interval says why, as in "84% (n 1; no interval, one case)" or "100% (n 4; no interval, all cases equal)".
 
 ## Versions
 
@@ -95,7 +97,7 @@ At most six versions are shown per class. When a class has more, the six with th
 
 ## Intervals
 
-Every interval is a 95% interval.
+Every interval is a 95% interval. The methods are the same for each version and for each weekly trend point.
 
 | Metric | Method |
 |---|---|
@@ -105,6 +107,8 @@ Every interval is a 95% interval.
 | Evidence completeness | See [Evidence completeness](#evidence-completeness) |
 
 The percentile bootstrap draws 1,000 resamples of the cases, with replacement. The interval runs from the 2.5th to the 97.5th percentile of the statistic over the resamples. Each interval uses its own generator with the same fixed seed, so it doesn't depend on what else was computed.
+
+In `check --json`, each `trend[]` entry has `completeness_interval` and `agreement_interval`: `{"low": …, "high": …}`, or `null` when there is no interval.
 
 For κ, a resample in which κ is undefined (`p_e` = 1) is dropped. The κ cell on the Overview and Versions pages then says "N of 1,000 resamples dropped", and a data note names the class and version. With fewer than 900 usable resamples, no interval is shown: "No interval (too few usable resamples)".
 
