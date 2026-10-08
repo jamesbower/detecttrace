@@ -52,7 +52,7 @@ export function Overview({ view, results }: PageProps) {
               ))}
             </ul>
           }
-          context="The analyst said true positive; the agent said false positive or benign."
+          context="The analyst said true positive; the agent said false positive or benign. Shown out of the analyst's true positives that have an agent verdict."
         />
       </dl>
       <PanelSlot name="overview-after-kpis" view={view} results={results} />

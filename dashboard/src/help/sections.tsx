@@ -67,8 +67,8 @@ function Pages() {
     <dl className="help-pages">
       <dt>Overview</dt>
       <dd>
-        The cases and period covered, the coverage lines, and each class&apos;s dangerous false closes. For the class
-        you pick, its version table, with links to that class&apos;s skipped steps, weekly trend and verdict matrix.
+        The cases and period covered, the coverage lines, and each class&apos;s dangerous false closes, out of the
+        analyst&apos;s true positives that have an agent verdict. For the class you pick, its version table, with links to that class&apos;s skipped steps, weekly trend and verdict matrix.
       </dd>
       <dt>Versions</dt>
       <dd>
@@ -210,6 +210,7 @@ function DangerousFalseCloses() {
       <p>
         Of 40 cases the analyst marked true positive, the agent said true positive in 33, false positive in 2 and benign
         in 4, and gave no verdict in 1. That is 6 dangerous false closes, and 1 true positive with no agent verdict.
+        The Overview shows this as 6 of 39 true positives: the case with no agent verdict is left out.
       </p>
     </>
   );

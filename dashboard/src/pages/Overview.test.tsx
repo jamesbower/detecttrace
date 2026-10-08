@@ -74,6 +74,15 @@ it("shows each class's dangerous false closes as a share of its true positives",
   expect(kpi.parentElement!.querySelector("li")!.textContent).toBe("impossible_travel: 6 of 40 true positives");
 });
 
+it("says what the dangerous false closes figure counts out of", () => {
+  renderOverview();
+  const kpi = screen.getAllByRole("term").find((element) => element.textContent === "Dangerous false closes")!;
+
+  expect(kpi.parentElement!.querySelector(".kpi-context")!.textContent).toBe(
+    "The analyst said true positive; the agent said false positive or benign. Shown out of the analyst's true positives that have an agent verdict.",
+  );
+});
+
 it("shows the low-coverage warning as a link to the data notes", () => {
   renderOverview({ ...DEMO_VIEW, header: { ...DEMO_VIEW.header, low_coverage_text: LOW_COVERAGE } });
 

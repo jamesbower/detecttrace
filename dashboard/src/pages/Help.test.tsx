@@ -218,3 +218,17 @@ it("says skipped-step rates have no interval", () => {
     "Skipped-step rates have no interval.",
   );
 });
+
+it("says the Overview counts dangerous false closes out of true positives with an agent verdict", () => {
+  expect(describePage("Overview")).toContain(
+    "each class's dangerous false closes, out of the analyst's true positives that have an agent verdict.",
+  );
+});
+
+it("gives the worked example's figure as the Overview shows it", () => {
+  render(<Help view={OFFLINE_VIEW} />);
+
+  expect(screen.getByText(/^Of 40 cases the analyst marked true positive/).textContent).toContain(
+    "The Overview shows this as 6 of 39 true positives: the case with no agent verdict is left out.",
+  );
+});
