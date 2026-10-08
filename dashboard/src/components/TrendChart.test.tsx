@@ -75,7 +75,7 @@ it("moves Tab to the first point, named by week, series and value", async () => 
 
   await userEvent.tab();
 
-  expect(document.activeElement).toBe(screen.getByRole("img", { name: "2026-W32, All versions: 94% (n 17)" }));
+  expect(document.activeElement).toBe(screen.getByRole("img", { name: "2026-W32, All versions: 94% (95% CI 89–98%, n 17)" }));
 });
 
 function focusedName(): string | null | undefined {
@@ -103,7 +103,7 @@ it("moves ArrowRight to the series' next week", async () => {
 
   await userEvent.keyboard("{ArrowRight}");
 
-  expect(focusedName()).toBe("2026-W33, All versions: 92% (n 19)");
+  expect(focusedName()).toBe("2026-W33, All versions: 92% (95% CI 85–97%, n 19)");
 });
 
 it("moves ArrowLeft back to the series' previous week", async () => {
@@ -113,7 +113,7 @@ it("moves ArrowLeft back to the series' previous week", async () => {
 
   await userEvent.keyboard("{ArrowLeft}");
 
-  expect(focusedName()).toBe("2026-W36, All versions: 79% (n 20)");
+  expect(focusedName()).toBe("2026-W36, All versions: 79% (95% CI 73–85%, n 20)");
 });
 
 it("moves End to the series' last week", async () => {
@@ -122,7 +122,7 @@ it("moves End to the series' last week", async () => {
 
   await userEvent.keyboard("{End}");
 
-  expect(focusedName()).toBe("2026-W37, All versions: 73% (n 14)");
+  expect(focusedName()).toBe("2026-W37, All versions: 73% (95% CI 66–79%, n 14)");
 });
 
 it("moves ArrowDown to the next series in the same week", async () => {
@@ -131,7 +131,7 @@ it("moves ArrowDown to the next series in the same week", async () => {
 
   await userEvent.keyboard("{ArrowDown}");
 
-  expect(focusedName()).toBe("2026-W32, v1: 94% (n 17)");
+  expect(focusedName()).toBe("2026-W32, v1: 94% (95% CI 89–98%, n 17)");
 });
 
 it("moves ArrowDown to the next series' nearest week when it has none that week", async () => {
@@ -141,7 +141,7 @@ it("moves ArrowDown to the next series' nearest week when it has none that week"
 
   await userEvent.keyboard("{ArrowDown}");
 
-  expect(focusedName()).toBe("2026-W34, v2: 74% (n 18)");
+  expect(focusedName()).toBe("2026-W34, v2: 74% (95% CI 67–82%, n 18)");
 });
 
 it("moves ArrowUp to the previous series' nearest week", async () => {
@@ -151,7 +151,7 @@ it("moves ArrowUp to the previous series' nearest week", async () => {
 
   await userEvent.keyboard("{ArrowUp}");
 
-  expect(focusedName()).toBe("2026-W33, v1: 92% (n 19)");
+  expect(focusedName()).toBe("2026-W33, v1: 92% (95% CI 85–97%, n 19)");
 });
 
 it("returns Tab to the last point moved to", async () => {
@@ -162,7 +162,7 @@ it("returns Tab to the last point moved to", async () => {
 
   await userEvent.tab({ shift: true });
 
-  expect(focusedName()).toBe("2026-W33, All versions: 92% (n 19)");
+  expect(focusedName()).toBe("2026-W33, All versions: 92% (95% CI 85–97%, n 19)");
 });
 
 it("shows the focused point's name beside the chart", async () => {
@@ -170,7 +170,7 @@ it("shows the focused point's name beside the chart", async () => {
 
   await userEvent.tab();
 
-  expect(screen.queryByText("2026-W32, All versions: 94% (n 17)")).not.toBeNull();
+  expect(screen.queryByText("2026-W32, All versions: 94% (95% CI 89–98%, n 17)")).not.toBeNull();
 });
 
 it("marks each version's first week", () => {
@@ -204,7 +204,7 @@ it("shows the table with the view's cell text when the toggle is pressed", async
 
   await userEvent.click(screen.getByRole("button", { name: /^Show table/ }));
 
-  expect(screen.getAllByRole("cell", { name: "92% (n 19)" })).toHaveLength(2);
+  expect(screen.getAllByRole("cell", { name: "92% (95% CI 85–97%, n 19)" })).toHaveLength(2);
 });
 
 it("names the table by class, metric and period", async () => {
@@ -235,7 +235,7 @@ it("says why a metric has no chart", () => {
 it("names a few-case point's value as the view gives it", () => {
   renderEdge();
 
-  expect(screen.queryByRole("img", { name: "2026-W32, v1: 100% (n 3) Few cases." })).not.toBeNull();
+  expect(screen.queryByRole("img", { name: "2026-W32, v1: 100% (95% CI 44–100%, n 3) Few cases." })).not.toBeNull();
 });
 
 it("draws a hollow marker for each version week with few cases", () => {
@@ -253,7 +253,7 @@ it("draws the other-versions series", () => {
 it("draws a point for a 200-character version label", () => {
   render(<TrendChart metric={LONG_TREND.completeness} trend={LONG_TREND} alertClassName="impossible_travel" />);
 
-  expect(screen.queryByRole("img", { name: `2026-W32, ${LONG_LABEL}: 94% (n 17)` })).not.toBeNull();
+  expect(screen.queryByRole("img", { name: `2026-W32, ${LONG_LABEL}: 94% (95% CI 89–98%, n 17)` })).not.toBeNull();
 });
 
 it("marks the first week of a version with a 200-character label", () => {

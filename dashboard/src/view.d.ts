@@ -113,6 +113,7 @@ export type ConfusionRowView = {
 export type ConfusionView = {
   readonly n_text: string;
   readonly dangerous_text: string;
+  readonly dangerous_share_text: string;
   readonly column_labels: ReadonlyArray<string>;
   readonly rows: ReadonlyArray<ConfusionRowView>;
 };

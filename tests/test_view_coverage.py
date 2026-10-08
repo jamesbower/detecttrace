@@ -109,6 +109,7 @@ PAGE_OF = {
     "classes[].trend.few_legend_text": "/trends",
     "classes[].confusion.n_text": "/verdicts",
     "classes[].confusion.dangerous_text": "/verdicts",
+    "classes[].confusion.dangerous_share_text": "/",
     "classes[].confusion.column_labels[]": "/verdicts",
     "classes[].confusion.rows[].label": "/verdicts",
     "classes[].confusion.rows[].cells[].count_text": "/verdicts",

@@ -660,8 +660,8 @@
             {
               "week": "2026-W32",
               "cells": [
-                "100% (n 3) Few cases.",
-                "100% (n 3) Few cases.",
+                "100% (95% CI 44–100%, n 3) Few cases.",
+                "100% (95% CI 44–100%, n 3) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
@@ -673,22 +673,22 @@
             {
               "week": "2026-W33",
               "cells": [
-                "100% (n 2) Few cases.",
+                "100% (95% CI 34–100%, n 2) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
-                "100% (n 2) Few cases."
+                "100% (95% CI 34–100%, n 2) Few cases."
               ]
             },
             {
               "week": "2026-W34",
               "cells": [
-                "100% (n 4) Few cases.",
+                "100% (95% CI 51–100%, n 4) Few cases.",
                 "no cases",
-                "100% (n 4) Few cases.",
+                "100% (95% CI 51–100%, n 4) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
@@ -699,10 +699,10 @@
             {
               "week": "2026-W35",
               "cells": [
-                "86% (n 7) Few cases.",
+                "86% (95% CI 49–97%, n 7) Few cases.",
                 "no cases",
                 "no cases",
-                "86% (n 7) Few cases.",
+                "86% (95% CI 49–97%, n 7) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
@@ -712,24 +712,24 @@
             {
               "week": "2026-W36",
               "cells": [
-                "100% (n 2) Few cases.",
+                "100% (95% CI 34–100%, n 2) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
-                "100% (n 2) Few cases."
+                "100% (95% CI 34–100%, n 2) Few cases."
               ]
             },
             {
               "week": "2026-W37",
               "cells": [
-                "71% (n 7) Few cases.",
+                "71% (95% CI 36–92%, n 7) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
-                "71% (n 7) Few cases.",
+                "71% (95% CI 36–92%, n 7) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases"
@@ -738,12 +738,12 @@
             {
               "week": "2026-W38",
               "cells": [
-                "100% (n 4) Few cases.",
+                "100% (95% CI 51–100%, n 4) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
-                "100% (n 4) Few cases.",
+                "100% (95% CI 51–100%, n 4) Few cases.",
                 "no cases",
                 "no cases"
               ]
@@ -751,13 +751,13 @@
             {
               "week": "2026-W39",
               "cells": [
-                "75% (n 4) Few cases.",
+                "75% (95% CI 30–95%, n 4) Few cases.",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
                 "no cases",
-                "75% (n 4) Few cases.",
+                "75% (95% CI 30–95%, n 4) Few cases.",
                 "no cases"
               ]
             }
@@ -777,6 +777,7 @@
       "confusion": {
         "n_text": "n = 33",
         "dangerous_text": "1 dangerous false close",
+        "dangerous_share_text": "1 of 6 true positives",
         "column_labels": [
           "Agent: true positive",
           "Agent: false positive",

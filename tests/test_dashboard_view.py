@@ -185,7 +185,14 @@ def results(
 
 
 def trend_point(
-    week: str, scope: str, version: str | None, value: float, n: int
+    week: str,
+    scope: str,
+    version: str | None,
+    value: float,
+    n: int,
+    *,
+    completeness_interval: dict[str, float] | None = None,
+    agreement_interval: dict[str, float] | None = None,
 ) -> dict[str, object]:
     return {
         "week": week,
@@ -193,8 +200,10 @@ def trend_point(
         "version": version,
         "completeness": value,
         "completeness_n": n,
+        "completeness_interval": completeness_interval,
         "agreement": value,
         "agreement_n": n,
+        "agreement_interval": agreement_interval,
     }
 
 
@@ -632,6 +641,24 @@ def test_the_confusion_matrix_counts_dangerous_false_closes() -> None:
     assert build_view(results()).classes[0].confusion.dangerous_text == "2 dangerous false closes"
 
 
+def test_the_dangerous_share_counts_the_analyst_true_positives() -> None:
+    assert (
+        build_view(results()).classes[0].confusion.dangerous_share_text == "2 of 7 true positives"
+    )
+
+
+def test_the_dangerous_share_names_one_true_positive_in_the_singular() -> None:
+    overall = metrics(confusion=[[0, 1, 0], [0, 5, 0], [0, 0, 3]], dangerous=("C-1",))
+    data = results([class_data(overall=overall)])
+    assert build_view(data).classes[0].confusion.dangerous_share_text == "1 of 1 true positive"
+
+
+def test_the_dangerous_share_without_true_positives_reads_zero_of_zero() -> None:
+    overall = metrics(confusion=[[0, 0, 0], [0, 5, 0], [0, 0, 3]], dangerous=())
+    data = results([class_data(overall=overall)])
+    assert build_view(data).classes[0].confusion.dangerous_share_text == "0 of 0 true positives"
+
+
 # Classes without a checklist
 
 
@@ -715,7 +742,45 @@ def test_a_trend_week_with_cases_but_no_agreement_says_why() -> None:
 
 def test_the_trend_table_says_when_a_version_has_no_cases() -> None:
     rows = build_view(version_trend()).classes[0].trend.agreement.table_rows
-    assert rows[1].cells == ("50% (n 5) Few cases.", "no cases")
+    assert rows[1].cells == ("50% (n 5; no interval, all cases equal) Few cases.", "no cases")
+
+
+def trend_cell(point: dict[str, object], metric: str) -> str:
+    trend = build_view(results([class_data(trend=[point])])).classes[0].trend
+    return getattr(trend, metric).table_rows[0].cells[0]
+
+
+def test_a_trend_cell_shows_the_weeks_interval() -> None:
+    point = trend_point(
+        "2026-W10", "all", None, 0.84, 31, completeness_interval={"low": 0.71, "high": 0.92}
+    )
+    assert trend_cell(point, "completeness") == "84% (95% CI 71\u201392%, n 31)"
+
+
+def test_a_trend_cell_with_an_interval_and_few_cases_says_so() -> None:
+    point = trend_point(
+        "2026-W10", "all", None, 0.8, 5, agreement_interval={"low": 0.38, "high": 0.96}
+    )
+    assert trend_cell(point, "agreement") == "80% (95% CI 38\u201396%, n 5) Few cases."
+
+
+def test_a_trend_cell_for_one_case_says_why_it_has_no_interval() -> None:
+    point = trend_point("2026-W10", "all", None, 0.84, 1)
+    assert trend_cell(point, "completeness") == "84% (n 1; no interval, one case) Few cases."
+
+
+def test_a_trend_cell_with_all_cases_equal_says_why_it_has_no_interval() -> None:
+    point = trend_point("2026-W10", "all", None, 1.0, 4)
+    assert (
+        trend_cell(point, "completeness") == "100% (n 4; no interval, all cases equal) Few cases."
+    )
+
+
+def test_a_trend_cell_spells_out_an_interval_end_above_99() -> None:
+    point = trend_point(
+        "2026-W10", "all", None, 0.97, 40, completeness_interval={"low": 0.9, "high": 0.996}
+    )
+    assert trend_cell(point, "completeness") == "97% (95% CI 90% to >99%, n 40)"
 
 
 def test_the_trend_gives_each_version_its_first_week() -> None:

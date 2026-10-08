@@ -241,6 +241,8 @@ class ConfusionRowView:
 class ConfusionView:
     n_text: str
     dangerous_text: str  # "30 dangerous false closes"
+    # "6 of 40 true positives": the analyst's true positives that have an agent verdict
+    dangerous_share_text: str
     column_labels: tuple[str, ...]  # "Agent: true positive", ...
     rows: tuple[ConfusionRowView, ...]
 
@@ -942,7 +944,16 @@ def _to_trend_cell(point: Any, field: str) -> str:
     if value is None:
         # The week has cases, but none the metric can use.
         return _EMPTY_TREND_CELLS.get(field, "no cases")
-    text = f"{format_percent(value)} (n {format_count(count)})"
+    interval = point[f"{field}_interval"]
+    if interval is None:
+        # Agreement always has a Wilson interval once it has a value, so only completeness
+        # lands here, for the version table's two reasons.
+        why = "one case" if count == 1 else "all cases equal"
+        detail = f"n {format_count(count)}; no interval, {why}"
+    else:
+        range_text = format_percent_range(interval["low"], interval["high"])
+        detail = f"95% CI {range_text}, n {format_count(count)}"
+    text = f"{format_percent(value)} ({detail})"
     return f"{text} {FEW_CASES_TEXT}" if count < FEW_CASES_BELOW else text
 
 
@@ -965,6 +976,10 @@ def _to_confusion_view(overall: Any) -> ConfusionView:
     return ConfusionView(
         n_text=_n_text(sum(sum(row) for row in matrix)),
         dangerous_text=_plural(dangerous, "dangerous false close", "dangerous false closes"),
+        dangerous_share_text=(
+            f"{format_count(dangerous)} of "
+            f"{_plural(sum(matrix[_TRUE_POSITIVE]), 'true positive', 'true positives')}"
+        ),
         column_labels=tuple(f"Agent: {label}" for label in _VERDICT_LABELS),
         rows=tuple(rows),
     )
