@@ -91,10 +91,13 @@ def find_popup(page: Any, label: str) -> Any:
 
 
 def open_kappa_by_focus(visit: Visit) -> Any:
-    """Focus the Overview's κ header and wait for its pop-up; return the pop-up."""
+    """Focus the Overview's κ header and wait for its pop-up to finish fading in; return the
+    pop-up."""
     find_trigger(visit.page, ".version-table th", KAPPA_LABEL).focus()
     popup = find_popup(visit.page, KAPPA_LABEL)
     popup.wait_for()
+    # Visible starts at opacity 0: mid-fade, axe reads the link's colour blended into the panel.
+    popup.evaluate("el => Promise.all(el.getAnimations().map(animation => animation.finished))")
     return popup
 
 
