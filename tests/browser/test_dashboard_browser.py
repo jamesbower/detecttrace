@@ -823,6 +823,20 @@ def test_the_readout_names_the_focused_point(trend_keys: TrendKeys) -> None:
     assert trend_keys.readout == trend_keys.after_down
 
 
+def test_focusing_a_trend_point_on_a_phone_keeps_the_readout_height(
+    browser: Any, demo_path: Path
+) -> None:
+    with visiting(browser, demo_path, hash="#/trends", width=390) as visit:
+        readout = visit.page.locator(".trend-chart").first.locator(".trend-chart-readout")
+        empty_height = readout.bounding_box()["height"]
+        visit.page.locator(".trend-chart").first.locator('.trend-point[tabindex="0"]').focus()
+        visit.page.wait_for_function(
+            "() => document.querySelector('.trend-chart-readout').textContent !== ''"
+        )
+        focused_height = readout.bounding_box()["height"]
+    assert focused_height == empty_height
+
+
 # Filters and rows
 
 

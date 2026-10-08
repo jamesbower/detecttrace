@@ -16,9 +16,17 @@
   font-size: var(--fs-sm);
 }
 
-/* Holds a line even when empty, so focusing a point does not shift the page. */
+/* Holds room for the readout even when empty, so focusing a point does not shift the page.
+   On a phone a point's name with its interval wraps to two lines. */
 .trend-chart-readout {
-  min-height: calc(var(--fs-sm) * var(--lh-body));
+  min-height: calc(var(--fs-sm) * var(--lh-body) * 2);
+}
+
+/* --bp-narrow: the name fits one line, so a second reserved line would sit blank. */
+@media (width > 620px) {
+  .trend-chart-readout {
+    min-height: calc(var(--fs-sm) * var(--lh-body));
+  }
 }
 
 .trend-chart-scroll {
