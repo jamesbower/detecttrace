@@ -104,9 +104,9 @@ class WeekPoint:
     version: str | None  # meaningful only for VERSION scope, where None means no version
     completeness: float | None
     completeness_n: int
+    completeness_interval: Interval | None
     agreement: float | None
     agreement_n: int
-    completeness_interval: Interval | None
     agreement_interval: Interval | None
 
 
@@ -348,9 +348,9 @@ def _week_point(
         version=version,
         completeness=statistics.fmean(completeness) if completeness else None,
         completeness_n=len(completeness),
+        completeness_interval=_completeness_interval(completeness)[0],
         agreement=sum(agreement) / len(agreement) if agreement else None,
         agreement_n=len(agreement),
-        completeness_interval=_completeness_interval(completeness)[0],
         agreement_interval=wilson_interval(sum(agreement), len(agreement)),
     )
 

@@ -647,9 +647,9 @@ def test_trend_point_averages_completeness_and_agreement_of_the_week() -> None:
         None,
         0.75,
         2,
+        completeness_interval=None,
         agreement=0.5,
         agreement_n=2,
-        completeness_interval=None,
         agreement_interval=None,
     )
 
@@ -668,7 +668,15 @@ def test_trend_version_point_averages_only_that_version() -> None:
     ]
 
     assert report_of(cases, TWO_ITEMS).classes[0].trend[2] == WeekPoint(
-        W38, VERSION, "v2", 0.5, 1, 0.0, 1, None, wilson_interval(0, 1)
+        W38,
+        VERSION,
+        "v2",
+        0.5,
+        1,
+        completeness_interval=None,
+        agreement=0.0,
+        agreement_n=1,
+        agreement_interval=wilson_interval(0, 1),
     )
 
 
@@ -1156,9 +1164,9 @@ def test_other_trend_point_averages_the_pooled_cases_of_the_week() -> None:
         None,
         11 / 14,
         7,
+        completeness_interval=None,
         agreement=4 / 7,
         agreement_n=7,
-        completeness_interval=None,
         agreement_interval=None,
     )
 
