@@ -207,7 +207,7 @@ it("says weekly trend points use the version table's intervals", () => {
   render(<Help view={OFFLINE_VIEW} />);
 
   expect(screen.getByRole("region", { name: "Reading the numbers" }).textContent).toContain(
-    "Weekly trend points use the same intervals as the version table: the Wilson score interval for verdict agreement, and for evidence completeness the same rule by each week's number of cases.",
+    "Weekly trend points use the same intervals as the version table: the Wilson score interval for verdict agreement, and for evidence completeness the same rule, chosen by each week's number of cases.",
   );
 });
 
@@ -221,7 +221,7 @@ it("says skipped-step rates have no interval", () => {
 
 it("says the Overview counts dangerous false closes out of true positives with an agent verdict", () => {
   expect(describePage("Overview")).toContain(
-    "each class's dangerous false closes, out of the analyst's true positives that have an agent verdict.",
+    "each class's dangerous false closes, out of the analyst's true positives with an agent verdict.",
   );
 });
 

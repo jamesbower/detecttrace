@@ -68,7 +68,8 @@ function Pages() {
       <dt>Overview</dt>
       <dd>
         The cases and period covered, the coverage lines, and each class&apos;s dangerous false closes, out of the
-        analyst&apos;s true positives that have an agent verdict. For the class you pick, its version table, with links to that class&apos;s skipped steps, weekly trend and verdict matrix.
+        analyst&apos;s true positives with an agent verdict. For the class you pick, its version table, with links to
+        that class&apos;s skipped steps, weekly trend and verdict matrix.
       </dd>
       <dt>Versions</dt>
       <dd>
@@ -238,8 +239,8 @@ function ReadingTheNumbers() {
       </ul>
       <p>
         Skipped-step rates have no interval. Weekly trend points use the same intervals as the version table: the
-        Wilson score interval for verdict agreement, and for evidence completeness the same rule by each week&apos;s
-        number of cases. An interval is also left out when:
+        Wilson score interval for verdict agreement, and for evidence completeness the same rule, chosen by each
+        week&apos;s number of cases. An interval is also left out when:
       </p>
       <ul>
         <li>an evidence completeness value has one case, or all its cases have the same value;</li>
