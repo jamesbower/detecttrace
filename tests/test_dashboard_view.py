@@ -765,8 +765,8 @@ def test_a_trend_cell_with_an_interval_and_few_cases_says_so() -> None:
 
 
 def test_a_trend_cell_for_one_case_says_why_it_has_no_interval() -> None:
-    point = trend_point("2026-W10", "all", None, 0.84, 1)
-    assert trend_cell(point, "completeness") == "84% (n 1; no interval, one case) Few cases."
+    point = trend_point("2026-W10", "all", None, 0.5, 1)
+    assert trend_cell(point, "completeness") == "50% (n 1; no interval, one case) Few cases."
 
 
 def test_a_trend_cell_with_all_cases_equal_says_why_it_has_no_interval() -> None:
