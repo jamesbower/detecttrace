@@ -31,3 +31,19 @@ class NanExtension:
 
     def extend(self, run: RunResult) -> Extension:
         return Extension(results={"rate": float("nan")}, view={})
+
+
+@dataclass(frozen=True, slots=True)
+class NanViewExtension:
+    page: DashboardPage | None = None
+
+    def extend(self, run: RunResult) -> Extension:
+        return Extension(results={}, view={"rate": float("nan")})
+
+
+@dataclass(frozen=True, slots=True)
+class PagedExtension:
+    page: DashboardPage | None = None
+
+    def extend(self, run: RunResult) -> Extension:
+        return Extension(results={}, view={})

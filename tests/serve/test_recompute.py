@@ -13,7 +13,7 @@ import yaml
 from builders import case_root
 from page_data import read_view
 
-from detecttrace.dashboard import render_waiting_page
+from detecttrace.dashboard import DashboardPage, load_page, render_waiting_page
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.pipeline import run_check
 from detecttrace.runconfig import load_run_config
@@ -33,13 +33,21 @@ from detecttrace.serve.store import INGEST_SUBJECT, Snapshot, Store
 from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
-from serve.extension_support import CountingExtension, FailingExtension, NanExtension
+from serve.extension_support import (
+    CountingExtension,
+    FailingExtension,
+    NanExtension,
+    NanViewExtension,
+    PagedExtension,
+)
 
 DEMO_DIR = Path(__file__).resolve().parents[2] / "src" / "detecttrace" / "demo_data"
 DEBOUNCE = 5.0
 SETTLE_SECONDS = 300
 SETTLE_NS = SETTLE_SECONDS * 1_000_000_000
 CASE_END_NS = 1_700_000_000_000_000_000
+OTHER_SCRIPT_HASH = "sha256-" + "A" * 43 + "="
+
 # Long after every case, so nothing is held back.
 LATE_NS = CASE_END_NS + 10 * SETTLE_NS
 # What a stored dashboard snapshot that held nothing back says about itself.
@@ -79,9 +87,12 @@ class FakeSubmit:
         *,
         held_back_cases: int = 0,
         next_settle_at_ns: int | None = None,
+        extension_error: str | None = None,
     ) -> None:
         snapshot = Snapshot(generation, 2, html, "{}")
-        self.futures[-1].set_result(RecomputeOutcome(snapshot, held_back_cases, next_settle_at_ns))
+        self.futures[-1].set_result(
+            RecomputeOutcome(snapshot, held_back_cases, next_settle_at_ns, extension_error)
+        )
 
     def fail(self) -> None:
         self.futures[-1].set_exception(RuntimeError("boom"))
@@ -478,6 +489,20 @@ def test_an_idle_tick_reads_nothing_from_the_store(
 
 
 # Saving the snapshot
+
+
+def test_a_run_with_a_failed_extension_logs_its_exception_type(
+    coordinator: RecomputeCoordinator,
+    current_store: Store,
+    clock: FakeClock,
+    submit: FakeSubmit,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    start_run(coordinator, current_store, clock)
+    submit.succeed(extension_error="ValueError")
+    coordinator.tick()
+
+    assert "snapshot extension failed: ValueError" in caplog.text
 
 
 def test_a_finished_run_replaces_the_stored_snapshot(
@@ -1224,12 +1249,32 @@ def test_the_waiting_page_loads_nothing_from_elsewhere(tmp_path: Path, store: St
 # A wrapping app's snapshot extension
 
 
+def extended_outcome(
+    tmp_path: Path, store: Store, extension: SnapshotExtension, now_ns: int = LATE_NS
+) -> RecomputeOutcome:
+    add_case(store, 1, CASE_END_NS)
+    settings = replace(to_settings(write_serve_config(tmp_path)), extension=extension)
+    return compute_snapshot(tmp_path / "detecttrace.db", settings, now_ns)
+
+
 def extended_snapshot(
     tmp_path: Path, store: Store, extension: SnapshotExtension, now_ns: int = LATE_NS
 ) -> Snapshot:
-    add_case(store, 1, CASE_END_NS)
-    settings = replace(to_settings(write_serve_config(tmp_path)), extension=extension)
-    return compute_snapshot(tmp_path / "detecttrace.db", settings, now_ns).snapshot
+    return extended_outcome(tmp_path, store, extension, now_ns).snapshot
+
+
+@pytest.fixture
+def other_page(tmp_path: Path) -> DashboardPage:
+    """The packaged page copied with hashes as another build would write them."""
+    real = Path(__file__).resolve().parent.parent.parent / "src" / "detecttrace" / "templates"
+    page_dir = tmp_path / "other"
+    page_dir.mkdir()
+    html_path = page_dir / "dashboard.html"
+    html_path.write_text((real / "dashboard.html").read_text(encoding="utf-8"), encoding="utf-8")
+    hashes = json.loads((real / "dashboard.hashes.json").read_text(encoding="utf-8"))
+    hashes_path = page_dir / "dashboard.hashes.json"
+    hashes_path.write_text(json.dumps({**hashes, "script": OTHER_SCRIPT_HASH}), encoding="utf-8")
+    return load_page(html_path, hashes_path)
 
 
 def test_extension_results_are_under_extensions(tmp_path: Path, store: Store) -> None:
@@ -1262,11 +1307,34 @@ def test_an_extension_giving_nan_leaves_the_results_without_extensions(
     assert "extensions" not in json.loads(snapshot.results_json)
 
 
-def test_a_failing_extension_is_logged_by_its_exception_type(
-    tmp_path: Path, store: Store, caplog: pytest.LogCaptureFixture
+def test_an_extension_giving_nan_view_data_leaves_the_view_without_extensions(
+    tmp_path: Path, store: Store
 ) -> None:
-    extended_snapshot(tmp_path, store, FailingExtension())
-    assert "snapshot extension failed: ValueError" in caplog.text
+    snapshot = extended_snapshot(tmp_path, store, NanViewExtension())
+    assert "extensions" not in read_view(snapshot.html)
+
+
+def test_a_failing_extension_is_reported_by_its_exception_type(
+    tmp_path: Path, store: Store
+) -> None:
+    outcome = extended_outcome(tmp_path, store, FailingExtension())
+    assert outcome.extension_error == "ValueError"
+
+
+def test_a_scored_snapshot_uses_the_extension_page(
+    tmp_path: Path, store: Store, other_page: DashboardPage
+) -> None:
+    snapshot = extended_snapshot(tmp_path, store, PagedExtension(page=other_page))
+    assert f"script-src '{OTHER_SCRIPT_HASH}'" in snapshot.html
+
+
+def test_a_waiting_snapshot_uses_the_extension_page(
+    tmp_path: Path, store: Store, other_page: DashboardPage
+) -> None:
+    snapshot = extended_snapshot(
+        tmp_path, store, PagedExtension(page=other_page), now_ns=CASE_END_NS
+    )
+    assert f"script-src '{OTHER_SCRIPT_HASH}'" in snapshot.html
 
 
 def test_a_waiting_snapshot_has_no_extensions(tmp_path: Path, store: Store) -> None:

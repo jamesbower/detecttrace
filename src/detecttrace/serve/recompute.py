@@ -55,6 +55,9 @@ class RecomputeOutcome:
     snapshot: Snapshot
     held_back_cases: int
     next_settle_at_ns: int | None  # wall-clock time the first held-back case settles
+    # The exception type name of a failed snapshot extension; the server logs it, because the
+    # worker has no log handler.
+    extension_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,8 +74,11 @@ class SnapshotExtension(Protocol):
 
     `extend` runs in the worker process after the stages, so the extension is pickled with
     the settings: use a module-level instance. It must not call the network; anything slow
-    belongs in the wrapper's own worker, and `extend` reads its stored results. `page`, when
-    set, replaces the packaged dashboard page. Internal: no stability promise. For wrappers
+    belongs in the wrapper's own worker, and `extend` reads its stored results. A failing
+    `extend` leaves the snapshot without the extension and is reported by exception type to
+    the server log. `page`, when set, replaces the packaged dashboard page; it is read outside
+    that guard: a page that fails to render fails the run like any other recompute error.
+    Internal: no stability promise. For wrappers
     that pin an exact version.
     """
 
@@ -213,7 +219,9 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
             "held_back_cases": len(held_back_ids),
         },
     }
-    extension = None if settings.extension is None else _extend(settings.extension, run)
+    extension, extension_error = (
+        (None, None) if settings.extension is None else _extend(settings.extension, run)
+    )
     if extension is not None:
         results["extensions"] = dict(extension.results)
     snapshot = Snapshot(
@@ -228,20 +236,21 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
         ),
         results_json=_to_json(results),
     )
-    return RecomputeOutcome(snapshot, len(held_back_ids), next_settle_at_ns)
+    return RecomputeOutcome(
+        snapshot, len(held_back_ids), next_settle_at_ns, extension_error=extension_error
+    )
 
 
-def _extend(extension: SnapshotExtension, run: RunResult) -> Extension | None:
+def _extend(extension: SnapshotExtension, run: RunResult) -> tuple[Extension | None, str | None]:
+    # Any failure: the extension is a wrapper's code, and the CE page must not depend on it.
     try:
         added = extension.extend(run)
         # Checked here, so data JSON can't hold is dropped now instead of failing the render.
         _to_json(dict(added.results))
         _to_json(dict(added.view))
-    # Any failure: the extension is a wrapper's code, and the CE page must not depend on it.
     except Exception as error:
-        logger.error("snapshot extension failed: %s", type(error).__name__)
-        return None
-    return added
+        return None, type(error).__name__
+    return added, None
 
 
 def to_iso_time(time_ns: int) -> str:
@@ -382,6 +391,8 @@ class RecomputeCoordinator:
         return outcome
 
     def _record_success(self, outcome: RecomputeOutcome) -> None:
+        if outcome.extension_error is not None:
+            logger.error("snapshot extension failed: %s", outcome.extension_error)
         self._failure_count = 0
         self._last_error = None
         self._last_error_at_ns = None
