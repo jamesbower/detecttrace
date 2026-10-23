@@ -36,6 +36,8 @@ def render_view_types() -> str:
     """The text of view.d.ts for the current view dataclasses."""
     blocks = [HEADER, f"export type ViewVersion = {VIEW_VERSION};\n"]
     blocks.extend(_render_type(view_class) for view_class in list_view_classes())
+    # view_version and extensions are added outside DashboardView: by to_view_json, and by
+    # _fill_page only when a wrapping app supplies them.
     blocks.append(
         f"export type View = {{ readonly view_version: ViewVersion; "
         f"readonly extensions?: Readonly<Record<string, unknown>> }} & "
