@@ -87,7 +87,7 @@ def render_dashboard(
     it, the page is the offline one and `mode` is ignored. `page` replaces the packaged page and
     `view_extensions` goes into the view under `extensions`; both are internal, with no stability
     promise, for wrappers that pin an exact version. Raises ValueError for an unknown schema
-    version, or a NaN or infinity in the results.
+    version, or a NaN or infinity in the results or `view_extensions`.
     """
     view = build_view(results) if served is None else build_served_view(results, served, mode=mode)
     return _fill_page(

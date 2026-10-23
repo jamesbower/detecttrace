@@ -300,6 +300,11 @@ def test_view_extensions_are_in_the_view_block() -> None:
     assert read_view(html)["extensions"] == {"assure": {"rows": [1]}}
 
 
+def test_view_extensions_cannot_end_the_view_block() -> None:
+    html = render_dashboard(demo_results(), view_extensions={"x": "</script><script>"})
+    assert "</script><script>" not in html
+
+
 def test_a_view_without_extensions_has_no_extensions_key() -> None:
     assert "extensions" not in read_view(demo_html())
 
