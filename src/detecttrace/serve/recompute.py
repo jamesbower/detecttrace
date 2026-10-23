@@ -63,7 +63,10 @@ class RecomputeOutcome:
 @dataclass(frozen=True, slots=True)
 class Extension:
     """What a snapshot extension adds: `results` under the results' `extensions` key, and
-    `view` under the view's. Both must be JSON-ready."""
+    `view` under the view's. Both must be JSON-ready.
+
+    Internal: no stability promise. For wrappers that pin an exact version.
+    """
 
     results: Mapping[str, object]
     view: Mapping[str, object]
@@ -78,6 +81,7 @@ class SnapshotExtension(Protocol):
     `extend` leaves the snapshot without the extension and is reported by exception type to
     the server log. `page`, when set, replaces the packaged dashboard page; it is read outside
     that guard: a page that fails to render fails the run like any other recompute error.
+    `extend` must not change `run`: its results are the CE's own.
     Internal: no stability promise. For wrappers that pin an exact version.
     """
 
@@ -105,9 +109,12 @@ class RecomputeSettings:
 
 
 def load_recompute_settings(
-    config: ServeConfig, config_path: Path, extension: SnapshotExtension | None = None
+    config: ServeConfig, config_path: Path, *, extension: SnapshotExtension | None = None
 ) -> RecomputeSettings:
-    """Load the checklists `config` names; raises ChecklistFileError when they can't be used."""
+    """Load the checklists `config` names; raises ChecklistFileError when they can't be used.
+
+    `extension` is a wrapping app's snapshot extension; internal, with no stability promise.
+    """
     checklists, checklist_issues = load_run_checklists(config.checklists, config_path)
     folder = config_path.absolute().parent
     return RecomputeSettings(

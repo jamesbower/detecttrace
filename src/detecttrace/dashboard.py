@@ -65,6 +65,8 @@ class DashboardPage:
 
     The slots are the policy, the generator, the view block and the results block, in document
     order, so filling one can never touch another.
+
+    Internal: no stability promise. For wrappers that pin an exact version.
     """
 
     parts: tuple[str, str, str, str, str]

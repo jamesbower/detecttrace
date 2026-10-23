@@ -84,9 +84,10 @@ def create_recompute_pool(
 ) -> "WorkerPool":
     """The worker pool, with the settings every run uses read once, here.
 
-    Raises ChecklistFileError for checklists that can't be used.
+    `extension` is passed to every run; see `SnapshotExtension`. Raises ChecklistFileError for
+    checklists that can't be used.
     """
-    settings = load_recompute_settings(config, config_path, extension)
+    settings = load_recompute_settings(config, config_path, extension=extension)
     return WorkerPool(
         _create_executor if create_executor is None else create_executor,
         lambda executor: executor.submit(
