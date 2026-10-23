@@ -27,6 +27,7 @@ from detecttrace.serve.receiver import (
     PayloadTooLarge,
     UnsupportedMediaType,
     parse_traces_body,
+    read_traces_body,
 )
 from detecttrace.serve.store import INGEST_SUBJECT, AddSpansResult, Store
 from detecttrace.traces import MAX_DOCUMENT_BYTES
@@ -258,6 +259,11 @@ def test_tool_result_is_removed() -> None:
 def test_other_attributes_are_kept_when_the_tool_result_is_removed() -> None:
     spans, _, _ = parse_traces_body(TOOL_RESULT_BODY, JSON, None)
     assert spans[0].attributes == {"gen_ai.tool.name": "lookup"}
+
+
+def test_reading_a_body_keeps_the_tool_result() -> None:
+    spans, _, _ = read_traces_body(TOOL_RESULT_BODY, JSON, None)
+    assert spans[0].attributes[TOOL_CALL_RESULT] == "secret"
 
 
 def test_invalid_span_is_counted_as_rejected() -> None:

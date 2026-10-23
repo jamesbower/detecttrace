@@ -1,7 +1,8 @@
 """Turn an OTLP/HTTP trace export request body into spans; no web framework involved.
 
 Only OTLP JSON is read, plain or gzip, as the Collector's `otlp_http` exporter sends it with
-`encoding: json`. Tool results are dropped here, before anything is stored.
+`encoding: json`. `parse_traces_body` drops tool results, before anything is stored. `read_traces_body` keeps
+them, only for a wrapping app's span tap, which `serve` calls before it strips and stores.
 """
 
 import dataclasses
@@ -40,10 +41,10 @@ class InvalidBody(Exception):
     """A body that holds no OTLP JSON trace export (HTTP 400)."""
 
 
-def parse_traces_body(
+def read_traces_body(
     body: bytes, content_type: str | None, content_encoding: str | None
 ) -> tuple[list[Span], list[Issue], int]:
-    """Return the valid spans with tool results removed, the issues, and the rejected span count.
+    """Return the valid spans as received, tool results kept, the issues, and the rejected count.
 
     The rejected count is the number of spans the parser refused (INVALID_SPAN issues). Spans
     under a scope that is itself malformed can't be counted; their INVALID_FILE issue says so.
@@ -72,6 +73,17 @@ def parse_traces_body(
             f"the request body is not an OTLP JSON trace export: {malformed[0].detail}"
         )
     rejected = sum(issue.kind is IssueKind.INVALID_SPAN for issue in issues)
+    return spans, issues, rejected
+
+
+def parse_traces_body(
+    body: bytes, content_type: str | None, content_encoding: str | None
+) -> tuple[list[Span], list[Issue], int]:
+    """Return the valid spans with tool results removed, the issues, and the rejected span count.
+
+    Raises as `read_traces_body` does.
+    """
+    spans, issues, rejected = read_traces_body(body, content_type, content_encoding)
     return [remove_tool_result(span) for span in spans], issues, rejected
 
 
