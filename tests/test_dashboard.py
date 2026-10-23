@@ -296,8 +296,8 @@ def test_a_waiting_page_rendered_with_another_build_allows_its_script(
 
 
 def test_view_extensions_are_in_the_view_block() -> None:
-    html = render_dashboard(demo_results(), view_extensions={"assure": {"rows": [1]}})
-    assert read_view(html)["extensions"] == {"assure": {"rows": [1]}}
+    html = render_dashboard(demo_results(), view_extensions={"added": {"rows": [1]}})
+    assert read_view(html)["extensions"] == {"added": {"rows": [1]}}
 
 
 def test_view_extensions_cannot_end_the_view_block() -> None:
