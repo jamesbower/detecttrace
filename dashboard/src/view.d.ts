@@ -208,4 +208,4 @@ export type DashboardView = {
   readonly ui: UiView | null;
 };
 
-export type View = { readonly view_version: ViewVersion } & DashboardView;
+export type View = { readonly view_version: ViewVersion; readonly extensions?: Readonly<Record<string, unknown>> } & DashboardView;

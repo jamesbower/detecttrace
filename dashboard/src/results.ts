@@ -55,4 +55,6 @@ export type CaseDetail = {
 export type Results = {
   readonly case_rows: CaseRows;
   readonly case_detail: ReadonlyArray<CaseDetail>;
+  /** What a wrapping app's snapshot extension added; absent from every CE run. */
+  readonly extensions?: Readonly<Record<string, unknown>>;
 };

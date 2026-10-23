@@ -37,7 +37,9 @@ def render_view_types() -> str:
     blocks = [HEADER, f"export type ViewVersion = {VIEW_VERSION};\n"]
     blocks.extend(_render_type(view_class) for view_class in list_view_classes())
     blocks.append(
-        f"export type View = {{ readonly view_version: ViewVersion }} & {DashboardView.__name__};\n"
+        f"export type View = {{ readonly view_version: ViewVersion; "
+        f"readonly extensions?: Readonly<Record<string, unknown>> }} & "
+        f"{DashboardView.__name__};\n"
     )
     return "\n".join(blocks)
 
