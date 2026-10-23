@@ -31,7 +31,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from detecttrace.config import Config
 from detecttrace.dashboard import render_waiting_page
-from detecttrace.model import Issue, IssueKind
+from detecttrace.model import Issue, IssueKind, Span
 from detecttrace.serve import receiver, verdict_api
 from detecttrace.serve.auth import Role, find_token_name
 from detecttrace.serve.config import ServeConfig, TokenRoles
@@ -41,6 +41,7 @@ from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.summary import to_terminal_text
 
 access_logger = logging.getLogger("detecttrace.serve.access")
+logger = logging.getLogger(__name__)
 
 # google.rpc.Code values for the HTTP statuses this app answers with.
 _STATUS_CODES = {
@@ -96,10 +97,14 @@ def create_app(
     store: Store,
     on_write: Callable[[], None],
     read_status: Callable[[], RecomputeStatus] = lambda: IDLE_STATUS,
+    *,
+    on_spans: Callable[[list[Span]], None] | None = None,
 ) -> FastAPI:
     """Build the app; `on_write` is called after every commit, a rejected body's issue too.
 
-    `read_status` gives the recompute's current state for `/api/status`.
+    `read_status` gives the recompute's current state for `/api/status`. `on_spans` is called
+    with each parsed span batch, tool results kept, before they are stripped and stored.
+    Internal: no stability promise. For wrappers that pin an exact version.
     """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it. No
     # trailing-slash redirect either: it is sent before any token check, and behind a TLS
@@ -120,7 +125,7 @@ def create_app(
     @app.post("/v1/traces", dependencies=[Depends(require_ingest)])
     async def receive_traces(request: Request) -> Response:
         async with ingest_slots:
-            return await _receive_traces(request, store, on_write)
+            return await _receive_traces(request, store, on_write, on_spans)
 
     @app.post("/api/verdicts")
     async def receive_verdicts(
@@ -273,7 +278,12 @@ class _Unauthorized(HTTPException):
         self.challenges = challenges
 
 
-async def _receive_traces(request: Request, store: Store, on_write: Callable[[], None]) -> Response:
+async def _receive_traces(
+    request: Request,
+    store: Store,
+    on_write: Callable[[], None],
+    on_spans: Callable[[list[Span]], None] | None,
+) -> Response:
     try:
         body = await read_limited_body(
             request,
@@ -294,6 +304,7 @@ async def _receive_traces(request: Request, store: Store, on_write: Callable[[],
             body,
             request.headers.get("content-type"),
             request.headers.get("content-encoding"),
+            on_spans,
         )
     # Each refusal's issue was committed, so the data notes can show it.
     except receiver.InvalidBody as error:
@@ -406,14 +417,18 @@ class _BodyTooLarge(HTTPException):
 
 
 def _store_traces(
-    store: Store, body: bytes, content_type: str | None, content_encoding: str | None
+    store: Store,
+    body: bytes,
+    content_type: str | None,
+    content_encoding: str | None,
+    on_spans: Callable[[list[Span]], None] | None,
 ) -> tuple[int, bool]:
     """Parse and store one span batch; runs in a worker thread.
 
     Return the rejected span count and whether document or scope parts were skipped.
     """
     try:
-        spans, issues, rejected = receiver.parse_traces_body(body, content_type, content_encoding)
+        spans, issues, rejected = receiver.read_traces_body(body, content_type, content_encoding)
     # Recorded so the dashboard's data notes show that a sender is posting bad data; an
     # exporter left on protobuf would otherwise lose every batch without a trace on the page.
     except receiver.InvalidBody as error:
@@ -425,8 +440,19 @@ def _store_traces(
     except receiver.UnsupportedMediaType as error:
         store.add_issues([_to_refusal_issue(415, str(error))])
         raise
-    store.add_spans(spans, issues)
+    if on_spans is not None:
+        _call_span_tap(on_spans, spans)
+    store.add_spans([receiver.remove_tool_result(span) for span in spans], issues)
     return rejected, any(issue.kind is IssueKind.INVALID_FILE for issue in issues)
+
+
+def _call_span_tap(on_spans: Callable[[list[Span]], None], spans: list[Span]) -> None:
+    try:
+        on_spans(spans)
+    # Any failure: the tap is a wrapper's code, and CE ingest must not depend on it. Only the
+    # type is logged, because the message or traceback can quote a tool result.
+    except Exception as error:
+        logger.error("span tap failed: %s", type(error).__name__)
 
 
 def _to_refusal_issue(status: int, message: str) -> Issue:
