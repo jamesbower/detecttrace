@@ -1,6 +1,6 @@
 // Hashes the one inline script and the one inline style of the built page, so the Python
-// side can allow exactly them in a hash-based Content Security Policy. A custom build that
-// imports this source uses it too, and passes its output to `detecttrace.dashboard.load_page`.
+// side can allow exactly them in a hash-based Content Security Policy. A custom build can
+// import this plugin too and pass the two files it writes to `detecttrace.dashboard.load_page`.
 import { createHash } from "node:crypto";
 
 import type { Plugin } from "vite";

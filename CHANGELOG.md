@@ -28,6 +28,7 @@ The first release.
 - `detecttrace token` creates an access token with the role `ingest`, `verdicts` or `read`, and prints the configuration entry that holds its hash.
 - `detecttrace ui` runs DetectTrace as a local app in the browser, on `127.0.0.1:4321` by default. On the Data page you upload traces (OTLP or Langfuse, up to 256 MiB per file), verdict CSVs (up to 64 MiB) and checklist YAML files, confirm the configuration it proposes from them, and then see the dashboard, which updates as you upload more. It keeps the data in a data folder, `~/.detecttrace` by default (`--data-dir`), listens on loopback only, has no tokens, refuses writes from other websites and requests for other hosts, and drops tool results before anything is stored. Options: `--data-dir`, `--port` and `--no-open`. See `docs/ui.md`.
 - A container image, built from the repository with `docker build`, and a `compose.yaml` that runs the service behind an OpenTelemetry Collector. The Collector's receiver requires its own bearer token, so only your agents can send it spans.
+- `serve` internals accept injected seams for an app that wraps them. Nothing changes without them.
 
 ### Changed
 
