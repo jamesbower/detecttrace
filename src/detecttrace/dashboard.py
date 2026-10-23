@@ -125,10 +125,12 @@ def is_dashboard_file(path: Path) -> bool:
 
 
 def load_page(html_path: Path, hashes_path: Path) -> DashboardPage:
-    """Load a page built from this dashboard's source by another build, for `page=` below.
+    """Load a page built from this dashboard's source by another build, for the render functions'
+    `page` argument.
 
     Raises RuntimeError, naming the file, for a page or hashes file the packaged page would
-    also be refused for. Internal: no stability promise. For wrappers that pin an exact version.
+    also be refused for; read and JSON errors propagate unchanged. Internal: no stability
+    promise. For wrappers that pin an exact version.
     """
     return _split_page(
         html_path.read_text(encoding="utf-8"),

@@ -10,7 +10,6 @@ from html_tree import Node, has_tag, parse_html
 
 from detecttrace import __version__, dashboard
 from detecttrace.dashboard import (
-    DashboardPage,
     is_dashboard_file,
     load_page,
     render_dashboard,
@@ -258,7 +257,7 @@ def other_build(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def test_a_page_from_another_build_loads(other_build: tuple[Path, Path]) -> None:
-    assert isinstance(load_page(*other_build), DashboardPage)
+    assert load_page(*other_build).script_hash == OTHER_SCRIPT_HASH
 
 
 def test_a_page_from_another_build_with_a_malformed_hash_is_refused(
