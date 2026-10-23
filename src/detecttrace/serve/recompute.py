@@ -78,8 +78,7 @@ class SnapshotExtension(Protocol):
     `extend` leaves the snapshot without the extension and is reported by exception type to
     the server log. `page`, when set, replaces the packaged dashboard page; it is read outside
     that guard: a page that fails to render fails the run like any other recompute error.
-    Internal: no stability promise. For wrappers
-    that pin an exact version.
+    Internal: no stability promise. For wrappers that pin an exact version.
     """
 
     @property

@@ -1331,6 +1331,7 @@ def test_a_scored_snapshot_uses_the_extension_page(
 def test_a_waiting_snapshot_uses_the_extension_page(
     tmp_path: Path, store: Store, other_page: DashboardPage
 ) -> None:
+    # Before the case settles, nothing is scored, so the snapshot is the waiting page.
     snapshot = extended_snapshot(
         tmp_path, store, PagedExtension(page=other_page), now_ns=CASE_END_NS
     )
