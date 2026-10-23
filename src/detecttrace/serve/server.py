@@ -61,8 +61,11 @@ def run_server(
     and `extension` are a wrapping app's seams (see `create_app` and `SnapshotExtension`);
     internal, with no stability promise. `on_ready`, the third, is called once before the server
     listens with a function that makes the page recompute; it returns the function that stops
-    what it started, called before the store closes. Raises StartupError for a problem found
-    before listening, and ChecklistFileError for checklists that can't be used.
+    what it started, called before the store closes. `request_recompute` may raise
+    sqlite3.Error, and must not be called once the stop function has returned. An exception from
+    `on_ready` is shown in full, so it must not carry secrets or case data. Raises StartupError
+    for a problem found before listening, and ChecklistFileError for checklists that can't be
+    used.
     """
     check_tls_files(config)
     pool = create_recompute_pool(config, config_path, extension=extension)
@@ -190,7 +193,7 @@ def _start_wrapper(
     try:
         return on_ready(request_recompute)
     except Exception as error:
-        raise StartupError(f"The wrapping app could not start: {error}") from None
+        raise StartupError(f"The wrapping app could not start: {error}.") from None
 
 
 def _stop_wrapper(stop_wrapper: Callable[[], None] | None) -> None:

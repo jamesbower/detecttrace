@@ -57,6 +57,16 @@ def test_request_recompute_advances_the_generation(config_path: Path, tmp_path: 
     assert generation == 1
 
 
+def test_the_stop_function_runs_while_the_store_is_open(config_path: Path, tmp_path: Path) -> None:
+    serve_with(config_path, lambda request_recompute: request_recompute)
+    store = Store.open_read_only(tmp_path / "detecttrace.db")
+    try:
+        generation = store.generation()
+    finally:
+        store.close()
+    assert generation == 1
+
+
 def test_a_failing_on_ready_stops_the_start(config_path: Path) -> None:
     def on_ready(request_recompute: Callable[[], None]) -> Callable[[], None]:
         raise RuntimeError("the dependency is not reachable")
