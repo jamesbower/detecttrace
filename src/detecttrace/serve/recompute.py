@@ -24,19 +24,19 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from concurrent.futures import Future
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 from detecttrace.cases import build_trace_cases
 from detecttrace.checklist import Checklist
 from detecttrace.config import Config
-from detecttrace.dashboard import render_dashboard, render_waiting_page
+from detecttrace.dashboard import DashboardPage, render_dashboard, render_waiting_page
 from detecttrace.model import Issue, IssueKind
-from detecttrace.pipeline import load_run_checklists, run_stages, to_source
+from detecttrace.pipeline import RunResult, load_run_checklists, run_stages, to_source
 from detecttrace.serve.config import ServeConfig
 from detecttrace.serve.store import Snapshot, Store
 from detecttrace.served_page import ServedPage, WaitingCounts
@@ -58,6 +58,31 @@ class RecomputeOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class Extension:
+    """What a snapshot extension adds: `results` under the results' `extensions` key, and
+    `view` under the view's. Both must be JSON-ready."""
+
+    results: Mapping[str, object]
+    view: Mapping[str, object]
+
+
+class SnapshotExtension(Protocol):
+    """A wrapping app's addition to every scored snapshot.
+
+    `extend` runs in the worker process after the stages, so the extension is pickled with
+    the settings: use a module-level instance. It must not call the network; anything slow
+    belongs in the wrapper's own worker, and `extend` reads its stored results. `page`, when
+    set, replaces the packaged dashboard page. Internal: no stability promise. For wrappers
+    that pin an exact version.
+    """
+
+    @property
+    def page(self) -> DashboardPage | None: ...
+
+    def extend(self, run: RunResult) -> Extension: ...
+
+
+@dataclass(frozen=True, slots=True)
 class RecomputeSettings:
     """What the server read at startup that every run uses; it is pickled to the worker."""
 
@@ -71,9 +96,12 @@ class RecomputeSettings:
     traces_source: str  # where the page's source says the traces came from
     verdicts_source: str
     page_mode: Literal["served", "ui"]  # which app's page the snapshot renders
+    extension: SnapshotExtension | None = None  # a wrapping app's addition, never set by the CE
 
 
-def load_recompute_settings(config: ServeConfig, config_path: Path) -> RecomputeSettings:
+def load_recompute_settings(
+    config: ServeConfig, config_path: Path, extension: SnapshotExtension | None = None
+) -> RecomputeSettings:
     """Load the checklists `config` names; raises ChecklistFileError when they can't be used."""
     checklists, checklist_issues = load_run_checklists(config.checklists, config_path)
     folder = config_path.absolute().parent
@@ -94,6 +122,7 @@ def load_recompute_settings(config: ServeConfig, config_path: Path) -> Recompute
         traces_source=TRACES_SOURCE,
         verdicts_source=VERDICTS_SOURCE,
         page_mode="served",
+        extension=extension,
     )
 
 
@@ -149,6 +178,7 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
         issue_counts=[stored.count for stored in inputs.issues],
     )
     served = ServedPage(inputs.generation, to_iso_time(now_ns), len(held_back_ids))
+    page = None if settings.extension is None else settings.extension.page
     if run.case_count == 0:
         counts = WaitingCounts(
             span_count=len(inputs.spans),
@@ -169,11 +199,13 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
         snapshot = Snapshot(
             generation=inputs.generation,
             finished_at_ns=now_ns,
-            html=render_waiting_page(counts, run.summary, served, mode=settings.page_mode),
+            html=render_waiting_page(
+                counts, run.summary, served, mode=settings.page_mode, page=page
+            ),
             results_json=_to_json(waiting),
         )
         return RecomputeOutcome(snapshot, len(held_back_ids), next_settle_at_ns)
-    results = {
+    results: dict[str, object] = {
         **run.results,
         "served": {
             "generation": inputs.generation,
@@ -181,13 +213,35 @@ def compute_snapshot(database: Path, settings: RecomputeSettings, now_ns: int) -
             "held_back_cases": len(held_back_ids),
         },
     }
+    extension = None if settings.extension is None else _extend(settings.extension, run)
+    if extension is not None:
+        results["extensions"] = dict(extension.results)
     snapshot = Snapshot(
         generation=inputs.generation,
         finished_at_ns=now_ns,
-        html=render_dashboard(results, served=served, mode=settings.page_mode),
+        html=render_dashboard(
+            results,
+            served=served,
+            mode=settings.page_mode,
+            page=page,
+            view_extensions=None if extension is None else extension.view,
+        ),
         results_json=_to_json(results),
     )
     return RecomputeOutcome(snapshot, len(held_back_ids), next_settle_at_ns)
+
+
+def _extend(extension: SnapshotExtension, run: RunResult) -> Extension | None:
+    try:
+        added = extension.extend(run)
+        # Checked here, so data JSON can't hold is dropped now instead of failing the render.
+        _to_json(dict(added.results))
+        _to_json(dict(added.view))
+    # Any failure: the extension is a wrapper's code, and the CE page must not depend on it.
+    except Exception as error:
+        logger.error("snapshot extension failed: %s", type(error).__name__)
+        return None
+    return added
 
 
 def to_iso_time(time_ns: int) -> str:

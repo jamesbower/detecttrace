@@ -24,6 +24,7 @@ from detecttrace.serve.recompute import (
     RecomputeOutcome,
     RecomputeSettings,
     RecomputeStatus,
+    SnapshotExtension,
     compute_snapshot,
     load_recompute_settings,
     to_iso_time,
@@ -32,6 +33,7 @@ from detecttrace.serve.store import INGEST_SUBJECT, Snapshot, Store
 from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.traces import load_spans
 from detecttrace.verdicts import read_verdicts
+from serve.extension_support import CountingExtension, FailingExtension, NanExtension
 
 DEMO_DIR = Path(__file__).resolve().parents[2] / "src" / "detecttrace" / "demo_data"
 DEBOUNCE = 5.0
@@ -1217,6 +1219,71 @@ def test_the_waiting_page_loads_nothing_from_elsewhere(tmp_path: Path, store: St
     # The page itself is checked in test_dashboard_security; this checks what the run put in it.
     view_text = json.dumps(read_view(snapshot.html), ensure_ascii=False)
     assert re.findall(r"(?:https?:)?//[\w.-]+", view_text) == []
+
+
+# A wrapping app's snapshot extension
+
+
+def extended_snapshot(
+    tmp_path: Path, store: Store, extension: SnapshotExtension, now_ns: int = LATE_NS
+) -> Snapshot:
+    add_case(store, 1, CASE_END_NS)
+    settings = replace(to_settings(write_serve_config(tmp_path)), extension=extension)
+    return compute_snapshot(tmp_path / "detecttrace.db", settings, now_ns).snapshot
+
+
+def test_extension_results_are_under_extensions(tmp_path: Path, store: Store) -> None:
+    snapshot = extended_snapshot(tmp_path, store, CountingExtension())
+    assert json.loads(snapshot.results_json)["extensions"] == {"cases": 1}
+
+
+def test_extension_view_data_is_under_extensions(tmp_path: Path, store: Store) -> None:
+    snapshot = extended_snapshot(tmp_path, store, CountingExtension())
+    assert read_view(snapshot.html)["extensions"] == {"cases": 1}
+
+
+def test_a_failing_extension_leaves_the_results_without_extensions(
+    tmp_path: Path, store: Store
+) -> None:
+    snapshot = extended_snapshot(tmp_path, store, FailingExtension())
+    assert "extensions" not in json.loads(snapshot.results_json)
+
+
+def test_a_failing_extension_still_renders_the_dashboard(tmp_path: Path, store: Store) -> None:
+    snapshot = extended_snapshot(tmp_path, store, FailingExtension())
+    # A waiting page has a `waiting` section; a scored dashboard has none.
+    assert read_view(snapshot.html)["waiting"] is None
+
+
+def test_an_extension_giving_nan_leaves_the_results_without_extensions(
+    tmp_path: Path, store: Store
+) -> None:
+    snapshot = extended_snapshot(tmp_path, store, NanExtension())
+    assert "extensions" not in json.loads(snapshot.results_json)
+
+
+def test_a_failing_extension_is_logged_by_its_exception_type(
+    tmp_path: Path, store: Store, caplog: pytest.LogCaptureFixture
+) -> None:
+    extended_snapshot(tmp_path, store, FailingExtension())
+    assert "snapshot extension failed: ValueError" in caplog.text
+
+
+def test_a_waiting_snapshot_has_no_extensions(tmp_path: Path, store: Store) -> None:
+    # Before the case settles, nothing is scored, so the snapshot is the waiting page.
+    snapshot = extended_snapshot(tmp_path, store, CountingExtension(), now_ns=CASE_END_NS)
+    assert "extensions" not in json.loads(snapshot.results_json)
+
+
+def test_a_spawned_worker_runs_the_extension(tmp_path: Path, store: Store) -> None:
+    add_case(store, 1, CASE_END_NS)
+    settings = replace(to_settings(write_serve_config(tmp_path)), extension=CountingExtension())
+    context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=1, mp_context=context) as executor:
+        outcome = executor.submit(
+            compute_snapshot, tmp_path / "detecttrace.db", settings, LATE_NS
+        ).result(timeout=120)
+    assert json.loads(outcome.snapshot.results_json)["extensions"] == {"cases": 1}
 
 
 # The worker process gives the CLI's numbers
