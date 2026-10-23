@@ -103,7 +103,8 @@ def create_app(
     """Build the app; `on_write` is called after every commit, a rejected body's issue too.
 
     `read_status` gives the recompute's current state for `/api/status`. `on_spans` is called
-    with each parsed span batch, tool results kept, before they are stripped and stored.
+    with each parsed span batch, tool results kept, before they are stripped and stored. It must
+    not change the spans: their attribute dicts are the ones that get stored.
     Internal: no stability promise. For wrappers that pin an exact version.
     """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it. No

@@ -1,9 +1,9 @@
 """Turn an OTLP/HTTP trace export request body into spans; no web framework involved.
 
 Only OTLP JSON is read, plain or gzip, as the Collector's `otlp_http` exporter sends it with
-`encoding: json`. `parse_traces_body` drops tool results, before anything is stored.
-`read_traces_body` keeps them, only for a wrapping app's span tap, which `serve` calls before it
-strips and stores.
+`encoding: json`. `read_traces_body` keeps tool results, for `serve`'s span tap; `serve` then
+removes them with `remove_tool_result` before anything is stored. `parse_traces_body` reads and
+removes in one step.
 """
 
 import dataclasses
