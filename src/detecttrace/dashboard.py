@@ -60,9 +60,13 @@ _JSON_ESCAPE_TABLE = str.maketrans(_JSON_ESCAPES)
 
 
 @dataclass(frozen=True, slots=True)
-class _Page:
-    # The built page split at its four slots: the policy, the generator, the view block and the
-    # results block, in document order, so filling one can never touch another.
+class DashboardPage:
+    """A built page, split at its four slots, with the hashes of its one script and stylesheet.
+
+    The slots are the policy, the generator, the view block and the results block, in document
+    order, so filling one can never touch another.
+    """
+
     parts: tuple[str, str, str, str, str]
     script_hash: str
     style_hash: str
@@ -120,6 +124,20 @@ def is_dashboard_file(path: Path) -> bool:
     return limit is not None and _MARKER.search(head, 0, limit.start()) is not None
 
 
+def load_page(html_path: Path, hashes_path: Path) -> DashboardPage:
+    """Load a page built from this dashboard's source by another build, for `page=` below.
+
+    Raises RuntimeError, naming the file, for a page or hashes file the packaged page would
+    also be refused for. Internal: no stability promise. For wrappers that pin an exact version.
+    """
+    return _split_page(
+        html_path.read_text(encoding="utf-8"),
+        json.loads(hashes_path.read_text(encoding="utf-8")),
+        html_name=html_path.name,
+        hashes_name=hashes_path.name,
+    )
+
+
 def to_script_json(results: Mapping[str, object]) -> str:
     """Compact JSON that is safe inside a <script type="application/json"> element.
 
@@ -145,11 +163,20 @@ def _fill_page(view: DashboardView, results_text: str, *, can_connect: bool) -> 
 
 
 @cache
-def _load_page() -> _Page:
+def _load_page() -> DashboardPage:
     # Read once per process: the packaged files never change while it runs.
     templates = files("detecttrace").joinpath("templates")
-    html = templates.joinpath(_PAGE_NAME).read_text(encoding="utf-8")
-    hashes = json.loads(templates.joinpath(_HASHES_NAME).read_text(encoding="utf-8"))
+    return _split_page(
+        templates.joinpath(_PAGE_NAME).read_text(encoding="utf-8"),
+        json.loads(templates.joinpath(_HASHES_NAME).read_text(encoding="utf-8")),
+        html_name=f"packaged {_PAGE_NAME}",
+        hashes_name=f"packaged {_HASHES_NAME}",
+    )
+
+
+def _split_page(
+    html: str, hashes: Mapping[str, object], *, html_name: str, hashes_name: str
+) -> DashboardPage:
     slots = (
         "__DT_CSP__",
         "__DT_GENERATOR__",
@@ -162,23 +189,23 @@ def _load_page() -> _Page:
         # A slot missing or repeated means a broken build; filling it anyway would ship a page
         # with no policy, or data where the page never reads it.
         if html.count(slot) != 1:
-            raise RuntimeError(f"the packaged {_PAGE_NAME} must hold {slot!r} exactly once")
+            raise RuntimeError(f"the {html_name} must hold {slot!r} exactly once")
         before, found, rest = rest.partition(slot)
         if not found:
-            raise RuntimeError(f"the packaged {_PAGE_NAME} holds {slot!r} out of order")
+            raise RuntimeError(f"the {html_name} holds {slot!r} out of order")
         parts.append(before)
     head, after_csp, after_generator, after_view = parts
-    return _Page(
+    return DashboardPage(
         parts=(head, after_csp, after_generator, after_view, rest),
-        script_hash=_read_hash_source(hashes, "script"),
-        style_hash=_read_hash_source(hashes, "style"),
+        script_hash=_read_hash_source(hashes, "script", hashes_name),
+        style_hash=_read_hash_source(hashes, "style", hashes_name),
     )
 
 
-def _read_hash_source(hashes: Mapping[str, object], key: str) -> str:
+def _read_hash_source(hashes: Mapping[str, object], key: str, hashes_name: str) -> str:
     value = hashes.get(key)
     if not isinstance(value, str) or _HASH_SOURCE.fullmatch(value) is None:
-        raise RuntimeError(f"the packaged {_HASHES_NAME} has no SHA-256 hash for its {key}")
+        raise RuntimeError(f"the {hashes_name} has no SHA-256 hash for its {key}")
     return value
 
 

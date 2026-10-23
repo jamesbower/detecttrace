@@ -10,7 +10,9 @@ from html_tree import Node, has_tag, parse_html
 
 from detecttrace import __version__, dashboard
 from detecttrace.dashboard import (
+    DashboardPage,
     is_dashboard_file,
+    load_page,
     render_dashboard,
     render_waiting_page,
     to_script_json,
@@ -236,6 +238,47 @@ def test_hashes_without_a_script_hash_are_refused(packaged_page: Path) -> None:
     )
     with pytest.raises(RuntimeError):
         render_dashboard(demo_results())
+
+
+# A page from another build
+
+OTHER_SCRIPT_HASH = "sha256-" + "A" * 43 + "="
+
+
+@pytest.fixture
+def other_build(tmp_path: Path) -> tuple[Path, Path]:
+    """A copy of the packaged page, with hashes as another build would write them."""
+    real = Path(__file__).resolve().parent.parent / "src" / "detecttrace" / "templates"
+    html_path = tmp_path / "dashboard.html"
+    html_path.write_text((real / "dashboard.html").read_text(encoding="utf-8"), encoding="utf-8")
+    hashes = json.loads((real / "dashboard.hashes.json").read_text(encoding="utf-8"))
+    hashes_path = tmp_path / "dashboard.hashes.json"
+    hashes_path.write_text(json.dumps({**hashes, "script": OTHER_SCRIPT_HASH}), encoding="utf-8")
+    return html_path, hashes_path
+
+
+def test_a_page_from_another_build_loads(other_build: tuple[Path, Path]) -> None:
+    assert isinstance(load_page(*other_build), DashboardPage)
+
+
+def test_a_page_from_another_build_with_a_malformed_hash_is_refused(
+    other_build: tuple[Path, Path],
+) -> None:
+    html_path, hashes_path = other_build
+    hashes_path.write_text('{"script": "sha256-short", "style": "sha256-short"}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match=r"dashboard\.hashes\.json"):
+        load_page(html_path, hashes_path)
+
+
+def test_a_page_from_another_build_missing_a_slot_is_refused(
+    other_build: tuple[Path, Path],
+) -> None:
+    html_path, hashes_path = other_build
+    html_path.write_text(
+        html_path.read_text(encoding="utf-8").replace("__DT_CSP__", ""), encoding="utf-8"
+    )
+    with pytest.raises(RuntimeError, match="__DT_CSP__"):
+        load_page(html_path, hashes_path)
 
 
 # Embedding
