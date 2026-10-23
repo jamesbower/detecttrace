@@ -53,20 +53,23 @@ def run_server(
     *,
     on_spans: Callable[[list[Span]], None] | None = None,
     extension: SnapshotExtension | None = None,
+    on_ready: Callable[[Callable[[], None]], Callable[[], None]] | None = None,
 ) -> None:
     """Check, start and run the server until a signal stops it.
 
     `announce` gets the one line that says where the server listens, once it does. `on_spans`
     and `extension` are a wrapping app's seams (see `create_app` and `SnapshotExtension`);
-    internal, with no stability promise. Raises StartupError for a problem found before
-    listening, and ChecklistFileError for checklists that can't be used.
+    internal, with no stability promise. `on_ready`, the third, is called once before the server
+    listens with a function that makes the page recompute; it returns the function that stops
+    what it started, called before the store closes. Raises StartupError for a problem found
+    before listening, and ChecklistFileError for checklists that can't be used.
     """
     check_tls_files(config)
     pool = create_recompute_pool(config, config_path, extension=extension)
     try:
         store = open_store(config.serve.database)
         try:
-            _serve(config, store, pool, announce, on_spans, extension)
+            _serve(config, store, pool, announce, on_spans, extension, on_ready)
         finally:
             store.close()
     finally:
@@ -122,6 +125,7 @@ def _serve(
     announce: Callable[[str], None],
     on_spans: Callable[[list[Span]], None] | None,
     extension: SnapshotExtension | None,
+    on_ready: Callable[[Callable[[], None]], Callable[[], None]] | None,
 ) -> None:
     try:
         coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
@@ -152,7 +156,10 @@ def _serve(
     server = _AnnouncingServer(uvicorn_config, lambda: announce(_to_listen_text(config)))
     _start_logging()
     timer.start()
+    stop_wrapper = None
     try:
+        # Inside the try so the timer is stopped if the wrapping app fails to start.
+        stop_wrapper = _start_wrapper(on_ready, store, coordinator)
         _run_until_signalled(server)
     except SystemExit:
         # uvicorn exits by itself, with its own code, when it can't listen; it has
@@ -163,6 +170,38 @@ def _serve(
     finally:
         stop.set()
         timer.join()
+        _stop_wrapper(stop_wrapper)
+
+
+def _start_wrapper(
+    on_ready: Callable[[Callable[[], None]], Callable[[], None]] | None,
+    store: Store,
+    coordinator: RecomputeCoordinator,
+) -> Callable[[], None] | None:
+    if on_ready is None:
+        return None
+
+    def request_recompute() -> None:
+        # The coordinator ignores a write that left the generation unchanged, and a wrapping
+        # app's data is not in this store, so the generation is advanced on its behalf.
+        store.mark_changed()
+        coordinator.notify_write()
+
+    try:
+        return on_ready(request_recompute)
+    except Exception as error:
+        raise StartupError(f"The wrapping app could not start: {error}") from None
+
+
+def _stop_wrapper(stop_wrapper: Callable[[], None] | None) -> None:
+    if stop_wrapper is None:
+        return
+    try:
+        stop_wrapper()
+    # The rest of the shutdown must still run. The type alone, as for the span tap: the
+    # message could quote case data.
+    except Exception as error:
+        logger.error("The wrapping app failed to stop (%s)", type(error).__name__)
 
 
 def check_tls_files(config: ServeConfig) -> None:
