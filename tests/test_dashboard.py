@@ -281,6 +281,29 @@ def test_a_page_from_another_build_missing_a_slot_is_refused(
         load_page(html_path, hashes_path)
 
 
+def test_a_page_rendered_with_another_build_allows_its_script(
+    other_build: tuple[Path, Path],
+) -> None:
+    html = render_dashboard(demo_results(), page=load_page(*other_build))
+    assert f"script-src '{OTHER_SCRIPT_HASH}'" in html
+
+
+def test_a_waiting_page_rendered_with_another_build_allows_its_script(
+    other_build: tuple[Path, Path],
+) -> None:
+    html = render_waiting_page(WAITING_COUNTS, [], SERVED, page=load_page(*other_build))
+    assert f"script-src '{OTHER_SCRIPT_HASH}'" in html
+
+
+def test_view_extensions_are_in_the_view_block() -> None:
+    html = render_dashboard(demo_results(), view_extensions={"assure": {"rows": [1]}})
+    assert read_view(html)["extensions"] == {"assure": {"rows": [1]}}
+
+
+def test_a_view_without_extensions_has_no_extensions_key() -> None:
+    assert "extensions" not in read_view(demo_html())
+
+
 # Embedding
 
 
@@ -431,26 +454,3 @@ def test_a_folder_is_not_a_dashboard(tmp_path: Path) -> None:
 def test_a_missing_file_raises_instead_of_answering(tmp_path: Path) -> None:
     with pytest.raises(OSError):
         is_dashboard_file(tmp_path / "missing.html")
-
-
-def test_a_page_rendered_with_another_build_allows_its_script(
-    other_build: tuple[Path, Path],
-) -> None:
-    html = render_dashboard(demo_results(), page=load_page(*other_build))
-    assert f"script-src '{OTHER_SCRIPT_HASH}'" in html
-
-
-def test_a_waiting_page_rendered_with_another_build_allows_its_script(
-    other_build: tuple[Path, Path],
-) -> None:
-    html = render_waiting_page(WAITING_COUNTS, [], SERVED, page=load_page(*other_build))
-    assert f"script-src '{OTHER_SCRIPT_HASH}'" in html
-
-
-def test_view_extensions_are_in_the_view_block() -> None:
-    html = render_dashboard(demo_results(), view_extensions={"assure": {"rows": [1]}})
-    assert read_view(html)["extensions"] == {"assure": {"rows": [1]}}
-
-
-def test_a_view_without_extensions_has_no_extensions_key() -> None:
-    assert "extensions" not in read_view(demo_html())
