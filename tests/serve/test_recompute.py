@@ -1355,6 +1355,13 @@ def test_a_spawned_worker_runs_the_extension(tmp_path: Path, store: Store) -> No
     assert json.loads(outcome.snapshot.results_json)["extensions"] == {"cases": 1}
 
 
+def test_loaded_settings_carry_the_extension(tmp_path: Path) -> None:
+    config_path = write_serve_config(tmp_path)
+    extension = CountingExtension()
+    settings = load_recompute_settings(load_serve_config(config_path), config_path, extension)
+    assert settings.extension is extension
+
+
 # The worker process gives the CLI's numbers
 
 

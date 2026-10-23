@@ -23,11 +23,13 @@ from types import FrameType
 import uvicorn
 from starlette.types import ASGIApp
 
+from detecttrace.model import Span
 from detecttrace.serve.app import create_app
 from detecttrace.serve.config import ServeConfig
 from detecttrace.serve.recompute import (
     RecomputeCoordinator,
     RecomputeOutcome,
+    SnapshotExtension,
     compute_snapshot,
     load_recompute_settings,
 )
@@ -44,19 +46,27 @@ class StartupError(Exception):
     """A problem that stops the server before it listens; the message is for the user."""
 
 
-def run_server(config: ServeConfig, config_path: Path, announce: Callable[[str], None]) -> None:
+def run_server(
+    config: ServeConfig,
+    config_path: Path,
+    announce: Callable[[str], None],
+    *,
+    on_spans: Callable[[list[Span]], None] | None = None,
+    extension: SnapshotExtension | None = None,
+) -> None:
     """Check, start and run the server until a signal stops it.
 
-    `announce` gets the one line that says where the server listens, once it does. Raises
-    StartupError for a problem found before listening, and ChecklistFileError for checklists
-    that can't be used.
+    `announce` gets the one line that says where the server listens, once it does. `on_spans`
+    and `extension` are a wrapping app's seams (see `create_app` and `SnapshotExtension`);
+    internal, with no stability promise. Raises StartupError for a problem found before
+    listening, and ChecklistFileError for checklists that can't be used.
     """
     check_tls_files(config)
-    pool = create_recompute_pool(config, config_path)
+    pool = create_recompute_pool(config, config_path, extension=extension)
     try:
         store = open_store(config.serve.database)
         try:
-            _serve(config, store, pool, announce)
+            _serve(config, store, pool, announce, on_spans)
         finally:
             store.close()
     finally:
@@ -69,12 +79,14 @@ def create_recompute_pool(
     config: ServeConfig,
     config_path: Path,
     create_executor: Callable[[], Executor] | None = None,
+    *,
+    extension: SnapshotExtension | None = None,
 ) -> "WorkerPool":
     """The worker pool, with the settings every run uses read once, here.
 
     Raises ChecklistFileError for checklists that can't be used.
     """
-    settings = load_recompute_settings(config, config_path)
+    settings = load_recompute_settings(config, config_path, extension)
     return WorkerPool(
         _create_executor if create_executor is None else create_executor,
         lambda executor: executor.submit(
@@ -103,7 +115,11 @@ def create_uvicorn_config(config: ServeConfig, app: ASGIApp) -> uvicorn.Config:
 
 
 def _serve(
-    config: ServeConfig, store: Store, pool: "WorkerPool", announce: Callable[[str], None]
+    config: ServeConfig,
+    store: Store,
+    pool: "WorkerPool",
+    announce: Callable[[str], None],
+    on_spans: Callable[[list[Span]], None] | None,
 ) -> None:
     try:
         coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
@@ -116,7 +132,9 @@ def _serve(
         name="recompute",
         daemon=True,
     )
-    app = create_app(config, store, coordinator.notify_write, lambda: coordinator.status)
+    app = create_app(
+        config, store, coordinator.notify_write, lambda: coordinator.status, on_spans=on_spans
+    )
     uvicorn_config = create_uvicorn_config(config, app)
     try:
         # Loaded here rather than inside run, so a bad certificate is a message, not a
