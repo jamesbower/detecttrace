@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from page_data import read_view
 
+from detecttrace.dashboard import load_page
 from detecttrace.model import Issue, IssueKind, VerdictRow
 from detecttrace.serve.app import create_app
 from detecttrace.serve.recompute import RecomputeStatus
@@ -142,6 +143,25 @@ def test_waiting_page_before_the_first_recompute_counts_the_stored_verdicts(
     app_store.put_verdicts([VerdictRow("DT-1", "phishing", "TP", 0)], "soar")
     counts = read_view(client.get("/", headers=BEARER_READ).text)["waiting"]["counts"]
     assert {count["label"]: count["value"] for count in counts}["Verdicts received"] == "1"
+
+
+def test_waiting_page_uses_the_page_a_wrapping_app_gives(tmp_path: Path, app_store: Store) -> None:
+    real = Path(__file__).resolve().parents[2] / "src" / "detecttrace" / "templates"
+    html_path = tmp_path / "dashboard.html"
+    html_path.write_text((real / "dashboard.html").read_text(encoding="utf-8"), encoding="utf-8")
+    hashes = json.loads((real / "dashboard.hashes.json").read_text(encoding="utf-8"))
+    hashes_path = tmp_path / "dashboard.hashes.json"
+    other_hash = "sha256-" + "A" * 43 + "="
+    hashes_path.write_text(json.dumps({**hashes, "script": other_hash}), encoding="utf-8")
+    app = create_app(
+        create_config(tmp_path / "detecttrace.db"),
+        app_store,
+        lambda: None,
+        page=load_page(html_path, hashes_path),
+    )
+    with TestClient(app) as test_client:
+        html = test_client.get("/", headers=BEARER_READ).text
+    assert f"script-src '{other_hash}'" in html
 
 
 def test_status_generation_is_the_stored_snapshots(status_body: dict[str, object]) -> None:

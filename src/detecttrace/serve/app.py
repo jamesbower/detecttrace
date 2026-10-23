@@ -17,6 +17,7 @@ import re
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from functools import partial
 from typing import Annotated, Any, Literal
 
 import anyio
@@ -30,7 +31,7 @@ from starlette.routing import Match
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from detecttrace.config import Config
-from detecttrace.dashboard import render_waiting_page
+from detecttrace.dashboard import DashboardPage, render_waiting_page
 from detecttrace.model import Issue, IssueKind, Span
 from detecttrace.serve import receiver, verdict_api
 from detecttrace.serve.auth import Role, find_token_name
@@ -99,12 +100,14 @@ def create_app(
     read_status: Callable[[], RecomputeStatus] = lambda: IDLE_STATUS,
     *,
     on_spans: Callable[[list[Span]], None] | None = None,
+    page: DashboardPage | None = None,
 ) -> FastAPI:
     """Build the app; `on_write` is called after every commit, a rejected body's issue too.
 
     `read_status` gives the recompute's current state for `/api/status`. `on_spans` is called
     with each parsed span batch, tool results kept, before they are stripped and stored. It must
-    not change the spans: their attribute dicts are the ones that get stored.
+    not change the spans: their attribute dicts are the ones that get stored. `page` replaces the
+    packaged dashboard page on the page shown before the first snapshot.
     Internal: no stability promise. For wrappers that pin an exact version.
     """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it. No
@@ -137,7 +140,7 @@ def create_app(
 
     @app.get("/", dependencies=[Depends(require_read)])
     async def show_dashboard() -> Response:
-        return await read_page_response(store, "served")
+        return await read_page_response(store, "served", page=page)
 
     @app.get("/api/status", dependencies=[Depends(require_read)])
     async def show_status() -> Response:
@@ -148,7 +151,7 @@ def create_app(
         return await read_results_response(store)
 
     async def show_dashboard_page() -> Response:
-        return await read_page_response(store, "served")
+        return await read_page_response(store, "served", page=page)
 
     add_page_route(app, show_dashboard_page, [Depends(require_read)])
     return app
@@ -193,10 +196,12 @@ async def read_health_response(store: Store) -> Response:
     return PlainTextResponse("ok")
 
 
-async def read_page_response(store: Store, mode: Literal["served", "ui"]) -> Response:
+async def read_page_response(
+    store: Store, mode: Literal["served", "ui"], *, page: DashboardPage | None = None
+) -> Response:
     """`GET /` and each page path: the stored snapshot's page, or `mode`'s waiting page before the first one."""
     try:
-        html = await run_in_threadpool(_read_page, store, mode)
+        html = await run_in_threadpool(partial(_read_page, store, mode, page=page))
     except sqlite3.OperationalError:
         return create_unreadable_response()
     return HTMLResponse(html, headers={"Content-Security-Policy": PAGE_CSP})
@@ -481,7 +486,9 @@ def _store_verdicts(
     return len(rows), rejected, bool(rows or issues)
 
 
-def _read_page(store: Store, mode: Literal["served", "ui"]) -> str:
+def _read_page(
+    store: Store, mode: Literal["served", "ui"], *, page: DashboardPage | None = None
+) -> str:
     """The stored snapshot's page, or a waiting page until the first recompute has finished."""
     snapshot = store.read_snapshot()
     if snapshot is not None:
@@ -498,7 +505,7 @@ def _read_page(store: Store, mode: Literal["served", "ui"]) -> str:
         held_back_count=0,
         verdict_count=counts.verdict_count,
     )
-    return render_waiting_page(waiting, [], served, mode=mode)
+    return render_waiting_page(waiting, [], served, mode=mode, page=page)
 
 
 def read_status_content(store: Store, status: RecomputeStatus) -> dict[str, object]:

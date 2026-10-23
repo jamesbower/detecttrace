@@ -66,7 +66,7 @@ def run_server(
     try:
         store = open_store(config.serve.database)
         try:
-            _serve(config, store, pool, announce, on_spans)
+            _serve(config, store, pool, announce, on_spans, extension)
         finally:
             store.close()
     finally:
@@ -120,6 +120,7 @@ def _serve(
     pool: "WorkerPool",
     announce: Callable[[str], None],
     on_spans: Callable[[list[Span]], None] | None,
+    extension: SnapshotExtension | None,
 ) -> None:
     try:
         coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
@@ -133,7 +134,12 @@ def _serve(
         daemon=True,
     )
     app = create_app(
-        config, store, coordinator.notify_write, lambda: coordinator.status, on_spans=on_spans
+        config,
+        store,
+        coordinator.notify_write,
+        lambda: coordinator.status,
+        on_spans=on_spans,
+        page=None if extension is None else extension.page,
     )
     uvicorn_config = create_uvicorn_config(config, app)
     try:
