@@ -77,16 +77,26 @@ def render_dashboard(
     *,
     served: ServedPage | None = None,
     mode: Literal["served", "ui"] = "served",
+    page: DashboardPage | None = None,
+    view_extensions: Mapping[str, object] | None = None,
 ) -> str:
     """Render the page for a results object from `results.build_results` (or its JSON).
 
     With `served`, the page is for `detecttrace serve` (or `detecttrace ui`, by `mode`): its view
     carries its generation, and its policy lets it ask the same server for newer results. Without
-    it, the page is the offline one and `mode` is ignored. Raises ValueError for an unknown schema
+    it, the page is the offline one and `mode` is ignored. `page` replaces the packaged page and
+    `view_extensions` goes into the view under `extensions`; both are internal, with no stability
+    promise, for wrappers that pin an exact version. Raises ValueError for an unknown schema
     version, or a NaN or infinity in the results.
     """
     view = build_view(results) if served is None else build_served_view(results, served, mode=mode)
-    return _fill_page(view, to_script_json(results), can_connect=served is not None)
+    return _fill_page(
+        view,
+        to_script_json(results),
+        can_connect=served is not None,
+        page=page,
+        view_extensions=view_extensions,
+    )
 
 
 def render_waiting_page(
@@ -95,13 +105,15 @@ def render_waiting_page(
     served: ServedPage,
     *,
     mode: Literal["served", "ui"] = "served",
+    page: DashboardPage | None = None,
 ) -> str:
     """Render the page `detecttrace serve` or `detecttrace ui` shows until a case can be scored.
 
     `notes` are the run's issue lines, which often say why nothing joined yet. The page has no
-    results, so its results block stays empty.
+    results, so its results block stays empty. `page` is as for `render_dashboard`.
     """
-    return _fill_page(build_waiting_view(counts, notes, served, mode=mode), "", can_connect=True)
+    view = build_waiting_view(counts, notes, served, mode=mode)
+    return _fill_page(view, "", can_connect=True, page=page)
 
 
 def write_dashboard(html: str, path: Path) -> None:
@@ -150,12 +162,22 @@ def to_script_json(results: Mapping[str, object]) -> str:
     return text.translate(_JSON_ESCAPE_TABLE)
 
 
-def _fill_page(view: DashboardView, results_text: str, *, can_connect: bool) -> str:
-    page = _load_page()
+def _fill_page(
+    view: DashboardView,
+    results_text: str,
+    *,
+    can_connect: bool,
+    page: DashboardPage | None = None,
+    view_extensions: Mapping[str, object] | None = None,
+) -> str:
+    page = _load_page() if page is None else page
+    view_json = to_view_json(view)
+    if view_extensions is not None:
+        view_json["extensions"] = dict(view_extensions)
     fills = (
         _to_csp(page.script_hash, page.style_hash, can_connect=can_connect),
         GENERATOR,
-        _to_data_block(VIEW_BLOCK_ID, to_script_json(to_view_json(view))),
+        _to_data_block(VIEW_BLOCK_ID, to_script_json(view_json)),
         _to_data_block(RESULTS_BLOCK_ID, results_text),
     )
     pieces = [page.parts[0]]
