@@ -1,5 +1,5 @@
 // A custom build registers its pages and panels, then mounts the dashboard on the page.
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
@@ -42,12 +42,14 @@ it("renders the dashboard into the page's root", async () => {
   act(() => {
     root = mountDashboard();
   });
-  expect((await screen.findAllByText(DEMO_VIEW.header.title)).length).toBeGreaterThan(0);
+  const rootElement = document.getElementById("root") as HTMLElement;
+  const brand = await within(rootElement).findByText(DEMO_VIEW.header.title, { selector: ".shell-brand" });
+  expect(brand.tagName).toBe("P");
 });
 
 it("shows a panel registered before mounting", async () => {
   act(() => {
     root = mountDashboard();
   });
-  expect(await screen.findByText("Added panel")).toBeTruthy();
+  expect((await screen.findByText("Added panel")).tagName).toBe("P");
 });
