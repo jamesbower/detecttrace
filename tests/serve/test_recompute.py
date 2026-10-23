@@ -29,6 +29,7 @@ from detecttrace.serve.recompute import (
     load_recompute_settings,
     to_iso_time,
 )
+from detecttrace.serve.server import create_recompute_pool
 from detecttrace.serve.store import INGEST_SUBJECT, Snapshot, Store
 from detecttrace.served_page import ServedPage, WaitingCounts
 from detecttrace.traces import load_spans
@@ -40,6 +41,7 @@ from serve.extension_support import (
     NanViewExtension,
     PagedExtension,
 )
+from serve.ui_support import InlineExecutor
 
 DEMO_DIR = Path(__file__).resolve().parents[2] / "src" / "detecttrace" / "demo_data"
 DEBOUNCE = 5.0
@@ -1355,11 +1357,17 @@ def test_a_spawned_worker_runs_the_extension(tmp_path: Path, store: Store) -> No
     assert json.loads(outcome.snapshot.results_json)["extensions"] == {"cases": 1}
 
 
-def test_loaded_settings_carry_the_extension(tmp_path: Path) -> None:
+def test_a_recompute_pool_runs_the_extension(tmp_path: Path, store: Store) -> None:
+    add_case(store, 1, CASE_END_NS)
     config_path = write_serve_config(tmp_path)
-    extension = CountingExtension()
-    settings = load_recompute_settings(load_serve_config(config_path), config_path, extension)
-    assert settings.extension is extension
+    pool = create_recompute_pool(
+        load_serve_config(config_path), config_path, InlineExecutor, extension=CountingExtension()
+    )
+    try:
+        outcome = pool.submit().result()
+    finally:
+        pool.shutdown()
+    assert json.loads(outcome.snapshot.results_json)["extensions"] == {"cases": 1}
 
 
 # The worker process gives the CLI's numbers
