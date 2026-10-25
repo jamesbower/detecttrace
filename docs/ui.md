@@ -79,7 +79,7 @@ New uploads after that update the dashboard by themselves, checklists included. 
 
 The suffix is matched in any case. A larger file is refused; split it and upload the parts.
 
-- **Traces** are OTLP JSON or JSON Lines, or a Langfuse export of observations, as for `check`. The format is detected from the content. See [Inputs](../README.md#inputs) and [trace sources](trace-sources.md).
+- **Traces** are OTLP JSON or JSON Lines, or a Langfuse export of observations, as for `check`. The format is detected from the content. See [Inputs](cli.md#inputs) and [trace sources](trace-sources.md).
 - **Verdicts** are a CSV with `case_id`, `alert_class` and `verdict`, as for `check`. Labels are stored as written and mapped in the configuration step.
 - **Checklists** are YAML files, one alert class per file, in the format of [docs/checklists.md](checklists.md). A file that isn't a valid checklist is refused with the reason. A data folder holds up to 100 checklists. You write checklists yourself, from your own playbook, as for `check`. Turning playbooks or runbooks into checklists isn't part of DetectTrace.
 

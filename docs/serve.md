@@ -195,7 +195,7 @@ dashboard:
 
 ### Shared settings
 
-`mapping`, `label_map`, `agent_label_map`, `checklists` and `dashboard.max_detail_cases` work as in `detecttrace.yaml`; see the [README](../README.md) and [Trace attributes](attributes.md). The verdict API rejects a row whose label isn't in `label_map`, so map every label your analysts use before you send verdicts.
+`mapping`, `label_map`, `agent_label_map`, `checklists` and `dashboard.max_detail_cases` work as in `detecttrace.yaml`; see [Running on files](cli.md) and [Trace attributes](attributes.md). The verdict API rejects a row whose label isn't in `label_map`, so map every label your analysts use before you send verdicts.
 
 ## Sending spans from a Collector
 
