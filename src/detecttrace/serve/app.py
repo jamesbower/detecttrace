@@ -5,9 +5,10 @@ Error responses carry a google.rpc.Status body (`code`, `message`), the shape OT
 clients expect. No response or error ever repeats the token a client sent, and the access log
 records only the method, path, status, client address and duration of each request.
 
-A wrapping app may add routes under `/api/ext/`. Every one of them needs a `label` token, takes
-a body only as UTF-8 JSON of at most 1 MiB, and finds the token's name in
-`request.state.token_name`.
+A wrapping app may add routes under `/api/ext/`. Every one of them needs a `label` token,
+takes at most 1 MiB of body, sent as UTF-8 JSON on POST, PUT and PATCH, and finds the token's
+name in `request.state.token_name`. A request FastAPI's own validation refuses is 400, with no
+part of the request in the answer.
 
 `GET /api/status` answers `{"generation", "updated_at", "recompute_running", "last_error",
 "last_error_at", "held_back_cases", "span_count", "verdict_count", "last_ingest_at"}`. The
@@ -26,6 +27,7 @@ from typing import Annotated, Any, Literal
 
 import anyio
 from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
@@ -76,6 +78,8 @@ EXTENSION_PREFIX = "/api/ext/"
 # Wrapper routes take small forms, never data uploads.
 MAX_EXTENSION_BODY_BYTES = 1 << 20
 _BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
+_SEND_JSON = "send the request body as application/json"
+_PARAMETER_NAME = re.compile(r"\?P<\w+>")
 # A client that stops sending mid-body would otherwise hold its slot forever.
 BODY_READ_SECONDS = 30
 SECURITY_HEADERS = {
@@ -123,8 +127,8 @@ def create_app(
     with each parsed span batch, tool results kept, before they are stripped and stored. It must
     not change the spans: their attribute dicts are the ones that get stored. `page` replaces the
     packaged dashboard page on the page shown before the first snapshot. `routes` are mounted as
-    the module docstring says; RouteError refuses one outside `/api/ext/` or one whose path and
-    method are mounted already.
+    the module docstring says; RouteError refuses one outside `/api/ext/`, the bare prefix, or
+    one whose path and method are mounted already, whatever its parameters are named.
     Internal: no stability promise. For wrappers that pin an exact version.
     """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it. No
@@ -132,6 +136,8 @@ def create_app(
     # proxy its absolute URL would send the client to plain http.
     app = ServeApp(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
     app.exception_handler(HTTPException)(respond_with_status)
+    # FastAPI's own answer is 422 with each refused value repeated back.
+    app.exception_handler(RequestValidationError)(_respond_to_invalid_request)
 
     require_ingest = require_role(config.tokens, "ingest", allow_basic=False)
     require_verdicts = require_role(config.tokens, "verdicts", allow_basic=False)
@@ -182,9 +188,12 @@ def _add_extension_routes(
     for route in routes:
         if not route.path.startswith(EXTENSION_PREFIX):
             raise RouteError(f"The route {route.path} is outside {EXTENSION_PREFIX}.")
+        if not route.path.removeprefix(EXTENSION_PREFIX).strip("/"):
+            raise RouteError(f"The route {route.path} has nothing after {EXTENSION_PREFIX}.")
         methods = route.methods or set()
+        shape = _to_path_shape(route)
         for mounted in app.router.routes:
-            if isinstance(mounted, Route) and mounted.path == route.path:
+            if isinstance(mounted, Route) and _to_path_shape(mounted) == shape:
                 clash = methods & (mounted.methods or set())
                 if clash:
                     raise RouteError(
@@ -200,6 +209,15 @@ def _add_extension_routes(
                 name=route.name,
             )
         )
+
+
+def _to_path_shape(route: Route) -> str:
+    # Paths that differ only in their parameters' names match the same requests.
+    return _PARAMETER_NAME.sub("", route.path_regex.pattern)
+
+
+async def _respond_to_invalid_request(request: Request, error: Exception) -> Response:
+    return create_status_response(400, "the request is not valid for this route")
 
 
 class _ExtensionGuard:
@@ -231,12 +249,12 @@ class _ExtensionGuard:
 
 def _check_json_media_type(content_type: str | None) -> None:
     if not content_type:
-        raise HTTPException(415, "Send application/json.")
+        raise HTTPException(415, _SEND_JSON)
     media_type, is_utf8 = to_media_type(content_type)
     if media_type != "application/json":
-        raise HTTPException(415, "Send application/json.")
+        raise HTTPException(415, _SEND_JSON)
     if not is_utf8:
-        raise HTTPException(415, "The body must be UTF-8.")
+        raise HTTPException(415, "the request body must be UTF-8; send charset=utf-8 or none")
 
 
 def add_page_route(

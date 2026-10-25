@@ -55,7 +55,7 @@ def run_server(
     on_spans: Callable[[list[Span]], None] | None = None,
     extension: SnapshotExtension | None = None,
     on_ready: Callable[[Callable[[], None]], Callable[[], None]] | None = None,
-    routes: Sequence[APIRoute] | None = None,
+    routes: Sequence[APIRoute] = (),
 ) -> None:
     """Check, start and run the server until a signal stops it.
 
@@ -65,17 +65,17 @@ def run_server(
     listens with a function that makes the page recompute; it returns the function that stops
     what it started, called before the store closes. `request_recompute` may raise
     sqlite3.Error, and must not be called once the stop function has returned. An exception from
-    `on_ready` is shown in full, so it must not carry secrets or case data. `routes`, the fourth,
-    are mounted under `/api/ext/` behind the `label` token (see `create_app`). Raises StartupError
-    for a problem found before listening, and ChecklistFileError for checklists that can't be
-    used.
+    `on_ready` is shown in full, so it must not carry secrets or case data. `routes` adds the
+    wrapping app's own routes under `/api/ext/`, behind the `label` token (see `create_app`); one
+    that can't be mounted is a StartupError. Raises StartupError for a problem found before
+    listening, and ChecklistFileError for checklists that can't be used.
     """
     check_tls_files(config)
     pool = create_recompute_pool(config, config_path, extension=extension)
     try:
         store = open_store(config.serve.database)
         try:
-            _serve(config, store, pool, announce, on_spans, extension, on_ready, routes or ())
+            _serve(config, store, pool, announce, on_spans, extension, on_ready, routes)
         finally:
             store.close()
     finally:
