@@ -14,17 +14,18 @@ import sqlite3
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from types import FrameType
 
 import uvicorn
+from fastapi.routing import APIRoute
 from starlette.types import ASGIApp
 
 from detecttrace.model import Span
-from detecttrace.serve.app import create_app
+from detecttrace.serve.app import RouteError, create_app
 from detecttrace.serve.config import ServeConfig
 from detecttrace.serve.recompute import (
     RecomputeCoordinator,
@@ -54,6 +55,7 @@ def run_server(
     on_spans: Callable[[list[Span]], None] | None = None,
     extension: SnapshotExtension | None = None,
     on_ready: Callable[[Callable[[], None]], Callable[[], None]] | None = None,
+    routes: Sequence[APIRoute] | None = None,
 ) -> None:
     """Check, start and run the server until a signal stops it.
 
@@ -63,7 +65,8 @@ def run_server(
     listens with a function that makes the page recompute; it returns the function that stops
     what it started, called before the store closes. `request_recompute` may raise
     sqlite3.Error, and must not be called once the stop function has returned. An exception from
-    `on_ready` is shown in full, so it must not carry secrets or case data. Raises StartupError
+    `on_ready` is shown in full, so it must not carry secrets or case data. `routes`, the fourth,
+    are mounted under `/api/ext/` behind the `label` token (see `create_app`). Raises StartupError
     for a problem found before listening, and ChecklistFileError for checklists that can't be
     used.
     """
@@ -72,7 +75,7 @@ def run_server(
     try:
         store = open_store(config.serve.database)
         try:
-            _serve(config, store, pool, announce, on_spans, extension, on_ready)
+            _serve(config, store, pool, announce, on_spans, extension, on_ready, routes or ())
         finally:
             store.close()
     finally:
@@ -129,6 +132,7 @@ def _serve(
     on_spans: Callable[[list[Span]], None] | None,
     extension: SnapshotExtension | None,
     on_ready: Callable[[Callable[[], None]], Callable[[], None]] | None,
+    routes: Sequence[APIRoute],
 ) -> None:
     try:
         coordinator = RecomputeCoordinator(pool.submit, store, time.monotonic)
@@ -141,14 +145,18 @@ def _serve(
         name="recompute",
         daemon=True,
     )
-    app = create_app(
-        config,
-        store,
-        coordinator.notify_write,
-        lambda: coordinator.status,
-        on_spans=on_spans,
-        page=None if extension is None else extension.page,
-    )
+    try:
+        app = create_app(
+            config,
+            store,
+            coordinator.notify_write,
+            lambda: coordinator.status,
+            on_spans=on_spans,
+            page=None if extension is None else extension.page,
+            routes=routes,
+        )
+    except RouteError as error:
+        raise StartupError(str(error)) from None
     uvicorn_config = create_uvicorn_config(config, app)
     try:
         # Loaded here rather than inside run, so a bad certificate is a message, not a

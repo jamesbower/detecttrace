@@ -15,6 +15,7 @@ INGEST_TOKEN = create_token()
 VERDICTS_TOKEN = create_token()
 SECOND_VERDICTS_TOKEN = create_token()
 READ_TOKEN = create_token()
+LABEL_TOKEN = create_token()
 COLLECTOR_ROOT = Path(__file__).parent.parent / "fixtures" / "collector_real"
 
 
@@ -30,6 +31,7 @@ def create_config(database: Path) -> ServeConfig:
                     {"name": "case-tool", "hash": hash_token(SECOND_VERDICTS_TOKEN)},
                 ],
                 "read": [{"name": "analysts", "hash": hash_token(READ_TOKEN)}],
+                "label": [{"name": "reviewers", "hash": hash_token(LABEL_TOKEN)}],
             },
         }
     )

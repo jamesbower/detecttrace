@@ -244,3 +244,18 @@ def test_non_mapping_document_is_rejected(tmp_path: Path) -> None:
 def test_missing_file_is_a_config_file_error(tmp_path: Path) -> None:
     with pytest.raises(ConfigFileError, match="cannot be read"):
         load_serve_config(tmp_path / "missing.yaml")
+
+
+def test_label_tokens_are_optional(tmp_path: Path) -> None:
+    assert _load(tmp_path, _document()).tokens.label == []
+
+
+def test_label_tokens_load(tmp_path: Path) -> None:
+    config = _load(tmp_path, _with_tokens(label=[_entry("reviewers")]))
+    assert config.tokens.label[0].name == "reviewers"
+
+
+def test_a_label_token_name_used_twice_is_rejected(tmp_path: Path) -> None:
+    other_hash = hash_token("another-token")
+    document = _with_tokens(label=[_entry("reviewers"), _entry("reviewers", other_hash)])
+    assert "used twice" in _error(tmp_path, document)

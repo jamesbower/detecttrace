@@ -269,7 +269,7 @@ def ui(
 @app.command()
 def token(
     role: Annotated[
-        str, typer.Option("--role", help="What the token may do: ingest, verdicts or read.")
+        str, typer.Option("--role", help="What the token may do: ingest, verdicts, read or label.")
     ],
     name: Annotated[
         str, typer.Option("--name", help="A plain name for the token, shown in logs and audit.")

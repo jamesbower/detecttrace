@@ -5,6 +5,10 @@ Error responses carry a google.rpc.Status body (`code`, `message`), the shape OT
 clients expect. No response or error ever repeats the token a client sent, and the access log
 records only the method, path, status, client address and duration of each request.
 
+A wrapping app may add routes under `/api/ext/`. Every one of them needs a `label` token, takes
+a body only as UTF-8 JSON of at most 1 MiB, and finds the token's name in
+`request.state.token_name`.
+
 `GET /api/status` answers `{"generation", "updated_at", "recompute_running", "last_error",
 "last_error_at", "held_back_cases", "span_count", "verdict_count", "last_ingest_at"}`. The
 generation and time are the stored snapshot's, so a page can tell whether reloading would show
@@ -27,7 +31,7 @@ from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
-from starlette.routing import Match
+from starlette.routing import Match, Route
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from detecttrace.config import Config
@@ -36,6 +40,7 @@ from detecttrace.model import Issue, IssueKind, Span
 from detecttrace.serve import receiver, verdict_api
 from detecttrace.serve.auth import Role, find_token_name
 from detecttrace.serve.config import ServeConfig, TokenRoles
+from detecttrace.serve.mediatype import to_media_type
 from detecttrace.serve.recompute import RecomputeStatus, to_iso_time
 from detecttrace.serve.store import INGEST_SUBJECT, Store
 from detecttrace.served_page import ServedPage, WaitingCounts
@@ -59,13 +64,18 @@ _STATUS_CODES = {
 }
 _UNKNOWN_CODE = 2
 _RETRY_AFTER_SECONDS = "5"
-_ROLES: tuple[Role, ...] = ("ingest", "verdicts", "read")
+_ROLES: tuple[Role, ...] = ("ingest", "verdicts", "read", "label")
 # A span batch holds up to 16 MiB of body and 32 MiB decompressed plus its spans, so a burst
 # of parallel batches is queued rather than allowed to exhaust a small container's memory.
 MAX_CONCURRENT_INGESTS = 4
 # Verdict posts come from human tooling and get their own, smaller limit, so slow uploads
 # there can never take the slots span ingest needs.
 MAX_CONCURRENT_VERDICT_POSTS = 2
+# The one prefix a wrapping app's routes may use, so none can shadow a CE route or a page path.
+EXTENSION_PREFIX = "/api/ext/"
+# Wrapper routes take small forms, never data uploads.
+MAX_EXTENSION_BODY_BYTES = 1 << 20
+_BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 # A client that stops sending mid-body would otherwise hold its slot forever.
 BODY_READ_SECONDS = 30
 SECURITY_HEADERS = {
@@ -93,6 +103,10 @@ class _FailedAfterCommit(Exception):
     """A store step failed after an earlier step of the same request had committed."""
 
 
+class RouteError(Exception):
+    """A wrapping app's route can't be mounted; the message is for the user."""
+
+
 def create_app(
     config: ServeConfig,
     store: Store,
@@ -101,13 +115,16 @@ def create_app(
     *,
     on_spans: Callable[[list[Span]], None] | None = None,
     page: DashboardPage | None = None,
+    routes: Sequence[APIRoute] = (),
 ) -> FastAPI:
     """Build the app; `on_write` is called after every commit, a rejected body's issue too.
 
     `read_status` gives the recompute's current state for `/api/status`. `on_spans` is called
     with each parsed span batch, tool results kept, before they are stripped and stored. It must
     not change the spans: their attribute dicts are the ones that get stored. `page` replaces the
-    packaged dashboard page on the page shown before the first snapshot.
+    packaged dashboard page on the page shown before the first snapshot. `routes` are mounted as
+    the module docstring says; RouteError refuses one outside `/api/ext/` or one whose path and
+    method are mounted already.
     Internal: no stability promise. For wrappers that pin an exact version.
     """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it. No
@@ -154,7 +171,72 @@ def create_app(
         return await read_page_response(store, "served", page=page)
 
     add_page_route(app, show_dashboard_page, [Depends(require_read)])
+    _add_extension_routes(app, routes, require_role(config.tokens, "label", allow_basic=False))
     return app
+
+
+def _add_extension_routes(
+    app: FastAPI, routes: Sequence[APIRoute], require_label: Callable[[Request], str]
+) -> None:
+    """Mount each route behind `_ExtensionGuard`; raise RouteError for one that can't be."""
+    for route in routes:
+        if not route.path.startswith(EXTENSION_PREFIX):
+            raise RouteError(f"The route {route.path} is outside {EXTENSION_PREFIX}.")
+        methods = route.methods or set()
+        for mounted in app.router.routes:
+            if isinstance(mounted, Route) and mounted.path == route.path:
+                clash = methods & (mounted.methods or set())
+                if clash:
+                    raise RouteError(
+                        f"The route {', '.join(sorted(clash))} {route.path} is mounted twice."
+                    )
+        # The guard wraps the route's whole ASGI app, so the token and the body limit are
+        # checked before FastAPI reads a body the handler declares.
+        app.router.routes.append(
+            Route(
+                route.path,
+                _ExtensionGuard(route.app, require_label),
+                methods=sorted(methods),
+                name=route.name,
+            )
+        )
+
+
+class _ExtensionGuard:
+    """Checks the label token, the media type and the body size before a wrapper route runs."""
+
+    def __init__(self, app: ASGIApp, require_label: Callable[[Request], str]) -> None:
+        self._app = app
+        self._require_label = require_label
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        request = Request(scope, receive)
+        token_name = self._require_label(request)
+        if request.method in _BODY_METHODS:
+            _check_json_media_type(request.headers.get("content-type"))
+        body = await read_limited_body(request, MAX_EXTENSION_BODY_BYTES, "send a smaller request")
+        request.state.token_name = token_name
+        is_sent = False
+
+        async def replay() -> Message:
+            nonlocal is_sent
+            if is_sent:
+                # The body is read already; what comes next is the client's disconnect.
+                return await receive()
+            is_sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        await self._app(scope, replay, send)
+
+
+def _check_json_media_type(content_type: str | None) -> None:
+    if not content_type:
+        raise HTTPException(415, "Send application/json.")
+    media_type, is_utf8 = to_media_type(content_type)
+    if media_type != "application/json":
+        raise HTTPException(415, "Send application/json.")
+    if not is_utf8:
+        raise HTTPException(415, "The body must be UTF-8.")
 
 
 def add_page_route(

@@ -8,7 +8,7 @@ from typing import Literal
 
 from detecttrace.serve.config import TokenEntry
 
-Role = Literal["ingest", "verdicts", "read"]
+Role = Literal["ingest", "verdicts", "read", "label"]
 
 
 def create_token() -> str:

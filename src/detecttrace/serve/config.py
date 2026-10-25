@@ -62,8 +62,10 @@ class TokenRoles(BaseModel):
     ingest: TokenList
     verdicts: TokenList
     read: TokenList
+    # For the routes a wrapping app adds under /api/ext/; none unless it adds some.
+    label: list[TokenEntry] = Field(default_factory=list)
 
-    _check_unique = field_validator("ingest", "verdicts", "read")(_check_unique_names)
+    _check_unique = field_validator("ingest", "verdicts", "read", "label")(_check_unique_names)
 
 
 class TlsConfig(BaseModel):

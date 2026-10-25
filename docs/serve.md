@@ -123,6 +123,7 @@ Every route that reads or writes data needs an access token. Only the health che
 | `ingest` | Send spans to `POST /v1/traces`. Give one to each Collector. |
 | `verdicts` | Send analyst verdicts to `POST /api/verdicts`. Give one to each tool that sends verdicts. |
 | `read` | Open the dashboard and read `/api/status` and `/api/results.json`. |
+| `label` | Call the routes that an app wrapping `serve` adds under `/api/ext/`. Optional: `tokens.label` may be left out. |
 
 Create a token with `detecttrace token`:
 
