@@ -1,5 +1,6 @@
 """The span tap: a wrapping app sees each span batch with its tool results, before the CE
-strips and stores it, and a failing tap never changes what the CE stores or answers."""
+strips and stores it. A failing tap never changes what the CE stores or answers; a tap that
+refuses the batch stores none of it, and the sender is told why."""
 
 import json
 import logging
@@ -14,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from detecttrace.conventions import TOOL_CALL_RESULT
 from detecttrace.model import Span
-from detecttrace.serve.app import create_app
+from detecttrace.serve.app import SpanBatchRefused, create_app
 from detecttrace.serve.store import Store
 from serve.app_support import INGEST_TOKEN, create_config
 
@@ -27,6 +28,10 @@ TOOL_RESULT_BODY = json.dumps(
 
 def fail_with_payload(spans: list[Span]) -> NoReturn:
     raise ValueError(f"payload {spans[0].attributes[TOOL_CALL_RESULT]}")
+
+
+def refuse(spans: list[Span]) -> NoReturn:
+    raise SpanBatchRefused("this batch is not accepted here")
 
 
 def create_client(
@@ -53,6 +58,11 @@ def recording_client(tmp_path: Path, app_store: Store, tapped: list[Span]) -> It
 @pytest.fixture
 def failing_client(tmp_path: Path, app_store: Store) -> Iterator[TestClient]:
     yield from create_client(tmp_path, app_store, fail_with_payload)
+
+
+@pytest.fixture
+def refusing_client(tmp_path: Path, app_store: Store) -> Iterator[TestClient]:
+    yield from create_client(tmp_path, app_store, refuse)
 
 
 def post(client: TestClient) -> httpx.Response:
@@ -95,3 +105,23 @@ def test_a_failing_taps_log_holds_no_payload(
     with caplog.at_level(logging.DEBUG):
         post(failing_client)
     assert "secret" not in caplog.text
+
+
+def test_a_refused_batch_is_answered_422(refusing_client: TestClient) -> None:
+    assert post(refusing_client).status_code == 422
+
+
+def test_a_refused_batch_is_told_the_taps_reason(refusing_client: TestClient) -> None:
+    assert post(refusing_client).json()["message"] == "this batch is not accepted here"
+
+
+def test_a_refused_batch_stores_no_span(refusing_client: TestClient, app_store: Store) -> None:
+    post(refusing_client)
+    assert app_store.read_inputs().spans == []
+
+
+def test_a_refused_batch_is_a_data_note(refusing_client: TestClient, app_store: Store) -> None:
+    post(refusing_client)
+    assert [stored.issue.detail for stored in app_store.read_inputs().issues] == [
+        "HTTP 422: this batch is not accepted here"
+    ]

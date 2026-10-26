@@ -111,6 +111,12 @@ class RouteError(Exception):
     """A wrapping app's route can't be mounted; the message is for the user."""
 
 
+class SpanBatchRefused(Exception):
+    """Raised by a span tap to refuse its whole batch: none of it is stored, and the sender
+    gets 422 with this message, which is also kept as a data note. It must not quote span
+    data."""
+
+
 def create_app(
     config: ServeConfig,
     store: Store,
@@ -125,8 +131,10 @@ def create_app(
 
     `read_status` gives the recompute's current state for `/api/status`. `on_spans` is called
     with each parsed span batch, tool results kept, before they are stripped and stored. It must
-    not change the spans: their attribute dicts are the ones that get stored. `page` replaces the
-    packaged dashboard page on the page shown before the first snapshot. `routes` are mounted as
+    not change the spans: their attribute dicts are the ones that get stored. It may raise
+    SpanBatchRefused to refuse the batch; any other exception is logged and the batch stored.
+    `page` replaces the packaged dashboard page on the page shown before the first snapshot.
+    `routes` are mounted as
     the module docstring says; RouteError refuses one outside `/api/ext/`, the bare prefix, or
     one whose path and method are mounted already, whatever its parameters are named.
     Internal: no stability promise. For wrappers that pin an exact version.
@@ -422,6 +430,9 @@ async def _receive_traces(
     except receiver.UnsupportedMediaType as error:
         on_write()
         return create_status_response(415, str(error))
+    except SpanBatchRefused as error:
+        on_write()
+        return create_status_response(422, str(error))
     except sqlite3.OperationalError:
         return create_unavailable_response()
     on_write()
@@ -547,14 +558,18 @@ def _store_traces(
         store.add_issues([_to_refusal_issue(415, str(error))])
         raise
     if on_spans is not None:
-        _call_span_tap(on_spans, spans)
+        _call_span_tap(store, on_spans, spans)
     store.add_spans([receiver.remove_tool_result(span) for span in spans], issues)
     return rejected, any(issue.kind is IssueKind.INVALID_FILE for issue in issues)
 
 
-def _call_span_tap(on_spans: Callable[[list[Span]], None], spans: list[Span]) -> None:
+def _call_span_tap(store: Store, on_spans: Callable[[list[Span]], None], spans: list[Span]) -> None:
     try:
         on_spans(spans)
+    # A refusal is the wrapper's answer about this batch, not a failure of its code.
+    except SpanBatchRefused as refusal:
+        store.add_issues([_to_refusal_issue(422, str(refusal))])
+        raise
     # Any failure: the tap is a wrapper's code, and CE ingest must not depend on it. Only the
     # type is logged, because the message or traceback can quote a tool result.
     except Exception as error:
