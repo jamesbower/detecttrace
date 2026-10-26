@@ -113,8 +113,8 @@ class RouteError(Exception):
 
 class SpanBatchRefused(Exception):
     """Raised by a span tap to refuse its whole batch: none of it is stored, and the sender
-    gets 422 with this message, which is also kept as a data note. It must not quote span
-    data."""
+    gets 422 with this message, which is also kept as a data note. Keep the message short,
+    fixed text: each distinct message becomes its own data note. It must not quote span data."""
 
 
 def create_app(
@@ -134,9 +134,9 @@ def create_app(
     not change the spans: their attribute dicts are the ones that get stored. It may raise
     SpanBatchRefused to refuse the batch; any other exception is logged and the batch stored.
     `page` replaces the packaged dashboard page on the page shown before the first snapshot.
-    `routes` are mounted as
-    the module docstring says; RouteError refuses one outside `/api/ext/`, the bare prefix, or
-    one whose path and method are mounted already, whatever its parameters are named.
+    `routes` are mounted as the module docstring says; RouteError refuses one outside
+    `/api/ext/`, the bare prefix, or one whose path and method are mounted already, whatever its
+    parameters are named.
     Internal: no stability promise. For wrappers that pin an exact version.
     """
     # No schema or docs pages: the API surface is not advertised to whoever can reach it. No

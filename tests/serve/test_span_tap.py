@@ -35,10 +35,13 @@ def refuse(spans: list[Span]) -> NoReturn:
 
 
 def create_client(
-    tmp_path: Path, store: Store, on_spans: Callable[[list[Span]], None]
+    tmp_path: Path, store: Store, writes: list[int], on_spans: Callable[[list[Span]], None]
 ) -> Iterator[TestClient]:
     app = create_app(
-        create_config(tmp_path / "detecttrace.db"), store, lambda: None, on_spans=on_spans
+        create_config(tmp_path / "detecttrace.db"),
+        store,
+        lambda: writes.append(1),
+        on_spans=on_spans,
     )
     with TestClient(app) as test_client:
         yield test_client
@@ -51,18 +54,20 @@ def tapped() -> list[Span]:
 
 
 @pytest.fixture
-def recording_client(tmp_path: Path, app_store: Store, tapped: list[Span]) -> Iterator[TestClient]:
-    yield from create_client(tmp_path, app_store, tapped.extend)
+def recording_client(
+    tmp_path: Path, app_store: Store, writes: list[int], tapped: list[Span]
+) -> Iterator[TestClient]:
+    yield from create_client(tmp_path, app_store, writes, tapped.extend)
 
 
 @pytest.fixture
-def failing_client(tmp_path: Path, app_store: Store) -> Iterator[TestClient]:
-    yield from create_client(tmp_path, app_store, fail_with_payload)
+def failing_client(tmp_path: Path, app_store: Store, writes: list[int]) -> Iterator[TestClient]:
+    yield from create_client(tmp_path, app_store, writes, fail_with_payload)
 
 
 @pytest.fixture
-def refusing_client(tmp_path: Path, app_store: Store) -> Iterator[TestClient]:
-    yield from create_client(tmp_path, app_store, refuse)
+def refusing_client(tmp_path: Path, app_store: Store, writes: list[int]) -> Iterator[TestClient]:
+    yield from create_client(tmp_path, app_store, writes, refuse)
 
 
 def post(client: TestClient) -> httpx.Response:
@@ -125,3 +130,8 @@ def test_a_refused_batch_is_a_data_note(refusing_client: TestClient, app_store: 
     assert [stored.issue.detail for stored in app_store.read_inputs().issues] == [
         "HTTP 422: this batch is not accepted here"
     ]
+
+
+def test_a_refused_batch_signals_one_write(refusing_client: TestClient, writes: list[int]) -> None:
+    post(refusing_client)
+    assert writes == [1]
